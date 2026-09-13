@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma client is generated from the schema
+/src/generated/
+
+# database dumps are operational data, not source
+/db-backups/
+
+# development server log
+dev-server.log
+
+# deployment package output
+/dist-hostinger/
+/backups/
+node_modules.zip

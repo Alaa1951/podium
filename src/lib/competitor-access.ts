@@ -1,0 +1,119 @@
+import "server-only";
+
+import { prisma } from "@/lib/prisma";
+import { createOtpChallenge } from "@/lib/otp";
+import { normalizeEmail } from "@/lib/security";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LETTING A COMPETITOR IN.
+//
+// A registered competitor has no password and never will: they gave an email
+// when they entered, and that is the whole credential. They ask for a code, it
+// arrives, and they are in — for a day, which is how long a competition and the
+// evening of arguing about the results actually lasts.
+//
+// The account is created on the way through rather than up front. Registering
+// 216 people would otherwise mean 216 dormant logins, most of which are never
+// used, and every one of them a thing that can be attacked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** How long a competitor stays signed in, in hours. */
+export const COMPETITOR_SESSION_HOURS = 24;
+
+/**
+ * The competitor rows this email belongs to, newest competition first.
+ *
+ * Matching on the registration rather than on an account is the point: the
+ * person has never signed in, so there is nothing else to match against.
+ */
+export async function findRegistrations(rawEmail: string) {
+  const email = normalizeEmail(rawEmail);
+  if (!email) return [];
+
+  return prisma.competitor.findMany({
+    where: { email },
+    orderBy: { team: { series: { competitionDate: "desc" } } },
+    select: {
+      id: true,
+      fullName: true,
+      userId: true,
+      team: {
+        select: {
+          id: true,
+          name: true,
+          paymentStatus: true,
+          series: { select: { id: true, name: true, slug: true, status: true } },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * The account this competitor signs in as, created the first time they ask.
+ *
+ * Every registration carrying the same email is linked to it, so a competitor
+ * who has entered three PODIUMs sees all three under one login rather than
+ * needing a different way in for each.
+ */
+export async function accountForCompetitor(rawEmail: string, fullName: string) {
+  const email = normalizeEmail(rawEmail);
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    if (existing.status === "disabled") return null;
+    await linkRegistrations(existing.id, email);
+    return existing;
+  }
+
+  // Active immediately: the emailed code IS the verification, so there is
+  // nothing further for an invitation to prove.
+  const created = await prisma.user.create({
+    data: {
+      email,
+      name: fullName,
+      role: "competitor",
+      status: "active",
+      emailVerified: new Date(),
+    },
+  });
+
+  await linkRegistrations(created.id, email);
+  return created;
+}
+
+/** Point every registration with this email at the account. */
+async function linkRegistrations(userId: string, email: string) {
+  await prisma.competitor.updateMany({
+    where: { email, userId: null },
+    data: { userId },
+  });
+}
+
+export type CodeRequest =
+  | { ok: true; code: string; name: string }
+  /** No registration, unpaid, or a disabled account — all silent to the caller. */
+  | { ok: false };
+
+/**
+ * Issue a sign-in code for a registered competitor.
+ *
+ * The caller is told nothing about why it failed. Whether an address competed
+ * in PODIUM is not something a stranger gets to test, so the screen says the
+ * same thing either way.
+ */
+export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest> {
+  const registrations = await findRegistrations(rawEmail);
+  if (registrations.length === 0) return { ok: false };
+
+  // Only a paid entry is a competitor. An unpaid registration has not been
+  // confirmed by anybody yet, and is not a way into the system.
+  const paid = registrations.filter((one) => one.team.paymentStatus === "paid");
+  if (paid.length === 0) return { ok: false };
+
+  const account = await accountForCompetitor(rawEmail, paid[0].fullName);
+  if (!account) return { ok: false };
+
+  const { code } = await createOtpChallenge({ userId: account.id, purpose: "login" });
+  return { ok: true, code, name: paid[0].fullName };
+}

@@ -1,0 +1,697 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE COMPONENT LAYER
+   ──────────────────────────────────────────────────────────────────────────
+   Every shared class in PODIUM: type, buttons, fields, tables, cards, badges,
+   and the board's rows.
+
+   The rule that decides most of what follows: THREE SURFACES, and they must be
+   told apart at a glance.
+
+     --bg               the page behind everything
+     --surface          a card, a table, a panel — one step up, with a border
+     --surface-sunken   a well inside a card: a toolbar, an expanded row
+
+   On a dark ground the difference between two greys is easy to lose, so every
+   raised thing carries a border as well as a lift. A card with no border on a
+   dark page is a card nobody can see the edge of, and a screen of those reads
+   as one grey soup.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Type ─────────────────────────────────────────────────────────────────── */
+.display {
+  font-family: var(--font-display), var(--font-heading), sans-serif;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* Numbers that sit in a column have to line up, always. */
+.num,
+.pd-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.eyebrow,
+.page-eyebrow {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.page-head {
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-title {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.05;
+  margin: 4px 0 0;
+}
+
+.page-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--text-secondary);
+  max-width: 70ch;
+}
+
+.section-title {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 26px 0 0;
+}
+
+.muted { color: var(--text-muted); }
+.secondary { color: var(--text-secondary); }
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────
+   One shape, four weights. Every one is visible without being hovered — a
+   button you have to find is not a button. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.btn-primary {
+  background: var(--podium-blue);
+  border-color: var(--podium-blue);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--podium-blue-bright);
+  border-color: var(--podium-blue-bright);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-hover); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+
+.btn-cyan {
+  background: var(--bft-cyan);
+  border-color: var(--bft-cyan);
+  color: #04212a;
+}
+.btn-cyan:hover:not(:disabled) { filter: brightness(1.08); }
+
+/* The blue twin of btn-cyan-outline, for the auth screens where Electric Blue
+   is the brand of the page. Text reads the pale ramp step on dark grounds. */
+.btn-primary-outline {
+  background: transparent;
+  border-color: var(--podium-blue-bright);
+  color: var(--podium-blue-text);
+}
+.btn-primary-outline:hover:not(:disabled) { background: var(--color-accent-100); }
+
+.btn-cyan-outline {
+  background: transparent;
+  border-color: var(--bft-cyan);
+  color: var(--bft-cyan);
+}
+.btn-cyan-outline:hover:not(:disabled) { background: var(--bft-cyan-soft); }
+
+/* On the auth shell and the board, which have their own ground. */
+.btn-on-dark {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--on-navy);
+}
+.btn-on-dark:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+
+/* For the one action that cannot be taken back. */
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+
+.btn-block { display: flex; width: 100%; }
+.btn-sm { height: 30px; padding: 0 11px; font-size: 12px; }
+
+/* ── Chips: a filter you can press ────────────────────────────────────────── */
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.chip {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.chip:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text); }
+.chip:disabled { opacity: 0.45; cursor: default; }
+.chip[data-active] {
+  background: var(--podium-blue);
+  border-color: var(--podium-blue);
+  color: #fff;
+}
+
+.chip-sm {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip-sm:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.chip-sm:disabled { opacity: 0.45; cursor: default; }
+.chip-sm[data-active] {
+  background: var(--bft-cyan);
+  border-color: var(--bft-cyan);
+  color: var(--bft-ink);
+}
+
+/* On the board's own ground. */
+.chip-dark {
+  border-color: var(--board-border-strong);
+  background: var(--board-raised);
+  color: var(--board-text-muted);
+}
+.chip-dark:hover:not(:disabled) { color: var(--board-text); }
+.chip-dark[data-active] {
+  background: var(--podium-blue);
+  border-color: var(--podium-blue);
+  color: #fff;
+}
+
+/* ── Fields ───────────────────────────────────────────────────────────────
+   A field is a box. Without a visible box the label runs into the value and
+   a form becomes a paragraph. */
+.input {
+  display: block;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.input::placeholder { color: var(--text-muted); }
+.input:hover:not(:disabled) { border-color: var(--text-muted); }
+.input:focus {
+  outline: none;
+  border-color: var(--bft-cyan);
+  box-shadow: var(--shadow-focus);
+}
+.input:disabled { opacity: 0.6; cursor: default; }
+
+textarea.input { height: auto; min-height: 88px; padding: 10px 12px; resize: vertical; }
+select.input { cursor: pointer; }
+
+.input-dark {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--on-navy);
+}
+.input-dark::placeholder { color: var(--on-navy-faint); }
+
+.field-label {
+  display: block;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.field-label-dark {
+  display: block;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-navy-muted);
+  margin-bottom: 6px;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+.card,
+.blueprint {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+
+.card-kicker {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bft-cyan);
+  margin-bottom: 8px;
+}
+
+.card-title {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────
+   Rules between rows, a sunken head, and a border round the whole thing, so a
+   table is an object on the page rather than text that happens to line up. */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  text-align: start;
+  padding: 10px 14px;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-strong);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover td { background: var(--surface-hover); }
+
+/* ── Badges and tags ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.badge-neutral { background: var(--surface-sunken); color: var(--text-secondary); }
+.badge-cyan { background: var(--bft-cyan-soft); color: var(--bft-cyan-text); }
+.badge-ok { background: rgba(22, 163, 74, 0.18); color: var(--status-ok-text); }
+.badge-warn { background: rgba(217, 119, 6, 0.18); color: var(--status-warn-text); }
+.badge-danger { background: rgba(220, 38, 38, 0.18); color: var(--status-danger-text); }
+.badge-blue { background: var(--color-accent-100); color: var(--status-blue-text); }
+
+/* ── The MM:SS box ────────────────────────────────────────────────────────
+   Two inputs drawn as one control, because that is how the finisher is
+   written on the judge's sheet. The spinners come off: a clock is typed. */
+.clock-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  font-size: 22px;
+}
+.clock-field[data-size="sm"] { font-size: 15px; padding: 0 5px; }
+.clock-field:focus-within {
+  border-color: var(--bft-cyan);
+  box-shadow: var(--shadow-focus);
+}
+.clock-field[data-disabled] { opacity: 0.55; }
+
+.clock-field-half {
+  width: 2.4em;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.clock-field-half:focus { outline: none; }
+.clock-field-half::-webkit-outer-spin-button,
+.clock-field-half::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.clock-field-half { appearance: textfield; -moz-appearance: textfield; }
+
+.clock-field-colon { color: var(--text-muted); }
+
+/* ── The score sheet ──────────────────────────────────────────────────────
+   Every team on one table, the way the franchise manual enters scores. Dense
+   on purpose: the person reading judges' sheets works straight down it. */
+.score-grid th { vertical-align: bottom; }
+.score-grid td { vertical-align: top; }
+
+.grid-head-zone {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+}
+.grid-head-name { display: block; }
+
+.grid-team {
+  display: block;
+  text-align: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.grid-team-name {
+  display: block;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.grid-team-people { display: block; font-size: 12px; color: var(--text-secondary); }
+.grid-team-bracket {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.grid-zone-fields { display: flex; gap: 4px; flex-wrap: wrap; }
+.grid-input { width: 68px; padding: 6px 6px; text-align: end; }
+
+.grid-zone-pts {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: end;
+}
+
+.grid-total {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  text-align: end;
+}
+.grid-rank { text-align: end; color: var(--text-secondary); }
+
+/* The one-team card, opened beneath its row. Sunken, so it reads as being
+   inside the sheet rather than as a second screen on top of it. */
+.grid-expanded {
+  background: var(--surface-sunken);
+  box-shadow: inset 3px 0 0 var(--podium-blue);
+  padding: 18px 20px;
+}
+
+.score-grid tr[data-submitted] .grid-total { color: var(--bft-cyan); }
+
+@media (max-width: 900px) {
+  .grid-input { width: 56px; }
+}
+
+/* ── A form laid out in columns ───────────────────────────────────────────
+   Used wherever a handful of short fields belong together. It reflows to one
+   column on a phone without anything having to say so. */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.form-grid label { display: block; }
+
+.field-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.studio-editor-person { margin-top: 16px; }
+
+/* ── Wave assignment ──────────────────────────────────────────────────────
+   One card per wave: who is in it, when it runs, and how full it is. */
+.wave-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.wave-card-number {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 24px;
+  text-transform: uppercase;
+}
+
+.wave-card-window {
+  font-size: 15px;
+  color: var(--podium-blue-text);
+  letter-spacing: 0.08em;
+}
+
+.wave-card-fill {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-inline-start: auto;
+  color: var(--text-secondary);
+}
+.wave-card-fill[data-over] { color: var(--danger); font-weight: 700; }
+
+.wave-card-settings {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wave-card-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.wave-card-empty { padding: 12px 0; font-size: 13px; color: var(--text-muted); }
+
+/* ── A score's history ────────────────────────────────────────────────────
+   Who changed what, and when. Kept to one line each: it is read to settle a
+   question, not browsed. */
+.audit-lines { list-style: none; margin: 8px 0 0; padding: 0; }
+.audit-lines li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.audit-lines li > span:first-child { color: var(--text-muted); font-size: 12px; }
+.audit-lines li > span:last-child { margin-inline-start: auto; }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tag-outline { border: 1px solid var(--bft-cyan); color: var(--bft-cyan); }
+.tag-outline-muted { border: 1px solid var(--border-strong); color: var(--text-muted); }
+
+/* ── Notices ──────────────────────────────────────────────────────────────
+   A coloured rail rather than a wash: it reads as a note on the page, not as
+   a page that has changed colour. */
+.notice {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--bft-cyan);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.notice strong { color: var(--text); }
+
+.notice-warn {
+  border-inline-start-color: var(--warn);
+  background: rgba(217, 119, 6, 0.08);
+}
+.notice-error {
+  border-inline-start-color: var(--danger);
+  background: rgba(220, 38, 38, 0.09);
+  color: var(--status-danger-text);
+  padding: 12px 14px;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-inline-start: 3px solid var(--danger);
+  border-radius: var(--r-sm);
+  font-size: 14px;
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+  flex: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.rise { animation: rise 0.28s ease both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.pulse { animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2s; }
+  .rise,
+  .pulse { animation: none; }
+}
+
+/* ── The console's sidebar context block ──────────────────────────────────
+   Where you are, and the way back out. It sits between the wordmark and the
+   sections, so it needs its own weight without competing with either. */
+.console-context {
+  padding: 12px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.console-crumbs { margin-bottom: 6px; }
+.console-crumbs a {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bft-cyan);
+  text-decoration: none;
+}
+.console-crumbs a:hover { text-decoration: underline; }
+
+.console-context-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.console-context-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* The status chip that sits at the top of a competition card. */
+.series-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Pushes whatever follows it to the far end of a flex row. */
+.push { margin-inline-start: auto; }
+
+/* Category and division on a team row. Two badges rather than one string:
+   they are two different questions — who is competing, and at what level —
+   and the judges set the loads from the second. */
+.team-row-bracket {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}

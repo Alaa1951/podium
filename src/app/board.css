@@ -1,0 +1,425 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE BOARD ON THE WALL
+   ──────────────────────────────────────────────────────────────────────────
+   Read from across a gym, by people who are out of breath. Everything here is
+   bigger, higher-contrast and slower-moving than the console, and the three
+   places that matter carry metal.
+   ══════════════════════════════════════════════════════════════════════ */
+.board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(7, 7, 61, 0.6) 0%, transparent 58%),
+    var(--board-bg);
+  color: var(--board-text);
+}
+
+/* ── One team's row ───────────────────────────────────────────────────────
+   A raised slab with a metal edge on the podium places. The edge is what
+   carries across a room; a coloured number does not. */
+.board-row {
+  /* The grid is the row: disc, team, studio, score. It went missing once and
+     every row collapsed into a vertical pile — so it is declared here, on the
+     row itself, not left to whoever wraps it. */
+  display: grid;
+  gap: clamp(8px, 1vw, 14px);
+  background: var(--board-row);
+  border: 1px solid var(--board-border);
+  border-inline-start: 3px solid transparent;
+  border-radius: var(--r-sm);
+  align-items: center;
+  transition: background 0.2s ease;
+}
+.board-row:hover { background: var(--board-row-hover); }
+
+.board-row[data-rank="1"] {
+  border-inline-start-color: var(--gold);
+  background: linear-gradient(90deg, var(--gold-glow), var(--board-row) 38%);
+  box-shadow: 0 0 24px rgba(201, 162, 39, 0.16);
+}
+.board-row[data-rank="2"] {
+  border-inline-start-color: var(--silver);
+  background: linear-gradient(90deg, rgba(185, 188, 192, 0.13), var(--board-row) 38%);
+}
+.board-row[data-rank="3"] {
+  border-inline-start-color: var(--bronze);
+  background: linear-gradient(90deg, rgba(208, 138, 78, 0.13), var(--board-row) 38%);
+}
+
+.board-head-row {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+
+.board-row-studio { color: var(--board-text-muted); font-size: 13px; }
+.board-row-studio-inline { color: var(--board-text-muted); font-size: 11px; }
+
+/* The rank itself: a disc, so it reads as a position rather than a number. */
+.rank-disc {
+  width: clamp(30px, 3vw, 40px);
+  height: clamp(30px, 3vw, 40px);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--board-text);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(13px, 1.4vw, 16px);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.rank-disc[data-rank="1"] { background: var(--gold); color: var(--bft-ink); }
+.rank-disc[data-rank="2"] { background: var(--silver); color: var(--bft-ink); }
+.rank-disc[data-rank="3"] { background: var(--bronze); color: var(--bft-ink); }
+
+/* ── The operator board's grid ───────────────────────────────────────────── */
+.zone-grid,
+.zone-row { display: grid; align-items: center; }
+
+.zone-col {
+  font-variant-numeric: tabular-nums;
+}
+
+/* On a narrow screen the zone columns go first — the total is what matters. */
+@media (max-width: 1024px) {
+  .running-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 720px) {
+  .zone-col { display: none !important; }
+  .zone-grid,
+  .zone-row { grid-template-columns: auto minmax(0, 1fr) auto !important; }
+}
+
+/* ── The wall screen's frame ──────────────────────────────────────────────
+   One brand bar across the top, in the flow: the wordmark on the left, and it
+   is the only way out — so it has to be findable without being loud. The board
+   fills everything below it, which is what keeps the big title from ever
+   landing on the mark. */
+.board-frame {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--board-bg);
+}
+
+.board-frame-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: clamp(14px, 2vw, 22px) clamp(16px, 3vw, 34px) 0;
+}
+
+.board-frame-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+.board-frame-mark:hover { opacity: 1; }
+
+/* Pushes the way out to the far end of the bar, away from the wordmark. */
+.board-frame-signout { margin-inline-start: auto; }
+
+.board-frame-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.board-frame-body > .board { flex: 1; }
+
+.board-frame-hint {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  padding: 5px 10px;
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-pill);
+}
+.board-frame-mark:hover .board-frame-hint {
+  color: var(--board-text);
+  border-color: var(--bft-cyan);
+}
+
+/* ── The controls above the ranking ───────────────────────────────────────
+   Bracket, studio, search. One shared gutter with the rest of the board, so
+   nothing on the wall is ever a few pixels out from the row beneath it. */
+.board-brackets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 clamp(16px, 4vw, 40px) clamp(12px, 2vw, 16px);
+}
+
+.board-filters {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 clamp(16px, 4vw, 40px) clamp(14px, 2vw, 18px);
+}
+/* One column on a phone: the studio drops under the search. */
+@media (max-width: 720px) {
+  .board-filters { grid-template-columns: 1fr; }
+}
+
+.board-foot {
+  margin-top: auto;
+  border-top: 1px solid var(--board-border);
+  padding: clamp(18px, 3vw, 26px) clamp(16px, 4vw, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.board-foot span {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(9px, 1vw, 11px);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+
+/* ── The operator board's header ──────────────────────────────────────────
+   The bracket on the left at wall size, the two figures that matter on the
+   right. Everything here is clamped rather than fixed: the same markup is read
+   from ten metres away and on a phone in the gym. */
+.board-head {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 3vw, 32px);
+  flex-wrap: wrap;
+  padding: clamp(16px, 3vw, 26px) clamp(16px, 3vw, 36px) clamp(14px, 2vw, 18px);
+  border-bottom: 1px solid var(--board-border-strong);
+}
+
+.board-head-title {
+  font-size: clamp(28px, 5vw, 72px);
+  margin: 0;
+  color: var(--board-text);
+  overflow-wrap: break-word;
+}
+
+.board-head-series {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(10px, 1.1vw, 12px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  margin-top: 6px;
+}
+.board-head-series i { font-style: normal; color: var(--podium-blue); }
+
+.board-head-stats {
+  margin-inline-start: auto;
+  display: flex;
+  gap: clamp(16px, 2.4vw, 30px);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.board-head-clock {
+  border-inline-start: 1px solid var(--board-border-strong);
+  padding-inline-start: clamp(14px, 2vw, 24px);
+}
+.board-head-clock .display {
+  font-size: clamp(30px, 4vw, 58px);
+  color: var(--board-text);
+}
+.board-head-clock[data-idle] .display { opacity: 0.55; }
+
+/* ── The floor panel ──────────────────────────────────────────────────────
+   What is happening right now, beside the ranking. Its head is the one solid
+   blue block on the board, so the eye finds it from across the room. */
+.floor-panel {
+  min-width: 0;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--board-border);
+  background: var(--board-raised);
+  overflow: hidden;
+  align-self: start;
+}
+
+.floor-panel-head { padding: 14px 16px; background: var(--podium-blue-deep); }
+
+.floor-panel-kicker {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.floor-panel-wave {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 2px;
+}
+.floor-panel-wave .display { font-size: clamp(22px, 2.4vw, 32px); color: #fff; }
+.floor-panel-wave .display.num {
+  font-size: clamp(18px, 2vw, 26px);
+  margin-inline-start: auto;
+}
+
+.floor-panel-count {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 2px;
+}
+
+.floor-panel-rows { display: flex; flex-direction: column; }
+.floor-panel-empty { padding: 18px 16px; font-size: 13px; color: var(--board-text-muted); }
+
+/* ── The operator board's layout ──────────────────────────────────────────
+   The ranking beside the floor panel, the column head above it, and the
+   formula legend along the bottom. (The responsive rules for .running-grid
+   and .zone-col are further up this file — they used to be duplicated in an
+   inline <style> tag inside the component as well.) */
+.running-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(230px, 24%, 330px);
+  gap: clamp(14px, 2vw, 22px);
+  align-items: start;
+  padding: clamp(14px, 2vw, 20px) clamp(16px, 3vw, 36px) clamp(24px, 4vw, 36px);
+  flex: 1;
+}
+
+.zone-head {
+  gap: 12px;
+  padding: 0 16px 10px;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+
+.board-legend {
+  margin-top: auto;
+  display: flex;
+  gap: clamp(14px, 3vw, 34px);
+  flex-wrap: wrap;
+  padding: clamp(14px, 2vw, 20px) clamp(16px, 3vw, 36px);
+  border-top: 1px solid var(--board-border);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(9px, 0.9vw, 11px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.board-legend > span:last-child { margin-inline-start: auto; }
+
+.board-pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px 0;
+}
+.board-pager > div:last-child { display: flex; gap: 6px; margin-inline-start: auto; }
+
+.board-empty {
+  padding: clamp(40px, 8vw, 72px) 18px;
+  text-align: center;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(13px, 1.6vw, 16px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+
+/* ── The sponsor strip ────────────────────────────────────────────────────
+   The last band on the wall screen, taken from the approved reference: an
+   "official partners" label, a rail of sponsor marks where one is spotlighted
+   at a time, and the program mark closing the row. The slots are always drawn
+   — empty as dashed placeholders — so the wall shows sponsors where they will
+   live, and a logo only needs uploading to appear. */
+.sponsor-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(14px, 2vw, 26px);
+  padding: clamp(12px, 1.6vw, 18px) clamp(16px, 4vw, 40px);
+  border-top: 1px solid rgba(242, 242, 243, 0.25);
+}
+
+.sponsor-bar-label {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(10px, 0.8vw, 12px);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-accent-300);
+  white-space: nowrap;
+}
+
+.sponsor-track {
+  position: relative;
+  height: clamp(72px, 7vw, 96px);
+  overflow: hidden;
+}
+
+.sponsor-rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sponsor-slot {
+  width: clamp(130px, 11vw, 170px);
+  height: clamp(46px, 4.4vw, 56px);
+  flex: none;
+  display: grid;
+  place-items: center;
+  transform-origin: center;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease;
+  opacity: 0.42;
+  transform: scale(0.88);
+}
+.sponsor-slot[data-on] { opacity: 1; transform: scale(1.5); }
+
+/* Until a logo is uploaded: a dashed frame that says what belongs here. */
+.sponsor-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--board-border-strong);
+  border-radius: var(--r-sm);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(8px, 0.7vw, 10px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.sponsor-slot[data-on] .sponsor-placeholder {
+  border-color: var(--bft-cyan);
+  color: var(--bft-cyan-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sponsor-rail,
+  .sponsor-slot { transition: none; }
+}

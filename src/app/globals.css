@@ -1,26 +1,1552 @@
 @import "tailwindcss";
 
+/* The shared component classes, and the board on the wall. Separate files so
+   each is a readable length and so a change to one cannot silently take the
+   other with it — which is exactly how they were lost once. */
+@import "./ui.css";
+@import "./board.css";
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PODIUM — BFT MENA design system
+   ──────────────────────────────────────────────────────────────────────────
+   ONE SURFACE, one brand.
+
+   PODIUM is a competition, and it looks like one everywhere: an indigo-black
+   ground, an electric blue that is nearly violet, cyan for the labels that
+   name things, and medal metal for the only three places that matter. That is
+   BFT's own PODIUM board, and it is now the whole product rather than one
+   screen of it — the operator's console and the board on the wall are the
+   same world, at different brightness.
+
+   Dark is the default because the board is dark and the console lives beside
+   it. Light remains a full, first-class theme for anyone working in daylight:
+   every value below is a token, and the light theme redefines the same tokens
+   rather than introducing any of its own.
+   ══════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Brand ─────────────────────────────────────────────────────────────
+     These are not chosen values. They are the two official brand colours,
+     lifted from the PODIUM Series #1 Event Playbook (the colour page):
+
+       PODIUM ELECTRIC BLUE   #0000FF   PANTONE 2728C   R0 G0 B255
+                              — for PODIUM Event only
+       BFT BLUE               #00B5CC   PANTONE 3125C   R0 G181 B204
+                              — for PODIUM Program only
+
+     so that a MENA screen sitting next to an International one is the same
+     blue, not a near miss. Do not "improve" either value. */
+  --bft-cyan: #00b5cc;
+  --bft-cyan-soft: rgba(0, 181, 204, 0.15);
+  --bft-ink: #231f20;
+
+  /* Electric Blue — the PODIUM event brand: pure blue, no red or green in it
+     at all. It is the loudest thing on the page on purpose. */
+  --podium-blue: #0000ff;
+  --podium-blue-bright: #3b3bff;
+  --podium-blue-deep: #0000c2;
+  --podium-glow: rgba(0, 0, 255, 0.45);
+  --podium-navy: #07073d;
+
+  /* Medal metals — the only other colours allowed to carry meaning. */
+  --gold: #c9a227;
+  --gold-glow: rgba(201, 162, 39, 0.28);
+  --silver: #b9bcc0;
+  --bronze: #d08a4e;
+
+  /* Status */
+  --warn: #d97706;
+  --danger: #dc2626;
+  /* Red that stays readable on the fixed navy grounds (sign-in, error pages),
+     where --danger itself is too dark against #000094. */
+  --danger-bright: #f87171;
+
+  /* Text over the status tints. The dark theme reads pale text on a dark wash;
+     the light theme darkens each of these (below), because pale text on a
+     white wash is invisible. */
+  --status-ok-text: #4ade80;
+  --status-warn-text: #fbbf24;
+  --status-danger-text: var(--danger-bright);
+  --status-blue-text: var(--color-accent-300);
+
+  /* Brand colours as TEXT on a themed ground. Pure #0000ff text fails on the
+     dark surface (about 2:1), so the dark theme reads the pale step of the
+     ramp and the light theme reads the brand value itself. */
+  --podium-blue-text: var(--color-accent-300);
+  --bft-cyan-text: var(--bft-cyan);
+
+  /* The grounds that never follow the theme — the sign-in shell and the error
+     pages — read from these instead of hand-typed whites. They must never be
+     redefined by the light theme. */
+  --on-navy: #f2f2f3;
+  --on-navy-strong: rgba(242, 242, 243, 0.85);
+  --on-navy-secondary: rgba(242, 242, 243, 0.75);
+  --on-navy-muted: rgba(242, 242, 243, 0.6);
+  --on-navy-faint: rgba(242, 242, 243, 0.45);
+
+  /* ── The surface — PODIUM's own ground ────────────────────────────────
+     These nine tokens are the whole theme. Every screen is built from them
+     and nothing hard-codes a grey, so the light theme is a matter of
+     redefining them once, below. */
+  --bg: #0a0a12;
+  --surface: #14141f;
+  --surface-sunken: #101018;
+  --surface-hover: #1e1e2c;
+
+  --text: #f2f2f3;
+  --text-secondary: #b7b8c4;
+  --text-muted: #85879a;
+
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.20);
+
+  color-scheme: dark;
+
+  /* ── The board surface ────────────────────────────────────────────────
+     The same family as the app above, half a step deeper: the wall screen and
+     the laptop beside it are one scene, not two designs that happen to share a
+     logo. Near-black with the same blue cast as --bg, so inside and outside
+     read as one world — still dark enough that a coloured ground never steals
+     contrast from the blue and the medal metals across a gym. */
+  --board-bg: #07070d;
+  --board-raised: #0e0e16;
+  --board-row: #121219;
+  --board-row-hover: #1c1c26;
+  --board-border: rgba(255, 255, 255, 0.08);
+  --board-border-strong: rgba(255, 255, 255, 0.17);
+  --board-text: #f2f2f3;
+  --board-text-muted: #85879a;
+
+  /* ── Type ──────────────────────────────────────────────────────────────
+     --font-display  DIN Condensed Bold — board titles, ranks, totals
+     --font-heading  D-DIN — interface headings, labels, buttons
+     --font-brand    Futura Extra Bold — the heaviest brand moments
+     --font-body     Roboto — body copy and tables
+     The variables themselves are injected by next/font (src/lib/fonts.ts). */
+
+  /* ── Shape ─────────────────────────────────────────────────────────────── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* ── Elevation — light, layered, never heavy ──────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px rgba(0, 181, 204, 0.30);
+
+  /* Layout constants shared between CSS and layouts. */
+  --app-bar-h: 60px;
+  --sidebar-w: 248px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ── The LIGHT theme ───────────────────────────────────────────────────────
+   For daylight, a projector, or anyone who simply prefers it. Every value is
+   a redefinition of a token from :root — nothing new is introduced, so no
+   screen can be dark-only by accident.
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+   Three states, deliberately: an explicit choice wins in either direction,
+   and with no choice the operating system decides.
+   ──────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f5f9;
+    --surface: #ffffff;
+    --surface-sunken: #f0f0f5;
+    --surface-hover: #eaeaf2;
+
+    --text: #14141f;
+    --text-secondary: #4a4a5c;
+    --text-muted: #82849a;
+
+    --border: #e4e4ee;
+    --border-strong: #ccccdc;
+
+    --bft-cyan-soft: #e0f8fb;
+    --bft-cyan-text: #05707f;
+    --podium-blue-text: var(--podium-blue);
+    --status-ok-text: #166534;
+    --status-warn-text: #854d0e;
+    --status-danger-text: #b91c1c;
+    --status-blue-text: var(--podium-blue-deep);
+
+    --shadow-xs: 0 1px 2px rgba(16, 18, 23, 0.05);
+    --shadow-sm: 0 1px 3px rgba(16, 18, 23, 0.07), 0 1px 2px rgba(16, 18, 23, 0.04);
+    --shadow-md: 0 4px 12px rgba(16, 18, 23, 0.07), 0 2px 4px rgba(16, 18, 23, 0.04);
+    --shadow-lg: 0 12px 32px rgba(16, 18, 23, 0.10), 0 4px 8px rgba(16, 18, 23, 0.04);
+
+    color-scheme: light;
   }
 }
 
+:root[data-theme="light"] {
+  --bg: #f5f5f9;
+  --surface: #ffffff;
+  --surface-sunken: #f0f0f5;
+  --surface-hover: #eaeaf2;
+
+  --text: #14141f;
+  --text-secondary: #4a4a5c;
+  --text-muted: #82849a;
+
+  --border: #e4e4ee;
+  --border-strong: #ccccdc;
+
+  --bft-cyan-soft: #e0f8fb;
+  --bft-cyan-text: #05707f;
+  --podium-blue-text: var(--podium-blue);
+  --status-ok-text: #166534;
+  --status-warn-text: #854d0e;
+  --status-danger-text: #b91c1c;
+  --status-blue-text: var(--podium-blue-deep);
+
+  --shadow-xs: 0 1px 2px rgba(16, 18, 23, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 18, 23, 0.07), 0 1px 2px rgba(16, 18, 23, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 18, 23, 0.07), 0 2px 4px rgba(16, 18, 23, 0.04);
+  --shadow-lg: 0 12px 32px rgba(16, 18, 23, 0.10), 0 4px 8px rgba(16, 18, 23, 0.04);
+
+  color-scheme: light;
+}
+
+/* ── The accent ramp ──────────────────────────────────────────────────────
+   One ladder built from --podium-blue, for the places that need a step either
+   side of it: a selected row's tint, readable text on a deep blue panel, the
+   brand panel itself.
+
+   Only the pale tint differs between themes — on a dark ground it has to be
+   translucent to sit on whatever is beneath it, on a light one it is a solid
+   wash. The blue steps themselves do not move: the brand blue is the brand
+   blue in daylight too.
+
+   (700/800/900 used to be defined for the light theme only, and 100/300/400
+   not at all — so the sign-in panel and the error pages were painting with
+   undefined variables.) */
+:root {
+  --color-accent-100: rgba(0, 0, 255, 0.16);
+  --color-accent-300: #9a9aff;
+  --color-accent-400: #6b6bff;
+  /* 700 used to restate the brand blue as a literal; it is an alias now, so
+     the brand blue has exactly one definition to be corrected in. */
+  --color-accent-700: var(--podium-blue);
+  --color-accent-900: #000094;
+}
+
+:root[data-theme="light"] { --color-accent-100: #e7e7ff; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --color-accent-100: #e7e7ff; }
+}
+
+/* ── Theme-aware brand marks ──────────────────────────────────────────────
+   The wordmark exists as artwork for a light ground and for a dark one. Both
+   are rendered and CSS picks; inverting one would shift its colour and is not
+   a thing to do to somebody's logo. The console sidebar picks this way, since
+   its surface follows the theme — grounds that never move (the sign-in shell,
+   the board) pass an explicit tone to <PodiumMark> instead. `system` with no
+   stored choice is handled by the media query, an explicit choice by the
+   attribute — both directions, so a light choice on a dark OS still shows the
+   light-ground mark. */
+.mark-on-dark { display: none; }
+.mark-on-light { display: inline-flex; }
+
+:root[data-theme="dark"] .mark-on-dark { display: inline-flex; }
+:root[data-theme="dark"] .mark-on-light { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mark-on-dark { display: inline-flex; }
+  :root:not([data-theme="light"]) .mark-on-light { display: none; }
+}
+
+/* ── The base face ────────────────────────────────────────────────────────
+   Roboto carries every piece of copy that does not ask for its own face — the
+   interface headings, labels and buttons all request D-DIN explicitly, and
+   the board asks for DIN Condensed. The fallbacks matter: Roboto has no
+   Arabic, and the ar locale is first-class, so Arabic copy falls through to
+   the system's Arabic faces. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ── The wave rack ────────────────────────────────────────────────────────
+   Every wave of the day as its own card with its own clock and its own START.
+   Several can be running at once, so the running state has to be readable at
+   a glance across a row of them rather than being implied by a single clock. */
+.wave-rack {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.wave-rack-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.wave-rack-state {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wave-rack-tally {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wave-rack-msg { margin: 0; font-size: 13px; padding: 7px 10px; }
+
+.wave-rack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.wave-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  padding: 13px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* The wave on the floor is the one the room is asking about. */
+.wave-card.is-running {
+  background: var(--surface);
+  border-color: var(--bft-cyan);
+  box-shadow: 0 0 0 1px var(--bft-cyan) inset;
+}
+.wave-card.is-complete { opacity: 0.78; }
+
+.wave-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wave-card-no { display: flex; align-items: baseline; gap: 6px; }
+
+.wave-card-no-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wave-card-no-value {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.wave-card-clock {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.wave-card-clock[data-running="true"] { color: var(--text); }
+
+.wave-card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.wave-card-meta dt {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wave-card-meta dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.wave-card-meta dd[data-warn] { color: var(--danger); }
+
+.wave-card-warn { margin: 0; font-size: 12px; color: var(--danger); }
+
+.wave-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.wave-card-actions .btn { font-size: 12px; padding: 0 11px; height: 32px; }
+
+/* A badge for something happening right now, with a pulse so it reads as live
+   rather than as a label that happens to be coloured. */
+.badge-live { background: var(--bft-cyan-soft); color: var(--bft-cyan-text); }
+.badge-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-live::before { animation: none; }
+}
+
+/* The rotating floor panel's page indicator: which running wave is on show. */
+.floor-pips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.floor-pip {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+.floor-pip[data-on] { background: var(--bft-cyan); color: var(--bft-ink); }
+.floor-pips-note {
+  margin-inline-start: auto;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── The console shell ──────────────────────────────────────────────────────
+   A fixed sidebar and one scrolling column of work. The event is a control
+   at the top of the sidebar rather than a path segment, because which round
+   you are looking at is a filter — not a different application. */
+.console {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.console-nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 14px;
+  background: var(--surface);
+  border-inline-end: 1px solid var(--border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.console-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.console-event { padding: 0 4px; }
+
+.console-groups { display: flex; flex-direction: column; gap: 16px; }
+.console-group { display: flex; flex-direction: column; gap: 1px; }
+
+.console-group-title {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: 0 8px 5px;
+}
+
+.console-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.console-link:hover { background: var(--surface-hover); color: var(--text); }
+
+/* A section that exists but is not open yet — the public results of an event
+   BFT MENA has not published. Visible, so nobody has to remember it, and dim
+   so it clearly is not a door. */
+.console-link[data-locked] { opacity: 0.45; cursor: default; }
+
+/* The current section, marked by a cyan rail rather than a block of colour —
+   it stays legible in both themes and does not shout over the content. */
+.console-link[data-active] {
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--bft-cyan);
+}
+
+.console-link-label { flex: 1; min-width: 0; }
+
+.console-link-badge {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+}
+.console-link[data-active] .console-link-badge { background: var(--surface); }
+
+.console-utilities {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.console-main { min-width: 0; }
+
+.console-burger { display: none; }
+.console-scrim { display: none; }
+
+@media (max-width: 900px) {
+  .console { grid-template-columns: minmax(0, 1fr); }
+
+  .console-burger {
+    display: inline-flex;
+    position: fixed;
+    inset-block-start: 12px;
+    inset-inline-start: 12px;
+    z-index: 60;
+  }
+
+  .console-nav {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 70;
+    width: 264px;
+    transform: translateX(-110%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
+  }
+  [dir="rtl"] .console-nav { transform: translateX(110%); }
+  .console-nav[data-open] { transform: translateX(0); }
+
+  .console-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  /* Room for the button that opens the drawer. */
+  .console-main { padding-top: 54px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-nav { transition: none; }
+}
+
+/* ── A page inside the board ───────────────────────────────────────────── */
+.screen { padding: 26px 28px 70px; max-width: 1280px; }
+
+.screen-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.screen-head h1 {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.05;
+  margin: 0;
+}
+.screen-head p { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); max-width: 70ch; }
+.screen-head-actions { margin-inline-start: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Figures ───────────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
+}
+a.stat-card:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.stat-value {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.stat-note { font-size: 12px; color: var(--text-secondary); }
+
+/* A thin bar under a figure, for "how much of the whole is this". */
+.stat-bar {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.stat-bar > i { display: block; height: 100%; background: var(--bft-cyan); }
+
+/* ── The registered list ──────────────────────────────────────────────────
+   One row per pair, expanding into contact details and the payment action.
+   Only a paid registration reaches the board, so an unpaid row is marked —
+   quietly, with a rail rather than a wash of colour, because "unpaid" is a
+   normal state on the morning of an event and not an error. */
+.reg-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.reg-filters-count {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.reg-table td { vertical-align: top; }
+.reg-table tr[data-unpaid] td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+
+.reg-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.reg-person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.reg-person + .reg-person { margin-top: 4px; }
+
+.reg-detail > td { background: var(--surface-sunken); padding: 16px; }
+
+.reg-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 22px;
+}
+
+.reg-facts { margin: 8px 0 0; display: grid; gap: 6px; }
+.reg-facts dt {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.reg-facts dd { margin: 0; font-size: 13px; font-weight: 500; }
+
+/* A button that reads as a link — used where the affordance is "open this", */
+/* not "submit something". */
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+  text-decoration: underline;
+  text-decoration-color: var(--bft-cyan);
+  text-underline-offset: 3px;
+}
+.linkish:hover { color: var(--podium-blue-text); }
+.linkish:disabled { cursor: default; opacity: 0.6; }
+
+/* ── Forms inside the admin board ─────────────────────────────────────────
+   A block per real-world thing being described (the entry, each competitor,
+   the money), so the form reads in the order somebody says it out loud. */
+.form-block {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 16px 18px 18px;
+  margin-bottom: 14px;
+}
+.form-block .section-title { margin-top: 0; }
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.checkline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.checkline input { width: 16px; height: 16px; accent-color: var(--bft-cyan); }
+
+/* ── The zone editor ──────────────────────────────────────────────────────
+   One card per station, each listing what is measured there and what a unit
+   of it is worth. This is the screen that replaced a hard-coded formula. */
+.zone-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.zone-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 14px 16px 16px;
+}
+
+.zone-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.zone-card-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+/* ── The competition that matters today ───────────────────────────────────── */
+.focus-card {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 20px 22px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.focus-card:hover { border-color: var(--bft-cyan); transform: translateY(-1px); }
+.focus-card[data-status="live"] { box-shadow: inset 3px 0 0 var(--bft-cyan); }
+
+.focus-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.focus-date { font-size: 12px; color: var(--text-muted); }
+
+.focus-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.05;
+  margin: 6px 0 10px;
+}
+
+.focus-figures {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.focus-figures strong { font-size: 17px; color: var(--text); margin-inline-end: 3px; }
+.focus-go { margin-inline-start: auto; color: var(--podium-blue-text); font-weight: 600; }
+
+/* ── The competitions grid ────────────────────────────────────────────────── */
+.series-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.series-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 16px 18px 18px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.series-card:hover { border-color: var(--bft-cyan); transform: translateY(-1px); }
+
+.series-card-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.1;
+  margin-top: 8px;
+}
+.series-card-date { font-size: 13px; color: var(--text-secondary); }
+.series-card-venue { font-size: 12px; color: var(--text-muted); }
+
+.series-card-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.series-card-figures dt {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.series-card-figures dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.series-card-figures dd[data-warn] { color: var(--warn); }
+
+.series-card-warn { font-size: 11px; color: var(--warn); margin-top: 8px; }
+
+/* ── What is standing in the way ──────────────────────────────────────────── */
+.todo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+.todo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 14px;
+}
+.todo .btn { margin-inline-start: auto; }
+
+/* ── Choosing things (studios in a competition) ───────────────────────────── */
+.picker-count { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.picker-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.picker-card:hover:not(:disabled) { border-color: var(--border-strong); }
+.picker-card:disabled { opacity: 0.6; cursor: default; }
+.picker-card[data-on] { border-color: var(--bft-cyan); background: var(--bft-cyan-soft); }
+
+.picker-check {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bft-ink);
+}
+.picker-card[data-on] .picker-check { background: var(--bft-cyan); border-color: var(--bft-cyan); }
+
+.picker-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.picker-name { font-weight: 600; font-size: 14px; }
+.picker-note { font-size: 11px; color: var(--text-muted); }
+
+/* ── Score entry: the list of teams beside the sheet ──────────────────────── */
+.score-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  align-items: start;
+  min-height: 100vh;
+}
+
+.score-picker {
+  border-inline-end: 1px solid var(--border);
+  padding: 20px;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.score-main { padding: 22px 26px 70px; min-width: 0; }
+
+@media (max-width: 900px) {
+  .score-layout { grid-template-columns: minmax(0, 1fr); }
+  .score-picker {
+    position: static;
+    max-height: none;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+/* ── Podiums ──────────────────────────────────────────────────────────────
+   Nine small blocks rather than one big reveal: this is the operator's view
+   of who won what, not the screen on the wall. */
+.podium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.podium-block {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 12px 14px 14px;
+}
+
+.podium-bracket {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.podium-empty { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
+
+.podium-place {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+}
+.podium-place + .podium-place { border-top: 1px solid var(--border); }
+
+.podium-medal { font-size: 16px; width: 22px; flex: none; text-align: center; }
+.podium-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.podium-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.podium-studio { font-size: 11px; color: var(--text-muted); }
+.podium-total {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A team with no score sits at the bottom, visibly outside the ranking. */
+tr[data-unscored] td { color: var(--text-muted); }
+
+/* An editor that opens under the row it belongs to, so the list stays on
+   screen and it is obvious which person is being changed. */
+.account-editor {
+  padding: 14px 16px 16px;
+  border-inline-start: 3px solid var(--bft-cyan);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+}
+
+/* ── The sign-in forms ────────────────────────────────────────────────────
+   Written for the dark auth shell: it has its own ground and does not follow
+   the theme, because a sign-in screen is the brand's front door. The title is
+   set in Futura Extra Bold — the brand's heaviest face, for the front door. */
+.auth-title {
+  font-family: var(--font-brand), var(--font-heading), sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1.1;
+  margin: 0 0 6px;
+  color: var(--on-navy);
+}
+.auth-sub {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--on-navy-secondary);
+  max-width: 44ch;
+}
+.auth-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--on-navy-muted);
+}
+
+/* A six-digit code, spaced so it can be read back over a phone. */
+.otp-input {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE PUBLISHED RESULTS
+   ──────────────────────────────────────────────────────────────────────────
+   Its own ground, and the only part of PODIUM a stranger ever sees. It does
+   not follow the theme: a results page is the public face of the brand, and
+   it is dark in the same way the board on the wall is dark.
+   ══════════════════════════════════════════════════════════════════════ */
+.public {
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(7, 7, 61, 0.6) 0%, transparent 60%),
+    var(--board-bg);
+  color: var(--board-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.public-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 22px clamp(16px, 4vw, 40px) 26px;
+}
+
+.public-mark { justify-self: center; text-decoration: none; }
+
+.public-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-sm);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--board-text);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.public-back:hover { border-color: var(--bft-cyan); background: rgba(255, 255, 255, 0.04); }
+
+.public-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px) 60px;
+}
+
+.public-foot {
+  padding: 26px 16px 34px;
+  text-align: center;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--board-text-muted);
+}
+
+.public-empty { text-align: center; padding: 60px 0; color: var(--board-text-muted); }
+
+/* ── Picking a board ──────────────────────────────────────────────────────── */
+.picker { max-width: 460px; margin: 30px auto 0; display: grid; gap: 26px; }
+.picker-field { display: block; text-align: center; }
+
+.picker-label {
+  display: block;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  margin-bottom: 10px;
+}
+
+.picker-select {
+  width: 100%;
+  height: 54px;
+  padding: 0 16px;
+  background: var(--board-raised);
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-sm);
+  color: var(--board-text);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.picker-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+.picker-choice {
+  height: 52px;
+  background: var(--board-raised);
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-sm);
+  color: var(--board-text);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.picker-choice:hover { border-color: var(--board-text-muted); }
+.picker-choice[data-on] {
+  border-color: var(--podium-blue);
+  background: var(--color-accent-100);
+  box-shadow: 0 0 0 1px var(--podium-blue) inset;
+}
+
+/* The one thing on the screen you are meant to press. */
+.picker-go {
+  height: 60px;
+  margin-top: 6px;
+  background: var(--podium-blue);
+  border: 0;
+  border-radius: var(--r-sm);
+  color: #fff;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 34px var(--podium-glow);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.picker-go:hover:not(:disabled) {
+  background: var(--podium-blue-bright);
+  box-shadow: 0 0 48px var(--podium-glow);
+}
+.picker-go:disabled { opacity: 0.6; cursor: default; }
+
+/* ── The published leaderboard ────────────────────────────────────────────── */
+/* The "updating in" clock, top right where the reference board puts it. Fixed
+   to the viewport so the countdown survives the page scrolling under it, and
+   out of the way on a phone, where it would sit on top of the wordmark. */
+.public-update {
+  position: fixed;
+  inset-block-start: 22px;
+  inset-inline-end: clamp(16px, 4vw, 40px);
+  z-index: 5;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.public-update .pd-num { color: var(--bft-cyan-text); }
+@media (max-width: 720px) {
+  .public-update { display: none; }
+}
+
+/* Title line: the bracket on the left, the series stuttered across the right,
+   the way the reference sets it. */
+.pb-titlerow {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pb-title {
+  font-family: var(--font-brand), var(--font-heading), sans-serif;
+  font-weight: 800;
+  font-size: clamp(24px, 4vw, 34px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 8px 0 2px;
+}
+/* Both bracket words read Electric Blue — the event brand, not the teal. */
+.pb-title-cat { color: var(--podium-blue-bright); }
+.pb-title-dot { color: var(--board-text-muted); margin: 0 8px; }
+.pb-title-div { color: var(--podium-blue-bright); }
+.pb-title-word { color: var(--board-text); }
+
+.pb-series {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px auto;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.pb-series i { font-style: normal; color: var(--podium-blue); }
+
+.pb-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+
+.pb-select,
+.pb-search {
+  height: 46px;
+  padding: 0 14px;
+  background: var(--board-raised);
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-sm);
+  color: var(--board-text);
+  font-size: 14px;
+}
+.pb-select { flex: 0 1 240px; font-weight: 600; }
+.pb-search { flex: 1 1 260px; min-width: 0; }
+.pb-search::placeholder { color: var(--board-text-muted); }
+
+.pb-head,
+.pb-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) minmax(0, 200px) 120px;
+  align-items: center;
+  gap: 12px;
+}
+
+.pb-head {
+  padding: 0 18px 10px;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.pb-head-score { text-align: end; }
+
+.pb-rows { display: flex; flex-direction: column; gap: 8px; }
+
+.pb-row {
+  padding: 16px 18px;
+  background: var(--board-row);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  color: inherit;
+  border-inline-start: 3px solid transparent;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.pb-row:hover { background: var(--board-row-hover); transform: translateX(2px); }
+
+/* The top three carry their metal on the edge: it reads at arm's length and
+   survives being screenshotted, which a small badge does not. */
+/* The top three carry their metal on the edge AND in a soft glow: from across
+   a gym the halo is what reads first, the way the reference board draws it. */
+.pb-row[data-rank="1"] {
+  border-inline-start-color: var(--gold);
+  background: linear-gradient(90deg, var(--gold-glow), var(--board-row) 42%);
+  box-shadow: 0 0 24px rgba(201, 162, 39, 0.18);
+}
+.pb-row[data-rank="2"] {
+  border-inline-start-color: var(--silver);
+  background: linear-gradient(90deg, rgba(185, 188, 192, 0.12), var(--board-row) 42%);
+  box-shadow: 0 0 20px rgba(185, 188, 192, 0.12);
+}
+.pb-row[data-rank="3"] {
+  border-inline-start-color: var(--bronze);
+  background: linear-gradient(90deg, rgba(208, 138, 78, 0.12), var(--board-row) 42%);
+  box-shadow: 0 0 20px rgba(208, 138, 78, 0.12);
+}
+
+.pb-rank {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.pb-row[data-rank="1"] .pb-rank {
+  background: var(--gold);
+  color: var(--bft-ink);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 16px var(--gold-glow);
+}
+.pb-row[data-rank="2"] .pb-rank {
+  background: var(--silver);
+  color: var(--bft-ink);
+  box-shadow: 0 0 0 2px var(--silver), 0 0 14px rgba(185, 188, 192, 0.35);
+}
+.pb-row[data-rank="3"] .pb-rank {
+  background: var(--bronze);
+  color: var(--bft-ink);
+  box-shadow: 0 0 0 2px var(--bronze), 0 0 14px rgba(208, 138, 78, 0.35);
+}
+
+/* An event that hides the studio column drops it from the grid entirely,
+   rather than rendering an empty labelled gap. */
+.pb-head.no-studio,
+.pb-row.no-studio {
+  grid-template-columns: 64px minmax(0, 1fr) 120px;
+}
+
+.pb-team { display: flex; flex-direction: column; min-width: 0; }
+.pb-team-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(14px, 1.6vw, 17px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-team-sub { font-size: 11px; color: var(--board-text-muted); }
+
+.pb-studio {
+  font-size: 13px;
+  color: var(--board-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-score {
+  text-align: end;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(16px, 2vw, 21px);
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-empty { padding: 50px 0; text-align: center; color: var(--board-text-muted); }
+
+@media (max-width: 700px) {
+  .pb-head,
+  .pb-row { grid-template-columns: 46px minmax(0, 1fr) 92px; }
+  .pb-head-studio,
+  .pb-studio { display: none; }
+}
+
+/* ── One team's published result ──────────────────────────────────────────── */
+/* The "#N of M" chip takes the metal of the place it names — gold, silver,
+   bronze for the top three, a quiet neutral for everybody else. It used to be
+   bronze for everyone, which put a third-place ribbon on the winner. */
+.pt-rank {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: var(--r-sm);
+  background: rgba(242, 242, 243, 0.1);
+  color: var(--board-text);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.pt-rank[data-rank="1"] {
+  background: var(--gold-glow);
+  color: var(--gold);
+}
+.pt-rank[data-rank="2"] {
+  background: rgba(185, 188, 192, 0.2);
+  color: var(--silver);
+}
+.pt-rank[data-rank="3"] {
+  background: rgba(208, 138, 78, 0.2);
+  color: var(--bronze);
+}
+
+.pt-name {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(30px, 6vw, 58px);
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.pt-meta {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  margin-top: 8px;
+}
+
+.pt-total-label {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  margin-top: 44px;
+}
+
+.pt-total {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(46px, 9vw, 86px);
+  line-height: 1;
+  color: var(--podium-blue-bright);
+  font-variant-numeric: tabular-nums;
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--board-border);
+}
+
+.pt-zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 30px;
+}
+
+.pt-zone {
+  background: var(--board-raised);
+  border: 1px solid var(--board-border);
+  border-top: 2px solid var(--podium-blue);
+  border-radius: var(--r-sm);
+  padding: 18px 20px 20px;
+}
+
+.pt-zone-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.pt-zone-no { color: var(--board-text); }
+.pt-zone-slash { color: var(--podium-blue-bright); }
+.pt-zone-name { color: var(--bft-cyan); }
+
+.pt-zone-rows { margin: 0; display: grid; gap: 12px; }
+.pt-zone-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.pt-zone-rows dt { font-size: 14px; color: var(--board-text-muted); }
+.pt-zone-rows dd {
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-zone-points {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--board-border);
+}
+.pt-zone-points > .pd-num {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.pt-zone-pts {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
 }

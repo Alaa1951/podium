@@ -1,0 +1,764 @@
+// PODIUM — BFT MENA leaderboard system.
+//
+// THE SHAPE OF THE THING, in one paragraph. PODIUM is a competition. People
+// register in PAIRS and pay; a paid pair is a TEAM. Teams are dealt into WAVES
+// because the floor only holds so many at once, and a wave is run against a
+// clock. While a wave is on the floor its teams' SCORES are entered, zone by
+// zone. A team's total is derived from its raw entries and the SERIES' own
+// zone definitions — never stored — so correcting a formula re-scores the
+// whole field at once.
+//
+//   Series ──< Wave ──< Team ──< Competitor ×2
+//                        │
+//                        └── Score ──< ZoneEntry
+//   Series ──< Zone ──< ZoneInput      the scoring definition itself
+//   Series >──< Studio                 who is taking part
+//
+// A SERIES IS THE COMPETITION. There is no level above or below it: "PODIUM
+// Series 2" is the thing that has a date, a venue, a field, a running order
+// and a board. An intermediate "event"/"round" table existed briefly and was
+// removed — it added a level nobody used, and "round" already means something
+// in this sport (a round of kettlebell swings), so the word was taken.
+//
+// A TEAM IS A REGISTRATION. There is no separate intake table: the row that
+// arrives from the registration form, carrying its payment, is the same row
+// that later gets a wave and a score. One record, several views of it.
+//
+// Two words that are NOT the same thing, and were conflated once:
+//   REGISTERED   paid and entered into a PODIUM event  → Team.paymentStatus
+//   MEMBER       holds a BFT studio membership         → Competitor.studioId
+// A registered competitor may be a member of no studio at all.
+//
+// The auth/security half (User, OtpChallenge, TrustedDevice, LoginEvent,
+// AuthToken) is independent of all of it. A User is somebody who SIGNS IN —
+// BFT MENA staff, or studio staff. Competitors are data, not accounts, until
+// BFT MENA decides to hand them one.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // Explicit .ts specifiers so plain `node` (type stripping) can resolve the
+  // generated files — the seed script runs outside the bundler.
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Access control
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  admin // BFT MENA — unrestricted
+  studio // scoped to its own studio's teams
+  // Scoped to their own team. Called "competitor", never "member": membership
+  // is a BFT studio relationship and half the competitors do not have one.
+  competitor
+}
+
+enum UserStatus {
+  invited // created by an admin/studio, has not set a password yet
+  active
+  disabled
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  role          Role       @default(competitor)
+  /// An optional access profile: when set, its permission list decides which
+  /// screens and actions this account may open, instead of the role defaults.
+  accessRoleId  String?
+  accessRole    AccessRole? @relation(fields: [accessRoleId], references: [id], onDelete: SetNull)
+  status        UserStatus @default(invited)
+  passwordHash  String?
+  emailVerified DateTime?
+  locale        String     @default("en")
+
+  // A studio user manages this studio; a competitor competes under it.
+  studioId String?
+  studio   Studio? @relation("StudioUsers", fields: [studioId], references: [id], onDelete: SetNull)
+
+  forceOtpNextLogin Boolean   @default(false)
+  lastLoginAt       DateTime?
+  lastIp            String?
+
+  /// Soft delete — "removed from the platform". An archived account cannot sign
+  /// in and appears only in the users screen's archived filter, from which it
+  /// can be restored. Nothing is hard-deleted: their audits, invitations and
+  /// competitor links stay answerable.
+  archivedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[] @relation("UserCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts       Account[]
+  otpChallenges  OtpChallenge[]
+  trustedDevices TrustedDevice[]
+  loginEvents    LoginEvent[]
+  authTokens     AuthToken[]
+  competitors    Competitor[]
+  submittedScores Score[]        @relation("ScoreSubmittedBy")
+  confirmedPayments Team[]       @relation("PaymentConfirmedBy")
+  scoreAudits    ScoreAudit[]
+  adminAudits    AdminAuditLog[] @relation("AuditActor")
+  waveAccess     WaveAccess[]
+
+  @@index([studioId])
+  @@index([role])
+  @@index([createdById])
+}
+
+// OAuth links (Google sign-in). Kept separate so a user may hold both a
+// password and a federated identity for the same invited email.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+enum OtpPurpose {
+  login
+  activate
+  reset
+}
+
+model OtpChallenge {
+  id                String     @id @default(cuid())
+  userId            String
+  codeHash          String // HMAC-SHA256, never the code itself
+  purpose           OtpPurpose
+  expiresAt         DateTime
+  attempts          Int        @default(0)
+  consumedAt        DateTime?
+  deviceFingerprint String?
+  ip                String?
+  createdAt         DateTime   @default(now())
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, consumedAt])
+}
+
+enum TokenPurpose {
+  invite // first password, sent when an admin/studio creates the account
+  reset // forgotten password
+}
+
+model AuthToken {
+  id        String       @id @default(cuid())
+  userId    String
+  tokenHash String // HMAC-SHA256 of the random token in the emailed link
+  purpose   TokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([tokenHash])
+}
+
+model TrustedDevice {
+  id                String    @id @default(cuid())
+  userId            String
+  deviceFingerprint String // HMAC of the raw client fingerprint
+  deviceLabel       String?
+  browser           String?
+  os                String?
+  deviceType        String?
+  firstSeenAt       DateTime  @default(now())
+  lastUsedAt        DateTime  @default(now())
+  trustCreatedAt    DateTime  @default(now())
+  trustExpiresAt    DateTime
+  isTrusted         Boolean   @default(false)
+  isRevoked         Boolean   @default(false)
+  revokedAt         DateTime?
+  revokeReason      String?
+  lastIp            String?
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceFingerprint])
+  @@index([userId])
+}
+
+/**
+ * Every privileged act, kept apart from the score audit: who did what, to whom,
+ * and when. A score correction writes to both — ScoreAudit carries the numbers,
+ * this carries the authority behind the change.
+ */
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+  action     String // account.invite | account.disable | score.unlock | …
+  targetType String // user | team | event | studio
+  targetId   String
+  targetLabel String?
+  detail     String?  @db.Text
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action])
+}
+
+model LoginEvent {
+  id                String   @id @default(cuid())
+  userId            String
+  eventType         String // LOGIN_SUCCESS | LOGIN_FAILED | OTP_SENT | OTP_VERIFIED | OTP_FAILED | TRUST_CREATED
+  deviceFingerprint String?
+  browser           String?
+  os                String?
+  ip                String?
+  isTrustedDevice   Boolean  @default(false)
+  isSuspicious      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventType, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Competition
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Who is competing. BFT MENA's registration form calls this Category, and
+/// the system follows the form rather than the other way round.
+enum Category {
+  Womens
+  Mens
+  Mixed
+}
+
+/// The level they compete at. The form calls this Division.
+enum Division {
+  Rookie
+  Open
+  Pro
+}
+
+enum SeriesStatus {
+  scheduled
+  live
+  final
+}
+
+/// Where a registration's money stands. Only `paid` reaches the board.
+enum PaymentStatus {
+  pending // registered, money not confirmed
+  paid // confirmed, by the payment integration or by hand at the door
+  refunded
+}
+
+/// How a registration reached us. Kept so a figure on a report can always be
+/// traced back to where it came from.
+enum RegistrationSource {
+  ghl // the CRM registration form
+  manual // typed in by BFT MENA — a walk-up, or a correction
+  seed // demo data
+}
+
+enum ScoreStatus {
+  draft
+  submitted
+}
+
+// A managed list, never a string on the team record — studios are added over
+// time and a team's membership is a foreign key everywhere.
+model Studio {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]         @relation("StudioUsers")
+  teams       Team[]
+  competitors Competitor[]
+  /// The competitions this studio is taking part in.
+  series      SeriesStudio[]
+}
+
+/// THE COMPETITION. One row is one PODIUM: its date, its field, its running
+/// order, its scoring definition, its board.
+model Series {
+  id       String       @id @default(cuid())
+  name     String
+  /// Short, URL-safe, stable — so a link to a series survives a rename.
+  slug     String       @unique
+  isActive Boolean      @default(true)
+
+  competitionDate DateTime
+  venue           String       @default("All studios")
+  status          SeriesStatus @default(scheduled)
+
+  // Event-day configuration — held as data, never in code, so a different
+  // finisher length or wave size does not require a release.
+  firstWaveTime      String    @default("09:00") // HH:mm
+  waveMinutes        Int       @default(20)
+  waveCapacity       Int       @default(9)
+  finisherCapSeconds Int       @default(900)
+  boardOpensAt       DateTime? // live board unlocks at this instant
+
+  // ── What a studio may do here ────────────────────────────────────────────
+  /// Whether studio accounts may ENTER scores for their own teams in this
+  /// competition. Off by default: score entry stays with BFT MENA unless it
+  /// is deliberately opened.
+  studiosMayEnterScores  Boolean @default(false)
+  /// How many times a studio may write a team's score in total.
+  /// The BFT manual is explicit that a saved score is final, so the default is
+  /// 0 further writes: a studio that enters a result cannot change it, and any
+  /// correction comes from BFT MENA.
+  studioScoreCorrections Int     @default(0)
+
+  // ── Deadlines, from the Series 1 manual's key dates ───────────────────────
+  /// After this, no team may be registered, edited or removed by a studio.
+  registrationClosesAt DateTime?
+  /// "All registrations within the studio dashboard are final" — the manual's
+  /// own wording. A date the studio is told, not a second lock: the lock is
+  /// registrationClosesAt above.
+  registrationsFinalAt DateTime?
+  /// After this, no studio may enter or change a score.
+  scoreEntryClosesAt   DateTime?
+  /// When the full results stop being competitor-only and become public.
+  resultsPublicAt      DateTime?
+  /// "Announcement of International PODIUM Champions" — after the region's own
+  /// results, the international placings land. Shown as a date to look forward
+  /// to; nothing in the system unlocks on it.
+  championsAnnouncedAt DateTime?
+
+  // ── What the board shows ─────────────────────────────────────────────────
+  /// BFT International's board lists the two competitors; MENA may prefer the
+  /// registered team name, or both. Neither is hard-coded.
+  showTeamName       Boolean @default(true)
+  showCompetitorNames Boolean @default(true)
+  showStudioColumn   Boolean @default(true)
+  /// The sponsor rail on the wall board and published results. Off means the
+  /// screens carry only the event's own branding — no rail, no placeholders.
+  sponsorsEnabled    Boolean @default(true)
+
+  /// Soft delete for a competition that was created by mistake and never ran.
+  /// Only a scheduled event can reach this state — a live or finished one is
+  /// part of the record and can never be removed. Null means a live event.
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// How a score becomes points, here. Series 2 may test entirely different
+  /// movements from Series 1 and is not required to have four zones.
+  zones    Zone[]
+  waves    Wave[]
+  teams    Team[]
+  sponsors Sponsor[]
+  /// The studios taking part. A studio in the directory but not in this list
+  /// is simply not in this competition.
+  studios  SeriesStudio[]
+
+  @@index([status])
+  @@index([competitionDate])
+}
+
+/// A studio taking part in a competition.
+///
+/// Deliberately thin: being in this list is what lets that studio's people
+/// register their teams and follow their own entries. What they may DO is a
+/// setting on the Series, not on each studio, because the rule is the same
+/// for everybody in one competition.
+model SeriesStudio {
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  studioId String
+  studio   Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  addedAt DateTime @default(now())
+
+  @@id([seriesId, studioId])
+  @@index([studioId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The scoring definition — data, not code
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One station on the floor. Its points are the sum of its inputs' points.
+model Zone {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  /// 1, 2, 3 … — both the running order and the Z1/Z2/Z3 label on the board.
+  number Int
+  /// "Strength", "Conditioning" — what the operator and the board call it.
+  name   String
+
+  inputs ZoneInput[]
+
+  @@unique([seriesId, number])
+}
+
+/// One measured thing inside a zone, and what a unit of it is worth.
+///
+/// Points are `value × multiplyBy ÷ divideBy`, held as two whole numbers
+/// rather than one decimal so the arithmetic is exact and so the settings
+/// screen can ask the question the way a person asks it: "times what, over
+/// what". Every Series 1 formula is expressible this way and none of them
+/// needed a special case:
+///
+///   deadlift reps × 10 ÷ 1      bench reps    × 10 ÷ 1
+///   rower metres  ×  1 ÷ 100    minutes left  × 10 ÷ 1
+///   kettlebell    × 10 ÷ 1      seconds left  ×  1 ÷ 10
+/// How a movement's field is presented. `number` is a plain whole number;
+/// `minutes` and `seconds` are the two halves of one MM:SS control.
+enum ZoneInputMode {
+  number
+  minutes
+  seconds
+}
+
+model ZoneInput {
+  id     String @id @default(cuid())
+  zoneId String
+  zone   Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  position Int
+  /// "Deadlift reps" — the label on the score-entry field.
+  label    String
+  /// "reps", "m", "rounds", "min", "sec" — shown next to the field.
+  unit     String @default("")
+
+  multiplyBy Int @default(1)
+  divideBy   Int @default(1)
+
+  /// Highest accepted value, where one exists — 59 for seconds, the finisher
+  /// cap for minutes. Null means unbounded.
+  maxValue Int?
+
+  /// How the field is DRAWN, which is a separate question from what it is
+  /// WORTH. The BFT manual's score sheet has one MM:SS box for the finisher,
+  /// so a `minutes` input and the `seconds` input after it are presented as a
+  /// single masked control — while the engine still stores and scores them as
+  /// two whole numbers with their own factors.
+  ///
+  /// Declared rather than guessed: reading it off the unit string would break
+  /// the moment a series labels a field in Arabic.
+  inputMode ZoneInputMode @default(number)
+
+  entries ZoneEntry[]
+
+  @@unique([zoneId, position])
+}
+
+/// A sponsor logo on one event's wall board and published results.
+///
+/// The artwork lives in the database as base64 rather than on disk: `public/`
+/// is baked into the container image at build time, so a file uploaded at
+/// runtime would not survive a redeploy — and this way a database backup
+/// carries the logos with everything else. Served back through
+/// `/api/series/[series]/sponsors/[id]/logo`, which any screen may read
+/// (wall boards and public results are exactly where sponsors appear).
+model Sponsor {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  /// "Rogue Fitness" — the accessible name when the logo renders.
+  alt String
+
+  /// Order across the sponsor rail, 0-based like every other position here.
+  position Int
+
+  /// base64 of the artwork, and what it decodes to. Limited to images.
+  imageB64 String @db.MediumText
+  mimeType String
+
+  @@unique([seriesId, position])
+}
+
+enum WaveStatus {
+  pending
+  running
+  complete
+}
+
+/**
+ * One wave on the floor.
+ *
+ * Its own capacity, its own length and its own clock, so the schedule is data
+ * rather than arithmetic — and because each carries its own status, several
+ * can be `running` at the same time. The board rotates through whichever are
+ * running rather than assuming there is exactly one.
+ */
+model Wave {
+  id      String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  number   Int
+  /// Scheduled start, as HH:mm on the event day.
+  startTime String @default("09:00")
+  /// How long this wave runs. Defaults from the event, overridable per wave.
+  durationMinutes Int @default(20)
+  /// How many teams belong on the floor for it.
+  capacity Int @default(9)
+
+  status    WaveStatus @default(pending)
+  /// Set when an operator presses START; the clock counts from here.
+  startedAt DateTime?
+  endsAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams Team[]
+
+  /// Wave scorers: accounts granted entry to THIS wave's score sheet and
+  /// nothing else. One wave, one location, one person on a laptop.
+  waveAccess WaveAccess[]
+
+  @@unique([seriesId, number])
+  @@index([seriesId, status])
+}
+
+/// A grant letting one account score one specific wave.
+///
+/// Judges and recorders sit at different locations — sometimes several waves
+/// run at once, in different rooms — and none of them should see the whole
+/// console. The grant is the whole permission: with it, the account's home
+/// becomes the score sheet of exactly that wave; without it, nothing.
+model WaveAccess {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  waveId String
+  wave   Wave   @relation(fields: [waveId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, waveId])
+}
+
+/// A TEAM IS A REGISTRATION.
+///
+/// The row arrives when a pair registers and pays, and the same row is later
+/// dealt into a wave and scored. Keeping the intake as a separate table would
+/// mean two records that have to be kept in step, and a question — "is this
+/// team registered?" — that could have two answers.
+model Team {
+  id      String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  /// Soft delete. Set when a registration is withdrawn or removed before the
+  /// day: every board, list and report stops showing it, but the row — and the
+  /// money and score history behind it — survives and can be restored. Null
+  /// means a live registration.
+  archivedAt DateTime?
+
+  number   Int
+  /// Free text, editable at any time — by BFT MENA, by the studio, or by the
+  /// registration integration. When a pair registers without choosing one,
+  /// it defaults to the first competitor's name; it is never left blank.
+  name     String
+  category Category
+  division Division
+
+  // ── Registration and payment ───────────────────────────────────────────
+  /// Only a paid team appears on the board. Everything else — the roster, the
+  /// wave, the reports — still counts it, which is the point of storing the
+  /// state rather than deleting the row.
+  paymentStatus PaymentStatus      @default(pending)
+  source        RegistrationSource @default(manual)
+  registeredAt  DateTime           @default(now())
+  paidAt        DateTime?
+  /// Minor units (fils/cents), so no amount is ever a float.
+  amountMinor   Int?
+  currency      String             @default("QAR")
+  /// The Glofox billing number, from the payment integration or typed in.
+  billingNumber String?
+  /// Who confirmed a payment taken at the door, and when.
+  paymentNote   String?
+  confirmedById String?
+  confirmedBy   User?              @relation("PaymentConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  /// The CRM submission this came from, and its payload exactly as received —
+  /// so a disputed registration can be read back as it arrived.
+  externalId    String?
+  rawPayload    Json?
+  /// Set when the pair checks in on the day. "Registered" and "turned up" are
+  /// different numbers and the reports need both.
+  attendedAt    DateTime?
+
+  /// Kept as a plain number so a team always has a wave, even before the
+  /// schedule is built; `waveId` is the link once it is.
+  wave     Int      @default(1)
+  waveId   String?
+  waveRef  Wave?    @relation(fields: [waveId], references: [id], onDelete: SetNull)
+
+  // The studio that registered the team — the scope key for studio accounts.
+  studioId String?
+  studio   Studio? @relation(fields: [studioId], references: [id], onDelete: SetNull)
+
+  // Database-enforced edit budget: a studio submits once, then edits once.
+  scoreEdits Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  competitors Competitor[]
+  score       Score?
+
+  @@unique([seriesId, number])
+  @@unique([seriesId, externalId])
+  @@index([seriesId, category, division])
+  @@index([seriesId, paymentStatus])
+  @@index([studioId])
+  @@index([waveId])
+}
+
+/// One of the two people on a team — a person, with the details the
+/// registration form actually collects, not just a name on a roster.
+model Competitor {
+  id       String @id @default(cuid())
+  teamId   String
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  position Int // 1 = the registering competitor, 2 = their partner
+
+  fullName    String
+  phone       String?
+  email       String?
+  dateOfBirth DateTime?
+
+  /// BFT STUDIO MEMBERSHIP, and nothing to do with being registered. Null
+  /// means this person is not a member of any studio — which is allowed, and
+  /// common, and is a figure the reports are asked for.
+  studioId String?
+  studio   Studio? @relation(fields: [studioId], references: [id], onDelete: SetNull)
+
+  // Linked if and when this person is given an account under the same name.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Normalised name (lowercase, punctuation stripped) so a search, or a new
+  /// account, can be matched to an existing registration.
+  normalizedName String
+
+  @@unique([teamId, position])
+  @@index([normalizedName])
+  @@index([email])
+  @@index([userId])
+  @@index([studioId])
+}
+
+model Score {
+  id     String @id @default(cuid())
+  teamId String @unique
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // The raw values live in ZoneEntry, one row per movement, because the
+  // movements are defined by the series and not by this file. Seven fixed
+  // columns could only ever describe Series 1.
+
+  status        ScoreStatus @default(draft)
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   User?       @relation("ScoreSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  audits  ScoreAudit[]
+  entries ZoneEntry[]
+
+  @@index([status])
+}
+
+/// One measured value: what this team did on one movement of one zone.
+///
+/// Its points are worked out from the ZoneInput it points at, so changing a
+/// factor in the settings re-scores every team that ever recorded it.
+model ZoneEntry {
+  id      String    @id @default(cuid())
+  scoreId String
+  score   Score     @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  inputId String
+  input   ZoneInput @relation(fields: [inputId], references: [id], onDelete: Cascade)
+
+  /// Null means not yet recorded, which is not the same as zero.
+  value Int?
+
+  @@unique([scoreId, inputId])
+  @@index([inputId])
+}
+
+model ScoreAudit {
+  id       String @id @default(cuid())
+  scoreId  String
+  score    Score  @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  field    String
+  oldValue String?
+  newValue String?
+  reason   String?
+
+  operatorId String?
+  operator   User?   @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([scoreId, createdAt])
+}
+
+// Prescribed loads per category and sex, seeded from the weights sheet.
+/// Prescribed loads, set by LEVEL and sex — so the key is the division
+/// (Rookie/Open/Pro), not the category, which is the sex grouping itself.
+model LoadStandard {
+  id         String   @id @default(cuid())
+  division   Division
+  sex        String // "m" | "f"
+  trapBar    String
+  bench      String
+  kettlebell String
+  dumbbell   String
+  wallBall   String
+
+  @@unique([division, sex])
+}
+
+/// An ACCESS ROLE — a named bundle of permission keys ("Wave scorer",
+/// "Studio manager"). Assigned to an account through `User.accessRoleId`; the
+/// account then resolves exactly that permission list instead of its role's
+/// defaults. BFT MENA admins bypass permissions entirely and need no role.
+model AccessRole {
+  id      String @id @default(cuid())
+  /// Stable slug, unique — used in code and seeds ("wave-scorer").
+  key     String @unique
+  name    String
+  nameAr  String?
+  /// What the role is for, shown on the roles screen.
+  description String?
+
+  /// The granted permission keys. Must all exist in PERMISSION_GROUPS —
+  /// the roles screen only offers keys from the catalog.
+  permissions Json
+
+  /// System roles ship with the product and cannot be deleted.
+  isSystem Boolean @default(false)
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
