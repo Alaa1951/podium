@@ -118,5 +118,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|brand/).*)"],
+  // icon/apple-icon are the app-router metadata marks (favicon, apple-touch);
+  // the sign-in screen itself renders them, so they ride with the public set.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|brand/).*)"],
 };
