@@ -1,0 +1,56 @@
+name: mobile-android
+
+# Builds the release AAB for Google Play. Triggered by hand
+# (workflow_dispatch) or by tagging a release "mobile-v*", so a store build is
+# always an explicit act — the gates workflow owns what reaches the website.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["mobile-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: dependencies
+        run: npm ci --no-audit --no-fund
+      - name: sync web assets into the native shell
+        run: npx cap sync android
+      - name: restore signing key
+        # Secrets are optional: without them the AAB comes out unsigned, which
+        # is enough to smoke-test the build but not to upload to Play.
+        if: ${{ env.MOBILE_KEYSTORE_BASE64 != '' }}
+        env:
+          MOBILE_KEYSTORE_BASE64: ${{ secrets.MOBILE_KEYSTORE_BASE64 }}
+          MOBILE_KEYSTORE_PASSWORD: ${{ secrets.MOBILE_KEYSTORE_PASSWORD }}
+          MOBILE_KEY_ALIAS: ${{ secrets.MOBILE_KEY_ALIAS }}
+          MOBILE_KEY_PASSWORD: ${{ secrets.MOBILE_KEY_PASSWORD }}
+        run: |
+          echo "${MOBILE_KEYSTORE_BASE64}" | base64 -d > android/keystore.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=keystore.jks
+          storePassword=${MOBILE_KEYSTORE_PASSWORD}
+          keyAlias=${MOBILE_KEY_ALIAS}
+          keyPassword=${MOBILE_KEY_PASSWORD}
+          EOF
+      - name: build release AAB
+        run: cd android && chmod +x gradlew && ./gradlew bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podium-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
