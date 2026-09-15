@@ -96,16 +96,20 @@ local to the box and bound to loopback.
 
 The release pipeline is the Checks above, run as gates on GitHub Actions
 (`.github/workflows/gates.yml`). It publishes a `podium/gates` commit status,
-and the server's auto-deploy only ships commits whose status is `success`:
+and nothing reaches the server until someone ships it on purpose:
 
 ```bash
-# on the server — runs every 5 min via root cron:
-/root/scripts/auto-deploy.sh        # deploy origin/main if gates passed
-/root/scripts/deploy.sh             # manual full deploy (bypasses nothing: still builds)
-/root/scripts/backup-db.sh          # what cron runs nightly at 03:00 → /opt/backups (keeps 14)
+# push as usual — gates run on GitHub and report the podium/gates status.
+# then, on the server, deploy only when you decide to:
+/root/scripts/deploy.sh           # ships origin/main ONLY if gates passed
+/root/scripts/deploy.sh --force   # override the gates ( emergencies only )
 ```
 
-Restore a backup: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
+The deploy keeps the running build; if the health check fails after the
+restart it rolls back to it automatically.
+
+Backups run nightly at 03:00 via root cron → `/opt/backups` (keeps 14).
+Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 
 ### Environment that must be set in production
 
