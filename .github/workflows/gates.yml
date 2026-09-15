@@ -38,6 +38,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: generate prisma client
         run: npm run db:generate
+      - name: generate next type helpers (PageProps, LayoutProps)
+        run: npx next typegen
       - name: type-check
         run: npm run type-check
       - name: lint
