@@ -87,6 +87,26 @@ node server.js
 Delete any `.env` that ends up inside `.next/standalone` — `next build` copies
 the developer's one in, and it must not shadow the host's environment.
 
+### Production — Hostinger VPS
+
+Live at `https://podium.bftmiddleeast.com` (Let's Encrypt, auto-renews).
+OpenLiteSpeed reverse-proxies `:443` to the app on `127.0.0.1:3000`; the app
+runs as the `podium` user under `systemd` (`podium.service`), with MariaDB
+local to the box and bound to loopback.
+
+The release pipeline is the Checks above, run as gates on GitHub Actions
+(`.github/workflows/gates.yml`). It publishes a `podium/gates` commit status,
+and the server's auto-deploy only ships commits whose status is `success`:
+
+```bash
+# on the server — runs every 5 min via root cron:
+/root/scripts/auto-deploy.sh        # deploy origin/main if gates passed
+/root/scripts/deploy.sh             # manual full deploy (bypasses nothing: still builds)
+/root/scripts/backup-db.sh          # what cron runs nightly at 03:00 → /opt/backups (keeps 14)
+```
+
+Restore a backup: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
+
 ### Environment that must be set in production
 
 | Variable | Why |

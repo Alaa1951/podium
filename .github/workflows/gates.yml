@@ -1,0 +1,56 @@
+name: gates
+
+# The release gates from docs/OPERATIONS.md ("Checks"): type-check, lint,
+# the unit tests, and a production build. The server's auto-deploy polls the
+# "podium/gates" commit status this workflow publishes and never ships a
+# commit the gates did not pass.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Prisma's config refuses to load without a DATABASE_URL/SHADOW_DATABASE_URL,
+      # and Next reads the app URL at build time. Nothing here connects — the
+      # build has no database; values are placeholders.
+      DATABASE_URL: mysql://ci:ci@127.0.0.1:3306/ci
+      SHADOW_DATABASE_URL: mysql://ci:ci@127.0.0.1:3306/ci_shadow
+      NEXT_PUBLIC_APP_URL: https://podium.bftmiddleeast.com
+      NEXTAUTH_URL: https://podium.bftmiddleeast.com
+      NEXTAUTH_SECRET: ci-build-placeholder-not-used-at-runtime
+      OTP_SECRET: ci-build-placeholder
+      DEVICE_FINGERPRINT_SECRET: ci-build-placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - name: dependencies
+        run: npm ci --no-audit --no-fund
+      - name: type-check
+        run: npm run type-check
+      - name: lint
+        run: npm run lint
+      - name: tests
+        run: npm test
+      - name: build
+        run: npm run build
+      - name: publish podium/gates status
+        if: always()
+        run: |
+          STATE=failure
+          if [ "${{ job.status }}" = "success" ]; then STATE=success; fi
+          curl -s -o /dev/null -w "status published: %{http_code}\n" -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d "{\"state\":\"$STATE\",\"context\":\"podium/gates\",\"description\":\"type-check, lint, tests, build\"}"
