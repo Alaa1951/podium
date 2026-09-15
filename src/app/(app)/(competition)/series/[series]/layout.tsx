@@ -48,14 +48,6 @@ export default async function CompetitionLayout({
     series.resultsPublicAt !== null &&
     series.resultsPublicAt <= new Date();
 
-  const topBracket = await prisma.team.groupBy({
-    by: ["category", "division"],
-    where: { seriesId: series.id, paymentStatus: "paid", score: { status: "submitted" } },
-    _count: { id: true },
-    orderBy: { _count: { id: "desc" } },
-  });
-  const front = topBracket[0];
-
   const maySee = (permission: string) => can(user, permission);
 
   const groups: NavGroup[] = [
@@ -96,14 +88,12 @@ export default async function CompetitionLayout({
         { href: at("scores"), label: t("Score entry") },
         { href: at("results"), label: t("Results") },
         {
-          // The results the whole world is allowed to see. Dimmed until the
-          // event is finished and published, so it is never a surprise 404.
-          href:
-            published && front
-              ? `/results/${series.slug}/${front.category}/${front.division}`
-              : undefined,
+          // The results the whole world is allowed to see. It opens the same
+          // door a stranger opens — /results — so the operator is always
+          // looking at exactly what the public sees. The index fails closed:
+          // an unpublished event simply is not on it, which the tooltip says.
+          href: "/results",
           label: t("Public results"),
-          locked: !published || !front,
           title: published ? undefined : t("Not published yet"),
         },
       ].filter((item) => {

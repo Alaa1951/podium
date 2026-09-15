@@ -115,6 +115,7 @@ export function ConsoleShell({
                     className="console-link"
                     data-active={active || undefined}
                     aria-current={active ? "page" : undefined}
+                    title={item.title}
                     onClick={() => setOpen(false)}
                   >
                     <span className="console-link-label">{item.label}</span>

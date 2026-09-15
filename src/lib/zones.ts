@@ -70,6 +70,15 @@ export function groupInputs(zone: ZoneDef): InputGroup[] {
   return groups;
 }
 
+/**
+ * A movement a judge COUNTS — reps, rounds — rather than MEASURES. Counted
+ * movements get a +1 tap; measured ones (metres, time) are typed, because
+ * nobody counts two thousand metres one tap at a time.
+ */
+export function isCounted(input: ZoneInputDef): boolean {
+  return input.unit === "reps" || input.unit === "rounds";
+}
+
 export type ZoneDef = {
   id: string;
   number: number;

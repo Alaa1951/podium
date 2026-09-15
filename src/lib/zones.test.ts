@@ -13,6 +13,7 @@ import {
   groupInputs,
   inputPoints,
   isComplete,
+  isCounted,
   totalPoints,
   validateEntries,
   zoneBreakdown,
@@ -39,6 +40,13 @@ describe("one input's points", () => {
 
   it("multiplies reps by ten", () => {
     expect(inputPoints(find(DEADLIFT), 259)).toBe(2590);
+  });
+
+  it("counts reps and rounds; metres and time are typed, not tapped", () => {
+    expect(isCounted(find(DEADLIFT))).toBe(true);
+    expect(isCounted(find(DUMBBELL))).toBe(true);
+    expect(isCounted(find(METRES))).toBe(false);
+    expect(isCounted(find(MINUTES))).toBe(false);
   });
 
   it("divides metres by a hundred", () => {

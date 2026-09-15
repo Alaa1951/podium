@@ -21,9 +21,9 @@ import {
 // exists, a field exists because a movement exists, and a minutes/seconds pair
 // is drawn as the single MM:SS box the judge's sheet is written in.
 //
-// Count movements (reps, rounds) get a big +1 tap button — the judge taps to
-// count, points recalculate live, and the score auto-saves after a brief
-// pause. No minus button: corrections go through the number input.
+// This is the deliberate one-team editor: every save spends the studio's edit
+// budget, so entry here is typed and confirmed by hand. The +1 taps live on
+// the score sheet (score-grid-row), which saves on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ZoneCards({

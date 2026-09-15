@@ -11,6 +11,7 @@ import { fmt } from "@/lib/scoring";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import {
   groupInputs,
+  isCounted,
   totalPoints,
   zonePoints,
   type EntryValues,
@@ -165,23 +166,25 @@ export function ScoreGridRow({
                             )
                           }
                         />
-                        <button
-                          type="button"
-                          className="btn btn-cyan"
-                          disabled={locked || pending}
-                          aria-label={`${t(group.input.label)} +1`}
-                          onClick={() =>
-                            set(
-                              group.input.id,
-                              Math.min(
-                                (draft[group.input.id] ?? 0) + 1,
-                                group.input.maxValue ?? 9999
+                        {isCounted(group.input) ? (
+                          <button
+                            type="button"
+                            className="btn btn-cyan"
+                            disabled={locked || pending}
+                            aria-label={`${t(group.input.label)} +1`}
+                            onClick={() =>
+                              set(
+                                group.input.id,
+                                Math.min(
+                                  (draft[group.input.id] ?? 0) + 1,
+                                  group.input.maxValue ?? 9999
+                                )
                               )
-                            )
-                          }
-                        >
-                          +1
-                        </button>
+                            }
+                          >
+                            +1
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   )
@@ -263,26 +266,28 @@ export function ScoreGridRow({
                         set(group.input.id, e.target.value.trim() === "" ? null : Number(e.target.value))
                       }
                     />
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-cyan"
-                      disabled={locked || pending}
-                      aria-label={`${t(group.input.label)} +1`}
-                      title={`+1 ${t(group.input.label)}`}
-                      onClick={() =>
-                        set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))
-                      }
-                      style={{
-                        minWidth: 32,
-                        height: 32,
-                        fontSize: 16,
-                        fontWeight: 700,
-                        padding: 0,
-                        flex: "none",
-                      }}
-                    >
-                      +1
-                    </button>
+                    {isCounted(group.input) ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-cyan"
+                        disabled={locked || pending}
+                        aria-label={`${t(group.input.label)} +1`}
+                        title={`+1 ${t(group.input.label)}`}
+                        onClick={() =>
+                          set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))
+                        }
+                        style={{
+                          minWidth: 32,
+                          height: 32,
+                          fontSize: 16,
+                          fontWeight: 700,
+                          padding: 0,
+                          flex: "none",
+                        }}
+                      >
+                        +1
+                      </button>
+                    ) : null}
                   </div>
                 )
               )}
