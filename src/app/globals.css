@@ -1626,3 +1626,28 @@ tr[data-unscored] td { color: var(--text-muted); }
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* ── The view-as preview banner ───────────────────────────────────────────
+   An admin looking through another account's eyes wears the strip the whole
+   time — podium blue, because that is the brand's "this is PODIUM speaking"
+   colour, and nothing else on any screen dresses like it. */
+.view-as-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--podium-blue);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.view-as-banner-eye { font-size: 11px; }
+.view-as-banner-text { flex: 1; min-width: 0; }
+.view-as-banner-text strong { font-weight: 700; }
+.view-as-banner-exit {
+  background: #fff;
+  color: var(--podium-blue);
+  border: 0;
+  font-weight: 700;
+}
+.view-as-banner-exit:hover { background: rgba(255, 255, 255, 0.85); }

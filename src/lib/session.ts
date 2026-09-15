@@ -7,6 +7,7 @@ import type { Role } from "@/generated/prisma/enums";
 import { authOptions } from "@/lib/auth";
 import { can, DEFAULT_STUDIO_PERMISSIONS, type CurrentUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
+import { readViewAsState } from "@/lib/view-as";
 
 // Resolving who is asking. The rules about what they may then do live in
 // access.ts, which is pure and tested on its own — this file only reads the
@@ -61,6 +62,26 @@ export async function homeForUser(user: CurrentUser): Promise<string> {
   return homeFor(user.role);
 }
 
+/**
+ * Permissions resolve from the account's access role when it carries one;
+ * otherwise the role's own defaults apply. Admins bypass in can().
+ */
+async function resolvePermissions(
+  role: Role,
+  accessRoleId: string | null | undefined
+): Promise<string[]> {
+  if (role === "admin") return ["*"];
+  if (accessRoleId) {
+    const accessRole = await prisma.accessRole.findUnique({
+      where: { id: accessRoleId },
+      select: { permissions: true },
+    });
+    return (accessRole?.permissions as string[] | undefined) ?? [];
+  }
+  if (role === "studio") return DEFAULT_STUDIO_PERMISSIONS;
+  return [];
+}
+
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
@@ -74,19 +95,25 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   // deadlines are kept here, on every request, rather than by the cookie.
   if (session.user.expiresAt && Date.now() > session.user.expiresAt) return null;
 
-  // Permissions resolve from the account's access role when it carries one;
-  // otherwise the role's own defaults apply. Admins bypass in can().
-  let permissions: string[] = [];
+  // An admin holding a preview cookie sees the whole app through another
+  // account's eyes — same menus, same screens, same refusals. The swap only
+  // ever happens for an admin session, and writes are refused outright while
+  // it lives (proxy.ts), so the audit trail never learns to lie. The marker
+  // travels on the returned user so screens can say whose eyes those are.
   if (session.user.role === "admin") {
-    permissions = ["*"];
-  } else if (session.user.accessRoleId) {
-    const accessRole = await prisma.accessRole.findUnique({
-      where: { id: session.user.accessRoleId },
-      select: { permissions: true },
-    });
-    permissions = (accessRole?.permissions as string[] | undefined) ?? [];
-  } else if (session.user.role === "studio") {
-    permissions = DEFAULT_STUDIO_PERMISSIONS;
+    const viewed = await readViewAsState();
+    if (viewed && viewed.userId !== session.user.id) {
+      return {
+        id: viewed.userId,
+        email: viewed.email,
+        name: viewed.name,
+        role: viewed.role,
+        studioId: viewed.studioId,
+        locale: viewed.locale,
+        permissions: await resolvePermissions(viewed.role, viewed.accessRoleId),
+        viewAs: { byAdminId: session.user.id },
+      };
+    }
   }
 
   return {
@@ -96,7 +123,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: session.user.role,
     studioId: session.user.studioId,
     locale: session.user.locale,
-    permissions,
+    permissions: await resolvePermissions(session.user.role, session.user.accessRoleId),
   };
 }
 

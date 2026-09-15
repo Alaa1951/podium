@@ -23,6 +23,11 @@ export type CurrentUser = {
   locale: string;
   /** The permission keys this account resolves to. Admin carries ["*"]. */
   permissions: string[];
+  /**
+   * Set when an admin is looking through this account's eyes — a read-only
+   * preview (see lib/view-as.ts). Its presence is also how screens say so.
+   */
+  viewAs?: { byAdminId: string };
 };
 
 // ── The permission catalog ───────────────────────────────────────────────────

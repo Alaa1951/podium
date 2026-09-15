@@ -232,6 +232,14 @@ export const AR_CONSOLE: Phrases = {
     "مُوقفة — النتائج تظل خاصة بـ BFT MENA والمتنافسين رغم انتهاء الحدث.",
   "Open the public page": "افتح الصفحة العامة",
 
+  // ── View as (admin preview) ──────────────────────────────────────────────
+  "View as": "شوف بعينه",
+  "See the app as this account sees it — read-only.":
+    "شوف التطبيق زي ما الحساب ده شايفه — قراءة بس.",
+  "Viewing the app as {name}": "إنت بتشوف التطبيق بعين {name}",
+  "Read-only preview": "معاينة للقراءة بس",
+  "Exit preview": "خروج من المعاينة",
+
   // ── Archive / soft delete ────────────────────────────────────────────────
   "Archive registration": "أرشفة التسجيل",
   "Withdrawn — hidden from every board": "منسحب — مخفي من كل الشاشات",

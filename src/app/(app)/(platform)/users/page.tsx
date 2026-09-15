@@ -94,6 +94,7 @@ export default async function PeoplePage() {
         accessRoles={accessRoles}
         archivedAccounts={archivedRows}
         ownUserId={user.id}
+        canViewAs={!user.viewAs}
       />
     </div>
   );

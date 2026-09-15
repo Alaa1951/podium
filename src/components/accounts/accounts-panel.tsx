@@ -8,6 +8,7 @@ import { AccountEditor } from "@/components/accounts/account-editor";
 import { useT } from "@/components/i18n/locale-provider";
 import { inviteAccount, resendInvite, setAccountStatus } from "@/lib/actions/accounts";
 import { archiveAccount, restoreAccount } from "@/lib/actions/accounts";
+import { startViewAs } from "@/lib/actions/view-as";
 
 export type AccountRow = {
   id: string;
@@ -38,6 +39,7 @@ export function AccountsPanel({
   accessRoles = [],
   archivedAccounts = [],
   ownUserId,
+  canViewAs = false,
 }: {
   accounts: AccountRow[];
   studios: { id: string; name: string }[];
@@ -48,6 +50,8 @@ export function AccountsPanel({
   /** Removed accounts — listed in their own strip, restorable. Admin only. */
   archivedAccounts?: AccountRow[];
   ownUserId?: string;
+  /** Admin holding no preview already: rows offer to see the app as them. */
+  canViewAs?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -93,6 +97,19 @@ export function AccountsPanel({
       if (!result.ok) setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
       else setMessage(result.message ?? "");
       router.refresh();
+    });
+  }
+
+  /** See the app as this account sees it. The action redirects to that
+   *  account's own home; a banner above every screen ends the preview. */
+  function viewAs(userId: string) {
+    setError("");
+    startTransition(async () => {
+      const result = await startViewAs(userId);
+      if (result.ok === false) {
+        setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
+        router.refresh();
+      }
     });
   }
 
@@ -270,6 +287,17 @@ export function AccountsPanel({
                         aria-expanded={editing === account.id}
                       >
                         {editing === account.id ? t("Close") : t("Edit")}
+                      </button>
+                    ) : null}
+                    {canViewAs && account.role !== "admin" && account.status === "active" ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => viewAs(account.id)}
+                        disabled={pending}
+                        title={t("See the app as this account sees it — read-only.")}
+                      >
+                        {t("View as")}
                       </button>
                     ) : null}
                     <button

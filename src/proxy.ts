@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { VIEW_AS_COOKIE } from "@/lib/view-as-token";
+
 // Next.js 16 renamed `middleware` to `proxy`. It runs on the Node.js runtime.
 //
 // Two jobs, both cheap:
@@ -112,6 +114,23 @@ export function proxy(request: NextRequest) {
     url.pathname = "/login";
     url.search = `?callbackUrl=${encodeURIComponent(pathname + search)}`;
     return securityHeaders(NextResponse.redirect(url), policy);
+  }
+
+  // A live "view as" preview is read-only, and Server Actions are how anything
+  // in this app gets written — so while a preview cookie is present they are
+  // refused outright, before any handler runs. Nothing can be changed under
+  // somebody else's name, and the audit trail never learns to lie. Leaving the
+  // preview is a plain GET (/api/view-as/exit), which is why it still works.
+  if (
+    request.cookies.has(VIEW_AS_COOKIE) &&
+    request.method === "POST" &&
+    request.headers.has("next-action") &&
+    !pathname.startsWith("/api/auth/")
+  ) {
+    return securityHeaders(
+      NextResponse.json({ error: "PREVIEW_READ_ONLY" }, { status: 403 }),
+      policy
+    );
   }
 
   return securityHeaders(pass(), policy);
