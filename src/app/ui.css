@@ -40,7 +40,7 @@
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--bft-cyan-text);
 }
 
 .page-head {
@@ -110,13 +110,14 @@
 .btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
 .btn-primary {
-  background: var(--podium-blue);
-  border-color: var(--podium-blue);
+  background: var(--primary-grad);
+  border-color: var(--podium-blue-deep);
   color: #fff;
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--podium-blue-bright);
   border-color: var(--podium-blue-bright);
+  box-shadow: var(--primary-glow);
 }
 
 .btn-secondary {
@@ -300,6 +301,9 @@ select.input { cursor: pointer; }
 .card,
 .blueprint {
   background: var(--surface);
+  /* the brand sheen: light catches the top edge of every raised surface, the
+     way the podium rows do on the board — same story, quieter volume. */
+  background-image: var(--card-sheen);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: 16px 18px;

@@ -87,35 +87,39 @@
   /* ── The surface — PODIUM's own ground ────────────────────────────────
      These nine tokens are the whole theme. Every screen is built from them
      and nothing hard-codes a grey, so the light theme is a matter of
-     redefining them once, below. */
-  --bg: #0a0a12;
-  --surface: #14141f;
-  --surface-sunken: #101018;
-  --surface-hover: #1e1e2c;
+     redefining them once, below.
 
-  --text: #f2f2f3;
-  --text-secondary: #b7b8c4;
-  --text-muted: #85879a;
+     The family is deliberately navy: the console has to read as the same
+     brand as the board on the wall — blue-black grounds, blue-tinted borders
+     and blue-grey text — not as a generic dark admin theme. */
+  --bg: #080a1d;
+  --surface: #111430;
+  --surface-sunken: #0c0f26;
+  --surface-hover: #1a1f47;
 
-  --border: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.20);
+  --text: #f0f1fb;
+  --text-secondary: #b3b9dc;
+  --text-muted: #7c83ad;
+
+  --border: rgba(126, 138, 255, 0.14);
+  --border-strong: rgba(132, 144, 255, 0.30);
 
   color-scheme: dark;
 
   /* ── The board surface ────────────────────────────────────────────────
      The same family as the app above, half a step deeper: the wall screen and
      the laptop beside it are one scene, not two designs that happen to share a
-     logo. Near-black with the same blue cast as --bg, so inside and outside
+     logo. Navy-black with the same blue cast as --bg, so inside and outside
      read as one world — still dark enough that a coloured ground never steals
      contrast from the blue and the medal metals across a gym. */
-  --board-bg: #07070d;
-  --board-raised: #0e0e16;
-  --board-row: #121219;
-  --board-row-hover: #1c1c26;
-  --board-border: rgba(255, 255, 255, 0.08);
-  --board-border-strong: rgba(255, 255, 255, 0.17);
-  --board-text: #f2f2f3;
-  --board-text-muted: #85879a;
+  --board-bg: #050720;
+  --board-raised: #0c0f2c;
+  --board-row: #0f1230;
+  --board-row-hover: #1a1e4b;
+  --board-border: rgba(126, 138, 255, 0.12);
+  --board-border-strong: rgba(132, 144, 255, 0.26);
+  --board-text: #f0f1fb;
+  --board-text-muted: #7c83ad;
 
   /* ── Type ──────────────────────────────────────────────────────────────
      --font-display  DIN Condensed Bold — board titles, ranks, totals
@@ -129,6 +133,14 @@
   --r-md: 10px;
   --r-lg: 14px;
   --r-pill: 999px;
+
+  /* ── Brand finish — the gradient layer ─────────────────────────────────
+     Modern surfaces without inventing new colours: a card catches light at
+     its top edge the way the board's podium rows do, and the primary button
+     is a single sweep of the official ramp — bright → electric → deep. */
+  --card-sheen: linear-gradient(180deg, rgba(59, 59, 255, 0.10), rgba(59, 59, 255, 0) 46%);
+  --primary-grad: linear-gradient(180deg, var(--podium-blue-bright), var(--podium-blue) 52%, var(--podium-blue-deep));
+  --primary-glow: 0 6px 22px rgba(0, 0, 255, 0.35);
 
   /* ── Elevation — light, layered, never heavy ──────────────────────────── */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -165,6 +177,9 @@
     --border: #e4e4ee;
     --border-strong: #ccccdc;
 
+    --card-sheen: linear-gradient(180deg, rgba(0, 0, 255, 0.045), rgba(0, 0, 255, 0) 46%);
+    --primary-glow: 0 6px 18px rgba(0, 0, 255, 0.18);
+
     --bft-cyan-soft: #e0f8fb;
     --bft-cyan-text: #05707f;
     --podium-blue-text: var(--podium-blue);
@@ -194,6 +209,9 @@
 
   --border: #e4e4ee;
   --border-strong: #ccccdc;
+
+  --card-sheen: linear-gradient(180deg, rgba(0, 0, 255, 0.045), rgba(0, 0, 255, 0) 46%);
+  --primary-glow: 0 6px 18px rgba(0, 0, 255, 0.18);
 
   --bft-cyan-soft: #e0f8fb;
   --bft-cyan-text: #05707f;
