@@ -147,6 +147,7 @@ export const AR_CORE: Phrases = {
   "Kettlebell rounds": "جولات الكيتل بِل",
   "Dumbbell rounds": "جولات الدمبل",
   "Time remaining": "الوقت المتبقي",
+  "Unsaved changes": "تغييرات غير محفوظة",
   "Calculated total": "الإجمالي المحسوب",
   "Rank in": "الترتيب في",
   "Submit score": "إرسال النتيجة",

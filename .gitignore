@@ -51,5 +51,6 @@ dev-server.log
 
 # deployment package output
 /dist-hostinger/
+/release/
 /backups/
 node_modules.zip

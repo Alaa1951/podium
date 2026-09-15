@@ -494,6 +494,110 @@ select.input { cursor: pointer; }
   .grid-input { width: 56px; }
 }
 
+/* ── The score sheet on a phone ───────────────────────────────────────────
+   One card per team. The name is the handle — tapping it opens that team's
+   zones stacked below at full screen width, so a judge never scrolls sideways
+   and only one team's fields are on the screen at a time. */
+.grid-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.grid-card[data-open] {
+  border-color: var(--podium-blue);
+  box-shadow: inset 3px 0 0 var(--podium-blue);
+}
+.grid-card[data-submitted] .grid-card-total { color: var(--bft-cyan); }
+
+.grid-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.grid-card-num { font-size: 13px; color: var(--text-muted); flex: none; }
+.grid-card-id { flex: 1; min-width: 0; }
+.grid-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.grid-card-total {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Typed but not yet saved: a dot beside the total, so a team waiting for its
+   SAVE is still visible after the judge closes its card. */
+.grid-card-dirty {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bft-cyan);
+  flex: none;
+}
+
+.grid-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.grid-card-zone {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+}
+.grid-card-zone-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.grid-card-field { display: grid; gap: 4px; }
+.grid-card-label { font-size: 12px; color: var(--text-secondary); }
+.grid-card-controls { display: flex; align-items: stretch; gap: 8px; }
+.grid-card-controls .input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  font-size: 18px;
+  text-align: end;
+}
+.grid-card-controls .btn {
+  height: 44px;
+  min-width: 64px;
+  font-size: 17px;
+  font-weight: 700;
+  flex: none;
+}
+.grid-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.grid-card-pair {
+  display: grid;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.grid-card-pair strong { font-size: 17px; }
+.grid-card-foot .btn { margin-inline-start: auto; }
+
 /* ── A form laid out in columns ───────────────────────────────────────────
    Used wherever a handful of short fields belong together. It reflows to one
    column on a phone without anything having to say so. */

@@ -1568,3 +1568,61 @@ tr[data-unscored] td { color: var(--text-muted); }
   text-transform: uppercase;
   color: var(--board-text-muted);
 }
+
+/* ── The wave timer + finisher clock (score entry) ───────────────────── */
+.waves-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  margin-top: 14px;
+}
+
+.waves-timer-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--bft-cyan);
+  letter-spacing: 0.04em;
+}
+
+.waves-timer-arrow {
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.waves-timer-arrow:hover { color: var(--text); }
+
+.waves-timer-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-inline-start: 6px;
+}
+
+.finisher-clock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finisher-clock-display {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.finisher-clock[data-over] .finisher-clock-display { color: var(--danger); }
+
+.finisher-clock-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

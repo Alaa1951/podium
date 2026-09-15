@@ -26,19 +26,20 @@ export default function manifest(): MetadataRoute.Manifest {
     // The event brand, painting the OS chrome around the app.
     theme_color: "#07073d",
     categories: ["sports", "fitness"],
-    // Four real rasters: the square plate fills a maskable icon's safe zone,
-    // so the launcher can crop it to any shape without losing the mark.
+    // Four real rasters. The "any" pair keeps the transparent plate; the
+    // maskable pair are separate opaque rasters with the mark inside the
+    // launcher safe zone, so a circle crop never cuts it or shows voids.
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       {
-        src: "/icons/icon-192.png",
+        src: "/icons/icon-192-maskable.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/icons/icon-512-maskable.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

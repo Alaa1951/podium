@@ -1,48 +1,46 @@
-# خطة CTO شاملة: وصول عام + رعاة + توحيد UI مع المرجع
+# خطة التنفيذ النهائية — الموجات + الفينشر + الصلاحيات + الموبايل
 
-## خلاصة المراجعة (اللي وصلنا لها)
+## 1️⃣ عدّاد الموجة (Timer) — أوتوماتيك من الـ Start
+- أول ما الموجة تعمل **Start**: العدّاد يبدأ تنازلي من مدتها (15:00 أو المتبقي) ويفضل **ظاهر ومثبت** في شاشة الـ Score entry
+- عند **00:00: Finish تلقائي** للإدارة (الموجة تكتمل) + الموجة اللي بعدها تبدأ بعد **فاصل 5 دقايق**
+- لو أكتر من موجة شغالة (locations مختلفة): أسهم ‹ › للتنقل بين عداداتهم
 
-**✅ الوصول العام قائم فعلاً معمarilyاً:** `proxy.ts` يفتح `/results` (PUBLIC_PATHS:13-24) وصفحات `(public)` الثلاث تستعلم بلا أي auth — هتتحقق live بـ curl كسجل نهائي.
+## 2️⃣ عدّاد الفينشر المخصص + التسجيل بالوقت المتبقي
+- **عداد تنازلي خاص بالفينشر** في شاشة الإدخال: مرتبط بساعة الموجة — بيعرض **الوقت المتبقي live**
+- **الفريق يخلص شغلته → الحكم يدوس "Finish" للفريق** → النظام:
+  1. يلقط الوقت المتبقي في اللحظة دي (مثال: 3:20)
+  2. يعبّي خانتي **Minutes remaining / Seconds remaining** تلقائيًا
+  3. يحسب النقاط فورًا بالمعادلات الموجودة (min ×10 + sec ÷10) — **المعادلات نفسها مش هتتلمس**
+  4. **يحفظ تلقائي**
+- **لو الموجة قفلت بدري** (الحكم قفلها قبل ما الكل يخلص): العداد بيحسب الوقت المتبقي وقت الإقفال لكل فريق شغال — محدش بيضيع
+- **الفريق اللي ما خلصش لحد 00:00**: بيتسجل **0:00** (صفر نقاط فينشر)
+- التصحيح اليدوي: الحكم يقدر يعدل الدقايق/الثواني يدوي بعد الكبات (زي باقي الشيت)
 
-**🔴 3 ثغرات أمنية (CTO-level) وجدتها الاستكشافات:**
-1. **`/api/series/[series]/board` مفتوح لأي مسجّل** (route.ts:14-15 — authN فقط بلا role): أي competitor/studio يقدر يعمل poll للبورد الحي غير المنشور لأي حدث بكل الدرجات. لازم role check.
-2. **تناقض النشر:** `public-results.ts:33` يعتبر `final` + `resultsPublicAt: null` منشور، بينما `visibility.ts:64` يقول null = خاص. سيت穆 نواية التصميم الموثقة: null = غير منشور (الأدمن ينشر صراحة).
-3. **PII زايدة على المسار العام:** `publishedTeam` يرجع phone/email/dateOfBirth للمتنافسين والصفحة تعرض fullName فقط — نقصّ الـ select.
+## 3️⃣ عدّاد الـ reps/rounds — **+1 click + حفظ تلقائي**
+- زرار **+1** كبير لكل حركة عدّ (Deadlift / Bench / Kettlebell / Dumbbell): كل ضغطة = +1
+- **من غير minus خالص** — التصحيح: الكتابة اليدوية في الخانة الرقمية (متاحة دايماً)
+- **النقاط بتتحسب فورًا بعد كل ضغطة** (×10) + **حفظ تلقائي** (debounced بعد آخر ضغطة)
+- نفس الزرار على: الموبايل / التابلت / اللابتوب
 
-**🎨 10 فروقات UI عن المرجع (bodyfittraining.au/podium) في صفحات الـ Final Results** — عدّتها وكتبتها بالتفصيل مع file:line (لون العنوان، سلسلة ///، عداد UPDATING IN، اللوجو المكدس، glow المعادن، gating عمود STUDIO، contrast الفلاتر، أنيميشن الصفوف، chip الترتيب دايماً برونزي في صفحة الفريق، شريط الرعاة على العام).
+## 4️⃣ المسافات (م) — إدخال يدوي + حساب وحفظ تلقائي
+- الحكم يكتب الرقم (مثلاً 1850 م) → **النقاط بتتحسب فورًا** (÷100) + **حفظ تلقائي** (debounced)
 
-**🏗️ الرعاة:** لا يوجد أي upload infra، وpublic/ مخبوزة في Docker image (filesystem غير قابل للبقاء) → التخزين الصح: **MySQL + API route**.
+## 5️⃣ نفس التجربة على كل الأجهزة
+الموبايل / التابلت / اللابتوب — نفس الشاشة والأزرار والعدادات
 
 ---
 
-## المرحلة 1 — الأمان والوصول العام (الأولوية)
+# الـ Zone-level access (زي ما اتفقنا)
+- `WaveAccess.zones Json?` — null = الموجة كلها، أو زونات محددة للحكم
+- `saveScore`: القيم خارج الزونات الممنوحة تترفض للحكم الممنوح جزئيًا
+- `my-wave`: زونات الحكم فقط + التوتال الكلي live
+- كارت المنح: multi-select زونات
 
-1. **التحقق النهائي بالـ curl من غير cookies** على `/results` و`/results/podium-series-1/Womens/Pro` — توثيق أن أي زائر يفتحها.
-2. **قفل الـ board API:** `requireRole("admin")` في `/api/series/[series]/board/route.ts` (الاستوديو عنده شاشاته الخاصة).
-3. **توحيد النشر:** `public-results.ts` يتطلب `resultsPublicAt` فعلي (null = خاص زي visibility.ts) + تحديث seed-scenarios ليضبط `resultsPublicAt` على podium-series-1 (النهائي) + مسح إعدادات السيناريوهات.
-4. **تقليل PII:** `publishedTeam` يرجع فقط الحقول المعروضة (fullName, الترتيب, الدرجات).
+# الموبايل Responsive
+- `ScoreGrid` ≤720px → كروت فريق مكدسة (بدل الجدول): الفريق + عداد الفينشر + زرار Finish + عدادات reps + مدخلات المسافات + توتال/رانك + حفظ
+- `.screen` padding ≤720px → 14px · `series-card-figures` → 2 أعمدة
 
-## المرحلة 2 — شاشة الرعاة لكل Event
+# التحقق
+`type-check` → `lint (0 errors)` → `vitest` → `build` → **live test**: عدّاد +1 مع auto-save، عدّاد الموجة 15:00، Finish أوتوماتيك عند 00:00، capture المتبقي
 
-5. **Prisma:** model `Sponsor { id, seriesId (cascade), alt, position, imageB64 @db.MediumText, mimeType }` + `@@unique([seriesId, position])` + migration باسم `sponsor_logos`.
-6. **Server actions** (نمط zones.ts بالحرف): `saveSponsor` (base64 من الـ form client-side، حد 1MB، png/jpg/webp/svg) و`deleteSponsor` — requireRole("admin") + zod + recordAudit (مفتاح جديد seriesSponsorChanged) + revalidatePath. إعادة ترتيب تلقائية بالحذف.
-7. **عرض اللوجو:** `GET /api/series/[series]/sponsors/[id]/logo` — عام القراءة (يظهر على شاشات العرض) مع `Cache-Control: immutable`.
-8. **Admin UI:** قسم "Sponsors" في صفحة إعدادات الحدث بجانب ZoneEditor: رفع + اسم بديل + سحب ترتيب بسيط (أزرار أعلى/أسفل) + حذف، بنفس نمط SettingsForm (useT, notice errors, router.refresh).
-9. **التوصيل للشاشات:** `buildBoardPayload` + `publishedCompetition` يرجعوا `sponsors: {src, alt}[]` (src = رابط الـ API route) → `SponsorStrip logos={...}` على بورد الحائط (running + finished) و**صفحات النتائج العامة**.
-10. **Seed:** رعاة تجريبيون في السيناريوهات (placeholders تبقى تحتها).
-
-## المرحلة 3 — توحيد الـ UI مع المرجع (Final Result)
-
-11. **PublicShell:** لوجو مكدس PODIUM فوق و"BY BFT" تحته (variant جديد في BoardBrand) + خانة يمين للعداد.
-12. **results-board:** كلا الصفرتين bracket بلو ألكتريك (المتغيّر: `.pb-title-cat` cyan→blue)، سلسلة `{name} /// {name}` يمين، **عداد UPDATING IN + poll عبر endpoint عام جديد** `/api/results/[series]/[category]/[division]` (منشور فقط، بلا PII — مش تلويث board API)، glow ذهبي/فضي/برونزي للصفوف والأقراص، gating عمود STUDIO بـ showStudioColumn، رفع contrast الفلاتر لـ border-strong، أنيميشن rise متدرج.
-13. **صفحة الفريق:** chip الترتيب بيتلون حسب المعدن (data-rank) بدل البرونز الدائم + لينك رجوع "‹ BACK".
-14. **SponsorStrip** أسفل الـ public leaderboard (فوق الـ footer).
-15. **i18n:** الترجمات العربية لكل النصوص الجديدة في ar-results.ts.
-
-## المرحلة 4 — التحقق الشامل كـ CTO
-
-16. **اختبار السيناريوهات الأربعة:** `node scripts/walk.mjs` (جولة المسارات الموجودة) + اختبارات vitest جديدة لـ: دلالة النشر الجديدة، sponsor actions (رفض غير الأدمن، حجم الملف)، وboard API 403 لغير الأدمن.
-17. **build + type-check** كاملين.
-18. **فحص بصري بـ المتصفح:** (أ) زائر مسجّل خارِج يفتح /results والـ leaderboard وصفحة الفريق — لقطات، (ب) شاشة الرعاة في إعدادات الأدمن مع رفع لوجو تجريبي، (ج) بورد الحائط بالرعاة، (د) الوضع العربي RTL للصفحات العامة.
-
-**ملفات متأثرة:** proxy.ts (لا يتغير), api/series/board/route.ts, public-results.ts, queries.ts, prisma/schema.prisma + migration, seed-scenarios.ts, lib/actions/series.ts (أو sponsors.ts جديد), api routes الجديدة, components/series/settings*, components/board/sponsor-strip.tsx, board-brand.tsx, public/results pages, results-board.tsx, globals.css, board.css, ar-results.ts, lib/board.ts
+**ملفات أساسية:** `wave-clock-banner.tsx` + `count-stepper.tsx` + `finisher-clock.tsx` (جدد) · `score-grid.tsx` + `score-grid-row.tsx` + `score-entry.tsx` (تحويل الأعداد والأزرار) · `actions/scores.ts` (zone scope + auto fill) · `actions/wave-access.ts` (zones) · `my-wave/page.tsx` · `scores/page.tsx` · `queries-people.ts` (endsAt) · `globals.css` · `zones.ts` (zoneScope نقي + اختبار) · `prisma schema` (WaveAccess.zones) + migration · i18n

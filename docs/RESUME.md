@@ -1,25 +1,27 @@
 # Resume Notes — الجلسة الجاية نكمل من هنا
 
-آخر تحديث: بعد نظام الأرشفة والـ Wave Access وبداية الـ RBAC.
+آخر تحديث: بعد موجة العدادات (Wave clock + Finisher clock + steppers) والموبايل responsive وإزالة Google.
 
-## الحالة الحالية (كلها type-check نظيف ✓)
+## الحالة الحالية (كلها بوابات خضراء: type-check ✓ lint 0/0 ✓ 184 اختبار ✓ build ✓)
 
-- **الأرشفة**: Team.archivedAt + Series.archivedAt + User.archivedAt (migrations applied) — guards في series-guard.ts + اختبارات.
-- **Wave Access**: WaveAccess model ✓، أزرار المنح في شاشة Score entry ✓، saveScore بيسمح لحامل الجرانت ✓، صفحة /my-wave ✓ (اختبرت live: شيت الموجة 2 بـ 9 فرق).
-- **إعادة التسمية**: Competitors (المتنافسون) / Users (المستخدمون) ✓.
-- **RBAC (في نصه)**: AccessRole model ✓ (migrations applied)، الكتالوج PERMISSION_GROUPS في access.ts ✓، permissions عبر الجلسة (token + refresh + getCurrentUser) ✓، requirePermission ✓، حماية الشاشات (users/audit/registrations/scores/waves/results/settings + layouts) ✓، شاشة /roles + RolesManager ✓، إسناد دور من AccountEditor ✓، i18n ✓.
+- **Release**: أول commit عُمل (`17cb41a release: prepare podium mena for secure production launch`) وبعده CI gates + theme.
+- **عدادات الموجة والفينشر**: WavesTimer مثبت فوق شاشة Score entry (يتنقل بين الموجات الشغالة بأسهم) + FinisherClock لكل فريق (Start → Capture يلقط الوقت المتبقي ويحطه في خانتي الفينشر تلقائي) + سحب الموجات أوتوماتيك عند 00:00 مع فاصل 5 دقايق بين الموجات.
+- **+1 steppers**: على كل خانة عدّ (Deadlift/Bench/Kettlebell/Dumbbell) في شيت الجريد — من غير minus؛ التصحيح بالكتابة اليدوية. النقاط بتتحسب فورًا بعد كل ضغطة.
+- **موبايل (≤720px)**: جدول النتائج بيتحول لكروت فريق — الضغط على اسم الفريق يفتح الزونات الأربعة مكدسة تحته بعرض الشاشة (من غير scroll يمين، اختبرت live على 412×968). نقطة سماوية بجانب التوتال بتظهر فيه تعديل غير محفوظ. `my-wave` بيستخدم نفس ScoreGrid فبياخد الموبايل أوتوماتيك.
+- **Zone-level access**: WaveAccess.zones — الحكم الممنوح زونات محددة بيشوف زوناته بس + التوتال live؛ saveScore بفلتر القيم خارج الزونات الممنوحة.
+- **الأمان**: Google sign-in اتشال خالص (Credentials فقط — .env.example اتضفت منه مفاتيح Google) · OTP_DEV_BYPASS مقفول في production (مُختبر) · SMTP fail-closed (مُختبر) · .env متتجاهل في git · PWA (manifest + sw.js + assetlinks) من غير أي caching للمحتوى.
 
 ## المتبقي لما نرجع
 
-1. `npm run type-check` ثم `npx vitest run` (اختبارات access.test.ts اتظبطت بـ permissions — لو في failing شيل تعديلاتي المؤقتة في Factory).
-2. `npm run build` — لو نجح، اعمل commit (شغل كبير غير مCommitt-ed لحد دلوقتي).
-3. **Stress test** (المطلوب الجاي):
-   - `npm run build` + شغّل production: PORT مختلف عن الـ dev أو اقفل dev الأول.
-   - سكريبت `scripts/load-test.mjs` (fetch + worker pool) على: `/results`، `/results/{slug}/{cat}/{div}`، `/api/results/...`، `/series/{slug}/board` + `/api/series/{id}/board` (بـ cookie أدمن).
-   - درجات تزامن: 50 / 100 / 250 / 500 (و1500 لو الأمور تمام) — سجل RPS وp95 وerrors.
-   - افحص: pool الـ MariaDB adapter (limit 10 افتراضي)، MySQL `max_connections`، indexes على Team (seriesId + paymentStatus).
-4. **تحسينات مقترحة معلّقة**: auto-advance مرفوض عمداً للـ first wave (يدوي) — لو عايز wall-clock start نراجع timezone.
+1. **Stress test**: `scripts/load-test.mjs` على الـ production standalone (شغال دلوقتي على :3000) — درجات 50/100/250/500/1500، راقب pool الـ MariaDB و `max_connections`.
+2. **Rate limiter**: لسه in-memory — لو هنعمل multi-instance ننقله لمخزن مشترك.
+3. **JWT revocation**: tokenVersion لو محتاجين إبطال فوري لجلسات 12 ساعة.
+4. **SVG الرعاة**: يُضاف Content-Disposition أو sanitization لو هيسرف inline.
+5. **setSeriesStatus**: جارد الانتقالات (final → live ممكن حاليًا).
+6. مراجعة بصرية لشاشة /roles + إسناد الأدوار من الحسابات.
 
 ## ملاحظات
-- OTP_DEV_BYPASS=true في .env (شغال فقط في dev) — اشيله قبل أي deploy.
+- السيرفر الـ production standalone شغال من `.next/standalone` (بعد كل build: انسخ `.next/static` → `.next/standalone/.next/static` و `public` → `.next/standalone/public`).
 - Docker/MySQL لازم يكونوا شغالين قبل `npm run dev:bg`.
+- OTP_DEV_BYPASS=true في .env للـ dev فقط — اشيله قبل أي deploy.
+- حسابات المشي التجريبية: `scripts/dev-accounts.mjs` (walk-admin@bftmena.com / PodiumDev!2026) — امسحه من People بعد ما تخلص.

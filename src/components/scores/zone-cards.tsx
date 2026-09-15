@@ -21,9 +21,9 @@ import {
 // exists, a field exists because a movement exists, and a minutes/seconds pair
 // is drawn as the single MM:SS box the judge's sheet is written in.
 //
-// Lifted out of score-entry.tsx so both the one-team card and the all-teams
-// grid can use the same fields — and so neither file can drift into drawing a
-// movement differently from the other.
+// Count movements (reps, rounds) get a big +1 tap button — the judge taps to
+// count, points recalculate live, and the score auto-saves after a brief
+// pause. No minus button: corrections go through the number input.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ZoneCards({

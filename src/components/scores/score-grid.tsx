@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ScoreGridRow } from "@/components/scores/score-grid-row";
@@ -19,7 +19,30 @@ import type { ZoneDef } from "@/lib/zones";
 // the row, because that card carries the outlier warning and the audit trail,
 // which a single line has no room for. Both write through the same server
 // action and calculate with the same functions, so they cannot disagree.
+//
+// On screens ≤720px the table collapses into stacked team cards — each team
+// becomes a self-contained block with its zone inputs stacked vertically,
+// so a judge on a phone can score without any sideways scrolling.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export function useIsMobile(breakpoint = 720) {
+  const query = `(max-width: ${breakpoint}px)`;
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const mq = window.matchMedia(query);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    [query]
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    // Server render has no viewport: the table ships first and the phone
+    // swaps to cards on hydration, a frame later at most.
+    () => false
+  );
+}
 
 export function ScoreGrid({
   teams,
@@ -37,6 +60,7 @@ export function ScoreGrid({
   frozenReason?: string;
 }) {
   const t = useT();
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState<string | null>(null);
 
   if (teams.length === 0) {
@@ -45,6 +69,34 @@ export function ScoreGrid({
         <strong>{t("No teams here yet.")}</strong>{" "}
         {t("Teams appear on this sheet once their registration is paid.")}
       </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <>
+        {frozen && frozenReason ? (
+          <div className="notice notice-warn" style={{ marginBottom: 14 }}>
+            {frozenReason}
+          </div>
+        ) : null}
+
+        <div style={{ display: "grid", gap: 14 }}>
+          {teams.map((team) => (
+            <ScoreGridRow
+              key={team.id}
+              team={team}
+              zones={zones}
+              editBudget={editBudget}
+              isAdmin={isAdmin}
+              frozen={frozen}
+              mobile
+              expanded={open === team.id}
+              onExpand={() => setOpen((id) => (id === team.id ? null : team.id))}
+            />
+          ))}
+        </div>
+      </>
     );
   }
 

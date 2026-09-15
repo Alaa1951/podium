@@ -31,6 +31,7 @@ export function ScoreGridRow({
   frozen,
   onExpand,
   expanded,
+  mobile = false,
 }: {
   team: GridTeam;
   zones: ZoneDef[];
@@ -40,6 +41,8 @@ export function ScoreGridRow({
   frozen: boolean;
   onExpand: () => void;
   expanded: boolean;
+  /** ≤720px: a stacked card instead of a table row — no sideways scrolling. */
+  mobile?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -58,8 +61,10 @@ export function ScoreGridRow({
   }
 
   const spent = !isAdmin && team.scoreEdits >= editBudget;
-  // While the card is open below, it is the editor — see the comment there.
-  const locked = spent || frozen || expanded;
+  // On the desktop sheet the one-team card opens below and becomes the editor,
+  // so the row's own fields step aside while it is open. On mobile the card's
+  // stacked fields ARE the editor — opening it must not lock them.
+  const locked = spent || frozen || (!mobile && expanded);
   const total = totalPoints(zones, draft);
   const rank = 1 + team.peerTotals.filter((peer) => peer > total).length;
   const dirty = zones.some((zone) =>
@@ -85,6 +90,133 @@ export function ScoreGridRow({
       setSaved(true);
       router.refresh();
     });
+  }
+
+  // The phone sheet: one card per team. The name is the handle — tapping it
+  // opens that team's zones stacked below, one field per line at full screen
+  // width, so nothing ever scrolls sideways. Only one team is open at a time.
+  if (mobile) {
+    return (
+      <div className="grid-card" data-submitted={team.submitted || undefined} data-open={expanded || undefined}>
+        <button
+          type="button"
+          className="grid-card-head"
+          onClick={onExpand}
+          aria-expanded={expanded}
+        >
+          <span className="grid-card-num pd-num">{team.number}</span>
+          <span className="grid-card-id">
+            <span className="grid-team-name">{team.name}</span>
+            <span className="grid-team-people">{team.competitors.join(" · ")}</span>
+            <span className="grid-team-bracket">
+              {t(team.category)} · {t(team.division)} · {t("Wave")} {team.wave}
+            </span>
+          </span>
+          <span className="grid-card-meta">
+            {dirty ? <span className="grid-card-dirty" title={t("Unsaved changes")} /> : null}
+            <span className="grid-card-total pd-num">{fmt(total, 2)}</span>
+            <span className={`badge ${teamStatusTone(status)}`}>{t(teamStatusLabel(status))}</span>
+          </span>
+        </button>
+
+        {expanded ? (
+          <div className="grid-card-body">
+            {zones.map((zone) => (
+              <div key={zone.id} className="grid-card-zone">
+                <div className="grid-card-zone-head">
+                  <span className="card-kicker">
+                    {t("Zone")} {zone.number} {"///"} {t(zone.name)}
+                  </span>
+                  <span className="grid-zone-pts pd-num" style={{ marginTop: 0 }}>
+                    {fmt(zonePoints(zone, draft), 2)}
+                  </span>
+                </div>
+
+                {groupInputs(zone).map((group) =>
+                  group.kind === "clock" ? (
+                    <div key={group.minutes.id} className="grid-card-field">
+                      <span className="grid-card-label">{t("Time remaining")}</span>
+                      <ClockField
+                        minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
+                        seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
+                        disabled={locked || pending}
+                        onChange={set}
+                        size="sm"
+                        label={t("Time remaining")}
+                      />
+                    </div>
+                  ) : (
+                    <div key={group.input.id} className="grid-card-field">
+                      <span className="grid-card-label">{t(group.input.label)}</span>
+                      <div className="grid-card-controls">
+                        <input
+                          className="input pd-num"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={group.input.maxValue ?? undefined}
+                          aria-label={t(group.input.label)}
+                          value={show(draft[group.input.id])}
+                          disabled={locked || pending}
+                          onChange={(e) =>
+                            set(
+                              group.input.id,
+                              e.target.value.trim() === "" ? null : Number(e.target.value)
+                            )
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-cyan"
+                          disabled={locked || pending}
+                          aria-label={`${t(group.input.label)} +1`}
+                          onClick={() =>
+                            set(
+                              group.input.id,
+                              Math.min(
+                                (draft[group.input.id] ?? 0) + 1,
+                                group.input.maxValue ?? 9999
+                              )
+                            )
+                          }
+                        >
+                          +1
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            ))}
+
+            <div className="grid-card-foot">
+              <span className="grid-card-pair">
+                {t("Total")} <strong className="pd-num">{fmt(total, 2)}</strong>
+              </span>
+              <span className="grid-card-pair">
+                {t("Rank")}{" "}
+                <strong className="pd-num">{team.submitted || dirty ? rank : "—"}</strong>
+              </span>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={save}
+                disabled={locked || pending || zones.length === 0 || !dirty}
+              >
+                {pending ? <span className="spinner" /> : null}
+                {locked ? t("Locked") : saved && !dirty ? t("Saved") : t("Save")}
+              </button>
+            </div>
+
+            {error ? (
+              <div className="notice-error" role="alert">
+                {error}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   return (
@@ -117,20 +249,41 @@ export function ScoreGridRow({
                     label={t("Time remaining")}
                   />
                 ) : (
-                  <input
-                    key={group.input.id}
-                    className="input pd-num grid-input"
-                    type="number"
-                    min={0}
-                    max={group.input.maxValue ?? undefined}
-                    aria-label={`${team.name} — ${t(group.input.label)}`}
-                    title={t(group.input.label)}
-                    value={show(draft[group.input.id])}
-                    disabled={locked || pending}
-                    onChange={(e) =>
-                      set(group.input.id, e.target.value.trim() === "" ? null : Number(e.target.value))
-                    }
-                  />
+                  <div key={group.input.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      className="input pd-num grid-input"
+                      type="number"
+                      min={0}
+                      max={group.input.maxValue ?? undefined}
+                      aria-label={`${team.name} — ${t(group.input.label)}`}
+                      title={t(group.input.label)}
+                      value={show(draft[group.input.id])}
+                      disabled={locked || pending}
+                      onChange={(e) =>
+                        set(group.input.id, e.target.value.trim() === "" ? null : Number(e.target.value))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-cyan"
+                      disabled={locked || pending}
+                      aria-label={`${t(group.input.label)} +1`}
+                      title={`+1 ${t(group.input.label)}`}
+                      onClick={() =>
+                        set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))
+                      }
+                      style={{
+                        minWidth: 32,
+                        height: 32,
+                        fontSize: 16,
+                        fontWeight: 700,
+                        padding: 0,
+                        flex: "none",
+                      }}
+                    >
+                      +1
+                    </button>
+                  </div>
                 )
               )}
             </div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ScoreGrid } from "@/components/scores/score-grid";
 import type { GridTeam } from "@/components/scores/score-grid-types";
 import { WaveAccessCard } from "@/components/scores/wave-access-card";
+import { WavesTimer } from "@/components/scores/waves-timer";
 import { WaveControl } from "@/components/scores/wave-control";
 import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesTeams, getSeriesZones } from "@/lib/queries";
@@ -83,6 +84,13 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
   return (
     <div className="screen">
       <WaveControl waves={waves} summary={waveSummary} canControl />
+
+      <WavesTimer
+        runningWaves={waveSummary.runningNumbers}
+        remainingByWave={Object.fromEntries(
+          waves.map((wave) => [wave.number, wave.remainingMs])
+        )}
+      />
 
       <div className="screen-head" style={{ marginTop: 26 }}>
         <div>
