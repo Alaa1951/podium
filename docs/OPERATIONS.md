@@ -108,6 +108,14 @@ and nothing reaches the server until someone ships it on purpose:
 The deploy keeps the running build; if the health check fails after the
 restart it rolls back to it automatically.
 
+**The deploy does not run migrations.** When a change ships with one, apply
+it right after the deploy (the migration files only exist on the server once
+the new commit is checked out, so this order matters):
+
+```bash
+cd /opt/podium && npx prisma migrate deploy
+```
+
 Backups run nightly at 03:00 via root cron → `/opt/backups` (keeps 14).
 Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 
