@@ -262,4 +262,8 @@ export const AR_CORE: Phrases = {
   "That wave has already run — only BFT MENA can move a team out of it.":
     "هذه الموجة انتهت بالفعل — BFT MENA وحدها تستطيع نقل فريق منها.",
   "There is already a wave with that number.": "توجد بالفعل موجة بهذا الرقم.",
+
+  // ── The board's combined ranking ──────────────────────────────────────────
+  "In the ranking": "داخل الترتيب",
+  "Not in the ranking": "خارج الترتيب",
 };

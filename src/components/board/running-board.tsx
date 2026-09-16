@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import type { BoardPayload } from "@/lib/board";
 import { clockFromMs, rankAll } from "@/lib/scoring";
 import {
+  markedBracketsLabel,
+  markedBracketsTeams,
   populatedBrackets,
   scopeTitle,
   teamsInScope,
@@ -34,11 +36,14 @@ import { SponsorStrip } from "@/components/board/sponsor-strip";
 // design system rather than its original one.
 //
 // It runs unattended on a wall all day, so everything it does is on a timer:
-// scores are polled, long brackets turn their own page, and it can rotate
-// through the brackets on its own.
+// scores are polled, long rankings turn their own pages, and the pages keep
+// turning until someone stops them.
+//
+// THE SCOPE IS ONE RANKING, NOT A PLAYLIST. Marking brackets combines them —
+// every marked bracket's teams on one board, ranked against each other by
+// score. Nothing marked is the whole field; the floor chip is this instant.
 
 const PAGE_SECONDS = 14;
-const ROTATE_SECONDS = 18;
 
 // This is read from across a gym, not scrolled on a desk. Ten rows fill a
 // wall screen at a size somebody out of breath can actually read; the rest
@@ -57,12 +62,14 @@ export function RunningBoard({
 }) {
   const t = useT();
   const [data, setData] = useState(initial);
-  const [selection, setSelection] = useState<number>(ALL_TEAMS);
-  /** The rotation playlist. Empty → every bracket with scores — the "All" case. */
+  /** The combined-ranking scope: the marked brackets. Empty → the whole field
+   *  that has taken the floor so far. */
   const [marks, setMarks] = useState<number[]>([]);
-  /** ON is the resting state: an unattended wall board cycles unless someone
-   *  deliberately stops it. Only this toggle turns it off — picking chips
-   *  reshapes the route, it never stops the ride. */
+  /** This instant on the floor, instead of a ranking. */
+  const [floorView, setFloorView] = useState(false);
+  /** ON is the resting state: the ranking's pages keep turning until someone
+   *  stops them. Only this toggle does that — picking chips reshapes the
+   *  ranking, it never freezes the board. */
   const [rotate, setRotate] = useState(true);
   const [page, setPage] = useState(0);
 
@@ -99,16 +106,23 @@ export function RunningBoard({
   const columns = columnsFor(data.zoneDefs.length);
 
   // ── The rows on show ──────────────────────────────────────────────────────
-  // The same selection the figures use, ranked — so the board can never show
-  // a row the progress bar has not counted.
+  // One ranking of the current scope: the marked brackets combined, the field
+  // so far, or this instant on the floor — always ranked by score, so the
+  // board can never show a row the progress bar has not counted.
+  const scopedTeams = () => {
+    if (floorView) {
+      return teamsInScope({ teams: data.teams, selection: ON_FLOOR, reached, runningNumbers });
+    }
+    if (marks.length > 0) {
+      return markedBracketsTeams(data.teams, marks, reached);
+    }
+    return teamsInScope({ teams: data.teams, selection: ALL_TEAMS, reached, runningNumbers });
+  };
+
   const rows = useMemo(
-    () =>
-      rankAll(
-        teamsInScope({ teams: data.teams, selection, reached, runningNumbers }).filter(
-          (team) => team.submitted
-        )
-      ),
-    [data.teams, reached, runningNumbers, selection]
+    () => rankAll(scopedTeams().filter((team) => team.submitted)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data.teams, reached, runningNumbers, marks, floorView]
   );
 
   const pageCount = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
@@ -116,51 +130,15 @@ export function RunningBoard({
   const visible = rows.slice(currentPage * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE + ROWS_PER_PAGE);
 
   // ── Page turn ─────────────────────────────────────────────────────────────
+  // The ranking's pages keep turning until someone stops the ride.
   useEffect(() => {
-    if (pageCount <= 1) return;
+    if (!rotate || pageCount <= 1) return;
     const id = setInterval(() => setPage((p) => p + 1), PAGE_SECONDS * 1000);
     return () => clearInterval(id);
-  }, [pageCount]);
-
-  // ── Bracket rotation ──────────────────────────────────────────────────────
-  const populated = useMemo(() => populatedBrackets(data.teams), [data.teams]);
-
-  // The rotation pool: the marked brackets EXACTLY as they were chosen — a
-  // marked bracket is promised its turn even before it has scores — and when
-  // nothing is marked, every bracket with scores. That is the "All" case.
-  const rotationPool = useMemo(
-    () => (marks.length > 0 ? marks : populated),
-    [marks, populated]
-  );
-
-  // Every scores poll arrives as a fresh payload, so the pool's IDENTITY
-  // changes each time even when its contents have not. The interval reads the
-  // pool through a ref and only re-arms when the ride starts or stops —
-  // otherwise the poll starves the timer and the board never turns.
-  const poolRef = useRef(rotationPool);
-  useEffect(() => {
-    poolRef.current = rotationPool;
-  }, [rotationPool]);
-
-  useEffect(() => {
-    if (!rotate) return;
-    const id = setInterval(() => {
-      const pool = poolRef.current;
-      if (pool.length === 0) return;
-      setSelection((current) => {
-        const at = pool.indexOf(current);
-        return at === -1 ? pool[0] : pool[(at + 1) % pool.length];
-      });
-      setPage(0);
-    }, ROTATE_SECONDS * 1000);
-    return () => clearInterval(id);
-  }, [rotate]);
+  }, [rotate, pageCount]);
 
   // ── Figures in the header ─────────────────────────────────────────────────
-  const inScope = useMemo(
-    () => teamsInScope({ teams: data.teams, selection, reached, runningNumbers }),
-    [data.teams, reached, runningNumbers, selection]
-  );
+  const inScope = scopedTeams();
 
   const scopeDone = inScope.filter((x) => x.submitted).length;
   const scopePercent = inScope.length ? Math.round((scopeDone / inScope.length) * 100) : 0;
@@ -168,7 +146,14 @@ export function RunningBoard({
   const eventPool = data.teams.filter((x) => x.wave <= reached);
   const eventDone = eventPool.filter((x) => x.submitted).length;
 
-  const title = scopeTitle({ t, selection, reached, runningNumbers });
+  // Brackets holding at least one submitted score — the rest render dimmed.
+  const populated = useMemo(() => populatedBrackets(data.teams), [data.teams]);
+
+  const title = floorView
+    ? scopeTitle({ t, selection: ON_FLOOR, reached, runningNumbers })
+    : marks.length > 0
+      ? markedBracketsLabel(marks, t)
+      : scopeTitle({ t, selection: ALL_TEAMS, reached, runningNumbers });
 
   // Each wave carries its own length, so the fallback is that wave's rather
   // than one number standing in for the whole day.
@@ -208,38 +193,30 @@ export function RunningBoard({
         running={summary.running}
       />
       <BracketChips
-        selection={selection}
-        marked={marks}
+        marks={marks}
+        floorView={floorView}
         runningNumbers={runningNumbers}
         populated={populated}
         rotate={rotate}
-        onSelect={(next) => {
-          setSelection(next);
+        onAll={() => {
+          setMarks([]);
+          setFloorView(false);
           setPage(0);
-          // Back to "All" means the rotation covers everything again; the
-          // ride itself never stops here — only the toggle stops it.
-          if (next === ALL_TEAMS) setMarks([]);
+        }}
+        onFloor={() => {
+          setFloorView(true);
+          setPage(0);
         }}
         onToggleMark={(index) => {
+          setFloorView(false);
           setPage(0);
-          const marking = !marks.includes(index);
           setMarks((current) =>
-            marking ? [...current, index] : current.filter((one) => one !== index)
+            current.includes(index)
+              ? current.filter((one) => one !== index)
+              : [...current, index]
           );
-          // Marking a bracket jumps to it, so the operator sees what they just
-          // added to the rotation. Unmarking never moves the board.
-          if (marking) setSelection(index);
         }}
-        onRotate={() => {
-          const next = !rotate;
-          setRotate(next);
-          // Turning the rotation on with the current view outside the pool
-          // snaps to the front of the pool, so the cycle is visible at once.
-          if (next && rotationPool.length > 0 && !rotationPool.includes(selection)) {
-            setSelection(rotationPool[0]);
-            setPage(0);
-          }
-        }}
+        onRotate={() => setRotate((v) => !v)}
       />
 
       <BoardProgress
@@ -276,7 +253,7 @@ export function RunningBoard({
                 row={row}
                 display={display}
                 index={index}
-                showBracket={selection === ALL_TEAMS || selection === ON_FLOOR}
+                showBracket={floorView || marks.length !== 1}
                 columns={columns}
               />
             ))}

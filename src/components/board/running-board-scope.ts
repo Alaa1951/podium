@@ -30,6 +30,30 @@ export function populatedBrackets(teams: BoardTeam[]) {
   ).filter((index) => index >= 0);
 }
 
+/**
+ * One ranking out of several brackets: every team whose bracket is marked,
+ * whether or not it has scored yet — the caller filters to submitted rows
+ * when it wants the ones that count.
+ */
+export function markedBracketsTeams(teams: BoardTeam[], marks: number[], reached: number) {
+  const chosen = marks.map((index) => BRACKETS[index]);
+  return teams.filter(
+    (team) =>
+      team.wave <= reached &&
+      chosen.some((bracket) => team.category === bracket.category && team.division === bracket.division)
+  );
+}
+
+/** The combined scope's name, in the operator's own order. */
+export function markedBracketsLabel(marks: number[], t: Translate) {
+  return marks
+    .map((index) => {
+      const bracket = BRACKETS[index];
+      return `${t(bracket.category)} ${t(bracket.division)}`;
+    })
+    .join(" + ");
+}
+
 /** The teams the current selection covers. */
 export function teamsInScope(params: {
   teams: BoardTeam[];

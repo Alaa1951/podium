@@ -3,7 +3,6 @@
 import { useT } from "@/components/i18n/locale-provider";
 import { FloorRow, Stat, statLabel } from "@/components/board/running-board-parts";
 import type { BoardTeam } from "@/lib/board";
-import { ALL_TEAMS, ON_FLOOR } from "@/components/board/running-board-scope";
 import { FLOOR_ROTATE_SECONDS } from "@/lib/waves";
 import { BRACKETS } from "@/lib/scoring";
 
@@ -138,27 +137,30 @@ export function FloorPanel({
 
 /** The nine brackets, plus "all" and "on the floor", plus auto-rotate. */
 export function BracketChips({
-  selection,
-  marked,
+  marks,
+  floorView,
   runningNumbers,
   populated,
   rotate,
-  onSelect,
+  onAll,
+  onFloor,
   onToggleMark,
   onRotate,
 }: {
-  selection: number;
-  /** Brackets in the rotation playlist — empty means "all with scores". */
-  marked: number[];
+  /** Brackets in the combined ranking — empty means the whole field. */
+  marks: number[];
+  floorView: boolean;
   runningNumbers: number[];
   populated: number[];
   rotate: boolean;
-  onSelect: (next: number) => void;
-  /** Mark or unmark a bracket for the rotation, and show it now. */
+  onAll: () => void;
+  onFloor: () => void;
+  /** Mark or unmark a bracket in the combined ranking. */
   onToggleMark: (index: number) => void;
   onRotate: () => void;
 }) {
   const t = useT();
+  const allActive = !floorView && marks.length === 0;
 
   return (
       <div
@@ -173,27 +175,28 @@ export function BracketChips({
         <button
           type="button"
           className="chip chip-dark"
-          data-active={selection === ALL_TEAMS || undefined}
-          onClick={() => onSelect(ALL_TEAMS)}
+          data-active={allActive || undefined}
+          onClick={onAll}
         >
           {t("All teams")}
         </button>
         <button
           type="button"
           className="chip chip-dark"
-          data-active={selection === ON_FLOOR || undefined}
+          data-active={floorView || undefined}
           disabled={runningNumbers.length === 0}
-          onClick={() => onSelect(ON_FLOOR)}
+          onClick={onFloor}
         >
           {runningNumbers.length === 0
             ? t("Nothing on the floor")
             : `${t("Waves")} ${runningNumbers.join(" + ")} ${t("on floor")}`}
         </button>
 
-        {/* A marked bracket is IN the auto-rotation; marking one also shows it
-            now, so the operator always sees the consequence of the click. */}
+        {/* A marked bracket is IN the combined ranking; marking one shows the
+            combined board at once, so the operator always sees the consequence
+            of the click. */}
         {BRACKETS.map((bracket, index) => {
-          const markedNow = marked.includes(index);
+          const markedNow = marks.includes(index);
           return (
             <button
               key={`${bracket.category}-${bracket.division}`}
@@ -201,7 +204,7 @@ export function BracketChips({
               className="chip chip-dark"
               data-active={markedNow || undefined}
               onClick={() => onToggleMark(index)}
-              title={markedNow ? t("In the rotation") : t("Not in the rotation")}
+              title={markedNow ? t("In the ranking") : t("Not in the ranking")}
               style={{ opacity: populated.includes(index) || markedNow ? 1 : 0.42 }}
             >
               {markedNow ? "● " : "○ "}
