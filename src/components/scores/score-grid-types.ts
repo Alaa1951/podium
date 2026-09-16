@@ -26,4 +26,6 @@ export type GridTeam = {
   peerTotals: number[];
   /** Who changed what, most recent first — shown when the row is opened. */
   audit: ScoreAuditLine[];
+  /** When this team's own wave clock runs out — the finisher stop reads it. */
+  waveEndsAt: string | null;
 };

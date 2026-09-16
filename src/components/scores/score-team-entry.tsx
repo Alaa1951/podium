@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ClockField } from "@/components/scores/clock-field";
+import { FinisherStop } from "@/components/scores/finisher-clock";
 import { saveScore } from "@/lib/actions/scores";
 import { fmt } from "@/lib/scoring";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
@@ -37,6 +38,7 @@ export function ScoreTeamEntry({
   editBudget,
   budgetApplies = false,
   frozen,
+  waveEndsAt,
   onBack,
 }: {
   team: GridTeam;
@@ -46,6 +48,8 @@ export function ScoreTeamEntry({
   budgetApplies?: boolean;
   /** The series has closed score entry, or this account may not enter at all. */
   frozen: boolean;
+  /** When this team's wave clock runs out — the finisher stop reads it. */
+  waveEndsAt?: string | null;
   onBack: () => void;
 }) {
   const t = useT();
@@ -79,11 +83,11 @@ export function ScoreTeamEntry({
     setDraft((d) => ({ ...d, [inputId]: value }));
   }
 
-  function save() {
+  function save(values: EntryValues = draft) {
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveScore({ teamId: team.id, values: draft });
+      const result = await saveScore({ teamId: team.id, values });
       if (!result.ok) {
         setError(scoreErrorMessage(result.error, t));
         return;
@@ -131,6 +135,21 @@ export function ScoreTeamEntry({
                   onChange={set}
                   label={t("Time remaining")}
                 />
+                {waveEndsAt ? (
+                  <FinisherStop
+                    endsAt={waveEndsAt}
+                    disabled={locked || pending}
+                    onCapture={({ minutes, seconds }) => {
+                      const next = {
+                        ...draft,
+                        [group.minutes.id]: minutes,
+                        [group.seconds.id]: seconds,
+                      };
+                      setDraft(next);
+                      save(next);
+                    }}
+                  />
+                ) : null}
               </div>
             ) : isCounted(group.input) ? (
               // Counted movement: the whole slab is the button, and the count
@@ -195,7 +214,7 @@ export function ScoreTeamEntry({
       <button
         type="button"
         className="btn btn-primary team-entry-save"
-        onClick={save}
+        onClick={() => save()}
         disabled={locked || pending || zones.length === 0 || !dirty}
       >
         {pending ? <span className="spinner" /> : null}

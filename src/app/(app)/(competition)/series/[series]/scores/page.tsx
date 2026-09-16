@@ -57,6 +57,12 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
   const waveNumbers = [...new Set(teams.map((team) => team.wave))].sort((a, b) => a - b);
   const here = seriesHref(series.slug, "scores");
 
+  // When each wave clock runs out — the finisher stop reads it per team.
+  const waveEndsAt: Record<number, string> = {};
+  for (const wave of waves) {
+    if (wave.endsAt) waveEndsAt[wave.number] = wave.endsAt;
+  }
+
   const rows: GridTeam[] = shown.map((team) => ({
     id: team.id,
     number: team.number,
@@ -67,6 +73,7 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
     competitors: team.competitors.map((person) => person.fullName),
     submitted: team.submitted,
     scoreEdits: team.scoreEdits,
+    waveEndsAt: waveEndsAt[team.wave] ?? null,
     paymentStatus: team.paymentStatus,
     values: team.values,
     peerTotals: teams

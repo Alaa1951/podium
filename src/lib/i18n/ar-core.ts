@@ -265,5 +265,9 @@ export const AR_CORE: Phrases = {
 
   // ── The board's combined ranking ──────────────────────────────────────────
   "In the ranking": "داخل الترتيب",
+  "Stopped with {time} left on the clock": "اتوقفت وباقي {time} على الساعة",
+  "Record the wave's remaining time for this team": "سجل الوقت المتبقي من الموجة للفريق ده",
+  Stop: "إيقاف",
+  "Wave clock finished": "ساعة الموجة خلصت",
   "Not in the ranking": "خارج الترتيب",
 };

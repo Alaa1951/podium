@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ClockField } from "@/components/scores/clock-field";
+import { FinisherStop } from "@/components/scores/finisher-clock";
 import { ScoreEntry } from "@/components/scores/score-entry";
 import { saveScore } from "@/lib/actions/scores";
 import { fmt } from "@/lib/scoring";
@@ -85,11 +86,11 @@ export function ScoreGridRow({
     setDraft((d) => ({ ...d, [inputId]: value }));
   }
 
-  function save() {
+  function save(values: EntryValues = draft) {
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveScore({ teamId: team.id, values: draft });
+      const result = await saveScore({ teamId: team.id, values });
       if (!result.ok) {
         setError(scoreErrorMessage(result.error, t));
         return;
@@ -150,15 +151,27 @@ export function ScoreGridRow({
             <div className="grid-zone-fields">
               {groupInputs(zone).map((group) =>
                 group.kind === "clock" ? (
-                  <ClockField
-                    key={group.minutes.id}
-                    minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
-                    seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
-                    disabled={locked || pending}
-                    onChange={set}
-                    size="sm"
-                    label={t("Time remaining")}
-                  />
+                  <div key={group.minutes.id} style={{ display: "grid", gap: 4 }}>
+                    <ClockField
+                      minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
+                      seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
+                      disabled={locked || pending}
+                      onChange={set}
+                      size="sm"
+                      label={t("Time remaining")}
+                    />
+                    {team.waveEndsAt ? (
+                      <FinisherStop
+                        endsAt={team.waveEndsAt}
+                        disabled={locked || pending}
+                        onCapture={({ minutes, seconds }) => {
+                          const next = { ...draft, [group.minutes.id]: minutes, [group.seconds.id]: seconds };
+                          setDraft(next);
+                          save(next);
+                        }}
+                      />
+                    ) : null}
+                  </div>
                 ) : (
                   <div key={group.input.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input
@@ -215,7 +228,7 @@ export function ScoreGridRow({
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={save}
+            onClick={() => save()}
             disabled={locked || pending || zones.length === 0 || !dirty}
           >
             {pending ? <span className="spinner" /> : null}
@@ -249,6 +262,7 @@ export function ScoreGridRow({
               budgetApplies={budgetApplies}
               isAdmin={isAdmin}
               editBudget={frozen ? 0 : editBudget}
+              waveEndsAt={team.waveEndsAt}
             />
 
             {team.audit.length > 0 ? (

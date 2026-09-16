@@ -25,6 +25,10 @@ export type WaveState = {
   startTime: string;
   /** Time left on a running wave. Null when it has not started or has ended. */
   remainingMs: number | null;
+  /** When the clock runs out — the finisher stop reads it. Null if not run. */
+  endsAt: string | null;
+  /** What a manually stopped wave still had on the clock — frozen for display. */
+  stoppedRemainingMs: number | null;
   teamCount: number;
   scoredCount: number;
 };

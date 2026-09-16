@@ -31,6 +31,7 @@ export default async function MyWavePage() {
         select: {
           number: true,
           startTime: true,
+          endsAt: true,
           series: { select: { id: true, slug: true, name: true, status: true } },
         },
       },
@@ -98,6 +99,7 @@ export default async function MyWavePage() {
         competitors: team.competitors.map((person) => person.fullName),
         submitted: team.score?.status === "submitted",
         scoreEdits: team.scoreEdits,
+        waveEndsAt: grant.wave.endsAt?.toISOString() ?? null,
         paymentStatus: team.paymentStatus,
         values: Object.fromEntries(
           (team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value])

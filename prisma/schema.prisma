@@ -311,7 +311,6 @@ model Series {
   firstWaveTime      String    @default("09:00") // HH:mm
   waveMinutes        Int       @default(20)
   waveCapacity       Int       @default(9)
-  finisherCapSeconds Int       @default(900)
   boardOpensAt       DateTime? // live board unlocks at this instant
 
   // ── What a studio may do here ────────────────────────────────────────────

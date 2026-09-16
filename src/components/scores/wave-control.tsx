@@ -141,6 +141,16 @@ function WaveCard({
         {clock}
       </div>
 
+      {/* A wave the operator stopped early keeps its unused time on show — the
+          number that was just recorded into its finishers' Zone 4. */}
+      {wave.stoppedRemainingMs !== null && wave.stoppedRemainingMs > 0 ? (
+        <p className="wave-card-warn">
+          {t("Stopped with {time} left on the clock", {
+            time: clockFromMs(wave.stoppedRemainingMs),
+          })}
+        </p>
+      ) : null}
+
       <dl className="wave-card-meta">
         <div>
           <dt>{t("Scheduled")}</dt>

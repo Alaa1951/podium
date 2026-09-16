@@ -8,6 +8,7 @@ import { saveScore, unlockScore } from "@/lib/actions/scores";
 import { fmt, isOutlier } from "@/lib/scoring";
 import { filledCount, totalPoints, type EntryValues, type ZoneDef } from "@/lib/zones";
 import { darkLabel, darkValue } from "@/components/scores/score-entry-parts";
+import { FinisherStop } from "@/components/scores/finisher-clock";
 import { ZoneCards } from "@/components/scores/zone-cards";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,8 @@ type Props = {
   editBudget: number;
   /** Only a studio is bound by that budget — the server's rule, mirrored. */
   budgetApplies?: boolean;
+  /** When this team's wave clock runs out — the finisher stop reads it. */
+  waveEndsAt?: string | null;
 };
 
 export function ScoreEntry({
@@ -56,6 +59,7 @@ export function ScoreEntry({
   isAdmin,
   editBudget,
   budgetApplies = false,
+  waveEndsAt,
 }: Props) {
   const t = useT();
   const router = useRouter();
@@ -87,11 +91,11 @@ export function ScoreEntry({
     setDraft((d) => ({ ...d, [inputId]: value }));
   }
 
-  function submit() {
+  function submit(values: EntryValues = draft) {
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveScore({ teamId: team.id, values: draft });
+      const result = await saveScore({ teamId: team.id, values });
       if (!result.ok) {
         setError(
           result.error === "EDIT_BUDGET_SPENT"
@@ -188,6 +192,21 @@ export function ScoreEntry({
         draft={draft}
         disabled={locked || pending}
         onChange={setValue}
+        clockExtra={
+          waveEndsAt && !locked && !pending
+            ? (ids) => (
+                <FinisherStop
+                  endsAt={waveEndsAt}
+                  disabled={locked || pending}
+                  onCapture={({ minutes, seconds }) => {
+                    const next = { ...draft, [ids.minutesId]: minutes, [ids.secondsId]: seconds };
+                    setDraft(next);
+                    submit(next);
+                  }}
+                />
+              )
+            : undefined
+        }
       />
 
       {outlier ? (
@@ -276,7 +295,7 @@ export function ScoreEntry({
           <button
             type="button"
             className="btn btn-primary"
-            onClick={submit}
+            onClick={() => submit()}
             disabled={locked || pending || zones.length === 0}
           >
             {pending ? <span className="spinner" /> : null}

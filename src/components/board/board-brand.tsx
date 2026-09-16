@@ -12,7 +12,7 @@ export function BoardBrand({
   size?: "sm" | "md" | "lg";
   align?: "center" | "start";
 }) {
-  const height = size === "lg" ? 52 : size === "md" ? 36 : 26;
+  const height = size === "lg" ? 26 : size === "md" ? 20 : 16;
 
   return (
     <div

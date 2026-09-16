@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { BlueprintCard } from "@/components/app/page-shell";
 import { useT } from "@/components/i18n/locale-provider";
 import { ClockField } from "@/components/scores/clock-field";
@@ -31,11 +33,14 @@ export function ZoneCards({
   draft,
   disabled,
   onChange,
+  clockExtra,
 }: {
   zones: ZoneDef[];
   draft: EntryValues;
   disabled: boolean;
   onChange: (inputId: string, value: number | null) => void;
+  /** Extra control under a clock field — the finisher stop lives here. */
+  clockExtra?: (ids: { minutesId: string; secondsId: string }) => ReactNode;
 }) {
   const t = useT();
 
@@ -106,13 +111,16 @@ export function ZoneCards({
               groups.map((group) =>
                 group.kind === "clock" ? (
                   <Row key={group.minutes.id} label={t("Time remaining")} unit="mm:ss">
-                    <ClockField
-                      minutes={half(group.minutes)}
-                      seconds={half(group.seconds)}
-                      disabled={disabled}
-                      onChange={onChange}
-                      size="sm"
-                    />
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <ClockField
+                        minutes={half(group.minutes)}
+                        seconds={half(group.seconds)}
+                        disabled={disabled}
+                        onChange={onChange}
+                        size="sm"
+                      />
+                      {clockExtra?.({ minutesId: group.minutes.id, secondsId: group.seconds.id })}
+                    </div>
                   </Row>
                 ) : (
                   <Row key={group.input.id} label={t(group.input.label)} unit={group.input.unit}>

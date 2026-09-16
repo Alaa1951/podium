@@ -101,6 +101,7 @@ export function ScoreGrid({
             editBudget={editBudget}
             budgetApplies={budgetApplies}
             frozen={frozen}
+            waveEndsAt={openTeam.waveEndsAt}
             onBack={() => {
               setOpen(null);
               toTop();

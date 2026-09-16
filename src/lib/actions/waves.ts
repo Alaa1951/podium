@@ -78,13 +78,73 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
 
   await prisma.wave.update({ where: { id: wave.id }, data });
 
+  // ── Stopping a wave records what the clock owed its finishers ────────────
+  // Ending a wave before 00:00 freezes the remaining time at this instant, and
+  // every team that already submitted a score but has no finisher time on
+  // record receives that remaining time in Zone 4 — the seconds between the
+  // wave's allotted length and where they actually got to. Teams the judges
+  // captured individually keep their own times; the clock is only the
+  // fallback for the ones nobody timed.
+  let backfilled = 0;
+  if (
+    parsed.data.action === "finish" &&
+    wave.status === "running" &&
+    wave.startedAt
+  ) {
+    const elapsedMs = Math.max(0, now - wave.startedAt.getTime());
+    const remainingMs = Math.max(0, fullMs - elapsedMs);
+    const minutes = Math.floor(remainingMs / 60_000);
+    const seconds = Math.floor((remainingMs % 60_000) / 1000);
+
+    const clockInputs = await prisma.zoneInput.findMany({
+      where: { zone: { seriesId: wave.seriesId }, inputMode: { in: ["minutes", "seconds"] } },
+      select: { id: true, inputMode: true },
+    });
+    const minutesId = clockInputs.find((one) => one.inputMode === "minutes")?.id;
+    const secondsId = clockInputs.find((one) => one.inputMode === "seconds")?.id;
+
+    if (minutesId && secondsId) {
+      const scored = await prisma.team.findMany({
+        where: { waveId: wave.id, score: { status: "submitted" } },
+        select: {
+          score: { select: { id: true, entries: { select: { inputId: true, value: true } } } },
+        },
+      });
+      for (const team of scored) {
+        const score = team.score;
+        if (!score) continue;
+        // The judges' own captures are never overwritten by the clock.
+        if (
+          score.entries.some(
+            (entry) => (entry.inputId === minutesId || entry.inputId === secondsId) && entry.value !== null
+          )
+        ) {
+          continue;
+        }
+        await prisma.zoneEntry.upsert({
+          where: { scoreId_inputId: { scoreId: score.id, inputId: minutesId } },
+          create: { scoreId: score.id, inputId: minutesId, value: minutes },
+          update: { value: minutes },
+        });
+        await prisma.zoneEntry.upsert({
+          where: { scoreId_inputId: { scoreId: score.id, inputId: secondsId } },
+          create: { scoreId: score.id, inputId: secondsId, value: seconds },
+          update: { value: seconds },
+        });
+        backfilled += 1;
+      }
+    }
+  }
+
   await recordAudit({
     actorId: actor.id,
     action: AUDIT.waveControlled,
     targetType: "event",
     targetId: wave.seriesId,
     targetLabel: `Wave ${wave.number}`,
-    detail: `wave=${wave.number} action=${parsed.data.action}`,
+    detail:
+      `wave=${wave.number} action=${parsed.data.action}` +
+      (backfilled > 0 ? ` finisher_backfilled=${backfilled}` : ""),
   });
 
   revalidatePath("/series", "layout");

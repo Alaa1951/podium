@@ -195,6 +195,14 @@ export async function getSeriesWaves(seriesId: string): Promise<WaveState[]> {
       wave.status === "running" && wave.endsAt
         ? Math.max(0, wave.endsAt.getTime() - now)
         : null,
+    endsAt: wave.endsAt?.toISOString() ?? null,
+    stoppedRemainingMs:
+      wave.status === "complete" && wave.endsAt && wave.startedAt
+        ? Math.max(
+            0,
+            wave.durationMinutes * 60_000 - (wave.endsAt.getTime() - wave.startedAt.getTime())
+          )
+        : null,
     teamCount: wave.teams.length,
     scoredCount: wave.teams.filter((t) => t.score?.status === "submitted").length,
   }));

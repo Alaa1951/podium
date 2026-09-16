@@ -30,7 +30,6 @@ export type SeriesSettings = {
   firstWaveTime: string;
   waveMinutes: number;
   waveCapacity: number;
-  finisherCapSeconds: number;
   boardOpensAt: string;
   registrationClosesAt: string;
   registrationsFinalAt: string;
@@ -188,16 +187,6 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
               max={99}
               value={form.waveCapacity}
               onChange={(e) => set("waveCapacity", Number(e.target.value) || 1)}
-            />
-          </Field>
-          <Field label={t("Finisher cap (seconds)")}>
-            <input
-              className="input pd-num"
-              type="number"
-              min={1}
-              max={7200}
-              value={form.finisherCapSeconds}
-              onChange={(e) => set("finisherCapSeconds", Number(e.target.value) || 1)}
             />
           </Field>
         </div>

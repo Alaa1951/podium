@@ -5,69 +5,49 @@ import { useEffect, useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 
 /**
- * THE FINISHER CLOCK — per team, in the score card.
+ * THE FINISHER STOP — one press per finished team.
  *
- * The finisher (Zone 4) is a 5-minute window: the judge taps Start the moment
- * the pair steps onto the finisher floor, the clock counts down from the
- * series' own cap, and at 00:00 the time is over — zero finisher points for
- * that pair (they had their window).
- *
- * Capture freezes the remaining time into the minute/second inputs and saves
- * it automatically — that freeze IS the score: minutes ×10, seconds ÷10, per
- * the same table everything else uses.
+ * The wave clock IS the finisher's clock: what Zone 4 records is the time the
+ * wave had left at the moment the team finished. This button shows that
+ * remaining time live, and pressing it hands the minutes and seconds to the
+ * score — which then saves on its own, because a captured finisher time that
+ * still needs a separate SAVE is a finisher time waiting to be lost.
  */
-export function FinisherClock({
-  capSeconds,
-  running,
+export function FinisherStop({
+  endsAt,
+  disabled,
   onCapture,
 }: {
-  /** The series' finisher cap, in seconds. */
-  capSeconds: number;
-  /** Whether the finisher window is currently counting down. */
-  running: boolean;
-  /** Called with the remaining minutes and seconds at the moment of capture. */
+  /** When the team's wave clock runs out. */
+  endsAt: string;
+  disabled: boolean;
+  /** Called with the remaining minutes and seconds at the moment of the stop. */
   onCapture: (remaining: { minutes: number; seconds: number }) => void;
 }) {
   const t = useT();
-  const [remaining, setRemaining] = useState(capSeconds);
+  // The clock reads the wall through state, so every render is pure: the
+  // tick only moves 'now', and the rest is arithmetic on it.
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setRemaining((seconds) => {
-        if (seconds <= 0) {
-          clearInterval(id);
-          return 0;
-        }
-        return seconds - 1;
-      });
-    }, 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, []);
 
-  const minutes = Math.floor(remaining / 60);
-  const seconds = remaining % 60;
-  const over = remaining === 0;
+  const remainingMs = Math.max(0, new Date(endsAt).getTime() - now);
+  const minutes = Math.floor(remainingMs / 60_000);
+  const seconds = Math.floor((remainingMs % 60_000) / 1000);
+  const over = remainingMs === 0;
 
   return (
-    <div className="finisher-clock" data-over={over || undefined}>
-      <div className="finisher-clock-display pd-num">
-        {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-      </div>
-      <div className="finisher-clock-actions">
-        {!running ? (
-          <button type="button" className="btn btn-sm btn-cyan" onClick={() => setRemaining(capSeconds)}>
-            {t("Start finisher clock")}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          onClick={() => onCapture({ minutes, seconds })}
-        >
-          {t("Capture")}
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      className="btn btn-sm btn-cyan"
+      disabled={disabled || over}
+      title={t("Record the wave's remaining time for this team")}
+      onClick={() => onCapture({ minutes, seconds })}
+    >
+      {over ? t("Wave clock finished") : `${t("Stop")} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
+    </button>
   );
 }
