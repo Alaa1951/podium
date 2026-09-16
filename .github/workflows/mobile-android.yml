@@ -25,7 +25,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          # Capacitor 8 compiles with source/target 21 — Java 17 fails with
+          # "invalid source release: 21".
+          java-version: 21
       - name: dependencies
         run: npm ci --no-audit --no-fund
       - name: sync web assets into the native shell
