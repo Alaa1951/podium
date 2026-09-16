@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import type { BoardPayload } from "@/lib/board";
@@ -133,17 +133,28 @@ export function RunningBoard({
     [marks, populated]
   );
 
+  // Every scores poll arrives as a fresh payload, so the pool's IDENTITY
+  // changes each time even when its contents have not. The interval reads the
+  // pool through a ref and only re-arms when the ride starts or stops —
+  // otherwise the poll starves the timer and the board never turns.
+  const poolRef = useRef(rotationPool);
   useEffect(() => {
-    if (!rotate || rotationPool.length === 0) return;
+    poolRef.current = rotationPool;
+  }, [rotationPool]);
+
+  useEffect(() => {
+    if (!rotate) return;
     const id = setInterval(() => {
+      const pool = poolRef.current;
+      if (pool.length === 0) return;
       setSelection((current) => {
-        const at = rotationPool.indexOf(current);
-        return at === -1 ? rotationPool[0] : rotationPool[(at + 1) % rotationPool.length];
+        const at = pool.indexOf(current);
+        return at === -1 ? pool[0] : pool[(at + 1) % pool.length];
       });
       setPage(0);
     }, ROTATE_SECONDS * 1000);
     return () => clearInterval(id);
-  }, [rotate, rotationPool]);
+  }, [rotate]);
 
   // ── Figures in the header ─────────────────────────────────────────────────
   const inScope = useMemo(
