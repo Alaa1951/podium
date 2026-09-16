@@ -58,10 +58,12 @@ export function RunningBoard({
   const t = useT();
   const [data, setData] = useState(initial);
   const [selection, setSelection] = useState<number>(ALL_TEAMS);
-  /** Brackets marked for the rotation. Empty → the rotation uses every
-   *  bracket that has scores, exactly as it always has. */
+  /** The rotation playlist. Empty → every bracket with scores — the "All" case. */
   const [marks, setMarks] = useState<number[]>([]);
-  const [rotate, setRotate] = useState(false);
+  /** ON is the resting state: an unattended wall board cycles unless someone
+   *  deliberately stops it. Only this toggle turns it off — picking chips
+   *  reshapes the route, it never stops the ride. */
+  const [rotate, setRotate] = useState(true);
   const [page, setPage] = useState(0);
 
   const [lastProp, setLastProp] = useState(initial);
@@ -123,11 +125,11 @@ export function RunningBoard({
   // ── Bracket rotation ──────────────────────────────────────────────────────
   const populated = useMemo(() => populatedBrackets(data.teams), [data.teams]);
 
-  // The rotation pool: the marked brackets, or every bracket with scores when
-  // nothing is marked. Only brackets that actually have results can cycle —
-  // an empty bracket on a wall board is a minute of nothing.
+  // The rotation pool: the marked brackets EXACTLY as they were chosen — a
+  // marked bracket is promised its turn even before it has scores — and when
+  // nothing is marked, every bracket with scores. That is the "All" case.
   const rotationPool = useMemo(
-    () => (marks.length ? marks.filter((index) => populated.includes(index)) : populated),
+    () => (marks.length > 0 ? marks : populated),
     [marks, populated]
   );
 
@@ -202,8 +204,10 @@ export function RunningBoard({
         rotate={rotate}
         onSelect={(next) => {
           setSelection(next);
-          setRotate(false);
           setPage(0);
+          // Back to "All" means the rotation covers everything again; the
+          // ride itself never stops here — only the toggle stops it.
+          if (next === ALL_TEAMS) setMarks([]);
         }}
         onToggleMark={(index) => {
           setPage(0);
