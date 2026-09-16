@@ -29,6 +29,8 @@ android {
     signingConfigs {
         release {
             if (keystorePropertiesFile.exists()) {
+                // openssl-generated PKCS12: key password equals the store password.
+                storeType 'PKCS12'
                 storeFile rootProject.file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
