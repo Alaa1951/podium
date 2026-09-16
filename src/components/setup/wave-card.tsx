@@ -127,14 +127,6 @@ export function WaveCard({
               required
             />
           </div>
-          <Field
-            label={t("Minutes")}
-            name="durationMinutes"
-            value={wave.durationMinutes}
-            min={1}
-            max={180}
-          />
-          <Field label={t("Capacity")} name="capacity" value={wave.capacity} min={1} max={99} />
           <button type="submit" className="btn btn-secondary" disabled={pending}>
             {t("Save wave")}
           </button>

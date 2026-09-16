@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 /**
  * THE RUNNING ORDER.
  *
- * Which teams run together, and when. A wave carries its own start, length,
- * capacity and clock; STARTING one is the operator's job and lives next to the
- * scores, where they will be standing.
+ * Which teams run together, and when. A wave carries its own estimated start;
+ * its length and capacity come from the competition settings. STARTING one is
+ * the operator's job and lives next to the scores, where they will be standing.
  */
 export default async function WavesPage(props: PageProps<"/series/[series]/waves">) {
   const user = await requirePermission("waves.view");
@@ -30,7 +30,7 @@ export default async function WavesPage(props: PageProps<"/series/[series]/waves
           <h1>{t("Waves")}</h1>
           <p>
             {t(
-              "The floor only holds so many teams at once, so the field is dealt into waves. Each one has its own start, length and capacity."
+              "The floor only holds so many teams at once, so the field is dealt into waves. Length and capacity come from the competition settings; each wave carries its own estimated start."
             )}
           </p>
         </div>

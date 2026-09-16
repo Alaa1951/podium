@@ -16,10 +16,9 @@ export type { SetupTeam };
 // ─────────────────────────────────────────────────────────────────────────────
 // THE RUNNING ORDER.
 //
-// A wave is a row of its own: its own start, its own length, its own capacity,
-// its own clock. Nine teams and twenty minutes are only what a new wave starts
-// out as — every one of those is editable here, wave by wave, because no two
-// event days run to the same shape.
+// A wave is a row of its own: its number in the running order and its
+// estimated start. Its length and capacity come from the competition's
+// settings, so one change there reaches every wave at once.
 //
 // Teams are linked to waves from this screen; STARTING a wave is the operator's
 // job and lives on the Scores screen next to the clock.
@@ -30,7 +29,6 @@ export function WaveBoard({
   teams,
   waves,
   studios,
-  waveMinutes,
   waveCapacity,
   isAdmin,
   ownStudioId,
@@ -118,8 +116,6 @@ export function WaveBoard({
           seriesId,
           number,
           startTime: start,
-          durationMinutes: waveMinutes,
-          capacity: waveCapacity,
         })
       )
     );
@@ -138,8 +134,6 @@ export function WaveBoard({
         waveId: wave.id,
         number: form.get("number"),
         startTime: form.get("startTime"),
-        durationMinutes: form.get("durationMinutes"),
-        capacity: form.get("capacity"),
       });
       if (result.ok) setEditing(null);
       report(result);
@@ -215,7 +209,7 @@ export function WaveBoard({
 
       <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 10, maxWidth: "70ch" }}>
         {t(
-          "Auto-assign groups teams by bracket first, then fills waves in order — so a wave runs one or two brackets at a time and the judges use one set of loads per floor. Override any team with the dropdown on its row, and give any wave its own start, length and capacity."
+          "Auto-assign groups teams by bracket first, then fills waves in order — so a wave runs one or two brackets at a time and the judges use one set of loads per floor. Override any team with the dropdown on its row, and give any wave its own estimated start."
         )}
       </p>
 

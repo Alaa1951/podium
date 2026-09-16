@@ -182,6 +182,13 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
     },
   });
 
+  // Length and capacity belong to the competition, not to each wave —
+  // changing them here restamps every wave in the running order at once.
+  await prisma.wave.updateMany({
+    where: { seriesId },
+    data: { durationMinutes: data.waveMinutes, capacity: data.waveCapacity },
+  });
+
   // Who may write a score is the setting worth naming in the log by itself.
   if (before.studiosMayEnterScores !== data.studiosMayEnterScores) {
     await recordAudit({

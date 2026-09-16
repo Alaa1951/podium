@@ -55,7 +55,7 @@ function English() {
         <p>
           The PODIUM platform (this website and its mobile applications) is
           operated by BFT MENA. For any privacy question or request, contact us
-          at <a href="mailto:admin@bftmena.com">admin@bftmena.com</a>.
+          at <a href="mailto:admin@bftmiddleeast.com">admin@bftmiddleeast.com</a>.
         </p>
       </section>
 
@@ -189,7 +189,7 @@ function Arabic() {
         <p>
           منصة بوديوم (هذا الموقع وتطبيقات الجوال الخاصة به) يديرها BFT MENA.
           لأي سؤال أو طلب متعلق بالخصوصية، تواصل معنا على{" "}
-          <a href="mailto:admin@bftmena.com">admin@bftmena.com</a>.
+          <a href="mailto:admin@bftmiddleeast.com">admin@bftmiddleeast.com</a>.
         </p>
       </section>
 

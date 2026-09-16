@@ -155,27 +155,40 @@ const waveSaveSchema = z.object({
   seriesId: z.string().min(1),
   waveId: z.string().min(1).optional(),
   number: z.coerce.number().int().min(1).max(99),
-  startTime: z.string().regex(/^d{2}:d{2}$/),
-  durationMinutes: z.coerce.number().int().min(1).max(180),
-  capacity: z.coerce.number().int().min(1).max(99),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
 /**
- * Create or edit a wave. Every number here is a setting rather than a constant:
- * nine teams and twenty minutes are only what a new wave starts out as.
+ * Create or edit a wave. A wave owns two things — its number in the running
+ * order and its estimated start. Its length and capacity belong to the
+ * competition's settings, and are stamped onto the wave from there, so one
+ * change in Settings reaches every wave at once.
  */
 export async function saveWave(input: unknown): Promise<ActionResult> {
   await requireRole("admin");
 
   const parsed = waveSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { seriesId, waveId, ...fields } = parsed.data;
+  const { seriesId, waveId, number, startTime } = parsed.data;
 
   const clash = await prisma.wave.findFirst({
-    where: { seriesId, number: fields.number, ...(waveId ? { NOT: { id: waveId } } : {}) },
+    where: { seriesId, number, ...(waveId ? { NOT: { id: waveId } } : {}) },
     select: { id: true },
   });
   if (clash) return { ok: false, error: "WAVE_NUMBER_TAKEN" };
+
+  const series = await prisma.series.findUnique({
+    where: { id: seriesId },
+    select: { waveMinutes: true, waveCapacity: true },
+  });
+  if (!series) return { ok: false, error: "NOT_FOUND" };
+
+  const fields = {
+    number,
+    startTime,
+    durationMinutes: series.waveMinutes,
+    capacity: series.waveCapacity,
+  };
 
   if (waveId) {
     await prisma.wave.update({ where: { id: waveId }, data: fields });
