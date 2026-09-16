@@ -4,6 +4,7 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ScoreGridRow } from "@/components/scores/score-grid-row";
+import { ScoreTeamEntry } from "@/components/scores/score-team-entry";
 import type { GridTeam } from "@/components/scores/score-grid-types";
 import type { ZoneDef } from "@/lib/zones";
 
@@ -20,9 +21,11 @@ import type { ZoneDef } from "@/lib/zones";
 // which a single line has no room for. Both write through the same server
 // action and calculate with the same functions, so they cannot disagree.
 //
-// On screens ≤720px the table collapses into stacked team cards — each team
-// becomes a self-contained block with its zone inputs stacked vertically,
-// so a judge on a phone can score without any sideways scrolling.
+// On screens ≤720px the sheet is a plain list of team cards. Tapping a team
+// opens that team's own full entry screen — one team on the page, movements
+// stacked, each +1 a huge slab with its count under it — and Back returns to
+// the top of the list. A judge on a phone never scrolls sideways and never
+// edits a team inside a crowded sheet.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useIsMobile(breakpoint = 720) {
@@ -73,6 +76,13 @@ export function ScoreGrid({
   }
 
   if (isMobile) {
+    // The phone sheet is a list, and the list is all it ever is: tapping a
+    // team swaps the whole page for that team's own entry screen, and Back
+    // returns to the top of the list — never to a half-scrolled sheet.
+    const openTeam = open ? (teams.find((team) => team.id === open) ?? null) : null;
+
+    const toTop = () => window.scrollTo({ top: 0 });
+
     return (
       <>
         {frozen && frozenReason ? (
@@ -81,21 +91,38 @@ export function ScoreGrid({
           </div>
         ) : null}
 
-        <div style={{ display: "grid", gap: 14 }}>
-          {teams.map((team) => (
-            <ScoreGridRow
-              key={team.id}
-              team={team}
-              zones={zones}
-              editBudget={editBudget}
-              isAdmin={isAdmin}
-              frozen={frozen}
-              mobile
-              expanded={open === team.id}
-              onExpand={() => setOpen((id) => (id === team.id ? null : team.id))}
-            />
-          ))}
-        </div>
+        {openTeam ? (
+          <ScoreTeamEntry
+            team={openTeam}
+            zones={zones}
+            editBudget={editBudget}
+            isAdmin={isAdmin}
+            frozen={frozen}
+            onBack={() => {
+              setOpen(null);
+              toTop();
+            }}
+          />
+        ) : (
+          <div style={{ display: "grid", gap: 14 }}>
+            {teams.map((team) => (
+              <ScoreGridRow
+                key={team.id}
+                team={team}
+                zones={zones}
+                editBudget={editBudget}
+                isAdmin={isAdmin}
+                frozen={frozen}
+                mobile
+                expanded={false}
+                onExpand={() => {
+                  setOpen(team.id);
+                  toTop();
+                }}
+              />
+            ))}
+          </div>
+        )}
       </>
     );
   }

@@ -85,7 +85,7 @@ export function ScoreGridRow({
     startTransition(async () => {
       const result = await saveScore({ teamId: team.id, values: draft });
       if (!result.ok) {
-        setError(message(result.error, t));
+        setError(scoreErrorMessage(result.error, t));
         return;
       }
       setSaved(true);
@@ -93,12 +93,13 @@ export function ScoreGridRow({
     });
   }
 
-  // The phone sheet: one card per team. The name is the handle — tapping it
-  // opens that team's zones stacked below, one field per line at full screen
-  // width, so nothing ever scrolls sideways. Only one team is open at a time.
+  // The phone sheet: one collapsed card per team — number, name, live total,
+  // status. Tapping it opens that team's own full entry screen (the one-team
+  // editor lives in score-team-entry), so the sheet itself stays a list and
+  // never scrolls sideways or half-open.
   if (mobile) {
     return (
-      <div className="grid-card" data-submitted={team.submitted || undefined} data-open={expanded || undefined}>
+      <div className="grid-card" data-submitted={team.submitted || undefined}>
         <button
           type="button"
           className="grid-card-head"
@@ -119,105 +120,6 @@ export function ScoreGridRow({
             <span className={`badge ${teamStatusTone(status)}`}>{t(teamStatusLabel(status))}</span>
           </span>
         </button>
-
-        {expanded ? (
-          <div className="grid-card-body">
-            {zones.map((zone) => (
-              <div key={zone.id} className="grid-card-zone">
-                <div className="grid-card-zone-head">
-                  <span className="card-kicker">
-                    {t("Zone")} {zone.number} {"///"} {t(zone.name)}
-                  </span>
-                  <span className="grid-zone-pts pd-num" style={{ marginTop: 0 }}>
-                    {fmt(zonePoints(zone, draft), 2)}
-                  </span>
-                </div>
-
-                {groupInputs(zone).map((group) =>
-                  group.kind === "clock" ? (
-                    <div key={group.minutes.id} className="grid-card-field">
-                      <span className="grid-card-label">{t("Time remaining")}</span>
-                      <ClockField
-                        minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
-                        seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
-                        disabled={locked || pending}
-                        onChange={set}
-                        size="sm"
-                        label={t("Time remaining")}
-                      />
-                    </div>
-                  ) : (
-                    <div key={group.input.id} className="grid-card-field">
-                      <span className="grid-card-label">{t(group.input.label)}</span>
-                      <div className="grid-card-controls">
-                        <input
-                          className="input pd-num"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={group.input.maxValue ?? undefined}
-                          aria-label={t(group.input.label)}
-                          value={show(draft[group.input.id])}
-                          disabled={locked || pending}
-                          onChange={(e) =>
-                            set(
-                              group.input.id,
-                              e.target.value.trim() === "" ? null : Number(e.target.value)
-                            )
-                          }
-                        />
-                        {isCounted(group.input) ? (
-                          <button
-                            type="button"
-                            className="btn btn-cyan"
-                            disabled={locked || pending}
-                            aria-label={`${t(group.input.label)} +1`}
-                            onClick={() =>
-                              set(
-                                group.input.id,
-                                Math.min(
-                                  (draft[group.input.id] ?? 0) + 1,
-                                  group.input.maxValue ?? 9999
-                                )
-                              )
-                            }
-                          >
-                            +1
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            ))}
-
-            <div className="grid-card-foot">
-              <span className="grid-card-pair">
-                {t("Total")} <strong className="pd-num">{fmt(total, 2)}</strong>
-              </span>
-              <span className="grid-card-pair">
-                {t("Rank")}{" "}
-                <strong className="pd-num">{team.submitted || dirty ? rank : "—"}</strong>
-              </span>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={save}
-                disabled={locked || pending || zones.length === 0 || !dirty}
-              >
-                {pending ? <span className="spinner" /> : null}
-                {locked ? t("Locked") : saved && !dirty ? t("Saved") : t("Save")}
-              </button>
-            </div>
-
-            {error ? (
-              <div className="notice-error" role="alert">
-                {error}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -366,17 +268,17 @@ export function ScoreGridRow({
   );
 }
 
-const show = (value: number | null | undefined) =>
+export const show = (value: number | null | undefined) =>
   value === null || value === undefined ? "" : String(value);
 
-const halfOf = (id: string, maxValue: number | null, draft: EntryValues) => ({
+export const halfOf = (id: string, maxValue: number | null, draft: EntryValues) => ({
   id,
   value: draft[id],
   maxValue,
 });
 
 /** The server's refusal codes, in words an operator can act on. */
-function message(code: string, t: (key: string) => string) {
+export function scoreErrorMessage(code: string, t: (key: string) => string) {
   switch (code) {
     case "EDIT_BUDGET_SPENT":
       return t("This score is locked. Ask BFT MENA to make further corrections.");

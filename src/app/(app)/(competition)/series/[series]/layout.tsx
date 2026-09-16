@@ -129,6 +129,7 @@ export default async function CompetitionLayout({
       contextNote={`${date} · ${phaseLabel}${
         waveSummary.running > 0 ? ` · ${waveSummary.running} ${t("on the floor")}` : ""
       }`}
+      viewAsControl={user.role === "admin" && !user.viewAs}
       utilities={
         <>
           <ThemeToggle current={theme} />

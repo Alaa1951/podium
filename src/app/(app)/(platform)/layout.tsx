@@ -81,6 +81,7 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
       crumbs={[]}
       contextName={t("PODIUM platform")}
       contextNote={t("BFT MENA")}
+      viewAsControl={user.role === "admin" && !user.viewAs}
       utilities={
         <>
           <ThemeToggle current={theme} />

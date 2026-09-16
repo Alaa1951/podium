@@ -803,3 +803,112 @@ select.input { cursor: pointer; }
   flex-wrap: wrap;
   margin-top: 4px;
 }
+
+/* ── The phone's entry screen ─────────────────────────────────────────────
+   One team, nothing else on the page. Counted movements are a single huge
+   slab to hit — the count sits right under it in big numerals, so a gloved
+   hand cannot miss and a raised knee cannot hide the number. */
+.team-entry { display: grid; gap: 14px; }
+
+.team-entry-back {
+  justify-self: start;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: inherit;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.team-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.team-entry-num { color: var(--text-muted); }
+.team-entry-id { flex: 1; min-width: 0; display: block; }
+.team-entry-name {
+  display: block;
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+  text-transform: uppercase;
+}
+
+.team-entry-zone {
+  display: grid;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+}
+.team-entry-zone-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.team-entry-zone-pts { font-size: 13px; color: var(--text-muted); }
+
+.team-entry-field { display: grid; gap: 8px; }
+.team-entry-label { font-size: 13px; color: var(--text-secondary); }
+
+/* The +1 slab: the whole width is the target, its height fits a thumb, and
+   the count lives directly beneath it where the eye already is. */
+.team-entry-stepper {
+  width: 100%;
+  height: 84px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--bft-cyan);
+  color: #04252a;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.team-entry-stepper:active { transform: scale(0.985); }
+.team-entry-stepper:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+.team-entry-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+.team-entry-count-value {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+.team-entry-count-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Measured movements are typed, but on a phone the box is still generous. */
+.team-entry-number {
+  width: 100%;
+  height: 56px;
+  font-size: 22px;
+  text-align: end;
+}
+
+.team-entry-foot { display: flex; align-items: center; gap: 16px; }
+.team-entry-save {
+  width: 100%;
+  height: 54px;
+  font-size: 17px;
+  font-weight: 700;
+}

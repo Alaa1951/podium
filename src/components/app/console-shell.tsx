@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { PodiumMark } from "@/components/brand/podium-mark";
 import { SignOutButton } from "@/components/app/sign-out-button";
+import { ViewAsMenu } from "@/components/app/view-as-menu";
 import { useT } from "@/components/i18n/locale-provider";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export function ConsoleShell({
   contextNote,
   utilities,
   homeHref = "/",
+  viewAsControl = false,
   children,
 }: {
   groups: NavGroup[];
@@ -59,6 +61,8 @@ export function ConsoleShell({
   utilities: React.ReactNode;
   /** Where the wordmark goes — each role has its own top, and "/" is BFT MENA's. */
   homeHref?: string;
+  /** Admin in their own name: the role preview sits at the top of the menu. */
+  viewAsControl?: boolean;
   children: React.ReactNode;
 }) {
   const t = useT();
@@ -103,6 +107,7 @@ export function ConsoleShell({
         </div>
 
         <div className="console-groups">
+          {viewAsControl ? <ViewAsMenu /> : null}
           {groups.map((group) => (
             <div key={group.title} className="console-group">
               {group.title ? <div className="console-group-title">{group.title}</div> : null}

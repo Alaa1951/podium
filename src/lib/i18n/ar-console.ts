@@ -239,6 +239,16 @@ export const AR_CONSOLE: Phrases = {
   "Viewing the app as {name}": "إنت بتشوف التطبيق بعين {name}",
   "Read-only preview": "معاينة للقراءة بس",
   "Exit preview": "خروج من المعاينة",
+  "See the whole platform as one of these — read-only.":
+    "شوف المنصة كلها بعين واحد من دول — قراءة بس.",
+  Judge: "حكم",
+  "No account carries a wave grant yet — grant one first.":
+    "مفيش حساب ليه جرانت على موجة — اعمل الجرانت الأول.",
+  "No active account for that role yet.": "مفيش حساب نشط للدور ده.",
+  "Opening the preview…": "بفتح المعاينة…",
+
+  // ── The phone's team entry screen ────────────────────────────────────────
+  "Back to the list": "رجوع للقائمة",
 
   // ── Archive / soft delete ────────────────────────────────────────────────
   "Archive registration": "أرشفة التسجيل",

@@ -1651,3 +1651,43 @@ tr[data-unscored] td { color: var(--text-muted); }
   font-weight: 700;
 }
 .view-as-banner-exit:hover { background: rgba(255, 255, 255, 0.85); }
+
+/* ── The view-as control at the top of the menu ───────────────────────────
+   An admin's standing invitation to see the platform as someone else. Lives
+   above every nav group, in the brand's own blue so it never reads as a
+   section link. */
+.view-as-menu { margin-bottom: 14px; }
+.view-as-menu-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--podium-blue-bright);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--podium-blue) 18%, transparent);
+  color: inherit;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.view-as-menu-toggle:hover { border-color: var(--podium-blue); }
+.view-as-menu-panel {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunken);
+  display: grid;
+  gap: 10px;
+}
+.view-as-menu-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.view-as-menu-roles { display: flex; gap: 8px; flex-wrap: wrap; }
+.view-as-menu-roles .btn { flex: 1; min-width: 72px; }
