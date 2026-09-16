@@ -70,6 +70,11 @@ export default async function StudioSeriesLayout({
       contextName={series.name}
       contextNote={`${date}${series.venue ? ` · ${series.venue}` : ""}`}
       homeHref="/studio"
+      viewAs={
+        user.role === "studio" && user.viewAs
+          ? { previewing: true, name: user.name, role: user.role }
+          : null
+      }
       utilities={
         <>
           <ThemeToggle current={theme} />

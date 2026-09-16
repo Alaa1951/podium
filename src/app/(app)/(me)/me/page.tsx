@@ -126,6 +126,20 @@ export default async function MyPage() {
         </div>
       </div>
 
+      {/* The member's whole world, in one strip: the wall screen, what the
+          public sees, and this page — their own team, their own roster. */}
+      <div className="me-links">
+        <Link href={`/series/${series.slug}/board`} className="btn btn-secondary">
+          {t("Live board")}
+        </Link>
+        <Link href="/results" className="btn btn-secondary">
+          {t("Public results")}
+        </Link>
+        <Link href="/me" className="btn btn-secondary">
+          {t("My team")}
+        </Link>
+      </div>
+
       {/* While the event is on the floor, the live board is one press away —
           the same screen hanging on the gym wall, from their pocket. */}
       {phase === "live" ? (

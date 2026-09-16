@@ -197,6 +197,7 @@ export const AR_CORE: Phrases = {
   Partner: "الشريك",
   "Save changes": "حفظ التعديلات",
   "Team updated.": "تم تحديث الفريق.",
+  "My team": "فريقي",
   "Give every member a name.": "اكتب اسم لكل عضو.",
   "Team changes are closed — the event starts in less than 24 hours.":
     "تعديل الفريق مقفول — باقي على المسابقة أقل من ٢٤ ساعة.",

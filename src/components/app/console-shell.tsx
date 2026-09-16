@@ -49,7 +49,7 @@ export function ConsoleShell({
   contextNote,
   utilities,
   homeHref = "/",
-  viewAsControl = false,
+  viewAs,
   children,
 }: {
   groups: NavGroup[];
@@ -61,8 +61,9 @@ export function ConsoleShell({
   utilities: React.ReactNode;
   /** Where the wordmark goes — each role has its own top, and "/" is BFT MENA's. */
   homeHref?: string;
-  /** Admin in their own name: the role preview sits at the top of the menu. */
-  viewAsControl?: boolean;
+  /** Admin only: the role preview sits at the top of the menu, and while one
+   *  is open it names the account being viewed. */
+  viewAs?: { previewing: boolean; name: string | null; role: string } | null;
   children: React.ReactNode;
 }) {
   const t = useT();
@@ -107,7 +108,9 @@ export function ConsoleShell({
         </div>
 
         <div className="console-groups">
-          {viewAsControl ? <ViewAsMenu /> : null}
+          {viewAs ? (
+            <ViewAsMenu viewing={viewAs.previewing ? { name: viewAs.name, role: viewAs.role } : undefined} />
+          ) : null}
           {groups.map((group) => (
             <div key={group.title} className="console-group">
               {group.title ? <div className="console-group-title">{group.title}</div> : null}

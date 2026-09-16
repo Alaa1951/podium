@@ -1691,3 +1691,14 @@ tr[data-unscored] td { color: var(--text-muted); }
 }
 .view-as-menu-roles { display: flex; gap: 8px; flex-wrap: wrap; }
 .view-as-menu-roles .btn { flex: 1; min-width: 72px; }
+
+/* ── The member's quick links ─────────────────────────────────────────────
+   Their whole world in one strip: the wall screen, the public door, and
+   their own team page. */
+.me-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.me-links .btn { min-width: 120px; }

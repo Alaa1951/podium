@@ -12,12 +12,13 @@ const ERRORS: Record<string, string> = {
 };
 
 /**
- * The "view as" control at the top of the console menu. Opens a strip with
- * three roles; picking one shows the whole platform through the eyes of a
- * real account that carries that role — read-only, banner above every screen
- * until it is exited.
+ * The "view as" control at the top of the console menu.
+ *
+ * In the admin's own name it opens the role strip. While a preview is live it
+ * says whose eyes those are — the same sentence the banner carries — and the
+ * way out is right there, because switching previews means exiting first.
  */
-export function ViewAsMenu() {
+export function ViewAsMenu({ viewing }: { viewing?: { name: string | null; role: string } }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -31,6 +32,32 @@ export function ViewAsMenu() {
         setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
       }
     });
+  }
+
+  if (viewing) {
+    const who = viewing.name ?? t(viewing.role === "admin" ? "Admin" : viewing.role === "studio" ? "Studio" : "Member");
+    return (
+      <div className="view-as-menu">
+        <button
+          type="button"
+          className="view-as-menu-toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span aria-hidden>◉</span> {t("Viewing the app as {name}", { name: who })}
+        </button>
+        {open ? (
+          <div className="view-as-menu-panel">
+            <p className="view-as-menu-note">
+              {t("Exactly what this account sees after sign-in — read-only.")}
+            </p>
+            <a href="/api/view-as/exit" className="btn btn-sm view-as-banner-exit">
+              {t("Exit preview")}
+            </a>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   return (
