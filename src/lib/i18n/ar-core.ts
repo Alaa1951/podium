@@ -189,6 +189,20 @@ export const AR_CORE: Phrases = {
   "Both members": "كلاهما عضو",
   "1 member": "عضو واحد",
   "Non-members": "غير أعضاء",
+
+  // ── The member's own team correction ─────────────────────────────────────
+  Account: "الحساب",
+  "Edit team": "عدّل الفريق",
+  "First member": "العضو الأول",
+  Partner: "الشريك",
+  "Save changes": "حفظ التعديلات",
+  "Team updated.": "تم تحديث الفريق.",
+  "Give every member a name.": "اكتب اسم لكل عضو.",
+  "Team changes are closed — the event starts in less than 24 hours.":
+    "تعديل الفريق مقفول — باقي على المسابقة أقل من ٢٤ ساعة.",
+  "Names and emails can be changed until 24 hours before the event.":
+    "الأسامي والإيميلات تتعدل لحد ٢٤ ساعة قبل المسابقة.",
+
   // CATEGORY is who is competing, DIVISION is the level — the wording of
   // BFT MENA's own registration form, which these follow exactly.
   Category: "الفئة",

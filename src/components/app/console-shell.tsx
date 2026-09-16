@@ -148,6 +148,9 @@ export function ConsoleShell({
 
         <div className="console-utilities">
           {utilities}
+          <Link href="/account" className="btn btn-ghost btn-sm">
+            {t("Account")}
+          </Link>
           <SignOutButton />
         </div>
       </nav>

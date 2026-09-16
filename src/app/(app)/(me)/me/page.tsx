@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PlainHeader } from "@/components/app/plain-header";
+import { TeamEditor } from "@/components/me/team-editor";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/queries";
@@ -91,6 +92,10 @@ export default async function MyPage() {
 
   const wave = waves.find((one) => one.number === team.wave) ?? null;
   const status = teamStatus(team);
+
+  // Correcting who stands on the team — open until the event is a day away,
+  // closed from then on. The clock is the server's, not theirs.
+  const teamEditOpen = new Date() < new Date(series.competitionDate.getTime() - 24 * 3_600_000);
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.
@@ -188,6 +193,16 @@ export default async function MyPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Correcting who stands on the team — the clock decided above. */}
+      <TeamEditor
+        members={team.competitors.map((person) => ({
+          position: person.position,
+          fullName: person.fullName,
+          email: person.email,
+        }))}
+        open={teamEditOpen}
+      />
 
       {team.submitted ? (
         <>
