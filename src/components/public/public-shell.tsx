@@ -40,6 +40,11 @@ export function PublicShell({
 
       <footer className="public-foot">
         <PoweredBy tone="dark" label="POWERED BY BFT MENA" />
+        {/* Both stores require a reachable privacy policy; keep it one tap
+            away from every public screen, in both languages at once. */}
+        <Link href="/privacy" className="public-privacy">
+          PRIVACY · الخصوصية
+        </Link>
       </footer>
     </div>
   );

@@ -56,7 +56,6 @@ export default async function SettingsPage(props: PageProps<"/series/[series]/se
     firstWaveTime: series.firstWaveTime,
     waveMinutes: series.waveMinutes,
     waveCapacity: series.waveCapacity,
-    finisherCapSeconds: series.finisherCapSeconds,
     boardOpensAt: forInput(series.boardOpensAt),
     registrationClosesAt: forInput(series.registrationClosesAt),
     registrationsFinalAt: forInput(series.registrationsFinalAt),

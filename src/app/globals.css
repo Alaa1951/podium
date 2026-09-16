@@ -1702,3 +1702,14 @@ tr[data-unscored] td { color: var(--text-muted); }
   margin-bottom: 18px;
 }
 .me-links .btn { min-width: 120px; }
+
+/* Privacy policy link under the public footer — both stores require the
+   policy to be reachable from inside the app. */
+.public-privacy {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--board-text-muted);
+  text-decoration: none;
+}
+
+.public-privacy:hover { color: #00b5cc; }

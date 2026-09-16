@@ -26,6 +26,10 @@ const PUBLIC_PATHS = [
   // the matcher below appends one.)
   "/results",
   "/api/results",
+  // The privacy policy. Both app stores require a publicly reachable policy
+  // URL, and reviewers visit it without an account; the footer of every
+  // public screen links here too.
+  "/privacy",
   // Sponsor logo artwork. Wall boards and published results render these
   // images without a session, and the bytes are marketing material — public
   // by nature. The route itself 404s anything unknown; nothing else under

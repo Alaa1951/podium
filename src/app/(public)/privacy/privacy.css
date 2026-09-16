@@ -1,0 +1,65 @@
+/* THE PRIVACY POLICY — a readable legal page on the public results ground.
+   Narrow measure, generous leading, brand eyebrow; nothing else to see. */
+
+.privacy {
+  max-width: 680px;
+  margin: 0 auto;
+  padding-top: clamp(20px, 4vw, 44px);
+  padding-bottom: 40px;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.privacy-eyebrow {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: #00b5cc;
+  margin: 0 0 10px;
+}
+
+.privacy .pb-title {
+  margin: 0 0 4px;
+}
+
+.privacy-updated {
+  color: var(--board-text-muted);
+  font-size: 12.5px;
+  margin: 0 0 28px;
+}
+
+.privacy section {
+  margin: 0 0 26px;
+}
+
+.privacy h2 {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--board-text);
+  margin: 0 0 8px;
+}
+
+.privacy p {
+  margin: 0 0 10px;
+  color: var(--board-text-soft, var(--board-text));
+}
+
+.privacy ul {
+  margin: 0 0 10px;
+  padding-inline-start: 22px;
+}
+
+.privacy li {
+  margin: 0 0 6px;
+  color: var(--board-text-soft, var(--board-text));
+}
+
+.privacy a {
+  color: #00b5cc;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
