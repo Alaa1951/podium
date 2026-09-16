@@ -51,6 +51,7 @@ export function ScoreGrid({
   teams,
   zones,
   editBudget,
+  budgetApplies = false,
   isAdmin,
   frozen,
   frozenReason,
@@ -58,6 +59,8 @@ export function ScoreGrid({
   teams: GridTeam[];
   zones: ZoneDef[];
   editBudget: number;
+  /** Only a studio is bound by the edit budget — the server's rule, mirrored. */
+  budgetApplies?: boolean;
   isAdmin: boolean;
   frozen: boolean;
   frozenReason?: string;
@@ -96,7 +99,7 @@ export function ScoreGrid({
             team={openTeam}
             zones={zones}
             editBudget={editBudget}
-            isAdmin={isAdmin}
+            budgetApplies={budgetApplies}
             frozen={frozen}
             onBack={() => {
               setOpen(null);
@@ -111,6 +114,7 @@ export function ScoreGrid({
                 team={team}
                 zones={zones}
                 editBudget={editBudget}
+                budgetApplies={budgetApplies}
                 isAdmin={isAdmin}
                 frozen={frozen}
                 mobile
@@ -162,6 +166,7 @@ export function ScoreGrid({
                 team={team}
                 zones={zones}
                 editBudget={editBudget}
+                budgetApplies={budgetApplies}
                 isAdmin={isAdmin}
                 frozen={frozen}
                 expanded={open === team.id}

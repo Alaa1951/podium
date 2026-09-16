@@ -125,7 +125,8 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
         teams={rows}
         zones={zones}
         editBudget={scoreWriteBudget(series)}
-        isAdmin
+        budgetApplies={user.role === "studio"}
+        isAdmin={user.role === "admin"}
         frozen={false}
       />
 

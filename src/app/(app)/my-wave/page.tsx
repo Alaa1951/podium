@@ -147,6 +147,7 @@ export default async function MyWavePage() {
               teams={sheet.rows}
               zones={sheet.zones}
               editBudget={0}
+              budgetApplies={false}
               isAdmin={false}
               frozen={sheet.frozen}
               frozenReason={

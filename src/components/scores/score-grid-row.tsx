@@ -28,6 +28,7 @@ export function ScoreGridRow({
   team,
   zones,
   editBudget,
+  budgetApplies = false,
   isAdmin,
   frozen,
   onExpand,
@@ -37,6 +38,8 @@ export function ScoreGridRow({
   team: GridTeam;
   zones: ZoneDef[];
   editBudget: number;
+  /** Only a studio is bound by the edit budget — the server's rule, mirrored. */
+  budgetApplies?: boolean;
   isAdmin: boolean;
   /** The series has closed score entry, or this account may not enter at all. */
   frozen: boolean;
@@ -61,7 +64,10 @@ export function ScoreGridRow({
     setError("");
   }
 
-  const spent = !isAdmin && team.scoreEdits >= editBudget;
+  // The budget is a studio's limit, and only a studio's: admins write freely,
+  // and a wave scorer writes through the grant. Mirrors canEditScore on the
+  // server — when these two disagree, a judge stares at dead buttons.
+  const spent = budgetApplies && team.scoreEdits >= editBudget;
   // On the desktop sheet the one-team card opens below and becomes the editor,
   // so the row's own fields step aside while it is open. On mobile the card's
   // stacked fields ARE the editor — opening it must not lock them.
@@ -240,6 +246,7 @@ export function ScoreGridRow({
               zones={zones}
               peerTotals={team.peerTotals}
               projectedRank={rank}
+              budgetApplies={budgetApplies}
               isAdmin={isAdmin}
               editBudget={frozen ? 0 : editBudget}
             />

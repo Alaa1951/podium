@@ -44,6 +44,8 @@ type Props = {
   isAdmin: boolean;
   /** How many writes a studio gets in total, from the event's own setting. */
   editBudget: number;
+  /** Only a studio is bound by that budget — the server's rule, mirrored. */
+  budgetApplies?: boolean;
 };
 
 export function ScoreEntry({
@@ -53,6 +55,7 @@ export function ScoreEntry({
   projectedRank,
   isAdmin,
   editBudget,
+  budgetApplies = false,
 }: Props) {
   const t = useT();
   const router = useRouter();
@@ -77,7 +80,7 @@ export function ScoreEntry({
 
   // A studio gets a fixed number of writes; after that only BFT MENA can
   // change the score. The server enforces this too — this only greys the form.
-  const studioSpent = !isAdmin && team.scoreEdits >= editBudget;
+  const studioSpent = budgetApplies && team.scoreEdits >= editBudget;
   const locked = studioSpent;
 
   function setValue(inputId: string, value: number | null) {

@@ -35,14 +35,15 @@ export function ScoreTeamEntry({
   team,
   zones,
   editBudget,
-  isAdmin,
+  budgetApplies = false,
   frozen,
   onBack,
 }: {
   team: GridTeam;
   zones: ZoneDef[];
   editBudget: number;
-  isAdmin: boolean;
+  /** Only a studio is bound by the edit budget — the server's rule, mirrored. */
+  budgetApplies?: boolean;
   /** The series has closed score entry, or this account may not enter at all. */
   frozen: boolean;
   onBack: () => void;
@@ -63,7 +64,8 @@ export function ScoreTeamEntry({
     setError("");
   }
 
-  const spent = !isAdmin && team.scoreEdits >= editBudget;
+  // The budget is a studio's limit, and only a studio's — see ScoreGridRow.
+  const spent = budgetApplies && team.scoreEdits >= editBudget;
   const locked = spent || frozen;
   const total = totalPoints(zones, draft);
   const rank = 1 + team.peerTotals.filter((peer) => peer > total).length;
