@@ -325,6 +325,12 @@ model Series {
   /// correction comes from BFT MENA.
   studioScoreCorrections Int     @default(0)
 
+  // ── What a member may do here ────────────────────────────────────────────
+  /// How many hours before the competition a member may still correct their
+  /// own team (names and emails on either seat). 0 closes at the start time
+  /// itself; the default is the rule of thumb this launched with: one day.
+  teamEditCloseHours Int @default(24)
+
   // ── Deadlines, from the Series 1 manual's key dates ───────────────────────
   /// After this, no team may be registered, edited or removed by a studio.
   registrationClosesAt DateTime?

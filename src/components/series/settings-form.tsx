@@ -39,6 +39,7 @@ export type SeriesSettings = {
   championsAnnouncedAt: string;
   studiosMayEnterScores: boolean;
   studioScoreCorrections: number;
+  teamEditCloseHours: number;
   showTeamName: boolean;
   showCompetitorNames: boolean;
   showStudioColumn: boolean;

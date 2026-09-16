@@ -203,6 +203,9 @@ export const AR_CORE: Phrases = {
     "تعديل الفريق مقفول — باقي على المسابقة أقل من ٢٤ ساعة.",
   "Names and emails can be changed until 24 hours before the event.":
     "الأسامي والإيميلات تتعدل لحد ٢٤ ساعة قبل المسابقة.",
+  "Team changes close (hours before the event)": "تعديل الفريق بيقفل (ساعات قبل المسابقة)",
+  "A member may correct names and emails on their team until this many hours before the competition. 0 closes at the start time itself.":
+    "العضو يقدر يعدّل أسامي وإيميلات فريقه لحد عدد الساعات ده قبل المسابقة. صفر يعني القفل في لحظة البداية نفسها.",
 
   // CATEGORY is who is competing, DIVISION is the level — the wording of
   // BFT MENA's own registration form, which these follow exactly.

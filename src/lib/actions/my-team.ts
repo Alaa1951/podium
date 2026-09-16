@@ -5,7 +5,7 @@ import { normalizeName } from "@/lib/scoring";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
 import { getCurrentUser } from "@/lib/session";
 
-const DAY_MS = 24 * 3_600_000;
+const HOUR_MS = 3_600_000;
 
 export type MyTeamMemberInput = { position: number; fullName: string; email: string };
 
@@ -38,12 +38,19 @@ export async function updateMyTeam(members: MyTeamMemberInput[]): Promise<Update
     select: {
       id: true,
       teamId: true,
-      team: { select: { seriesId: true, series: { select: { competitionDate: true } } } },
+      team: {
+        select: {
+          seriesId: true,
+          series: { select: { competitionDate: true, teamEditCloseHours: true } },
+        },
+      },
     },
   });
   if (!mine) return { ok: false, error: "FORBIDDEN" };
 
-  const cutoff = mine.team.series.competitionDate.getTime() - DAY_MS;
+  // The door closes on the series' own clock — its configured hours before
+  // the competition, and from then on (including once it has started).
+  const cutoff = mine.team.series.competitionDate.getTime() - mine.team.series.teamEditCloseHours * HOUR_MS;
   if (Date.now() >= cutoff) return { ok: false, error: "TEAM_EDIT_CLOSED" };
 
   const roster = await prisma.competitor.findMany({

@@ -65,6 +65,7 @@ export default async function SettingsPage(props: PageProps<"/series/[series]/se
     championsAnnouncedAt: forInput(series.championsAnnouncedAt),
     studiosMayEnterScores: series.studiosMayEnterScores,
     studioScoreCorrections: series.studioScoreCorrections,
+    teamEditCloseHours: series.teamEditCloseHours,
     showTeamName: series.showTeamName,
     showCompetitorNames: series.showCompetitorNames,
     showStudioColumn: series.showStudioColumn,

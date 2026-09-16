@@ -32,7 +32,7 @@ export default async function MyPage() {
   const entry = await prisma.team.findFirst({
     where: { competitors: { some: { userId: user.id } } },
     orderBy: { series: { competitionDate: "desc" } },
-    select: { series: { select: { id: true, slug: true, name: true, competitionDate: true, status: true, venue: true, boardOpensAt: true, resultsPublicAt: true } } },
+    select: { series: { select: { id: true, slug: true, name: true, competitionDate: true, teamEditCloseHours: true, status: true, venue: true, boardOpensAt: true, resultsPublicAt: true } } },
   });
 
   if (!entry) {
@@ -93,9 +93,10 @@ export default async function MyPage() {
   const wave = waves.find((one) => one.number === team.wave) ?? null;
   const status = teamStatus(team);
 
-  // Correcting who stands on the team — open until the event is a day away,
+  // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
-  const teamEditOpen = new Date() < new Date(series.competitionDate.getTime() - 24 * 3_600_000);
+  const teamEditOpen =
+    new Date() < new Date(series.competitionDate.getTime() - series.teamEditCloseHours * 3_600_000);
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.

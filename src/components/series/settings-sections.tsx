@@ -45,6 +45,22 @@ export function StudioPermissions({ form, set }: { form: SeriesSettings; set: Se
           />
         </Field>
       </div>
+
+      <div className="form-row">
+        <Field
+          label={t("Team changes close (hours before the event)")}
+          hint={t("A member may correct names and emails on their team until this many hours before the competition. 0 closes at the start time itself.")}
+        >
+          <input
+            className="input pd-num"
+            type="number"
+            min={0}
+            max={720}
+            value={form.teamEditCloseHours}
+            onChange={(e) => set("teamEditCloseHours", Number(e.target.value) || 0)}
+          />
+        </Field>
+      </div>
     </section>
   );
 }
