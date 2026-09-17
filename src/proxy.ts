@@ -114,15 +114,6 @@ export function proxy(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return securityHeaders(NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 }), policy);
     }
-    // The bare root is a storefront, not a gate: an anonymous visitor (and the
-    // store shells, which can cold-start their WebView on "/") gets the public
-    // board. Staff reach /login directly or via their session links.
-    if (pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/results";
-      url.search = "";
-      return securityHeaders(NextResponse.redirect(url), policy);
-    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?callbackUrl=${encodeURIComponent(pathname + search)}`;

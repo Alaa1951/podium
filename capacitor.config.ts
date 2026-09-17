@@ -18,7 +18,9 @@ const config: CapacitorConfig = {
   appName: "PODIUM",
   webDir: "capacitor-web",
   server: {
-    url: "https://podium.bftmiddleeast.com/results",
+    // The store shells open on the sign-in screen: every store user is staff
+    // or a competitor with an account, and the public board stays on the web.
+    url: "https://podium.bftmiddleeast.com/login",
     // A rotated host or www redirect must not kick the user out to a browser.
     allowNavigation: ["podium.bftmiddleeast.com", "*.bftmiddleeast.com"],
     cleartext: false,
