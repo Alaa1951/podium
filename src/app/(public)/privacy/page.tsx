@@ -36,14 +36,15 @@ function English() {
     <>
       <p className="privacy-eyebrow">PODIUM · BFT MENA</p>
       <h1 className="pb-title">Privacy Policy</h1>
-      <p className="privacy-updated">Last updated: 16 September 2026</p>
+      <p className="privacy-updated">Last updated: 17 September 2026</p>
 
       <section>
         <h2>The short version</h2>
         <p>
           PODIUM is the competition platform of BFT MENA. We collect only what
-          running the competition needs: account emails and names, scores and
-          results, and the minimum security data required to protect sign-ins.
+          running the competition needs: account and registration details,
+          registration fee records, exercise scores and results, and the minimum
+          security data required to protect sign-ins.
           No advertising, no trackers, no analytics, no data selling — the
           website and the mobile apps run entirely on our own infrastructure
           and talk to no third-party service.
@@ -104,6 +105,13 @@ function English() {
       <section>
         <h2>Competition data, and what is public</h2>
         <p>
+          Registration records can include names, email addresses, phone
+          numbers, dates of birth, competition categories and studio membership.
+          We use these details to organize participation and manage registrations.
+          Registration fees may apply. Fee records include amounts, currencies,
+          payment status and payment references; we do not store payment card details.
+        </p>
+        <p>
           The service records the competition itself: studios, series, waves,
           teams, competitor names, scores and results. Published results are
           public by design — that is the product. The public results board
@@ -111,12 +119,24 @@ function English() {
           ranks and scores for competitions that the organizer has finished
           and published.
         </p>
+        <p>
+          Exercise scores record what teams achieved during competition training
+          and compare participating teams. They are fitness competition results;
+          the service does not collect clinical records or provide medical advice.
+          Contact details, dates of birth and fee records are not published on the
+          public results board.
+        </p>
+        <p>
+          Staff may enter operational notes and announcements. We retain sign-in
+          activity, staff action logs and announcement read receipts to operate
+          the platform, deliver updates and protect accounts.
+        </p>
       </section>
 
       <section>
         <h2>What we never do</h2>
         <ul>
-          <li>We show no advertising and sell nothing.</li>
+          <li>We show no advertising and do not sell personal data.</li>
           <li>
             We run no analytics, tracking scripts, or third-party CDNs. The
             site is fully self-contained.
@@ -170,13 +190,13 @@ function Arabic() {
     <>
       <p className="privacy-eyebrow">بوديوم · BFT MENA</p>
       <h1 className="pb-title">سياسة الخصوصية</h1>
-      <p className="privacy-updated">آخر تحديث: ١٦ سبتمبر ٢٠٢٦</p>
+      <p className="privacy-updated">آخر تحديث: ١٧ سبتمبر ٢٠٢٦</p>
 
       <section>
         <h2>الخلاصة أولًا</h2>
         <p>
           بوديوم هو منصة بطولات BFT MENA. نجمع فقط ما تحتاجه إدارة البطولة:
-          البريد الإلكتروني والاسم لحسابات المنظّمين، والنتائج والدرجات،
+          بيانات الحسابات والتسجيل، وسجلات رسوم التسجيل، ودرجات التمارين والنتائج،
           والحد الأدنى من بيانات الأمان اللازمة لحماية تسجيل الدخول. لا
           إعلانات، ولا متتبعات، ولا أدوات تحليلات، ولا بيع للبيانات — الموقع
           وتطبيقات الجوال تعمل بالكامل على بنيتنا التحتية الخاصة ولا تتصل بأي
@@ -234,18 +254,35 @@ function Arabic() {
       <section>
         <h2>بيانات البطولات، وما هو عام</h2>
         <p>
+          قد تشمل سجلات التسجيل الأسماء والبريد الإلكتروني وأرقام الهاتف
+          وتواريخ الميلاد وفئات البطولة وعضوية الصالة. نستخدم هذه البيانات
+          لتنظيم المشاركة وإدارة التسجيل. قد توجد رسوم للتسجيل، وتشمل سجلاتها
+          المبلغ والعملة وحالة الدفع ومرجع العملية؛ لا نخزّن بيانات بطاقات الدفع.
+        </p>
+        <p>
           تسجّل الخدمة البطولة نفسها: الصالات، والسلاسل، والموجات، والفرق،
           وأسماء المتسابقين، والدرجات والنتائج. النتائج المنشورة عامة بطبيعتها
           — فهذا هو المنتج نفسه: لوحة النتائج العامة (وتطبيقات الجوال) تعرض
           أسماء الفرق والمتسابقين والمراكز والدرجات للبطولات التي أنهىها
           المنظّم ونشرها.
         </p>
+        <p>
+          درجات التمارين تسجّل ما حققته الفرق أثناء تدريبات المنافسة، وتستخدم
+          للمقارنة بين الفرق المشاركة. هذه نتائج منافسات لياقة بدنية؛ لا تجمع
+          الخدمة سجلات طبية ولا تقدم نصائح طبية. لا تُنشر بيانات الاتصال أو
+          تواريخ الميلاد أو سجلات الرسوم على لوحة النتائج العامة.
+        </p>
+        <p>
+          يمكن للطاقم إدخال ملاحظات تشغيلية وإعلانات. نحتفظ بنشاط تسجيل الدخول
+          وسجلات إجراءات الطاقم وإيصالات قراءة الإعلانات لتشغيل المنصة وإيصال
+          التحديثات وحماية الحسابات.
+        </p>
       </section>
 
       <section>
         <h2>ما لا نفعله أبدًا</h2>
         <ul>
-          <li>لا نعرض إعلانات ولا نبيع شيئًا.</li>
+          <li>لا نعرض إعلانات ولا نبيع البيانات الشخصية.</li>
           <li>
             لا نستخدم أدوات تحليلات أو سكربتات تتبع أو شبك توصيل محتوى خارجي
             — الموقع مكتفٍ بذاته بالكامل.

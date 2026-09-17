@@ -5,7 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 import { sendSecurityAlertEmail } from "@/lib/email";
 import { verifyOtpChallenge } from "@/lib/otp";
-import { otpDevBypassEnabled } from "@/lib/otp-bypass";
+import { otpDevBypassEnabled, staffOtpExempt } from "@/lib/otp-bypass";
 import { prisma } from "@/lib/prisma";
 import { limitAuthAttempt } from "@/lib/rate-limit";
 import { normalizeEmail, verifyPassword } from "@/lib/security";
@@ -88,7 +88,10 @@ export const passwordProviders: NextAuthOptions["providers"] = [
         ? await getTrustedDevice({ userId: user.id, deviceFingerprint: device.deviceFingerprint })
         : null;
 
-      if ((user.forceOtpNextLogin || suspicious || !trusted) && !OTP_DEV_BYPASS) {
+      // Evaluate the server-only allowlist after the password has been checked.
+      // Never use it in either code-only provider below.
+      const exempt = staffOtpExempt({ OTP_EXEMPT_EMAILS: process.env.OTP_EXEMPT_EMAILS }, email, user.role);
+      if ((user.forceOtpNextLogin || suspicious || !trusted) && !OTP_DEV_BYPASS && !exempt) {
         await challengeDevice({
           userId: user.id,
           email,
@@ -116,7 +119,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
         browser: device.browser,
         os: device.os,
         ip,
-        isTrustedDevice: true,
+        isTrustedDevice: Boolean(trusted),
       });
 
       return toSessionUser(user);

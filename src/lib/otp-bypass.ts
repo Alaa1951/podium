@@ -12,3 +12,12 @@ export function otpDevBypassEnabled(env: {
 }): boolean {
   return env.NODE_ENV !== "production" && env.OTP_DEV_BYPASS === "true";
 }
+
+// A server-side exception for explicitly named password-authenticated staff
+// accounts. This never authorizes an OTP-only or competitor sign-in.
+export function staffOtpExempt(env: { OTP_EXEMPT_EMAILS?: string }, email: string, role: string): boolean {
+  if (role !== "admin" && role !== "studio") return false;
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+  return (env.OTP_EXEMPT_EMAILS || "").split(",").some((entry) => entry.trim().toLowerCase() === normalized);
+}

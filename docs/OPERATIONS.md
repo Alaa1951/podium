@@ -132,6 +132,34 @@ Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 Set `OTP_SECRET` and `DEVICE_FINGERPRINT_SECRET` separately from
 `NEXTAUTH_SECRET` so rotating one does not invalidate the others.
 
+### Temporary Google Play review account
+
+The owner authorized an active admin named **Google Play Review**, email
+`google-play-review@bftmiddleeast.com`. Creation must run against the live
+service's database, using its actual environment file (discover the path from
+`systemctl cat podium.service`; do not copy database credentials to logs).
+
+After deploying the authentication change, add just this email to the server-only
+`OTP_EXEMPT_EMAILS` comma-separated allowlist and restart the service. Password
+verification, account status checks and rate limits still apply. The exception
+skips the additional email challenge only for password-authenticated staff;
+competitor/code-only sign-in is unchanged. Leave `OTP_DEV_BYPASS` off.
+
+On the production host, with the live service environment loaded:
+
+```bash
+NODE_ENV=production node --env-file=<actual-production-env> scripts/create-play-review-account.mjs --production
+```
+
+This creates the account and an audit record in one transaction, refuses to reset
+an existing account, and prints its randomly generated password once. Store the
+credentials privately in Play Console's App access declaration; do not put them
+in the repository. Confirm a real password sign-in works before declaring reviewer
+access complete. An admin can edit live competition data.
+
+After review, disable/archive **Google Play Review** under Users, remove its email
+from `OTP_EXEMPT_EMAILS` and restart. No migration or versionCode change is needed.
+
 ---
 
 ## Event day

@@ -10,7 +10,8 @@ left undone.
 Accounts are issued, never self-created. BFT MENA adds studios; a studio adds
 its own competitors. There is one sign-in screen and no role picker — the
 database decides what a person is. Any unrecognised browser is challenged with a
-six-digit code by email before a session exists. Everything a signed-in person
+six-digit code by email before a session exists, except explicitly allowlisted
+password-authenticated staff accounts described below. Everything a signed-in person
 can then see or change is filtered on the server by their role and their studio.
 
 ---
@@ -21,7 +22,7 @@ can then see or change is filtered on the server by their role and their studio.
 | --- | --- |
 | Passwords hashed with bcrypt, cost 12 | [`security.ts`](../src/lib/security.ts) |
 | Minimum 10 chars, upper + lower + digit | `checkPasswordStrength` |
-| Email OTP on every untrusted device | [`auth.ts`](../src/lib/auth.ts) |
+| Email OTP on untrusted devices, with a server-side named staff exception | [`auth-password.ts`](../src/lib/auth-password.ts) |
 | Codes stored as HMAC-SHA256, never plaintext | [`otp.ts`](../src/lib/otp.ts) |
 | Codes expire in 10 minutes, 5 attempts, consumed on use | `otp.ts` |
 | Issuing a code consumes any outstanding one | `createOtpChallenge` |
@@ -34,6 +35,14 @@ can then see or change is filtered on the server by their role and their studio.
 
 **Twelve hours** is one event day. A session that outlives the event is a laptop
 left open in a gym.
+
+`OTP_EXEMPT_EMAILS` is a server-only, exact email allowlist for temporary reviewer
+staff access. It is evaluated only after a valid password and account status checks
+in the credentials provider; it also skips forced/suspicious-login email challenges
+for the named account. Rate limits, audit logs and session permissions remain in
+effect. It never bypasses OTP-only or competitor authentication, and does not mark
+an unrecognized device trusted. Remove the exception and disable the reviewer
+account after review. The global development bypass is still ignored in production.
 
 ### What sign-in does not reveal
 
