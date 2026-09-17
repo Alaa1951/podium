@@ -160,6 +160,23 @@ access complete. An admin can edit live competition data.
 After review, disable/archive **Google Play Review** under Users, remove its email
 from `OTP_EXEMPT_EMAILS` and restart. No migration or versionCode change is needed.
 
+### Temporary Apple App Review account
+
+Same pattern, deliberately weaker: role **studio**, not admin, carrying the
+existing read-only `limited-admin` access role (`results.view`, `board.view`,
+`users.view`) and scoped to the empty **Test** studio, so no real competitor
+data is reachable and nothing can be changed. Email
+`apple-review@bftmiddleeast.com`; it shares the same `OTP_EXEMPT_EMAILS`
+allowlist entry style as the Play reviewer (comma-separated, both kept).
+
+```bash
+NODE_ENV=production node --env-file=<actual-production-env> scripts/create-apple-review-account.mjs --production
+```
+
+The script refuses to run if the access role gains a non-`.view` permission or
+the sandbox studio has teams. After review, remove/archive **Apple App Review**
+in Users, drop its email from `OTP_EXEMPT_EMAILS` and restart.
+
 ---
 
 ## Event day
