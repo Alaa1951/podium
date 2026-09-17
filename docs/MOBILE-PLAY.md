@@ -54,8 +54,9 @@ In **Play Console → App content**, complete the supplied declarations:
 - Privacy policy URL: `https://podium.bftmiddleeast.com/privacy`.
 - Ads: **No**.
 - Data safety: collects **Email** and **Name** for accounts; **Device ID** for
-  security only; encrypted in transit; no sharing; no selling; deletion via
-  email using the contact in the privacy policy.
+  app functionality / security only. Email and Name are linked to identity.
+  No tracking or analytics; encrypted in transit; no sharing; no selling;
+  deletion requests via `admin@bftmiddleeast.com`.
 
 These are the release brief's declarations for the human to enter and check
 against the production policy, rather than an automated console submission.
@@ -67,3 +68,17 @@ In **Testing → Internal testing**, create a release, upload the existing signe
 according to the console prompts. Install using the test opt-in link. Confirm
 public results, staff sign-in, announcements and read persistence after the
 gated web deployment. The IDE does not perform these console steps.
+
+## Automation status — 17 September 2026
+
+The existing signed AAB and listing assets remain ready. Store-listing asset
+upload/Save, App content declarations, and the internal-testing release with
+real tester emails are still human tasks. No Play Console write was made.
+Play Developer API access / a linked service-account credential has not been
+provided for this task. If future API automation is wanted, the Account Holder
+must first enable/link the API and grant that account app access; this does
+not block the human console release. Keep the first AAB versionCode **1**.
+
+Apple's existing build is ready for internal testing; see
+[MOBILE-APPLE.md](MOBILE-APPLE.md). Announcements production steps are prepared
+in [MOBILE-DEPLOY.md](MOBILE-DEPLOY.md); the production deployment remains manual.

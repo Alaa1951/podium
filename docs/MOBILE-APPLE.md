@@ -1,188 +1,144 @@
-# PODIUM: Apple signing and TestFlight
+# PODIUM: Apple release status
 
-This completes the iOS path described in [MOBILE.md](MOBILE.md). The native
-shell continues to open the live site. The bundle ID is `app.podium.bftmena`,
-Apple team is `VSXS43495X`, and the existing App Store Connect record is
-**PODIUM — BFT MENA**, app ID `6812904157`, SKU `PODIUM-001`, English (U.K.).
-Keep marketing version **1.0**. No new app record or identifier is needed.
+Verified through the public App Store Connect API on **17 September 2026**.
+The existing app remains **PODIUM — BFT MENA**, ID `6812904157`, SKU
+`PODIUM-001`, primary locale `en-GB`, bundle `app.podium.bftmena`, team
+`VSXS43495X`. No new app, signing setup or native build is needed.
 
-## 1. Generate the CSR on Windows
+## Completed
 
-From Git Bash in `D:/pudem`:
-
-```bash
-bash scripts/make-ios-csr.sh
-```
-
-Outputs live outside the repository, under `~/podium-signing/ios/`
-(`C:\Users\Alaa\podium-signing\ios` on this machine):
-
-- `podium-distribution.key`: private RSA key, retain securely.
-- `podium-distribution.csr`: upload this CSR to Apple.
-
-The CSR subject is `CN=PODIUM Distribution, O=BFT MENA, C=QA`. The script
-refuses to overwrite an existing key or CSR. Reuse that CSR if already generated;
-the certificate must match its private key. `IOS_SIGNING_DIR` can override the
-directory for an isolated test or a deliberate future renewal.
-
-## 2. Human step: create the distribution certificate
-
-With MAHMOUD MANNAA (Account Holder), or an Admin with certificate access:
-
-1. Open [Apple Developer account](https://developer.apple.com/account/).
-   Select team `VSXS43495X` and open **Certificates, Identifiers & Profiles**.
-2. **Certificates → + → Apple Distribution → Continue**. This is a distribution
-   certificate, not an Apple Development or Developer ID certificate.
-3. Upload `podium-distribution.csr`, then **Continue** and **Download**.
-4. Save the downloaded `.cer` in `~/podium-signing/ios/`, for example as
-   `distribution.cer`.
-
-Apple downloads a `.cer`, not a `.p12`. The companion script below combines
-the downloaded certificate with the local private key to create the `.p12`.
-
-## 3. Human step: create the App Store profile
-
-1. In the same team, open **Profiles → +**.
-2. Under **Distribution**, choose **App Store Connect** (older UI labels may
-   say App Store), then **Continue**.
-3. Select the existing explicit App ID `app.podium.bftmena`.
-4. Select the **Apple Distribution certificate created from this CSR**.
-5. Name the profile exactly **PODIUM AppStore**, then **Generate → Download**.
-6. Save it as `~/podium-signing/ios/PODIUM_AppStore.mobileprovision`.
-
-The workflow validates profile name, team, bundle ID, expiration, distribution
-type and its certificate's match to the imported private key before archiving.
-See Apple's [profile creation steps](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile).
-
-## 4. Human step: create the App Store Connect API key
-
-1. Open [App Store Connect](https://appstoreconnect.apple.com/), using the account
-   holding the existing PODIUM record.
-2. Open **Users and Access → Integrations → App Store Connect API → Team Keys**.
-3. If API access has not been enabled, the Account Holder first requests access.
-4. Choose **+**, name it `PODIUM CI`, and select **Admin** access.
-5. Generate the team key. Record its **Key ID** and the page's **Issuer ID**.
-   Use a team key, since this workflow authenticates with both IDs.
-6. Download `AuthKey_<KEY_ID>.p8` into `~/podium-signing/ios/` and back it up
-   securely. Apple allows this private key download only once.
-
-See Apple's [API key instructions](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api).
-
-## 5. Package the signing secrets
-
-From Git Bash, substitute the actual API key filename:
-
-```bash
-bash scripts/package-ios-signing.sh \
-  "$HOME/podium-signing/ios/distribution.cer" \
-  "$HOME/podium-signing/ios/PODIUM_AppStore.mobileprovision" \
-  "$HOME/podium-signing/ios/AuthKey_<KEY_ID>.p8"
-```
-
-The script verifies the certificate is unexpired and matches the CSR key,
-prompts twice for a non-empty P12 password, and creates
-`~/podium-signing/ios/podium-distribution.p12` with explicit Apple Keychain-compatible
-P12 encryption and MAC algorithms. It writes single-line base64
-secret files in `~/podium-signing/ios/github-secrets/`. It prints filenames,
-never the password or base64 contents. The API key argument is optional if it
-has not been downloaded yet; encode it later with:
-
-```bash
-base64 < "$HOME/podium-signing/ios/AuthKey_<KEY_ID>.p8" | tr -d '\r\n' \
-  > "$HOME/podium-signing/ios/github-secrets/ASC_API_KEY_P8_BASE64.txt"
-```
-
-In **Alaa1951/podium → Settings → Secrets and variables → Actions → New
-repository secret**, add these **six repository secrets** (not variables):
-
-| Secret name | Exact value |
+| Item | Verified result |
 | --- | --- |
-| `IOS_DIST_P12_BASE64` | Contents of `github-secrets/IOS_DIST_P12_BASE64.txt` |
-| `IOS_DIST_P12_PASSWORD` | The password supplied to the packaging script |
-| `IOS_PROVISION_PROFILE_BASE64` | Contents of `github-secrets/IOS_PROVISION_PROFILE_BASE64.txt` |
-| `ASC_KEY_ID` | Team API key's Key ID |
-| `ASC_ISSUER_ID` | Team API key's Issuer ID |
-| `ASC_API_KEY_P8_BASE64` | Contents of `github-secrets/ASC_API_KEY_P8_BASE64.txt` |
+| Signed upload | [iOS run 35177203441](https://github.com/Alaa1951/podium/actions/runs/35177203441), artifact `podium-ios-2-1` |
+| Existing build | Marketing version **1.0**, actual Apple build **2.1**, `VALID`; expires 15 December 2026 |
+| Export compliance | `usesNonExemptEncryption=false`; the shell uses Apple's WebView HTTPS and has no bundled non-exempt encryption |
+| TestFlight | Internal group **PODIUM Internal** contains build 2.1; `READY_FOR_BETA_TESTING` |
+| Store version | 1.0 remains `PREPARE_FOR_SUBMISSION`; build 2.1 selected; release set to **Manual** |
+| English description | Exact full description from [MOBILE-PLAY.md](MOBILE-PLAY.md) |
+| Keywords | `fitness,competition,leaderboard,workout,results,scores,games,gym` |
+| Promotional text | Follow the BFT MENA competition series with live leaderboards, team scores and published results. Every wave, every division, all in one place. |
+| Support / privacy URL | `https://podium.bftmiddleeast.com/privacy` |
+| Category / copyright | **Health & Fitness** / **BFT MENA** |
+| Age rating | Content questionnaire saved; Apple calculated **4+** |
+| Pricing / availability | **Free**, Qatar base territory; all **175** territories available, all current prices zero, new territories enabled |
+| Screenshots | Two iPhone and two iPad images uploaded, committed and delivery `COMPLETE`, leaderboard first |
+| Project checks | `npm run verify` passed: type-check, lint, all 208 tests and production build; local smoke passed public 200, guest inbox 401 and signed-in inbox 200 |
 
-Alternatively, after `gh auth login`, upload the three encoded files without
-printing them in the terminal:
+Apple rejects edits to `whatsNew` for the first release (`STATE_ERROR:
+Attribute 'whatsNew' cannot be edited at this time`). The requested text is
+**First release.**; it is recorded here but the unsupported first-version
+field stays empty. No App Store review or external beta review was submitted.
+
+## Screenshots
+
+Images and `manifest.json` are outside Git in
+`C:\Users\Alaa\podium-signing\store-assets\apple\`:
+
+| Display set | Dimensions | Order |
+| --- | --- | --- |
+| `APP_IPHONE_65` | 1242 × 2688 portrait | `iphone-1-womens-rookie.png`, `iphone-2-mens-pro.png` |
+| `APP_IPAD_PRO_3GEN_129` | 2048 × 2732 portrait | `ipad-1-womens-rookie.png`, `ipad-2-mens-pro.png` |
+
+Both pairs are actual headless captures of the live
+`/results/podium-series-1/Womens/Rookie` and
+`/results/podium-series-1/Mens/Pro` pages. Rendering uses 414 × 896 at 3×
+and 1024 × 1366 at 2×; encoding removes alpha without stretching or resizing.
+There were no existing screenshot sets. Portrait satisfies these sets;
+landscape is not additionally required. Apple's
+[specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
+allow 6.5-inch iPhone screenshots when 6.9-inch screenshots are absent, and
+these iPad dimensions for the required 13-inch family.
+
+## Remaining human actions
+
+1. **Provide the real internal tester email.** It must be an eligible App
+   Store Connect user with access to PODIUM. No tester has been invited and
+   the placeholder `pod-testers@bftmena.com` was not used. Once supplied, the
+   IDE can add the tester via API to the existing internal group. If the user
+   does not exist, the Account Holder first grants appropriate app access.
+2. **Publish App Privacy labels in App Store Connect.** Apple's official
+   [OpenAPI specification **4.4.1**](https://developer.apple.com/sample-code/app-store-connect/app-store-connect-openapi-specification.zip) contains no App Privacy/data-usage label
+   endpoints. Privacy-policy URL editing is supported and completed; the
+   nutrition-label questionnaire requires the console. Use the answer sheet
+   below and check it against the production policy before publishing.
+3. **Install the internal build on a real iPhone/iPad.** Test public results,
+   staff sign-in, Arabic, airplane-mode fallback and, after the web release,
+   announcement audience filtering and read persistence across devices.
+4. **Check required review information in the console**, including an actual
+   review contact and any requested staff demo access. Those personal details
+   were not provided and have not been invented. Confirm any outstanding
+   account agreements, rights or territory-specific compliance prompts.
+5. **Approve Submit for Review in chat only after the remaining checks are
+   green.** The IDE must not submit without explicit human approval. Manual
+   release also requires a deliberate release action after approval.
+
+### App Privacy answer sheet
+
+In **App Store Connect → PODIUM → App Privacy**, declare data collected:
+
+| Data | Purpose | Linked to identity | Tracking |
+| --- | --- | --- | --- |
+| Contact Info → Email Address | App Functionality (accounts / operational sign-in) | Yes | No |
+| Contact Info → Name | App Functionality (accounts / competition display) | Yes | No |
+| Identifiers → Device ID | App Functionality (sign-in security / trusted-device protection) | Yes, associated with account security records | No |
+
+No analytics, advertising, marketing, selling or third-party sharing.
+Traffic is encrypted in transit. Data access/correction/deletion contact:
+`admin@bftmiddleeast.com`. Do not select “No data collected”: signed-in users
+provide account and security data. Apple's
+[privacy instructions](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
+describe the console publication step. The labels have **not** been published
+or verified by the IDE; this prevents a fully green submission report.
+
+### TestFlight invitation and public-link flow
+
+Manage the prepared group in
+[PODIUM TestFlight](https://appstoreconnect.apple.com/apps/6812904157/testflight).
+This is a management link, not a public installation link. After the real
+tester is added, accept Apple's invitation on the device and install using
+the TestFlight app or the invitation's redemption flow.
+
+Internal groups do **not** have public join links. For a public link, an
+external group must be created and the first build approved for external beta
+testing; then enable its Public Link and share the generated
+`https://testflight.apple.com/join/...` URL. No external group or beta-review
+submission was created. See Apple's
+[TestFlight guide](https://developer.apple.com/testflight/) and
+[internal tester requirements](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers).
+
+## API and screenshot tools
+
+The API client uses Node's ES256 signing with a raw P1363 signature; no JWT
+dependency is needed. Set `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` to the
+existing team key, issuer and local `.p8` file. It reads the key in memory and
+never prints tokens or key bytes. Optional `ASC_APP_ID` defaults to PODIUM.
 
 ```bash
-for name in IOS_DIST_P12_BASE64 IOS_PROVISION_PROFILE_BASE64 ASC_API_KEY_P8_BASE64; do
-  gh secret set "$name" --repo Alaa1951/podium \
-    < "$HOME/podium-signing/ios/github-secrets/$name.txt"
-done
-gh secret set IOS_DIST_P12_PASSWORD --repo Alaa1951/podium
-gh secret set ASC_KEY_ID --repo Alaa1951/podium
-gh secret set ASC_ISSUER_ID --repo Alaa1951/podium
+node scripts/asc-api.mjs '/v1/builds?filter[app]=6812904157&include=buildBetaDetail,preReleaseVersion'
 ```
 
-Those last three commands request the values interactively. Keys, passwords,
-profiles, certificates and encoded files stay outside Git. The public
-[ExportOptions.plist](../ios/App/ExportOptions.plist) contains only the team,
-signing method and bundle-to-profile mapping.
-
-## 6. Run the iOS workflow
-
-The workflow must first be committed and pushed to the repository's default
-branch so GitHub can discover its manual trigger. This does not deploy the
-website; its existing gates and manual deployment remain in place.
+To deliberately recapture screenshots, make `playwright` and `sharp`
+available, or set `PODIUM_CAPTURE_MODULES` to the bundled runtime's
+`node_modules` directory. Chrome is the default; `PODIUM_CAPTURE_BROWSER`
+can choose another installed Playwright browser channel.
 
 ```bash
-gh workflow run mobile-ios.yml --repo Alaa1951/podium --ref main
-gh run list --repo Alaa1951/podium --workflow mobile-ios.yml --limit 5
-gh run watch <RUN_ID> --repo Alaa1951/podium --exit-status
+node scripts/capture-store-screenshots.mjs "$HOME/podium-signing/store-assets/apple"
+node scripts/upload-apple-screenshots.mjs "$HOME/podium-signing/store-assets/apple"
 ```
 
-Or use **Actions → mobile-ios → Run workflow**. Pushing an explicitly chosen
-`ios-v*` tag also triggers it.
+The uploader reserves assets, sends Apple's requested byte chunks and headers,
+commits their MD5 checksums, polls delivery and orders the leaderboard pair.
+It reuses completed identical images and refuses to replace differing files
+without review. These tools never submit for review.
 
-[mobile-ios.yml](../.github/workflows/mobile-ios.yml) uses `macos-15`, stable
-Xcode 26, Node 24, `npm ci`, and Capacitor sync. Apple currently requires Xcode
-26 or later and the iOS 26 SDK or later for uploads; the runner must provide
-this toolchain ([Apple requirement](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)).
-CI creates a temporary keychain, imports the certificate, installs the profile,
-imports Apple's WWDR G3 intermediate from its certificate authority, and
-configures **only the App Release target** for manual distribution signing.
-Swift Package Manager dependencies retain their own signing configuration.
-It archives with signing enabled, verifies the app signature, exports with
-`method=app-store-connect`, and uploads the IPA using Apple's built-in
-`xcrun altool --upload-package` with App Store Connect API-key authentication.
-It inspects the installed altool help for the supported platform/authentication
-spellings, using `--type ios-app-store` where available or the tool's iOS
-platform spelling on other versions. See Apple's
-[upload tools](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds).
-No extra upload dependency or unsigned archive is used.
+All six iOS and four Android GitHub secrets are already configured. Signing
+material stays under `C:\Users\Alaa\podium-signing\ios\`; the distribution
+certificate expires **17 September 2027**. Existing CSR/package scripts are
+available for a deliberate future renewal, not for this release. The verified
+[mobile-ios.yml](../.github/workflows/mobile-ios.yml) retains marketing version
+1.0 and advances build numbers as `<run number>.<attempt>`. Reuse 2.1 now.
 
-The CI-only build number is `<workflow run number>.<run attempt>` (for example
-`1.1`, retry `1.2`); version stays `1.0` and Android versions stay unchanged.
-After a newer build has uploaded, start a **new workflow run**, rather than
-retrying an older run whose build number would be lower. Downloadable IPA and
-dSYM artifacts are retained for 14 days. Signing files and API private key are
-removed in an `always()` cleanup step.
-
-## 7. Confirm TestFlight and test the shell
-
-1. After upload succeeds, wait for Apple's processing. Upload success alone
-   does not establish TestFlight visibility.
-2. Open **My Apps → PODIUM — BFT MENA → TestFlight → iOS**. Confirm version
-   **1.0** and the build number shown in the workflow summary.
-3. Resolve any export-compliance questions presented by App Store Connect.
-4. Add the build to an internal testing group and install it on a real iPhone.
-5. Verify results open, sign-in works, the bell shows an addressed announcement,
-   and marking it read survives reopening the app. Test airplane-mode fallback
-   and Arabic layout too. External testers may require beta review.
-
-These browser steps are human tasks. This workflow uploads for TestFlight; it
-does not submit the app for production App Store review.
-
-## Release status and web feature deployment
-
-The workflow can only run after GitHub authentication, publication of the
-workflow and installation of all six valid secrets. Certificate/profile and
-API-key creation remain with the human account holder. macOS signing, export,
-upload and TestFlight visibility cannot be verified from the Windows workspace.
-
-The in-app announcements implementation and its migration ship through a
-normal gated web deployment. Follow [MOBILE.md](MOBILE.md#in-app-announcements)
-for migration and smoke checks; both store shells then receive the same feature.
+Announcements reach both shells through the live site. Production is still
+manual/gated; see [MOBILE-DEPLOY.md](MOBILE-DEPLOY.md) for the prepared migration,
+restart, smoke check and rollback steps. No production deployment was performed.

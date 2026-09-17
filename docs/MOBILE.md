@@ -97,6 +97,13 @@ text stays as written and is rendered as plain text.
 
 For the gated web deployment:
 
+Use the prepared operator commands and read-only post-deployment check in
+[MOBILE-DEPLOY.md](MOBILE-DEPLOY.md). The existing VPS deployment checks out
+the release before its migration files are available, so on that host follow
+the documented deploy → migrate → restart sequence in a maintenance window.
+The sequence below applies when a separate release checkout is available
+before switching the serving build.
+
 1. Back up the production database using the existing operations process.
 2. From a release checkout containing this migration, run `npx prisma migrate
    deploy` with the production datasource before serving the new code. The new
