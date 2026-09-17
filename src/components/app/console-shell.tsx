@@ -8,6 +8,7 @@ import { PodiumMark } from "@/components/brand/podium-mark";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { ViewAsMenu } from "@/components/app/view-as-menu";
 import { useT } from "@/components/i18n/locale-provider";
+import { NotificationBell } from "@/components/app/notification-bell";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ONE PLACE TO STAND.
@@ -160,7 +161,10 @@ export function ConsoleShell({
 
       {open ? <div className="console-scrim" onClick={() => setOpen(false)} aria-hidden /> : null}
 
-      <main className="console-main">{children}</main>
+      <main className="console-main">
+        <header className="console-inbox-head"><NotificationBell /></header>
+        {children}
+      </main>
     </div>
   );
 }

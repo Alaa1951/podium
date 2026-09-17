@@ -17,6 +17,30 @@
    as one grey soup.
    ══════════════════════════════════════════════════════════════════════ */
 
+.console-inbox-head { display: flex; justify-content: flex-end; min-height: 52px; padding: 6px 24px; border-bottom: 1px solid var(--border); }
+.public-inbox { justify-self: end; color: #f2f2f3; }
+.notification-bell { position: relative; min-width: 44px; min-height: 44px; }
+.notification-count { position: absolute; inset-block-start: 0; inset-inline-end: 0; min-width: 19px; padding: 1px 4px; border-radius: 12px; background: var(--bft-cyan); color: #04212a; font-size: 11px; font-weight: 700; }
+.notification-dialog { margin: auto; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface); overflow-y: auto; }
+.notification-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.notification-dialog-head, .notification-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.notification-dialog-head h2 { font-size: 22px; font-weight: 700; }
+.notification-toolbar { padding-block: 12px; color: var(--text-secondary); }
+.notification-list { list-style: none; padding: 0; margin-block: 12px; display: grid; gap: 12px; }
+.notification-item { padding: 16px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
+.notification-item[data-unread] { border-inline-start: 4px solid var(--bft-cyan); }
+.notification-item h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.notification-item time { font-size: 12px; color: var(--text-secondary); }
+.notification-item p { white-space: pre-wrap; margin-block: 10px; }
+.announcement-form { padding: 24px; }
+.announcement-form h2 { font-size: 20px; font-weight: 700; }
+.announcement-form fieldset { display: grid; gap: 10px; margin-top: 16px; min-width: 0; border: 0; }
+.announcement-form label { font-weight: 600; }
+.announcement-form input, .announcement-form select, .announcement-form textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-sunken); color: var(--text); font: inherit; }
+.announcement-form textarea { resize: vertical; }
+.announcement-form button[type="submit"] { justify-self: start; margin-top: 8px; }
+@media (max-width: 600px) { .console-inbox-head { padding-inline: 16px; } .announcement-form { padding: 16px; } }
+
 /* ── Type ─────────────────────────────────────────────────────────────────── */
 .display {
   font-family: var(--font-display), var(--font-heading), sans-serif;

@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { useT } from "@/components/i18n/locale-provider";
+import { NotificationBell } from "@/components/app/notification-bell";
 
 const tinyLink: React.CSSProperties = {
   padding: 0,
@@ -33,6 +34,7 @@ export function PlainHeader({ roleLabel }: { roleLabel: string }) {
       }}
     >
       <div style={{ marginInlineStart: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+        <NotificationBell />
         <LanguageSwitch />
         <div style={{ textAlign: "end" }}>
           <div

@@ -27,7 +27,7 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
   const { t } = await getTranslator();
   const theme = await getTheme();
 
-  const platformViews = ["users.view", "studios.view", "audit.view", "roles.manage"];
+  const platformViews = ["users.view", "studios.view", "audit.view", "roles.manage", "announcements.view"];
   const onPlatform = user.role === "admin" || platformViews.some((p) => can(user, p));
   if (!onPlatform) redirect(await homeForUser(user));
 
@@ -52,10 +52,12 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
         { href: "/studios", label: t("Studios"), badge: studios },
         // An invited account has not signed in yet — worth noticing.
         { href: "/users", label: t("Users"), badge: invited, alert: invited > 0 },
+        { href: "/announcements", label: t("Announcements") },
       ].filter((item) => {
         if (isAdmin) return true;
         if (item.href === "/studios") return can(user, "studios.view");
         if (item.href === "/users") return can(user, "users.view");
+        if (item.href === "/announcements") return can(user, "announcements.view");
         // Competitions list is the admin overview; the series console itself
         // is reachable by URL for custom-role users.
         return false;

@@ -64,6 +64,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         labelAr: "إضافة الاستوديوهات إلى المنصة",
       },
       { key: "audit.view", label: "View the audit log", labelAr: "عرض سجل التغييرات" },
+      { key: "announcements.view", label: "View announcements", labelAr: "عرض الإعلانات" },
+      { key: "announcements.manage", label: "Send announcements", labelAr: "إرسال الإعلانات" },
       {
         key: "roles.manage",
         label: "Create roles and set permissions",
@@ -130,6 +132,8 @@ export const DEFAULT_STUDIO_PERMISSIONS = [
   "waves.view",
   "results.view",
   "board.view",
+  "announcements.view",
+  "announcements.manage",
 ];
 
 /** What a plain competitor resolves to: the member screens only. */
@@ -285,4 +289,3 @@ export function canCreateAccount(
   if (!actor.studioId) return { allowed: false, reason: "NO_STUDIO" };
   return { allowed: true, studioId: actor.studioId };
 }
-

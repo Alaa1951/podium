@@ -5,6 +5,7 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { getTranslator } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { getStudioSeries } from "@/lib/studio-queries";
+import { canComposeAnnouncements } from "@/lib/notification-access";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function StudioHome() {
           <h1>{t("Your competitions")}</h1>
           <p>{t("The PODIUM competitions your studio is entered in.")}</p>
         </div>
+        {canComposeAnnouncements(user) ? <Link href="/studio/announcements" className="btn btn-secondary">{t("Announcements")}</Link> : null}
       </div>
 
       {series.length === 0 ? (

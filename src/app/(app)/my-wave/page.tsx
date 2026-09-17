@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ScoreGrid } from "@/components/scores/score-grid";
+import { PlainHeader } from "@/components/app/plain-header";
 import type { GridTeam } from "@/components/scores/score-grid-types";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +42,7 @@ export default async function MyWavePage() {
   if (grants.length === 0) {
     return (
       <div className="screen">
+        <PlainHeader roleLabel={user.name ?? t("Competitor")} />
         <div className="screen-head">
           <div>
             <h1>{t("Your score sheet")}</h1>
@@ -123,6 +125,7 @@ export default async function MyWavePage() {
 
   return (
     <div className="screen">
+      <PlainHeader roleLabel={user.name ?? t("Competitor")} />
       <div className="screen-head">
         <div>
           <h1>{t("Your score sheet")}</h1>

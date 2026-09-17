@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
 import { getTheme } from "@/lib/theme-server";
+import { canComposeAnnouncements } from "@/lib/notification-access";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ export default async function StudioSeriesLayout({
         { href: at("scores"), label: t("Score entry") },
         { href: at("waves"), label: t("Waves") },
         { href: at("results"), label: t("Results") },
+        ...(canComposeAnnouncements(user) ? [{ href: "/studio/announcements", label: t("Announcements") }] : []),
       ],
     },
   ];

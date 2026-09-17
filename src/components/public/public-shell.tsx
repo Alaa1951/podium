@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PoweredBy, PublicBrand } from "@/components/board/board-brand";
+import { NotificationBell } from "@/components/app/notification-bell";
 
 /**
  * THE PUBLISHED RESULTS.
@@ -33,7 +34,7 @@ export function PublicShell({
           <PublicBrand />
         </Link>
 
-        <span />
+        <div className="public-inbox"><NotificationBell /></div>
       </header>
 
       <main className="public-main">{children}</main>

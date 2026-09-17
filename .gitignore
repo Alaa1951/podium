@@ -23,6 +23,12 @@
 # misc
 .DS_Store
 *.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+*.csr
+*.cer
 
 # debug
 npm-debug.log*

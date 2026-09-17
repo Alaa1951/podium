@@ -48,6 +48,7 @@ export const AUDIT = {
   accessRoleChanged: "access.role_changed",
   devicesRevoked: "security.devices_revoked",
   passwordChanged: "security.password_changed",
+  announcementSent: "notification.sent",
 } as const;
 
 export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];
@@ -55,7 +56,7 @@ export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];
 export async function recordAudit(entry: {
   actorId: string;
   action: AuditAction;
-  targetType: "user" | "team" | "event" | "studio" | "score";
+  targetType: "user" | "team" | "event" | "studio" | "score" | "notification";
   targetId: string;
   targetLabel?: string | null;
   detail?: string | null;
