@@ -7,6 +7,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
 import { requireRole } from "@/lib/session";
 
@@ -108,7 +109,7 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
     detail: changes.length ? changes.join(" · ") : "no change",
   });
 
-  revalidatePath("/users");
+  revalidatePath("/(app)", "layout");
   return { ok: true, message: changes.length ? "Saved." : "Nothing changed." };
 }
 
@@ -184,6 +185,6 @@ export async function renameStudio(input: unknown): Promise<ActionResult> {
   });
 
   revalidatePath("/studios");
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Saved." };
 }

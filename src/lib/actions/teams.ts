@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import type { Category, Division } from "@/generated/prisma/enums";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
 import { canRegisterTeams, requireUser, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
@@ -72,7 +72,7 @@ export async function addTeam(input: unknown): Promise<ActionResult> {
     },
   });
 
-  revalidatePath(`/e/${data.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: `Added ${data.name.toUpperCase()} as team ${number}.` };
 }
 
@@ -150,7 +150,7 @@ export async function setTeamWave(input: unknown): Promise<ActionResult> {
     data: { wave: parsed.data.wave, waveId },
   });
 
-  revalidatePath(`/e/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -240,7 +240,7 @@ export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
     detail: `${ordered.length} teams · ${waveCount} waves of ${perWave}`,
   });
 
-  revalidatePath(`/e/${parsed.data.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return {
     ok: true,
     message: `${ordered.length} teams assigned across ${waveCount} waves of ${perWave}.`,

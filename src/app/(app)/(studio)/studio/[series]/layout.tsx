@@ -4,7 +4,6 @@ import { ConsoleShell, type NavGroup } from "@/components/app/console-shell";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { getTranslator } from "@/lib/i18n/server";
-import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
 import { getTheme } from "@/lib/theme-server";
@@ -37,9 +36,7 @@ export default async function StudioSeriesLayout({
   // about whether it exists.
   if (!series) notFound();
 
-  const teamCount = await prisma.team.count({
-    where: { seriesId: series.id, studioId: user.studioId ?? "__none__" },
-  });
+  const teamCount = series.teamCount;
 
   const at = (section: string) => `/studio/${series.slug}/${section}`;
 

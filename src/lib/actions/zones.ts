@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 import { DEFAULT_ZONES } from "@/lib/zones";
@@ -121,8 +121,7 @@ export async function saveZone(input: unknown): Promise<ActionResult> {
       : `created: ${describe(inputs)}`,
   });
 
-  revalidatePath("/admin", "layout");
-  revalidatePath("/e", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -165,8 +164,7 @@ export async function deleteZone(input: unknown): Promise<ActionResult> {
     detail: `deleted, discarding ${recorded} recorded value(s)`,
   });
 
-  revalidatePath("/admin", "layout");
-  revalidatePath("/e", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: `Zone ${zone.number} removed.` };
 }
 
@@ -205,6 +203,6 @@ export async function seedDefaultZones(input: unknown): Promise<ActionResult> {
     detail: `started from the Series 1 table (${DEFAULT_ZONES.length} zones)`,
   });
 
-  revalidatePath("/admin", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Starting definition written." };
 }

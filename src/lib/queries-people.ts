@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { accountScope, type CurrentUser } from "@/lib/session";
@@ -122,34 +123,30 @@ export async function getLoadStandards() {
  * has died. Chained by order, not by wall-clock time; only a LIVE event sweeps
  * (a scheduled one must not run itself, a finished one must not change).
  */
-export async function getSeriesWaves(seriesId: string): Promise<WaveState[]> {
-  const owner = await prisma.wave.findFirst({
+export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[]> => {
+  // The clock sweep and displayed counts use the same snapshot. Previously a
+  // normal tab read fetched the owner, schedule and schedule-with-teams in
+  // sequence even when no clock had expired.
+  const load = () => prisma.wave.findMany({
     where: { seriesId },
-    select: { series: { select: { status: true } } },
+    orderBy: { number: "asc" },
+    include: {
+      series: { select: { status: true } },
+      teams: { select: { score: { select: { status: true } } } },
+    },
   });
+  let waves = await load();
 
-  if (owner?.series.status === "live") {
-    const rows = await prisma.wave.findMany({
-      where: { seriesId },
-      orderBy: { number: "asc" },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        endsAt: true,
-        durationMinutes: true,
-        _count: { select: { teams: true } },
-      },
-    });
+  if (waves[0]?.series.status === "live") {
 
     const sweep = waveClockSweep(
-      rows.map((row) => ({
+      waves.map((row) => ({
         id: row.id,
         number: row.number,
         status: row.status,
         endsAt: row.endsAt,
         durationMinutes: row.durationMinutes,
-        teamCount: row._count.teams,
+        teamCount: row.teams.length,
       })),
       new Date()
     );
@@ -172,16 +169,11 @@ export async function getSeriesWaves(seriesId: string): Promise<WaveState[]> {
             ]
           : []),
       ]);
+      // Read the committed rows after the sweep, including concurrent score
+      // changes, before presenting a completed/running wave to the caller.
+      waves = await load();
     }
   }
-
-  const waves = await prisma.wave.findMany({
-    where: { seriesId },
-    orderBy: { number: "asc" },
-    include: {
-      teams: { select: { score: { select: { status: true } } } },
-    },
-  });
 
   const now = Date.now();
 
@@ -207,4 +199,4 @@ export async function getSeriesWaves(seriesId: string): Promise<WaveState[]> {
     teamCount: wave.teams.length,
     scoredCount: wave.teams.filter((t) => t.score?.status === "submitted").length,
   }));
-}
+});

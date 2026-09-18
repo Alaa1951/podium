@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
 import { canRegisterTeams, requireRole, requireUser, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
@@ -45,7 +46,7 @@ export async function setAthleteStudio(input: unknown): Promise<ActionResult> {
       : parsed.data.studioId;
 
   await prisma.competitor.update({ where: { id: competitor.id }, data: { studioId } });
-  revalidatePath(`/e/${competitor.team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -148,7 +149,7 @@ export async function importTeams(input: unknown): Promise<ActionResult> {
     added++;
   }
 
-  revalidatePath(`/e/${parsed.data.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return {
     ok: true,
     message:
@@ -210,7 +211,7 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
     detail: "archived (withdrawn) — restorable",
   });
 
-  revalidatePath(`/e/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Registration archived." };
 }
 
@@ -235,6 +236,6 @@ export async function restoreTeam(seriesId: string, teamId: string): Promise<Act
     detail: "restored from the archive",
   });
 
-  revalidatePath(`/e/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Registration restored." };
 }

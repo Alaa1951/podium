@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { SeriesScreenProps } from "@/screens/types";
 import { WaveBoard } from "@/components/setup/wave-board";
 import { getTranslator } from "@/lib/i18n/server";
-import { getScopedTeams, getSeriesStudios } from "@/lib/queries";
+import { getScopedRoster, getSeriesStudios } from "@/lib/queries";
 import { requireSeries } from "@/lib/require-series";
 import { requireRole, requirePermission } from "@/lib/session";
 
@@ -22,7 +22,7 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
 
   const { series, waves } = await requireSeries(props.params);
   const [teams, studios] = await Promise.all([
-    getScopedTeams(series.id, user),
+    getScopedRoster(series.id, user),
     getSeriesStudios(series.id),
   ]);
 

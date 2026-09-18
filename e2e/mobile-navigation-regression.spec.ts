@@ -23,9 +23,18 @@ async function setup(context: BrowserContext, info: TestInfo, native = false) {
 test("slow tab navigation responds immediately and remains interruptible", async ({page,context},info) => {
   test.skip(info.project.use.viewport!.width > 900);
   await setup(context,info);
+  // Force a cold tab: warm tabs now have full data and need no loading state.
+  let opening = false;
+  await page.route("**/*_rsc=*",async route=>{
+    if (/\/(waves|results)$/.test(new URL(route.request().url()).pathname)) {
+      if (!opening) { await route.abort(); return; }
+      await new Promise(resolve=>setTimeout(resolve,1800));
+    }
+    await route.continue();
+  });
   await page.goto("/series/mobile-qa-live/registrations");
   await expect(page.locator("html")).toHaveAttribute("data-mobile-ready","true");
-  await page.route("**/*_rsc=*",async route=>{await new Promise(resolve=>setTimeout(resolve,1800));await route.continue();});
+  opening = true;
   await page.locator('.mobile-tabbar:visible a[href="/series/mobile-qa-live/waves"]').click();
   // Either the prefetched skeleton or the cold-link indicator responds while
   // the deliberately delayed server payload is still unavailable.

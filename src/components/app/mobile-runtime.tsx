@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { parentRoute, safeAppPath } from "@/lib/mobile-navigation";
-import { iosTopFallback } from "@/lib/mobile-safe-area";
+import { useNativeSafeArea } from "@/components/app/use-native-safe-area";
 
 // Forms register explicitly: a refresh or failed save must never clear a draft.
 const dirtyScreens = new Set<symbol>();
@@ -24,6 +24,7 @@ export function useUnsavedChanges(dirty: boolean) {
 }
 
 export function MobileRuntime() {
+  useNativeSafeArea();
   const path = usePathname();
   const router = useRouter();
   const t = useT();
@@ -114,20 +115,6 @@ export function MobileRuntime() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const insetProbe = document.createElement("div");
-    insetProbe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)";
-    document.body.appendChild(insetProbe);
-    const updateSafeArea = () => {
-      const fallback = iosTopFallback({ nativeIOS: Capacitor.getPlatform() === "ios", measuredTop: parseFloat(getComputedStyle(insetProbe).paddingTop) || 0,
-        // iOS's device orientation survives keyboard viewport resizing.
-        portrait: typeof window.orientation === "number" ? Math.abs(window.orientation) % 180 === 0 : matchMedia("(orientation: portrait)").matches,
-        tablet: /iPad/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) });
-      document.documentElement.style.setProperty("--ios-safe-top", `${fallback}px`);
-    };
-    updateSafeArea();
-    window.addEventListener("resize", updateSafeArea);
-    window.addEventListener("pageshow", updateSafeArea);
-
     const viewport = window.visualViewport;
     const keyboard = () => {
       // Native resize also changes innerHeight. It must not overwrite the
@@ -179,8 +166,6 @@ export function MobileRuntime() {
       observer.disconnect();
       cancelAnimationFrame(labelFrame);
       breakpoint.removeEventListener("change", refreshTables);
-      window.removeEventListener("resize", updateSafeArea); window.removeEventListener("pageshow", updateSafeArea);
-      insetProbe.remove();
       breakpoint.removeEventListener("change", updateMobile);
       window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork);
       window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", click, true);

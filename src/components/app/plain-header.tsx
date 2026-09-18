@@ -28,6 +28,7 @@ export function PlainHeader({ roleLabel, homeHref = "/", backHref }: { roleLabel
   const mobileTitle = ({"/me":"My team","/studio":"Competitions","/my-wave":"My wave","/account":"Account","/notifications":"Notifications","/me/edit":"Edit team"} as Record<string,string>)[path] ?? (path.startsWith("/studio/announcements") ? "Announcements" : path.startsWith("/my-wave/") ? "My wave" : undefined);
 
   return (
+    <>
     <div
       className="plain-header"
       style={{
@@ -71,5 +72,9 @@ export function PlainHeader({ roleLabel, homeHref = "/", backHref }: { roleLabel
         </div>
       </div>
     </div>
+    {/* Keep the offset with this route. Next can retain a hidden console from
+        the previous screen, so document-wide :has() cannot pick the shell. */}
+    <div className="native-header-spacer" aria-hidden="true" />
+    </>
   );
 }

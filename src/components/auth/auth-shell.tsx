@@ -21,6 +21,7 @@ export async function AuthShell({
 }) {
   return (
     <div
+      className="auth-shell"
       style={{
         minHeight: "100vh",
         display: "flex",

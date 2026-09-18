@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
 import { canRegisterTeams, requireRole, requireUser, teamScope } from "@/lib/session";
 import { registrationOpen } from "@/lib/visibility";
@@ -121,7 +121,7 @@ export async function createRegistration(input: unknown): Promise<ActionResult<{
     detail: `${data.category} ${data.division} · ${data.paymentStatus}`,
   });
 
-  revalidatePath("/admin", "layout");
+  revalidateCompetitionViews();
   return { ok: true, data: { id: team.id }, message: `Registered ${team.name} as team ${team.number}.` };
 }
 
@@ -226,7 +226,6 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
     detail: team.name === data.teamName.toUpperCase() ? "details corrected" : `renamed from ${team.name}`,
   });
 
-  revalidatePath("/admin", "layout");
-  revalidatePath(`/e/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }

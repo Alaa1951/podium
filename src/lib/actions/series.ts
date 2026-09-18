@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 import { seriesArchiveGuard } from "@/lib/series-guard";
 import { DEFAULT_ZONES } from "@/lib/zones";
@@ -108,7 +108,7 @@ export async function createSeries(formData: FormData): Promise<void> {
     detail: `${date.toISOString().slice(0, 10)} · ${parsed.data.venue}`,
   });
 
-  revalidatePath("/series");
+  revalidateCompetitionViews();
   redirect(`/series/${series.slug}/studios`);
 }
 
@@ -203,7 +203,7 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
     });
   }
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -232,7 +232,7 @@ export async function setSeriesStatus(input: unknown): Promise<ActionResult> {
     detail: `status=${parsed.data.status}`,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -286,7 +286,7 @@ export async function setSeriesPublished(input: unknown): Promise<ActionResult> 
       : "unpublished — removed from /results",
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: resultsPublicAt ? "Results are public." : "Results are private." };
 }
 
@@ -340,7 +340,7 @@ export async function setSeriesStudio(input: unknown): Promise<ActionResult> {
     detail: taking ? "added to the competition" : "removed from the competition",
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -380,7 +380,7 @@ export async function archiveSeries(input: unknown): Promise<ActionResult> {
     detail: "archived — restorable",
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Competition archived." };
 }
 
@@ -410,6 +410,6 @@ export async function restoreSeries(input: unknown): Promise<ActionResult> {
     targetLabel: series.name,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Competition restored." };
 }

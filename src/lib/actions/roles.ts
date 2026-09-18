@@ -72,7 +72,7 @@ export async function createAccessRole(input: unknown): Promise<ActionResult> {
     detail: `created with ${permissions.length} permission(s)`,
   });
 
-  revalidatePath("/roles", "layout");
+  revalidatePath("/(app)", "layout");
   return { ok: true, message: "Role created." };
 }
 
@@ -122,7 +122,7 @@ export async function updateAccessRole(input: unknown): Promise<ActionResult> {
     detail: `${before.length} → ${after.length} permission(s)`,
   });
 
-  revalidatePath("/roles", "layout");
+  revalidatePath("/(app)", "layout");
   return { ok: true, message: "Role saved." };
 }
 
@@ -152,6 +152,6 @@ export async function deleteAccessRole(input: unknown): Promise<ActionResult> {
     detail: `deleted (${role._count.users} account(s) fell back to role defaults)`,
   });
 
-  revalidatePath("/roles", "layout");
+  revalidatePath("/(app)", "layout");
   return { ok: true, message: "Role deleted." };
 }

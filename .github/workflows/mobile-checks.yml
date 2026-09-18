@@ -1,0 +1,112 @@
+name: mobile-checks
+
+# Manual compilation checks only. These jobs use no signing credentials and
+# never upload to Google Play, TestFlight or App Store Connect.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Sync the Android shell
+        run: npm run mobile:sync -- android
+      - name: Compile debug APK
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podium-android-debug-${{ github.run_number }}-${{ github.run_attempt }}
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Record build scope
+        run: |
+          echo 'Android debug APK compiled. It uses the debug key; it is not a store release. No device or visual test was run by this job.' >> "$GITHUB_STEP_SUMMARY"
+
+  ios-simulator:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Select a stable Xcode 26 installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_APP=$(python3 - <<'PY'
+          import pathlib, re
+          candidates = []
+          for path in pathlib.Path('/Applications').glob('Xcode_26*.app'):
+              if re.fullmatch(r'Xcode_26(?:\.\d+)*\.app', path.name):
+                  candidates.append((tuple(map(int, re.findall(r'\d+', path.stem))), str(path)))
+          print(max(candidates)[1] if candidates else '')
+          PY
+          )
+          [[ -n "$XCODE_APP" ]] || { echo '::error::macos-15 needs a stable Xcode 26 installation'; exit 1; }
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Sync the iOS shell
+        run: npm run mobile:sync -- ios
+      - name: Compile the unsigned simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios-simulator -resultBundlePath build/ios-simulator.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build \
+            2>&1 | tee build/ios-simulator-build.log
+      - name: Package the simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app \
+            build/podium-ios-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podium-ios-simulator-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build/podium-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve Xcode diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podium-ios-build-log-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            build/ios-simulator-build.log
+            build/ios-simulator.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Record build scope
+        run: |
+          echo 'iOS simulator app compiled without signing. The ZIP is for the simulator, not installation on an iPhone or submission to a store. No simulator UI or physical-device test was run by this job.' >> "$GITHUB_STEP_SUMMARY"

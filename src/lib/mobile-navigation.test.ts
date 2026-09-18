@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { matchesRoute, mobileTabs, parentRoute, safeAppPath } from "./mobile-navigation";
+import { hasContextNavigation, matchesRoute, mobileTabs, parentRoute, safeAppPath } from "./mobile-navigation";
 
 describe("mobile navigation boundaries",()=>{
+  it("chooses exactly one tab bar for console and personal routes",()=>{
+    for (const path of ["/", "/series", "/series/new", "/series/test/scores/a", "/users/a/edit", "/studios", "/roles", "/audit", "/announcements/new", "/studio/test/teams", "/series/test/board"]) expect(hasContextNavigation(path),path).toBe(true);
+    for (const path of ["/account", "/notifications/a", "/me", "/me/edit", "/my-wave", "/studio", "/studio/announcements", "/studio/announcements/a"]) expect(hasContextNavigation(path),path).toBe(false);
+  });
   it("only includes permitted, unlocked contextual sections",()=>{
     const groups=[{title:"",items:[{href:"/series/test",label:"Overview"},{href:"/series/test/registrations",label:"Competitors"},{href:"/series/test/waves",label:"Waves",locked:true},{href:"/series/test/scores",label:"Scores"},{href:"/results",label:"Public"}]}];
     expect(mobileTabs(groups).map(item=>item.href)).toEqual(["/series/test/registrations","/series/test/scores"]);

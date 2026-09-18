@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/app/page-shell";
-import { getScopedTeams } from "@/lib/queries";
+import { getScopedRoster } from "@/lib/queries";
 import { requirePermission, requireRole } from "@/lib/session";
 import { requireSeries } from "@/lib/require-series";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
@@ -11,7 +11,7 @@ export default async function CompetitorScreen(params: Promise<{ series: string;
   const { series: slug, id, personId } = await params;
   const series = studio ? await getStudioSeriesBySlug(user,slug) : (await requireSeries(params)).series;
   if (!series) notFound();
-  const team = (await getScopedTeams(series.id,user)).find((team) => team.id === id);
+  const [team] = await getScopedRoster(series.id, user, id);
   const person = team?.competitors.find((person) => person.id === personId);
   if (!team || !person) notFound();
   const { t } = await getTranslator();

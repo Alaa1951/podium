@@ -18,8 +18,12 @@ const config: CapacitorConfig = {
   appId: "app.podium.bftmena",
   appName: "PODIUM",
   webDir: "capacitor-web",
+  ios: { contentInset: "never" },
   plugins: {
-    Keyboard: { resize: KeyboardResize.Native, resizeOnFullScreen: true },
+    // Capacitor 8 SystemBars owns Android's window/IME insets. Enabling the
+    // older Keyboard full-screen workaround as well resizes the window twice.
+    Keyboard: { resize: KeyboardResize.Native },
+    SystemBars: { insetsHandling: "css", initialViewportFitValueHint: "cover" },
   },
   server: {
     // The store shells open on the sign-in screen: every store user is staff

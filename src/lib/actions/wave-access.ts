@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ export async function grantWaveAccess(input: unknown): Promise<ActionResult> {
     detail: `granted score entry for wave ${wave.number}`,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Access granted." };
 }
 
@@ -86,6 +86,6 @@ export async function revokeWaveAccess(input: unknown): Promise<ActionResult> {
     detail: `revoked score entry for wave ${access.wave.number}`,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Access revoked." };
 }

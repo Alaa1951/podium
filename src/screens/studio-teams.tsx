@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { StudioTeamsTable } from "@/components/studio/studio-teams-table";
 import { getTranslator } from "@/lib/i18n/server";
-import { getScopedTeams } from "@/lib/queries";
+import { getScopedRoster } from "@/lib/queries";
 import { listStudios } from "@/lib/queries-people";
 import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
@@ -29,7 +29,7 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
   const series = await getStudioSeriesBySlug(user, slug);
   if (!series) notFound();
 
-  const [teams, studios] = await Promise.all([getScopedTeams(series.id, user), listStudios()]);
+  const [teams, studios] = await Promise.all([getScopedRoster(series.id, user, detailId), listStudios()]);
 
   const deadline = registrationOpen({
     role: user.role,

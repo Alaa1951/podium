@@ -1,7 +1,6 @@
 import "server-only";
 import { cache } from "react";
 
-import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesWaves } from "@/lib/queries";
 import { summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { boardAccess, eventPhase, registrationOpen, scoreEntryOpen, type EventPhase } from "@/lib/visibility";
@@ -31,10 +30,8 @@ export const getSeriesState = cache(async (idOrSlug: string): Promise<SeriesStat
   // Everything below keys off the resolved ID. Passing the slug on from here
   // silently returns nothing — no waves, no teams — and a live competition
   // then reads as "not started", which is how this was found.
-  const [waves, teamCount] = await Promise.all([
-    getSeriesWaves(series.id),
-    prisma.team.count({ where: { seriesId: series.id } }),
-  ]);
+  const waves = await getSeriesWaves(series.id);
+  const teamCount = series._count.teams;
 
   const waveSummary = summariseWaves(waves);
 

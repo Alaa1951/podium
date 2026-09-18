@@ -8,9 +8,9 @@ import { teamStatus } from "@/lib/team-status";
 import { RegisteredFilters } from "@/components/admin/registered-filters";
 import { RegisteredTable, type RegisteredRow } from "@/components/admin/registered-table";
 import { getTranslator } from "@/lib/i18n/server";
-import { getArchivedTeams, getScopedTeams } from "@/lib/queries";
+import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
 import { can } from "@/lib/access";
-import { getSeriesReport, money } from "@/lib/reports";
+import { getSeriesPaymentDefaults, getSeriesReport, money } from "@/lib/reports";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { normalizeName } from "@/lib/scoring";
 import { requireRole, requirePermission } from "@/lib/session";
@@ -34,10 +34,12 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
-  const [teams, archivedTeams, report] = await Promise.all([
-    getScopedTeams(series.id, user),
-    user.role === "admin" ? getArchivedTeams(series.id) : Promise.resolve([]),
-    getSeriesReport(series.id),
+  const needsFullReport = !detailId && user.role === "admin";
+  const [teams, archivedTeams, report, paymentDefaults] = await Promise.all([
+    getScopedRoster(series.id, user, detailId),
+    !detailId && user.role === "admin" ? getArchivedRoster(series.id, user) : Promise.resolve([]),
+    needsFullReport ? getSeriesReport(series.id) : Promise.resolve(null),
+    needsFullReport ? Promise.resolve(null) : getSeriesPaymentDefaults(series.id),
   ]);
 
   const query = typeof searchParams.q === "string" ? searchParams.q.trim() : "";
@@ -91,7 +93,8 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     })),
   }));
 
-  const typicalMinor = report.paid > 0 ? Math.round(report.takingsMinor / report.paid) : 25000;
+  const paymentReport = report ?? paymentDefaults!;
+  const typicalMinor = paymentReport.paid > 0 ? Math.round(paymentReport.takingsMinor / paymentReport.paid) : 25000;
 
   const archivedRows: RegisteredRow[] = archivedTeams.map((team) => ({
     id: team.id,
@@ -119,7 +122,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
-  if (detailId) return <div className="screen"><RegisteredTable readOnly={user.role !== "admin" || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && user.role === "admin" && !user.viewAs && can(user, "competitors.manage")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={report.currency} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><RegisteredTable readOnly={user.role !== "admin" || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && user.role === "admin" && !user.viewAs && can(user, "competitors.manage")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -142,7 +145,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         </div>
       </div>
 
-      {user.role === "admin" ? <div className="stat-grid">
+      {user.role === "admin" && report ? <div className="stat-grid">
         <div className="stat-card">
           <span className="stat-label">{t("Registered")}</span>
           <span className="stat-value">{report.registered}</span>
@@ -188,7 +191,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         seriesId={series.id}
         canArchive={series.status === "scheduled" && user.role === "admin" && !user.viewAs}
         defaultAmount={(typicalMinor / 100).toFixed(2)}
-        defaultCurrency={report.currency}
+        defaultCurrency={paymentReport.currency}
       />
     </div>
   );

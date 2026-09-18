@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
 
+  // Bottom tabs prefetch their data, not only a loading shell. Keep that
+  // per-browser cache short for live competitions; ordinary dynamic links
+  // still read the server on every navigation. Mutations invalidate it.
+  experimental: { staleTimes: { dynamic: 0, static: 30 } },
+
   // Source maps would ship the server logic to anyone who opens devtools.
   productionBrowserSourceMaps: false,
 

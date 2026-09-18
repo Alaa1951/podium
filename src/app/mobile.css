@@ -38,7 +38,6 @@ html .mobile-tabbar a, html .mobile-tabbar button { position: relative; display:
 html .mobile-tabbar span { font-size: 11px; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
 html .mobile-tabbar [data-active] { color: var(--bft-cyan-text); font-weight: 700; background: var(--bft-cyan-soft); border-radius: 10px; }
 html .mobile-tab-badge { position: absolute; top: 5px; inset-inline-end: 20%; padding: 1px 5px; border-radius: 20px; font-size: 10px; background: var(--danger); color: white; }
-html body:has(.console) .personal-tabbar { display: none; }
 html .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
 html .console-nav[data-open] { display: flex; transform: none; }
 html .mobile-menu-close { display: inline-flex; align-self: flex-end; align-items: center; justify-content: center; min-height: 48px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--surface-sunken); cursor: pointer; }
@@ -100,7 +99,6 @@ html[data-native="true"] .mobile-tabbar a, html[data-native="true"] .mobile-tabb
 html[data-native="true"] .mobile-tabbar span { font-size: 11px; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
 html[data-native="true"] .mobile-tabbar [data-active] { color: var(--bft-cyan-text); font-weight: 700; background: var(--bft-cyan-soft); border-radius: 10px; }
 html[data-native="true"] .mobile-tab-badge { position: absolute; top: 5px; inset-inline-end: 20%; padding: 1px 5px; border-radius: 20px; font-size: 10px; background: var(--danger); color: white; }
-html[data-native="true"] body:has(.console) .personal-tabbar { display: none; }
 html[data-native="true"] .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
 html[data-native="true"] .console-nav[data-open] { display: flex; transform: none; }
 html[data-native="true"] .mobile-menu-close { display: inline-flex; align-self: flex-end; align-items: center; justify-content: center; min-height: 48px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--surface-sunken); cursor: pointer; }
@@ -210,19 +208,38 @@ html[data-mobile="true"] .board-frame .zone-head .zone-col { display: none; }
 html[data-mobile="true"] .board-filters { padding: 12px max(16px,var(--safe-left)) 0 max(16px,var(--safe-right)); }
 html[dir="rtl"] .mobile-list-card > span[aria-hidden="true"] { transform: rotate(180deg); }
 
-/* Keep the installed iOS header out of the scrolling document. A sticky
-   header can be pushed above its safe inset when its parent ends. */
+/* The native document owns the safe area, including pages without an app
+   header (auth, public results, loading and errors). Scrolling content cannot
+   paint over the clock; controls and the fixed header start below it. */
 html[data-native-platform="ios"] { --ios-safe-top: 64px; }
 @media (orientation: landscape) { html[data-native-platform="ios"] { --ios-safe-top: 0px; } }
-html[data-native-platform="ios"] .console-inbox-head,
-html[data-native-platform="ios"] .plain-header {
-  position: fixed; top: 0; inset-inline: 0; height: var(--mobile-header-h);
-  min-height: var(--mobile-header-h); margin: 0 !important; box-sizing: border-box;
-  padding: var(--safe-top) max(12px,var(--safe-right)) 0 max(12px,var(--safe-left)) !important;
+html[data-native="true"] body { padding-top: var(--safe-top); }
+html[data-native="true"] body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: var(--safe-top);
+  z-index: 250; background: var(--surface); pointer-events: none;
+}
+html[data-native="true"] .console-inbox-head,
+html[data-native="true"] .plain-header {
+  position: fixed; top: var(--safe-top); inset-inline: 0; height: 60px;
+  min-height: 60px; margin: 0 !important; box-sizing: border-box;
+  padding: 0 max(12px,var(--safe-right)) 0 max(12px,var(--safe-left)) !important;
   flex-wrap: nowrap !important;
 }
-html[data-native-platform="ios"] .console-main { padding-top: var(--mobile-header-h); }
-html[data-native-platform="ios"] body:has(.plain-header):not(:has(.console)) { padding-top: var(--mobile-header-h); }
+html[data-native="true"] .console-main { padding-top: 60px; }
+.native-header-spacer { display: none; }
+html[data-native="true"] .native-header-spacer { display: block; height: 60px; flex: 0 0 60px; }
+/* The fixed header must not cover the read-only preview or its exit button.
+   Its flow spacer still belongs to the following screen, so count it once. */
+html[data-native="true"] .view-as-banner { margin-top: 60px; margin-bottom: -60px; }
+html[data-native="true"] .public-head { padding-top: 0; }
+html[data-native="true"] .public-update { inset-block-start: calc(22px + var(--safe-top)); }
+html[data-native="true"] .auth-shell { min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom)) !important; }
+/* Native dialogs live in the top layer, outside body::before. Keep their
+   scrolling viewport itself below the clock, including after scrolling. */
+html[data-native="true"] .notification-dialog {
+  top: var(--safe-top); height: calc(100dvh - var(--safe-top)); max-height: calc(100dvh - var(--safe-top));
+  padding-top: 16px;
+}
 html[data-mobile="true"] { scroll-padding-top: calc(var(--mobile-header-h) + 12px); }
 .route-loading { min-height: 40vh; }
 .route-loading > p { color: var(--text-muted); margin-bottom: 20px; }

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import type {
   Category,
@@ -16,13 +17,18 @@ import { totalPoints, zoneBreakdown, type EntryValues, type ZoneDef } from "@/li
 // or takes a CurrentUser and applies `teamScope` — scoping is never left to the
 // caller.
 
-const teamInclude = {
-  score: { include: { entries: { select: { inputId: true, value: true } } } },
+const rosterInclude = {
+  score: { select: { status: true } },
   studio: { select: { id: true, name: true } },
   competitors: {
     orderBy: { position: "asc" },
     include: { studio: { select: { id: true, name: true } } },
   },
+} as const;
+
+const teamInclude = {
+  ...rosterInclude,
+  score: { include: { entries: { select: { inputId: true, value: true } } } },
 } as const;
 
 /** One of the two people on a team, as every screen wants them. */
@@ -80,15 +86,18 @@ export type TeamRow = {
 };
 
 type TeamWithRelations = Awaited<ReturnType<typeof loadTeams>>[number];
+type RosterWithRelations = Awaited<ReturnType<typeof loadRoster>>[number];
+export type RosterRow = Omit<TeamRow, "values" | "zones" | "total">;
+
+function loadRoster(args: Parameters<typeof prisma.team.findMany>[0]) {
+  return prisma.team.findMany({ ...args, include: rosterInclude });
+}
 
 function loadTeams(args: Parameters<typeof prisma.team.findMany>[0]) {
   return prisma.team.findMany({ ...args, include: teamInclude });
 }
 
-function toTeamRow(team: TeamWithRelations, zones: ZoneDef[]): TeamRow {
-  const values: EntryValues = {};
-  for (const entry of team.score?.entries ?? []) values[entry.inputId] = entry.value;
-
+function toRosterRow(team: RosterWithRelations): RosterRow {
   return {
     id: team.id,
     number: team.number,
@@ -122,9 +131,18 @@ function toTeamRow(team: TeamWithRelations, zones: ZoneDef[]): TeamRow {
     externalId: team.externalId,
     attendedAt: team.attendedAt,
 
+    submitted: team.score?.status === "submitted",
+  };
+}
+
+function toTeamRow(team: TeamWithRelations, zones: ZoneDef[]): TeamRow {
+  const values: EntryValues = {};
+  for (const entry of team.score?.entries ?? []) values[entry.inputId] = entry.value;
+
+  return {
+    ...toRosterRow(team),
     values,
     zones: zoneBreakdown(zones, values),
-    submitted: team.score?.status === "submitted",
     total: totalPoints(zones, values),
   };
 }
@@ -132,7 +150,9 @@ function toTeamRow(team: TeamWithRelations, zones: ZoneDef[]): TeamRow {
 // ── The scoring definition ───────────────────────────────────────────────────
 
 /** A series' zones and their movements, in board order. */
-export async function getSeriesZones(seriesId: string): Promise<ZoneDef[]> {
+// Request-local deduplication: score screens and their team query need the same
+// definition. The next request still reads changes made to the scoring setup.
+export const getSeriesZones = cache(async (seriesId: string): Promise<ZoneDef[]> => {
   const zones = await prisma.zone.findMany({
     where: { seriesId },
     orderBy: { number: "asc" },
@@ -154,7 +174,7 @@ export async function getSeriesZones(seriesId: string): Promise<ZoneDef[]> {
       inputMode: input.inputMode,
     })),
   }));
-}
+});
 
 /** The same, reached through an event — which is how every screen asks. */
 // ── Series: the competition itself ───────────────────────────────────────────
@@ -244,6 +264,23 @@ export async function getScopedTeams(seriesId: string, user: CurrentUser): Promi
     getSeriesZones(seriesId),
   ]);
   return teams.map((team) => toTeamRow(team, zones));
+}
+
+/** Registration screens need identities and status, not every scoring input. */
+export async function getScopedRoster(seriesId: string, user: CurrentUser, teamId?: string): Promise<RosterRow[]> {
+  const teams = await loadRoster({
+    where: { seriesId, archivedAt: null, ...teamScope(user), ...(teamId ? { id: teamId } : {}) },
+    orderBy: { number: "asc" },
+  });
+  return teams.map(toRosterRow);
+}
+
+export async function getArchivedRoster(seriesId: string, user: CurrentUser): Promise<RosterRow[]> {
+  const teams = await loadRoster({
+    where: { seriesId, NOT: { archivedAt: null }, ...teamScope(user) },
+    orderBy: { archivedAt: "desc" },
+  });
+  return teams.map(toRosterRow);
 }
 
 export async function getTeamForUser(teamId: string, user: CurrentUser) {

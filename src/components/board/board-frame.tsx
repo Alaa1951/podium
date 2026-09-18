@@ -45,7 +45,7 @@ export async function BoardFrame({
     ].filter(item => can(user, item.permission)).map(({ href, label }) => ({ href, label })) },
   ] : [];
   return (
-    <MobileBoardShell groups={groups} name={name} title={t("Live board")} homeHref={homeHref} overviewHref={base} utilities={<><ThemeToggle current={theme} /><LanguageSwitch /></>}>
+    <MobileBoardShell groups={groups} role={user?.role ?? "competitor"} name={name} title={t("Live board")} homeHref={homeHref} overviewHref={base} utilities={<><ThemeToggle current={theme} /><LanguageSwitch /></>}>
     <div className="board-frame">
       <div className="board-frame-bar">
         <Link href={back} className="board-frame-mark" aria-label={`${name} — back to the menu`}>

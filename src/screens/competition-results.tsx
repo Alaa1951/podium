@@ -89,7 +89,7 @@ export default async function ResultsPage(props: SeriesScreenProps, detailId?: s
 
   if (detailId && !rows.some((team) => team.id === detailId)) notFound();
 
-  if (detailId) return <div className="screen"><ResultsTable podiums={[]} rows={rows} brackets={[]} studios={[]} zoneNames={zones.map((zone) => ({number:zone.number,name:zone.name}))} exportHref={`/api/series/${series.slug}/export`} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><ResultsTable podiums={[]} rows={rows.filter(team => team.id === detailId)} brackets={[]} studios={[]} zoneNames={zones.map((zone) => ({number:zone.number,name:zone.name}))} exportHref={`/api/series/${series.slug}/export`} detailId={detailId} /></div>;
 
   return (
     <div className="screen">

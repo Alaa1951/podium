@@ -38,7 +38,7 @@ export default async function StudioResultsPage(props: SeriesScreenProps, detail
     getSeriesZones(series.id),
     // A studio sees the history of its OWN scores — who entered them and what
     // BFT MENA corrected — and only ever reads it for its own teams below.
-    getSeriesScoreAudit(series.id),
+    getSeriesScoreAudit(series.id, 8, detailId),
   ]);
 
   const deadline = scoreEntryOpen({
@@ -54,7 +54,7 @@ export default async function StudioResultsPage(props: SeriesScreenProps, detail
       ? t("Score entry has closed for this competition.")
       : undefined;
 
-  const teams: GridTeam[] = mine.map((team) => ({
+  const teams: GridTeam[] = (detailId ? mine.filter(team => team.id === detailId) : mine).map((team) => ({
     id: team.id,
     number: team.number,
     name: team.name,

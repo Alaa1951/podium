@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { getSeriesZones } from "@/lib/queries";
 import { canWriteScore, requireUser } from "@/lib/session";
 import { allInputs, validateEntries } from "@/lib/zones";
@@ -173,7 +173,7 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
     });
   });
 
-  revalidatePath(`/series/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -215,6 +215,6 @@ export async function unlockScore(teamId: string): Promise<SaveScoreResult> {
     detail: "returned to draft; edit budget reset",
   });
 
-  revalidatePath(`/series/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }

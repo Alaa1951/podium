@@ -32,13 +32,13 @@ test("live board retains app navigation for every role and desktop wall display"
     await page.evaluate(() => document.fonts.ready);
     const mobile = Number(width) <= 900;
     if (mobile) {
-      await expect(page.locator(".board-frame-bar")).toBeHidden();
+      await expect(page.locator(".board-frame-bar:visible")).toHaveCount(0);
       await expect(page.locator(".mobile-tabbar:visible")).toHaveCount(1);
       await expect(page.locator(".notification-bell:visible")).toHaveCount(1);
       await expect(page.locator('.mobile-tabbar [data-active="true"]:visible')).toHaveCount(1);
       if (role === "admin" || role === "studio" || role === "limited") {
         const prefix = role === "admin" ? "/series" : "/studio";
-        await expect(page.locator(".mobile-heading-title")).toHaveAttribute("href", `${prefix}/${live.slug}`);
+        await expect(page.locator(".mobile-heading-title:visible")).toHaveAttribute("href", `${prefix}/${live.slug}`);
         if (role === "limited") {
           await expect(page.locator('.mobile-tabbar a[href$="/scores"]')).toHaveCount(1);
           await expect(page.locator('.mobile-tabbar a[href$="/teams"]')).toHaveCount(0);
@@ -49,16 +49,29 @@ test("live board retains app navigation for every role and desktop wall display"
         expect((await target.boundingBox())!.height).toBeGreaterThanOrEqual(48);
       }
       if (role === "admin") {
-        await page.locator('.board-filters > button').click();
-        await expect(page.locator('.board-filters dialog')).toBeVisible();
-        expect(await page.locator('.board-filters dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-        await page.locator('.board-filters dialog button[data-mobile-dismiss]').click();
-        await expect(page.locator('.board-filters dialog')).toBeHidden();
+        // The clock switches the live board from running-wave filters to the
+        // leaderboard's inline filters after the fixture's wave has ended.
+        const filters = page.locator('.board-filters:visible');
+        await expect(filters).toHaveCount(1);
+        const sheetButton = filters.locator(':scope > button');
+        if (await sheetButton.count()) {
+          await sheetButton.click();
+          await expect(filters.locator('dialog:visible')).toHaveCount(1);
+          expect(await filters.locator('dialog:visible').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+          await filters.locator('dialog:visible button[data-mobile-dismiss]').click();
+          await expect(filters.locator('dialog:visible')).toHaveCount(0);
+        } else {
+          await expect(filters.locator('select')).toBeVisible();
+          const search = filters.locator('input[type="search"]');
+          await search.fill('Mobile QA');
+          await expect(search).toHaveValue('Mobile QA');
+          await search.clear();
+        }
       }
     } else {
-      await expect(page.locator(".board-frame-bar")).toBeVisible();
+      await expect(page.locator(".board-frame-bar:visible")).toHaveCount(1);
       await expect(page.locator(".mobile-tabbar:visible")).toHaveCount(0);
-      await expect(page.locator(".console-nav")).toHaveCount(0);
+      await expect(page.locator(".console-nav:visible")).toHaveCount(0);
     }
     const overflow = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(el => {
       const style = getComputedStyle(el), rect = el.getBoundingClientRect();
@@ -86,8 +99,8 @@ test("live board retains app navigation for every role and desktop wall display"
     await page.goto(`/series/${live.slug}/board`);
     await expect(page.locator("html")).toHaveAttribute("data-native", "true");
     await expect(page.locator(".mobile-tabbar:visible")).toHaveCount(1);
-    await expect(page.locator(".console-nav")).toBeHidden();
-    await expect(page.locator(".board-frame-bar")).toBeHidden();
+    await expect(page.locator(".console-nav:visible")).toHaveCount(0);
+    await expect(page.locator(".board-frame-bar:visible")).toHaveCount(0);
     await expect(page.locator('.mobile-tabbar a[href$="/scores"]')).toHaveCount(1);
     expect(errors).toEqual([]);
   }

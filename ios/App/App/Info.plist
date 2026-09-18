@@ -64,12 +64,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- The app is one dark-navy surface end to end, so the chrome reads as
-	     light-on-dark: the global light-content style wins over any per-VC
-	     choice, and white text stays legible on the board. -->
+	<!-- Required by Capacitor's StatusBar/SystemBars plugins so the visible
+	     screen can select readable system text in both app themes. -->
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleLightContent</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
+	<true/>
 </dict>
 </plist>

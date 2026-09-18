@@ -2,6 +2,8 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { safeAppPath } from "@/lib/mobile-navigation";
+import { safeAreaPadding } from "@/lib/mobile-safe-area";
+import { useNativeSafeArea } from "@/components/app/use-native-safe-area";
 
 const subscribe = () => () => {};
 const readArabic = () => /(?:^|;\s*)podium_locale=ar(?:;|$)/.test(document.cookie);
@@ -18,6 +20,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
+  useNativeSafeArea();
   const arabic = useSyncExternalStore(subscribe, readArabic, () => false);
   useEffect(() => {
     console.error("[GlobalErrorBoundary]", error);
@@ -37,7 +40,7 @@ export default function GlobalError({
           background: "#07073d",
           color: "#f2f2f3",
           fontFamily: "system-ui, sans-serif",
-          padding: "max(24px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))",
+          padding: safeAreaPadding,
         }}
       >
         <div style={{ maxWidth: 460, minWidth: 0, overflowWrap: "anywhere", textAlign: "center" }}>

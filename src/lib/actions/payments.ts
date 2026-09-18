@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
@@ -68,8 +68,7 @@ export async function setPayment(input: unknown): Promise<ActionResult> {
     detail: `${team.paymentStatus} → ${status}${billingNumber ? ` · ${billingNumber}` : ""}`,
   });
 
-  revalidatePath("/admin", "layout");
-  revalidatePath(`/e/${team.seriesId}`, "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -102,6 +101,6 @@ export async function setAttendance(input: unknown): Promise<ActionResult> {
     detail: parsed.data.attended ? "checked in" : "check-in removed",
   });
 
-  revalidatePath("/admin", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }

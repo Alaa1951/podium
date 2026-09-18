@@ -115,6 +115,20 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
   };
 }
 
+/** A detail payment form needs the usual fee, not the full attendance report. */
+export async function getSeriesPaymentDefaults(seriesId: string): Promise<Pick<SeriesReport, "paid" | "takingsMinor" | "currency">> {
+  const where = { seriesId, paymentStatus: "paid" as const };
+  const [totals, firstPaid] = await Promise.all([
+    prisma.team.aggregate({ where, _count: { _all: true }, _sum: { amountMinor: true } }),
+    prisma.team.findFirst({ where, select: { currency: true } }),
+  ]);
+  return {
+    paid: totals._count._all,
+    takingsMinor: totals._sum.amountMinor ?? 0,
+    currency: firstPaid?.currency ?? "QAR",
+  };
+}
+
 /** "250.00 QAR" — an amount in minor units, for reading. */
 export function money(minor: number | null, currency: string) {
   if (minor === null) return "—";

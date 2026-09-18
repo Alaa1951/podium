@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 
@@ -147,7 +147,7 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
       (backfilled > 0 ? ` finisher_backfilled=${backfilled}` : ""),
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -196,7 +196,7 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
     await prisma.wave.create({ data: { seriesId, ...fields } });
   }
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -227,7 +227,7 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
     prisma.wave.delete({ where: { id: wave.id } }),
   ]);
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -251,6 +251,6 @@ export async function updateSchedule(input: unknown): Promise<ActionResult> {
     },
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }

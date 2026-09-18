@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireRole } from "@/lib/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ export async function saveSponsor(input: unknown): Promise<ActionResult> {
     detail: before ? `position ${before.position} → ${position}` : `added at position ${position}`,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Sponsor saved." };
 }
 
@@ -120,7 +120,7 @@ export async function deleteSponsor(input: unknown): Promise<ActionResult> {
     detail: `removed from position ${sponsor.position}`,
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true, message: "Sponsor removed." };
 }
 
@@ -156,7 +156,7 @@ export async function setSponsorsEnabled(input: unknown): Promise<ActionResult> 
     detail: parsed.data.enabled ? "rail enabled" : "rail disabled",
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -208,6 +208,6 @@ export async function moveSponsor(input: unknown): Promise<ActionResult> {
     }
   });
 
-  revalidatePath("/series", "layout");
+  revalidateCompetitionViews();
   return { ok: true };
 }

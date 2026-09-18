@@ -16,5 +16,6 @@ export default defineConfig({
   reporter:[["list"],["html",{outputFolder:reportFolder,open:"never"}],["json",{outputFile:`${reportFolder}/results.json`}]],
   outputDir:`.mobile-qa/results${reportName ? `/${reportName}` : ""}`, projects,
   use:{baseURL,ignoreHTTPSErrors:true,serviceWorkers:"block",trace:"retain-on-failure",screenshot:"only-on-failure"},
-  webServer:{command:"npm run dev -- --hostname 127.0.0.1 --port 3100",url:`${baseURL}/login`,ignoreHTTPSErrors:true,reuseExistingServer:true,timeout:120_000},
+  // Production QA owns its HTTPS proxy/server; never silently replace it with dev.
+  webServer:process.env.MOBILE_QA_PRODUCTION === "1" ? undefined : {command:"npm run dev -- --hostname 127.0.0.1 --port 3100",url:`${baseURL}/login`,ignoreHTTPSErrors:true,reuseExistingServer:true,timeout:120_000},
 });

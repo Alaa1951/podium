@@ -184,7 +184,7 @@ export function ConsoleShell({
         <div hidden={open} className="console-content">{children}</div>
       </main>
       <nav className="mobile-tabbar" aria-label={t("Sections")}>
-        {tabs.map((item) => <Link key={item.href} href={item.href!} aria-current={!open && activeTab.includes(item) ? "page" : undefined} data-active={!open && activeTab.includes(item) || undefined}><MobileIcon href={item.href!} /><span>{item.label}</span><NavigationProgress />{item.badge ? <b className="mobile-tab-badge">{item.badge > 99 ? "99+" : item.badge}</b> : null}</Link>)}
+        {tabs.map((item) => <Link key={item.href} href={item.href!} prefetch={activeTab.includes(item) ? false : true} aria-current={!open && activeTab.includes(item) ? "page" : undefined} data-active={!open && activeTab.includes(item) || undefined}><MobileIcon href={item.href!} /><span>{item.label}</span><NavigationProgress />{item.badge ? <b className="mobile-tab-badge">{item.badge > 99 ? "99+" : item.badge}</b> : null}</Link>)}
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="console-nav" data-active={open || (!activeTab.length && !!current) || undefined}><MobileIcon href="/more" /><span>{t("More")}</span></button>
       </nav>
     </div>

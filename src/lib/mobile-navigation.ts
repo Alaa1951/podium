@@ -4,6 +4,12 @@ export function matchesRoute(path: string, href: string) {
   return path === href || (href !== "/" && path.startsWith(`${href}/`));
 }
 
+/** Pick the current route's shell, not DOM left behind by retained screens. */
+export function hasContextNavigation(path: string) {
+  if (path === "/" || ["/series", "/users", "/studios", "/roles", "/audit", "/announcements"].some(prefix => matchesRoute(path, prefix))) return true;
+  return path.startsWith("/studio/") && !matchesRoute(path, "/studio/announcements");
+}
+
 /** Navigation is derived from the already permission-filtered server menu. */
 export function mobileTabs(groups: NavGroup[]): NavItem[] {
   const items = groups.flatMap((group) => group.items).filter((item) => item.href && !item.locked);
