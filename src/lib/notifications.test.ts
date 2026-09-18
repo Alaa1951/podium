@@ -12,7 +12,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   notification: { findMany: mocks.rows, findFirst: mocks.cursor, count: mocks.count }, notificationRead: { createMany: mocks.receipts },
 } }));
 
-import { getNotificationUser, listNotifications, markVisibleNotificationsRead } from "@/lib/notifications";
+import { getNotificationSummary, getNotificationUser, listNotifications, markVisibleNotificationsRead } from "@/lib/notifications";
 
 const user: CurrentUser = { id: "u1", email: "competitor@example.test", name: null, role: "competitor", studioId: "studio1", locale: "en", permissions: [] };
 beforeEach(() => vi.resetAllMocks());
@@ -34,6 +34,16 @@ describe("fresh account authority", () => {
 });
 
 describe("recipient reads", () => {
+  it("reads only an audience-scoped count for a closed bell, including preview identity", async () => {
+    mocks.count.mockResolvedValue(7);
+    const preview = { ...user, viewAs: { byAdminId: "admin" } };
+    const summary = await getNotificationSummary(preview);
+    expect(summary).toEqual({ unreadCount: 7, readOnly: true, scopeKey: JSON.stringify([user.id, user.role, user.studioId, true]) });
+    expect(mocks.count).toHaveBeenCalledWith({ where: { AND: [notificationScope(user), { reads: { none: { userId: user.id } } }] } });
+    expect(mocks.rows).not.toHaveBeenCalled();
+    expect(mocks.cursor).not.toHaveBeenCalled();
+    expect(summary).not.toHaveProperty("items");
+  });
   it("filters both inbox content and unread count and reads only this account's receipts", async () => {
     mocks.rows.mockResolvedValue([{ id: "n1", title: "Hello", body: "Body", createdAt: new Date("2026-09-17T00:00:00Z"), reads: [] }]);
     mocks.count.mockResolvedValue(1);

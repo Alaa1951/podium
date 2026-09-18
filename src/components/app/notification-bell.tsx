@@ -8,7 +8,8 @@ import { useSession } from "next-auth/react";
 
 import { useLocale } from "@/components/i18n/locale-provider";
 import { markNotificationsRead } from "@/lib/actions/notifications";
-import type { NotificationFeed } from "@/lib/notifications";
+import type { NotificationFeed, NotificationSummary } from "@/lib/notifications";
+import { NOTIFICATIONS_CHANGED } from "@/components/app/notification-events";
 
 /** Public results stay account-free; signed-in viewers get their own inbox. */
 export function NotificationBell() {
@@ -23,14 +24,56 @@ function NotificationInbox() {
   const router = useRouter();
   const mobile = useIsMobile();
   const [feed, setFeed] = useState<NotificationFeed | null>(null);
-  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState<NotificationSummary | null>(null);
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const open = openPath === pathname;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
   const dialog = useRef<HTMLDialogElement>(null);
   const request = useRef<AbortController | null>(null);
+  const summaryRequest = useRef<AbortController | null>(null);
+  const summaryQueued = useRef(false);
+  const lastSummaryAt = useRef(0);
+
+  const refreshSummary = useCallback(async function refresh(force = false) {
+    if (force) lastSummaryAt.current = 0;
+    if (document.visibilityState !== "visible") return;
+    if (summaryRequest.current) {
+      // A read/send confirmed during an older request needs one fresh count
+      // afterward. Focus + visibility events can share the ongoing request.
+      if (force) summaryQueued.current = true;
+      return;
+    }
+    if (!force && Date.now() - lastSummaryAt.current < 5000) return;
+    const controller = new AbortController();
+    summaryRequest.current = controller;
+    lastSummaryAt.current = Date.now();
+    try {
+      const response = await fetch("/api/notifications?summary=1", { cache: "no-store", credentials: "same-origin", signal: controller.signal });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) { setSummary(null); setFeed(null); }
+        return;
+      }
+      const next: NotificationSummary = await response.json();
+      if (controller.signal.aborted) return;
+      setSummary(next);
+      setFeed(previous => previous && previous.scopeKey !== next.scopeKey ? null : previous);
+    } catch { /* The next visible poll retries; never replace a count with a guessed value. */ }
+    finally {
+      summaryRequest.current = null;
+      if (!controller.signal.aborted && summaryQueued.current) {
+        summaryQueued.current = false;
+        void refresh(true);
+      }
+    }
+  }, []);
 
   const load = useCallback(async (cursor?: string) => {
+    // A feed read returns its own current count. Discard an older badge poll
+    // so it cannot overwrite the count confirmed after marking items read.
+    summaryQueued.current = false;
+    summaryRequest.current?.abort();
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
@@ -39,10 +82,12 @@ function NotificationInbox() {
       const response = await fetch(`/api/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store", credentials: "same-origin", signal: controller.signal });
       if (!response.ok) {
         // Drop previously loaded content after an account has been disabled.
-        if (response.status === 401 || response.status === 403) setFeed(null);
+        if (response.status === 401 || response.status === 403) { setFeed(null); setSummary(null); }
         throw new Error("INBOX_FAILED");
       }
       const next: NotificationFeed = await response.json();
+      if (controller.signal.aborted) return;
+      setSummary({ unreadCount: next.unreadCount, readOnly: next.readOnly, scopeKey: next.scopeKey });
       setFeed((previous) => cursor && previous && previous.scopeKey === next.scopeKey ? { ...next, items: [...previous.items, ...next.items.filter((item) => !previous.items.some((old) => old.id === item.id))] } : next);
       setError(false);
     } catch {
@@ -53,25 +98,35 @@ function NotificationInbox() {
   }, []);
 
   useEffect(() => {
-    // Refresh on navigation and resume; poll while the inbox is closed.
-    const initial = window.setTimeout(() => void load(), 0);
-    const refresh = () => { if (document.visibilityState === "visible") void load(); };
-    const timer = window.setInterval(() => { if (!open) refresh(); }, 30_000);
+    // One visible refresh cadence across sibling routes. Navigation must not
+    // download twenty full messages just to display the bell's unread badge.
+    const initial = window.setTimeout(() => void refreshSummary(), 0);
+    const refresh = () => { void refreshSummary(); };
+    const changed = () => { void refreshSummary(true); };
+    const timer = window.setInterval(refresh, 30_000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
+    window.addEventListener(NOTIFICATIONS_CHANGED, changed);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(initial);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener(NOTIFICATIONS_CHANGED, changed);
+      summaryQueued.current = false;
+      summaryRequest.current?.abort();
       request.current?.abort();
     };
-  }, [load, pathname, open]);
+  }, [refreshSummary]);
 
   useEffect(() => {
-    if (open) dialog.current?.showModal();
+    if (open) {
+      dialog.current?.showModal();
+      const timer = window.setTimeout(() => void load(), 0);
+      return () => { window.clearTimeout(timer); request.current?.abort(); };
+    }
     else dialog.current?.close();
-  }, [open]);
+  }, [open, load]);
 
   function markRead(ids: string[]) {
     startTransition(async () => {
@@ -85,22 +140,22 @@ function NotificationInbox() {
     });
   }
 
-  const unread = feed?.unreadCount ?? 0;
+  const unread = summary?.unreadCount ?? 0;
   const shownUnread = feed?.items.filter((item) => !item.read).map((item) => item.id) ?? [];
 
   return (
     <>
       <button type="button" className="notification-bell btn btn-ghost" aria-label={t("Notifications, {count} unread", { count: unread })} aria-haspopup={mobile ? undefined : "dialog"} aria-expanded={mobile ? undefined : open} onClick={() => {
-        if (!mobile) { setOpen(true); return; }
+        if (!mobile) { setFeed(null); setOpenPath(pathname); return; }
         if (confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) router.push("/notifications");
       }}>
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" /><path d="M10 21h4" /></svg>
         {unread > 0 ? <span className="notification-count pd-num" aria-hidden="true">{unread > 99 ? "99+" : unread}</span> : null}
       </button>
-      <dialog ref={dialog} className="notification-dialog" aria-labelledby="notification-title" onClose={() => setOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <dialog ref={dialog} className="notification-dialog" aria-labelledby="notification-title" onClose={() => setOpenPath(null)} onClick={(event) => { if (event.target === event.currentTarget) setOpenPath(null); }}>
         <div className="notification-dialog-head">
           <h2 id="notification-title">{t("Notifications")}</h2>
-          <button type="button" className="btn btn-ghost btn-sm" data-mobile-dismiss={open || undefined} onClick={() => setOpen(false)}>{t("Close")}</button>
+          <button type="button" className="btn btn-ghost btn-sm" data-mobile-dismiss={open || undefined} onClick={() => setOpenPath(null)}>{t("Close")}</button>
         </div>
         <div className="notification-toolbar">
           <span aria-live="polite">{t("{count} unread", { count: unread })}</span>

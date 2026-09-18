@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n/locale-provider";
 import { sendAnnouncement } from "@/lib/actions/notifications";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
+import { notifyNotificationsChanged } from "@/components/app/notification-events";
 
 export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
   admin: boolean;
@@ -41,6 +42,7 @@ export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
             form.reset();
             setDirty(false);
             setMessage("Announcement sent.");
+            notifyNotificationsChanged();
             router.refresh();
           } else {
             setMessage(result.error === "FORBIDDEN" ? "You cannot send to this audience." : result.error === "INVALID_INPUT" ? "Check the title, message and audience." : result.error === "TRY_LATER" ? "Too many attempts. Try again shortly." : "Something went wrong. Try again.");

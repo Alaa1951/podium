@@ -8,7 +8,8 @@ import Image from "next/image";
  * move (the sign-in shell, the board). tone="auto" renders both variants and
  * lets CSS pick with the theme, for surfaces that follow it (the console
  * sidebar): inverting one PNG would shift its colour and is not a thing to do
- * to somebody's logo.
+ * to somebody's logo. Lazy loading also lets CSS-hidden variants stay unfetched;
+ * eager loading or preloading would download both themes and hidden sidebars.
  */
 export function PodiumMark({
   tone = "light",
@@ -42,7 +43,7 @@ export function PodiumMark({
         width={Math.round(height * 3.48)}
         height={height}
         style={{ height, width: "auto" }}
-        priority
+        loading="lazy"
       />
       <span
         style={{
@@ -57,7 +58,7 @@ export function PodiumMark({
         width={Math.round(height * 0.82 * 1.28)}
         height={Math.round(height * 0.82)}
         style={{ height: Math.round(height * 0.82), width: "auto" }}
-        priority
+        loading="lazy"
       />
     </div>
   );

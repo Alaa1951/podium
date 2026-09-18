@@ -139,9 +139,9 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
           <Link href={seriesHref(series.slug, "registrations/new")} className="btn btn-primary">
             {t("Register a pair")}
           </Link>
-          <Link href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
+          <a href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
             {t("Export CSV")}
-          </Link>
+          </a>
         </div>
       </div>
 

@@ -33,18 +33,32 @@ export type NotificationItem = {
   createdAt: string;
   read: boolean;
 };
-export type NotificationFeed = {
-  items: NotificationItem[];
+export type NotificationSummary = {
   unreadCount: number;
-  nextCursor: string | null;
   readOnly: boolean;
   scopeKey: string;
 };
+export type NotificationFeed = NotificationSummary & {
+  items: NotificationItem[];
+  nextCursor: string | null;
+};
+
+/** The closed bell needs a count, never message bodies or receipt rows. */
+export async function getNotificationSummary(user: CurrentUser): Promise<NotificationSummary> {
+  const unreadCount = await prisma.notification.count({
+    where: { AND: [notificationScope(user), { reads: { none: { userId: user.id } } }] },
+  });
+  return {
+    unreadCount,
+    readOnly: !!user.viewAs,
+    scopeKey: JSON.stringify([user.id, user.role, user.studioId, !!user.viewAs]),
+  };
+}
 
 export async function listNotifications(user: CurrentUser, cursor?: string): Promise<NotificationFeed | null> {
   const where = notificationScope(user);
   if (cursor && !await prisma.notification.findFirst({ where: { AND: [where, { id: cursor }] }, select: { id: true } })) return null;
-  const [rows, unreadCount] = await Promise.all([
+  const [rows, summary] = await Promise.all([
     prisma.notification.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -55,14 +69,12 @@ export async function listNotifications(user: CurrentUser, cursor?: string): Pro
         reads: { where: { userId: user.id }, select: { userId: true } },
       },
     }),
-    prisma.notification.count({ where: { AND: [where, { reads: { none: { userId: user.id } } }] } }),
+    getNotificationSummary(user),
   ]);
   return {
     items: rows.slice(0, 20).map((row) => ({ id: row.id, title: row.title, body: row.body, createdAt: row.createdAt.toISOString(), read: row.reads.length > 0 })),
-    unreadCount,
+    ...summary,
     nextCursor: rows.length > 20 ? rows[19].id : null,
-    readOnly: !!user.viewAs,
-    scopeKey: JSON.stringify([user.id, user.role, user.studioId, !!user.viewAs]),
   };
 }
 

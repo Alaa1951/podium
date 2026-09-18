@@ -11,12 +11,17 @@ import localFont from "next/font/local";
  *
  * These are licensed fonts. They live in src/fonts/ and must not be published
  * anywhere outside this application.
+ *
+ * Load each face when the page actually uses it. Preloading every weight from
+ * the root layout made seven font downloads compete with the navigation JS,
+ * including display faces and weights absent from the current screen.
  */
 
 export const dinCondensed = localFont({
   src: [{ path: "../fonts/DINCondensed-Bold.ttf", weight: "700", style: "normal" }],
   variable: "--font-display",
   display: "swap",
+  preload: false,
   // A condensed fallback keeps the layout from jumping while the face loads.
   fallback: ["Arial Narrow", "Haettenschweiler", "Impact", "sans-serif"],
   adjustFontFallback: false,
@@ -29,6 +34,7 @@ export const dDin = localFont({
   ],
   variable: "--font-heading",
   display: "swap",
+  preload: false,
   fallback: ["Roboto", "Helvetica Neue", "Arial", "sans-serif"],
   adjustFontFallback: false,
 });
@@ -37,6 +43,7 @@ export const futura = localFont({
   src: [{ path: "../fonts/Futura-ExtraBold.otf", weight: "800", style: "normal" }],
   variable: "--font-brand",
   display: "swap",
+  preload: false,
   fallback: ["Futura", "Trebuchet MS", "Arial", "sans-serif"],
   adjustFontFallback: false,
 });
@@ -49,6 +56,7 @@ export const roboto = localFont({
   ],
   variable: "--font-body",
   display: "swap",
+  preload: false,
   fallback: ["Helvetica Neue", "Arial", "sans-serif"],
   adjustFontFallback: false,
 });

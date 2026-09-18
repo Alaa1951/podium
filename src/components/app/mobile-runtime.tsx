@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { parentRoute, safeAppPath } from "@/lib/mobile-navigation";
+import { createNativeResumeRefresh } from "@/lib/mobile-resume";
 import { useNativeSafeArea } from "@/components/app/use-native-safe-area";
 
 // Forms register explicitly: a refresh or failed save must never clear a draft.
@@ -144,7 +145,11 @@ export function MobileRuntime() {
           else if (/(^\/(users|studios|roles|audit|notifications|announcements|my-wave)\/[^/]+)|(\/(registrations|teams|scores|results|waves|zones)\/[^/]+)|\/board$/.test(location.pathname)) router.replace(parentRoute(location.pathname));
           else { const home = document.querySelector<HTMLAnchorElement>(".console-brand, .personal-tabbar a")?.getAttribute("href") ?? "/login"; if(location.pathname !== home) router.replace(home); else void App.minimizeApp(); }
         }));
-        await register(App.addListener("appStateChange", ({ isActive }) => { if (isActive && navigator.onLine && dirtyScreens.size === 0) router.refresh(); }));
+        const resumeRefresh = createNativeResumeRefresh(Capacitor.getPlatform());
+        await register(App.addListener("pause", () => { if (!disposed) resumeRefresh.pause(); }));
+        await register(App.addListener("appStateChange", ({ isActive }) => {
+          if (!disposed && resumeRefresh.stateChange(isActive, navigator.onLine && dirtyScreens.size === 0)) router.refresh();
+        }));
         await register(Keyboard.addListener("keyboardWillShow", () => { document.documentElement.dataset.keyboard = "true"; }));
         await register(Keyboard.addListener("keyboardWillHide", () => { document.documentElement.dataset.keyboard = "false"; }));
         const colorScheme = matchMedia("(prefers-color-scheme: dark)");

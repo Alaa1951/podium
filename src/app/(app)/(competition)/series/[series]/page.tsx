@@ -75,9 +75,9 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           <Link href={at("board")} className="btn btn-secondary">
             {t("Live board")}
           </Link>
-          <Link href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
+          <a href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
             {t("Export CSV")}
-          </Link>
+          </a>
         </div>
       </div>
 
