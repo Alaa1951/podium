@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MobileBack, MobileIcon } from "@/components/app/mobile-navigation";
 import { mobileTabs, parentRoute } from "@/lib/mobile-navigation";
+import { NavigationProgress } from "@/components/app/navigation-progress";
 
 import { PodiumMark } from "@/components/brand/podium-mark";
 import { SignOutButton } from "@/components/app/sign-out-button";
@@ -183,7 +184,7 @@ export function ConsoleShell({
         <div hidden={open} className="console-content">{children}</div>
       </main>
       <nav className="mobile-tabbar" aria-label={t("Sections")}>
-        {tabs.map((item) => <Link key={item.href} href={item.href!} aria-current={!open && activeTab.includes(item) ? "page" : undefined} data-active={!open && activeTab.includes(item) || undefined}><MobileIcon href={item.href!} /><span>{item.label}</span>{item.badge ? <b className="mobile-tab-badge">{item.badge > 99 ? "99+" : item.badge}</b> : null}</Link>)}
+        {tabs.map((item) => <Link key={item.href} href={item.href!} aria-current={!open && activeTab.includes(item) ? "page" : undefined} data-active={!open && activeTab.includes(item) || undefined}><MobileIcon href={item.href!} /><span>{item.label}</span><NavigationProgress />{item.badge ? <b className="mobile-tab-badge">{item.badge > 99 ? "99+" : item.badge}</b> : null}</Link>)}
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="console-nav" data-active={open || (!activeTab.length && !!current) || undefined}><MobileIcon href="/more" /><span>{t("More")}</span></button>
       </nav>
     </div>

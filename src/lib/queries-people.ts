@@ -61,9 +61,10 @@ export async function listArchivedAccounts(user: CurrentUser) {
  * any of them may be opened, so fetching a team's history when it is clicked
  * would mean a hundred possible round trips during the busiest hour of the day.
  */
-export async function getSeriesScoreAudit(seriesId: string, perTeam = 8) {
+export async function getSeriesScoreAudit(seriesId: string, perTeam = 8, teamId?: string) {
   const rows = await prisma.scoreAudit.findMany({
-    where: { score: { team: { seriesId } } },
+    where: { score: { team: { seriesId, ...(teamId ? { id: teamId } : {}) } } },
+    ...(teamId ? { take: perTeam } : {}),
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

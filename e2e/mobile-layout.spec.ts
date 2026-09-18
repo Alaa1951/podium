@@ -166,8 +166,10 @@ test('cross-studio detail URLs do not reveal another team',async({page,context},
   test.skip(!fixtures||!info.project.name.includes('-390-'),'Access scenario runs at the representative phone width.');
   await setup(context,info,'studio');
   const response=await page.goto(`/studio/${live!.slug}/teams/${live!.teams[2]}`);
-  expect(response?.status()).toBe(404);await expect(page.getByText('Mobile QA Team 3',{exact:true})).toHaveCount(0);
-  expect((await page.goto('/notifications/mobile-e2e-notice-other'))?.status()).toBe(404);
+  // A loading boundary can commit HTTP 200 before notFound() streams in.
+  // Assert the resolved denial and absence of private content, not just status.
+  expect([200,404]).toContain(response?.status());await expect(page.getByRole('heading',{name:'404',exact:true})).toBeVisible();await expect(page.getByText('Mobile QA Team 3',{exact:true})).toHaveCount(0);
+  await page.goto('/notifications/mobile-e2e-notice-other');await expect(page.getByRole('heading',{name:'404',exact:true})).toBeVisible();
 });
 
 test('local payment, attendance, scores and notification receipts confirm after the server',async({page,context},info)=>{
@@ -180,11 +182,11 @@ test('local payment, attendance, scores and notification receipts confirm after 
   const check=page.getByRole('button',{name:'Check in',exact:true});if(await check.count()){await check.click();await expect(page.getByRole('button',{name:'Checked in',exact:true})).toBeVisible();}
   await page.getByRole('button',{name:'Checked in',exact:true}).click();await expect(check).toBeVisible();
   await page.goto(`/series/${live!.slug}/scores/${live!.teams[0]}`);await expect(page.locator('html')).toHaveAttribute('data-mobile-ready','true');
-  const counter=page.locator('.team-entry-count-value').first();const previous=Number(await counter.textContent());
-  await page.locator('.team-entry-stepper').first().click();await expect(counter).toHaveText(String(previous+1));
-  await page.locator('.team-entry-save').click();await expect(page.locator('.team-entry-save')).toContainText('Saved');await page.reload();await expect(counter).toHaveText(String(previous+1));
+  const counter=page.locator('.team-entry-count-value:visible').first();const previous=Number(await counter.textContent());
+  await page.locator('.team-entry-stepper:visible').first().click();await expect(counter).toHaveText(String(previous+1));
+  await page.locator('.team-entry-save:visible').click();await expect(page.locator('.team-entry-save:visible')).toContainText('Saved');await page.reload();await expect(counter).toHaveText(String(previous+1));
   // Restore the changed measurement without inventing success before the server reply.
-  await page.locator('.team-entry-stepper-minus').first().click();await page.locator('.team-entry-save').click();await expect(page.locator('.team-entry-save')).toContainText('Saved');
+  await page.locator('.team-entry-stepper-minus:visible').first().click();await page.locator('.team-entry-save:visible').click();await expect(page.locator('.team-entry-save:visible')).toContainText('Saved');
   await page.goto('/notifications/mobile-e2e-notice-own');const read=page.getByRole('button',{name:'Mark as read',exact:true});if(await read.count()){await read.click();await expect(page.getByRole('button',{name:'Mark shown as read',exact:true})).toBeDisabled();}
 });
 
@@ -193,8 +195,8 @@ test('role preview remains scoped and read-only',async({page,context},info)=>{
   await setup(context,info,'admin');
   await context.addCookies([{name:VIEW_AS_COOKIE,value:signViewAs(fixtures!.users.studio.id,Date.now()+3600000,process.env.OTP_SECRET || process.env.NEXTAUTH_SECRET!),url:info.project.use.baseURL ?? 'http://127.0.0.1:3100'}]);
   await page.goto(`/studio/${live!.slug}/scores/${live!.teams[0]}`);
-  await expect(page.locator('.view-as-banner')).toBeVisible();await expect(page.locator('.team-entry-save')).toBeDisabled();
-  expect((await page.goto(`/studio/${live!.slug}/teams/${live!.teams[2]}`))?.status()).toBe(404);
+  await expect(page.locator('.view-as-banner')).toBeVisible();await expect(page.locator('.team-entry-save:visible')).toBeDisabled();
+  await page.goto(`/studio/${live!.slug}/teams/${live!.teams[2]}`);await expect(page.getByRole('heading',{name:'404',exact:true})).toBeVisible();
   await page.goto('/notifications/mobile-e2e-notice-own');await expect(page.locator('.mobile-action-bar button')).toBeDisabled();
 });
 

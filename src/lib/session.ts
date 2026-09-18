@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -82,7 +83,9 @@ async function resolvePermissions(
   return [];
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// React cache lasts for this server render only, never across users or requests.
+// Layouts and their page share the same permission/preview resolution.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
@@ -125,7 +128,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     locale: session.user.locale,
     permissions: await resolvePermissions(session.user.role, session.user.accessRoleId),
   };
-}
+});
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();

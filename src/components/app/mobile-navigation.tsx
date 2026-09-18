@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useT } from "@/components/i18n/locale-provider";
 import { matchesRoute, safeAppPath } from "@/lib/mobile-navigation";
 import { approveHistoryBack, confirmUnsaved, readNavigationTrail } from "@/components/app/mobile-runtime";
+import { NavigationProgress } from "@/components/app/navigation-progress";
 
 export function MobileIcon({ href }: { href: string }) {
   const kind = href.split("/").filter(Boolean).at(-1) ?? "home";
@@ -51,6 +52,6 @@ export function PersonalMobileNavigation({ role, homeHref }: { role: string; hom
   const activePath = commonScreen ? "/account" : /^\/series\/[^/]+\/board$/.test(path) ? "/results" : path;
   return <nav className="mobile-tabbar personal-tabbar" aria-label={t("Sections")}>{items.map((item) => {
     const active = item.label === "More" ? commonScreen : matchesRoute(activePath, item.href);
-    return <Link key={item.href} href={item.href} data-active={active || undefined} aria-current={active ? "page" : undefined}><MobileIcon href={item.label === "More" ? "/more" : item.href} /><span>{t(item.label)}</span></Link>;
+    return <Link key={item.href} href={item.href} data-active={active || undefined} aria-current={active ? "page" : undefined}><MobileIcon href={item.label === "More" ? "/more" : item.href} /><span>{t(item.label)}</span><NavigationProgress /></Link>;
   })}</nav>;
 }

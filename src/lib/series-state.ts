@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesWaves } from "@/lib/queries";
@@ -22,7 +23,8 @@ export type SeriesState = {
 };
 
 /** Takes a series id OR the slug in its URL, which is what pages have. */
-export async function getSeriesState(idOrSlug: string): Promise<SeriesState | null> {
+// Share layout/page reads within a render; the next navigation reads fresh data.
+export const getSeriesState = cache(async (idOrSlug: string): Promise<SeriesState | null> => {
   const series = await getSeries(idOrSlug);
   if (!series) return null;
 
@@ -52,7 +54,7 @@ export async function getSeriesState(idOrSlug: string): Promise<SeriesState | nu
       now: new Date(),
     }),
   };
-}
+});
 
 /** The same state, plus what this particular person may see and do. */
 export function accessFor(state: SeriesState, user: CurrentUser) {

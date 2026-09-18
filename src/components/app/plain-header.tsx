@@ -34,7 +34,7 @@ export function PlainHeader({ roleLabel, homeHref = "/", backHref }: { roleLabel
         display: "flex",
         alignItems: "center",
         gap: 12,
-        padding: "calc(10px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) 10px calc(20px + env(safe-area-inset-left, 0px))",
+        padding: "calc(10px + var(--safe-top)) calc(20px + var(--safe-right)) 10px calc(20px + var(--safe-left))",
         borderBottom: "1px solid var(--border)",
         minHeight: "var(--app-bar-h)",
         flexWrap: "wrap",

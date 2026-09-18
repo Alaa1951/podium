@@ -208,4 +208,28 @@ html[data-mobile="true"] .board-frame-bar { display: none; }
 html[data-mobile="true"] .board-frame .zone-head { grid-template-columns: 36px minmax(0,1fr) 60px !important; }
 html[data-mobile="true"] .board-frame .zone-head .zone-col { display: none; }
 html[data-mobile="true"] .board-filters { padding: 12px max(16px,var(--safe-left)) 0 max(16px,var(--safe-right)); }
-html[dir="rtl"] .mobile-list-card > span[aria-hidden="true"]:last-child { transform: rotate(180deg); }
+html[dir="rtl"] .mobile-list-card > span[aria-hidden="true"] { transform: rotate(180deg); }
+
+/* Keep the installed iOS header out of the scrolling document. A sticky
+   header can be pushed above its safe inset when its parent ends. */
+html[data-native-platform="ios"] { --ios-safe-top: 64px; }
+@media (orientation: landscape) { html[data-native-platform="ios"] { --ios-safe-top: 0px; } }
+html[data-native-platform="ios"] .console-inbox-head,
+html[data-native-platform="ios"] .plain-header {
+  position: fixed; top: 0; inset-inline: 0; height: var(--mobile-header-h);
+  min-height: var(--mobile-header-h); margin: 0 !important; box-sizing: border-box;
+  padding: var(--safe-top) max(12px,var(--safe-right)) 0 max(12px,var(--safe-left)) !important;
+  flex-wrap: nowrap !important;
+}
+html[data-native-platform="ios"] .console-main { padding-top: var(--mobile-header-h); }
+html[data-native-platform="ios"] body:has(.plain-header):not(:has(.console)) { padding-top: var(--mobile-header-h); }
+html[data-mobile="true"] { scroll-padding-top: calc(var(--mobile-header-h) + 12px); }
+.route-loading { min-height: 40vh; }
+.route-loading > p { color: var(--text-muted); margin-bottom: 20px; }
+.route-loading-lines { display: grid; gap: 16px; }
+.route-loading-lines i { display: block; height: 84px; border-radius: var(--r-lg); background: var(--surface-sunken); border: 1px solid var(--border); }
+.mobile-list-card { position: relative; }
+.navigation-progress { position: absolute; inset-inline: 8px; bottom: 3px; height: 3px; border-radius: 3px; background: var(--bft-cyan); opacity: 0; pointer-events: none; }
+.navigation-progress[data-navigation-pending="true"] { opacity: 1; animation: navigation-pulse .8s ease-in-out infinite alternate; }
+@keyframes navigation-pulse { to { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .navigation-progress[data-navigation-pending="true"] { animation: none; } }

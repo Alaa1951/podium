@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { parentRoute, safeAppPath } from "@/lib/mobile-navigation";
+import { iosTopFallback } from "@/lib/mobile-safe-area";
 
 // Forms register explicitly: a refresh or failed save must never clear a draft.
 const dirtyScreens = new Set<symbol>();
@@ -52,6 +53,7 @@ export function MobileRuntime() {
 
   useEffect(() => {
     document.documentElement.dataset.native = String(Capacitor.isNativePlatform());
+    document.documentElement.dataset.nativePlatform = Capacitor.getPlatform();
     const breakpoint = matchMedia("(max-width: 900px)");
     const updateMobile = () => {document.documentElement.dataset.mobile = String(Capacitor.isNativePlatform() || breakpoint.matches);};
     updateMobile(); breakpoint.addEventListener("change", updateMobile);
@@ -76,18 +78,55 @@ export function MobileRuntime() {
     };
     window.addEventListener("popstate", popstate, true);
 
-    // Labels are attributes only: React remains the sole owner of table content.
-    // Hidden column headers remain available to assistive technology.
-    const labelTables = () => document.querySelectorAll<HTMLTableElement>("table.table").forEach((table) => {
+    // Only relabel tables touched by a mutation, once per frame. Timers,
+    // notification badges and loading animations must not rescan every row.
+    const pendingTables = new Set<HTMLTableElement>();
+    let labelFrame = 0;
+    const labelTables = () => {
+      labelFrame = 0;
+      if (document.documentElement.dataset.mobile !== "true") { pendingTables.clear(); return; }
+      pendingTables.forEach((table) => {
+      if (!table.isConnected) return;
       const headings = Array.from(table.querySelectorAll("thead tr:first-child th"), (head) => head.textContent?.trim() ?? "");
       table.querySelectorAll<HTMLTableRowElement>("tbody > tr").forEach((row) => Array.from(row.cells).forEach((cell, index) => {
         const label = cell.colSpan > 1 ? "" : headings[index] ?? "";
         if (cell.dataset.label !== label) cell.dataset.label = label;
       }));
+      });
+      pendingTables.clear();
+    };
+    const queueTables = (node: Node) => {
+      if (!(node instanceof Element)) return;
+      const own = node.closest<HTMLTableElement>("table.table");
+      if (own) pendingTables.add(own);
+      node.querySelectorAll<HTMLTableElement>("table.table").forEach(table => pendingTables.add(table));
+      if (pendingTables.size && !labelFrame) labelFrame = requestAnimationFrame(labelTables);
+    };
+    const refreshTables = () => queueTables(document.body);
+    refreshTables(); breakpoint.addEventListener("change", refreshTables);
+    const observer = new MutationObserver(records => {
+      if (document.documentElement.dataset.mobile !== "true") return;
+      for (const record of records) {
+        const table = (record.target instanceof Element ? record.target : record.target.parentElement)?.closest<HTMLTableElement>("table.table");
+        if (table) { pendingTables.add(table); if (!labelFrame) labelFrame = requestAnimationFrame(labelTables); }
+        record.addedNodes.forEach(queueTables);
+      }
     });
-    labelTables();
-    const observer = new MutationObserver(labelTables);
     observer.observe(document.body, { childList: true, subtree: true });
+
+    const insetProbe = document.createElement("div");
+    insetProbe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)";
+    document.body.appendChild(insetProbe);
+    const updateSafeArea = () => {
+      const fallback = iosTopFallback({ nativeIOS: Capacitor.getPlatform() === "ios", measuredTop: parseFloat(getComputedStyle(insetProbe).paddingTop) || 0,
+        // iOS's device orientation survives keyboard viewport resizing.
+        portrait: typeof window.orientation === "number" ? Math.abs(window.orientation) % 180 === 0 : matchMedia("(orientation: portrait)").matches,
+        tablet: /iPad/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) });
+      document.documentElement.style.setProperty("--ios-safe-top", `${fallback}px`);
+    };
+    updateSafeArea();
+    window.addEventListener("resize", updateSafeArea);
+    window.addEventListener("pageshow", updateSafeArea);
 
     const viewport = window.visualViewport;
     const keyboard = () => {
@@ -138,6 +177,10 @@ export function MobileRuntime() {
       disposed = true;
       handles.forEach((handle) => { void handle.remove(); });
       observer.disconnect();
+      cancelAnimationFrame(labelFrame);
+      breakpoint.removeEventListener("change", refreshTables);
+      window.removeEventListener("resize", updateSafeArea); window.removeEventListener("pageshow", updateSafeArea);
+      insetProbe.remove();
       breakpoint.removeEventListener("change", updateMobile);
       window.removeEventListener("online", updateNetwork); window.removeEventListener("offline", updateNetwork);
       window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", click, true);

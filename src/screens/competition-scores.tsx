@@ -40,9 +40,9 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
   const [teams, zones, audit, accounts, grants] = await Promise.all([
     getScopedTeams(series.id, user),
     getSeriesZones(series.id),
-    getSeriesScoreAudit(series.id),
-    listAccounts(user),
-    prisma.waveAccess.findMany({
+    getSeriesScoreAudit(series.id, 8, detailId),
+    !detailId && user.role === "admin" && !user.viewAs ? listAccounts(user) : Promise.resolve([]),
+    !detailId && user.role === "admin" && !user.viewAs ? prisma.waveAccess.findMany({
       where: { wave: { seriesId: series.id } },
       orderBy: [{ wave: { number: "asc" } }, { user: { email: "asc" } }],
       select: {
@@ -50,13 +50,13 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
         wave: { select: { number: true } },
         user: { select: { email: true, name: true } },
       },
-    }),
+    }) : Promise.resolve([]),
   ]);
 
   // One wave at a time is how the floor actually runs, so the sheet narrows to
   // it — while the placings beside each row still come from the whole field.
   const waveFilter = typeof searchParams.wave === "string" ? Number(searchParams.wave) : null;
-  const shown = !detailId && waveFilter ? teams.filter((team) => team.wave === waveFilter) : teams;
+  const shown = detailId ? teams.filter(team => team.id === detailId) : waveFilter ? teams.filter((team) => team.wave === waveFilter) : teams;
   const waveNumbers = [...new Set(teams.map((team) => team.wave))].sort((a, b) => a - b);
   const here = seriesHref(series.slug, "scores");
 

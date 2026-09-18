@@ -33,7 +33,7 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
   const [teams, zones, audit] = await Promise.all([
     getScopedTeams(series.id, user),
     getSeriesZones(series.id),
-    getSeriesScoreAudit(series.id),
+    getSeriesScoreAudit(series.id, 8, detailId),
   ]);
 
   const deadline = scoreEntryOpen({
@@ -48,7 +48,7 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
       ? t("Score entry has closed. Ask BFT MENA for any correction.")
       : undefined;
 
-  const rows: GridTeam[] = teams.map((team) => ({
+  const rows: GridTeam[] = (detailId ? teams.filter(team => team.id === detailId) : teams).map((team) => ({
     id: team.id,
     number: team.number,
     name: team.name,

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { readNavigationTrail } from "@/components/app/mobile-runtime";
 import type { ReactNode } from "react";
+import { NavigationProgress } from "@/components/app/navigation-progress";
 
 export function DetailLink({ href, children, className = "mobile-list-card" }: { href: string; children: ReactNode; className?: string }) {
   const path = usePathname();
@@ -12,7 +13,7 @@ export function DetailLink({ href, children, className = "mobile-list-card" }: {
     const trail = readNavigationTrail();
     if (trail.length) trail[trail.length - 1] = path + location.search;
     sessionStorage.setItem("podium:trail", JSON.stringify(trail));
-  }}>{children}</Link>;
+  }}>{children}<NavigationProgress /></Link>;
 }
 
 /** URL filters survive a detail route, reload and the platform's Back button. */

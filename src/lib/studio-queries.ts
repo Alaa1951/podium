@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { NO_MATCH, type CurrentUser } from "@/lib/access";
@@ -14,11 +15,11 @@ import { NO_MATCH, type CurrentUser } from "@/lib/access";
  * and a studio that has not been added sees nothing rather than seeing an empty
  * dashboard for a competition it is not in.
  */
-export async function getStudioSeries(user: CurrentUser) {
+export async function getStudioSeries(user: CurrentUser, slug?: string) {
   const studioId = user.studioId ?? NO_MATCH;
 
   const rows = await prisma.seriesStudio.findMany({
-    where: { studioId },
+    where: { studioId, ...(slug ? { series: { slug } } : {}) },
     orderBy: { series: { competitionDate: "desc" } },
     select: {
       series: {
@@ -55,7 +56,9 @@ export async function getStudioSeries(user: CurrentUser) {
 }
 
 /** One of those competitions, by the slug in the URL. Null if not theirs. */
-export async function getStudioSeriesBySlug(user: CurrentUser, slug: string) {
-  const all = await getStudioSeries(user);
-  return all.find((series) => series.slug === slug) ?? null;
-}
+export const getStudioSeriesBySlug = cache(async (user: CurrentUser, slug: string) => {
+  // A tab in one competition must not load/count every competition the studio
+  // has ever entered. Membership and studio scoping remain part of the query.
+  const matching = await getStudioSeries(user, slug);
+  return matching[0] ?? null;
+});

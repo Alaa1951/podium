@@ -51,7 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){var native=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());document.documentElement.dataset.native=String(native);document.documentElement.dataset.mobile=String(native||matchMedia('(max-width: 900px)').matches);})();" }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){var cap=window.Capacitor;var native=!!(cap&&cap.isNativePlatform&&cap.isNativePlatform());document.documentElement.dataset.native=String(native);document.documentElement.dataset.nativePlatform=native&&cap.getPlatform?cap.getPlatform():'web';document.documentElement.dataset.mobile=String(native||matchMedia('(max-width: 900px)').matches);})();" }} />
       </head>
       <body>
         <PwaRegister />
