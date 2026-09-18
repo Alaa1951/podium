@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DraftGuard } from "@/components/app/draft-guard";
 
 import { getTranslator } from "@/lib/i18n/server";
 import { createSeries } from "@/lib/actions/series";
@@ -39,7 +40,7 @@ export default async function NewCompetitionPage() {
         </div>
       </div>
 
-      <form action={createSeries}>
+      <DraftGuard><form action={createSeries}>
         <section className="form-block">
           <div className="form-row">
             <label style={{ flex: "2 1 240px" }}>
@@ -110,7 +111,7 @@ export default async function NewCompetitionPage() {
             {t("Cancel")}
           </Link>
         </div>
-      </form>
+      </form></DraftGuard>
     </div>
   );
 }

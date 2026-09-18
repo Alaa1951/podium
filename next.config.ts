@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   /*
    * A self-contained server bundle: `.next/standalone` carries its own minimal
    * node_modules, so the app runs on any plain Node host without installing the

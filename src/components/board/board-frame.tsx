@@ -2,26 +2,50 @@ import Link from "next/link";
 
 import { BoardBrand } from "@/components/board/board-brand";
 import { SignOutButton } from "@/components/app/sign-out-button";
+import { MobileBoardShell } from "@/components/board/mobile-board-shell";
+import { ThemeToggle } from "@/components/app/theme-toggle";
+import { LanguageSwitch } from "@/components/i18n/language-switch";
+import type { NavGroup } from "@/components/app/console-shell";
+import { can } from "@/lib/access";
+import { getCurrentUser, homeForUser } from "@/lib/session";
+import { getTranslator } from "@/lib/i18n/server";
+import { getTheme } from "@/lib/theme-server";
+import { prisma } from "@/lib/prisma";
 
-/**
- * THE WALL SCREEN'S ONLY CHROME.
- *
- * A brand bar above the board, in the flow rather than floating over it — the
- * title used to collide with the wordmark on wide screens, and a wall screen
- * cannot afford a collision. The board fills everything below the bar. The bar
- * carries the way back and the way out: tap the wordmark for the menu, or sign
- * out and hand the screen to the next person.
- */
-export function BoardFrame({
+/** Desktop wall display, with scoped application navigation on phones/tablets. */
+export async function BoardFrame({
   back,
   name,
+  seriesSlug,
   children,
 }: {
   back: string;
   name: string;
+  seriesSlug: string;
   children: React.ReactNode;
 }) {
+  const [user, { t }, theme] = await Promise.all([getCurrentUser(), getTranslator(), getTheme()]);
+  const studioMember = user?.role === "studio" && !!user.studioId && !!await prisma.seriesStudio.findFirst({
+    where: { studioId: user.studioId, series: { slug: seriesSlug } },
+    select: { seriesId: true },
+  });
+  const contextual = user?.role === "admin" || studioMember;
+  const base = `${studioMember ? "/studio" : "/series"}/${seriesSlug}`;
+  const homeHref = user ? await homeForUser(user) : back;
+  const groups: NavGroup[] = contextual && user ? [
+    { title: "", items: [{ href: base, label: t("Overview") }, { href: `/series/${seriesSlug}/board`, label: t("Live board") }] },
+    { title: t("Sections"), items: [
+      { href: `${base}/${studioMember ? "teams" : "registrations"}`, label: t(studioMember ? "Teams" : "Competitors"), permission: "competitors.view" },
+      { href: `${base}/waves`, label: t("Waves"), permission: "waves.view" },
+      { href: `${base}/scores`, label: t("Score entry"), permission: "scores.view" },
+      { href: `${base}/results`, label: t("Results"), permission: "results.view" },
+      ...(studioMember
+        ? [{ href: "/studio/announcements", label: t("Announcements"), permission: "announcements.manage" }]
+        : [{ href: `${base}/settings`, label: t("Settings"), permission: "settings.view" }]),
+    ].filter(item => can(user, item.permission)).map(({ href, label }) => ({ href, label })) },
+  ] : [];
   return (
+    <MobileBoardShell groups={groups} name={name} title={t("Live board")} homeHref={homeHref} overviewHref={base} utilities={<><ThemeToggle current={theme} /><LanguageSwitch /></>}>
     <div className="board-frame">
       <div className="board-frame-bar">
         <Link href={back} className="board-frame-mark" aria-label={`${name} — back to the menu`}>
@@ -34,5 +58,6 @@ export function BoardFrame({
       </div>
       <div className="board-frame-body">{children}</div>
     </div>
+    </MobileBoardShell>
   );
 }

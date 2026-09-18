@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from "@capacitor/cli";
+import { KeyboardResize } from "@capacitor/keyboard";
 
 /**
  * THE NATIVE SHELL — one Capacitor project per store, pointing at the live
@@ -17,6 +18,9 @@ const config: CapacitorConfig = {
   appId: "app.podium.bftmena",
   appName: "PODIUM",
   webDir: "capacitor-web",
+  plugins: {
+    Keyboard: { resize: KeyboardResize.Native, resizeOnFullScreen: true },
+  },
   server: {
     // The store shells open on the sign-in screen: every store user is staff
     // or a competitor with an account, and the public board stays on the web.

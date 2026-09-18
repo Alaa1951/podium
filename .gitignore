@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 *.key
+# Play service-account keys must remain outside the repository.
+play-api-service-account.json
+*-service-account.json
 *.p12
 *.p8
 *.mobileprovision
@@ -60,3 +63,12 @@ dev-server.log
 /release/
 /backups/
 node_modules.zip
+
+# Local mobile test fixtures, traces and screenshots
+.mobile-qa/
+
+# Official bridge runtime is copied by mobile:sync
+capacitor-web/capacitor.js
+
+# Headless browser diagnostics
+debug.log

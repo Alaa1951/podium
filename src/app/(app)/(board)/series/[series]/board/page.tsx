@@ -55,7 +55,7 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
   if (phase === "before" && !previewing) {
     const opensAt = series.boardOpensAt ?? series.competitionDate;
     return (
-      <BoardFrame back={back} name={series.name}>
+      <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
       <CountdownGate
         remainingMs={remainingMs(opensAt) ?? 0}
         opensAtLabel={formatOpensAt(opensAt, locale)}
@@ -68,14 +68,14 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
 
   if (phase === "live" || previewing) {
     return (
-      <BoardFrame back={back} name={series.name}>
+      <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
         <RunningBoard initial={payload} display={payload.display} seriesLabel={series.name} />
       </BoardFrame>
     );
   }
 
   return (
-    <BoardFrame back={back} name={series.name}>
+    <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
     <Leaderboard
       initial={payload}
       display={payload.display}

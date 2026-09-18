@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
 import { deleteSponsor, moveSponsor, saveSponsor, setSponsorsEnabled } from "@/lib/actions/sponsors";
 
@@ -38,6 +39,7 @@ export function SponsorEditor({
   const [message, setMessage] = useState("");
   const [alt, setAlt] = useState("");
   const [file, setFile] = useState<{ name: string; dataUrl: string } | null>(null);
+  useUnsavedChanges(!!alt || !!file);
   const fileInput = useRef<HTMLInputElement>(null);
 
   function toggleRail() {

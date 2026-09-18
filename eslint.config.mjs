@@ -33,6 +33,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Deployment package output (scripts/prepare-hostinger-package.mjs)
     "dist-hostinger/**",
+    ".mobile-qa/**",
+    "capacitor-web/capacitor.js",
+    "android/app/src/main/assets/public/**",
+    "ios/App/App/public/**",
   ]),
 ]);
 

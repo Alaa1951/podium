@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useState } from "react";
+import { useIsMobile } from "@/components/app/use-mobile";
+export { useIsMobile } from "@/components/app/use-mobile";
+import { usePathname, useRouter } from "next/navigation";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ScoreGridRow } from "@/components/scores/score-grid-row";
 import { ScoreTeamEntry } from "@/components/scores/score-team-entry";
 import type { GridTeam } from "@/components/scores/score-grid-types";
 import type { ZoneDef } from "@/lib/zones";
+import { approveHistoryBack, readNavigationTrail } from "@/components/app/mobile-runtime";
+import { parentRoute } from "@/lib/mobile-navigation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EVERY TEAM ON ONE SHEET.
@@ -28,25 +33,6 @@ import type { ZoneDef } from "@/lib/zones";
 // edits a team inside a crowded sheet.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function useIsMobile(breakpoint = 720) {
-  const query = `(max-width: ${breakpoint}px)`;
-  const subscribe = useCallback(
-    (onChange: () => void) => {
-      const mq = window.matchMedia(query);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    [query]
-  );
-  return useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia(query).matches,
-    // Server render has no viewport: the table ships first and the phone
-    // swaps to cards on hydration, a frame later at most.
-    () => false
-  );
-}
-
 export function ScoreGrid({
   teams,
   zones,
@@ -56,6 +42,7 @@ export function ScoreGrid({
   isAdmin,
   frozen,
   frozenReason,
+  detailId,
 }: {
   teams: GridTeam[];
   zones: ZoneDef[];
@@ -66,10 +53,13 @@ export function ScoreGrid({
   isAdmin: boolean;
   frozen: boolean;
   frozenReason?: string;
+  detailId?: string;
 }) {
   const t = useT();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   if (teams.length === 0) {
     return (
@@ -83,13 +73,12 @@ export function ScoreGrid({
   // A closed wave tells the judge why the sheet went quiet.
   const someWaveLocked = !canEditAfterClose && teams.some((team) => team.waveEnded);
 
-  if (isMobile) {
+  if (isMobile || detailId) {
     // The phone sheet is a list, and the list is all it ever is: tapping a
     // team swaps the whole page for that team's own entry screen, and Back
     // returns to the top of the list — never to a half-scrolled sheet.
-    const openTeam = open ? (teams.find((team) => team.id === open) ?? null) : null;
+    const openTeam = detailId ? (teams.find((team) => team.id === detailId) ?? null) : null;
 
-    const toTop = () => window.scrollTo({ top: 0 });
 
     return (
       <>
@@ -114,9 +103,10 @@ export function ScoreGrid({
             canEditAfterClose={canEditAfterClose}
             frozen={frozen}
             waveEndsAt={openTeam.waveEndsAt}
+            waveEnded={openTeam.waveEnded}
             onBack={() => {
-              setOpen(null);
-              toTop();
+              if (readNavigationTrail().length > 1) { approveHistoryBack(); router.back(); }
+              else router.replace(parentRoute(pathname));
             }}
           />
         ) : (
@@ -134,8 +124,8 @@ export function ScoreGrid({
                 mobile
                 expanded={false}
                 onExpand={() => {
-                  setOpen(team.id);
-                  toTop();
+                  sessionStorage.setItem(`podium:list:${pathname}`, JSON.stringify({ href: pathname + location.search, scroll: window.scrollY }));
+                  router.push(`${pathname}/${team.id}`);
                 }}
               />
             ))}

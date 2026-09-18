@@ -31,7 +31,7 @@ jobs:
       - name: dependencies
         run: npm ci --no-audit --no-fund
       - name: sync web assets into the native shell
-        run: npx cap sync android
+        run: npm run mobile:sync -- android
       - name: restore signing key
         # Secrets are optional: without them the AAB comes out unsigned, which
         # is enough to smoke-test the build but not to upload to Play.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { sendAnnouncement } from "@/lib/actions/notifications";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
   admin: boolean;
@@ -18,9 +19,11 @@ export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(dirty);
 
   return (
-    <form className="card announcement-form" onSubmit={(event) => {
+    <form className="card announcement-form" onInput={() => setDirty(true)} onSubmit={(event) => {
       event.preventDefault();
       const form = event.currentTarget;
       const fields = new FormData(form);
@@ -36,6 +39,7 @@ export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
           setSuccess(result.ok);
           if (result.ok) {
             form.reset();
+            setDirty(false);
             setMessage("Announcement sent.");
             router.refresh();
           } else {
@@ -59,7 +63,7 @@ export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
         <input id="announcement-title" name="title" required maxLength={160} dir="auto" />
         <label htmlFor="announcement-body">{t("Message")}</label>
         <textarea id="announcement-body" name="body" required maxLength={4000} rows={6} dir="auto" />
-        <button type="submit" className="btn btn-primary">{pending ? t("Sending…") : t("Send announcement")}</button>
+        <div className="mobile-action-bar"><button type="submit" className="btn btn-primary">{pending ? t("Sending…") : t("Send announcement")}</button></div>
       </fieldset>
       {readOnly ? <p className="notice">{t("You have read-only access.")}</p> : null}
       {message ? <p className="notice" role={success ? "status" : "alert"}>{t(message)}</p> : null}

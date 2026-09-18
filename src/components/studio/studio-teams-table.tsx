@@ -1,12 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Fragment, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { StudioTeamEditor } from "@/components/studio/studio-team-editor";
 import { archiveTeam } from "@/lib/actions/team-people";
 import { teamStatusLabel, teamStatusTone, type TeamStatus } from "@/lib/team-status";
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE TEAMS TAB.
@@ -24,6 +26,7 @@ export type StudioTeamRow = {
   division: string;
   status: TeamStatus;
   people: {
+    id?: string;
     fullName: string;
     phone: string | null;
     email: string | null;
@@ -36,14 +39,20 @@ export function StudioTeamsTable({
   rows,
   studios,
   open,
+  detailId,
+  editMode = false,
 }: {
   rows: StudioTeamRow[];
   studios: { id: string; name: string }[];
   /** Registrations are still open — otherwise everything here is read-only. */
   open: boolean;
+  detailId?: string;
+  editMode?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
+  const path = usePathname();
+  const mobile = useIsMobile();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -66,7 +75,8 @@ export function StudioTeamsTable({
         return;
       }
       setConfirming(null);
-      router.refresh();
+      if (detailId) router.replace(path.replace(/\/[^/]+$/, ""));
+      else router.refresh();
     });
   }
 
@@ -78,6 +88,14 @@ export function StudioTeamsTable({
       </div>
     );
   }
+
+  if (detailId) {
+    const row = rows.find((row) => row.id === detailId)!;
+    if (editMode && open) return <div className="mobile-detail"><h1>{row.name}</h1><StudioTeamEditor row={row} studios={studios} onDone={() => { router.replace(path.replace(/\/edit$/, "")); router.refresh(); }} /></div>;
+    return <article className="mobile-detail"><h1>{row.name}</h1><span className={`badge ${teamStatusTone(row.status)}`}>{t(teamStatusLabel(row.status))}</span><p>{t(row.category)} · {t(row.division)}</p>{row.people.map((person,index) => <div key={person.id ?? index} className="mobile-list-card"><div>{person.id ? <DetailLink href={`${path}/people/${person.id}`} className="linkish"><strong>{person.fullName}</strong></DetailLink> : <strong>{person.fullName}</strong>}<small>{person.email ?? "—"}</small><small dir="ltr">{person.phone ?? "—"}</small></div></div>)}{error ? <p className="notice-error" role="alert">{error}</p> : null}{confirming === row.id ? <div className="notice notice-warn"><p>{t("Remove {name} from this competition?",{name:row.name})}</p><button className="btn btn-danger" disabled={pending} onClick={() => remove(row)}>{t("Yes, remove")}</button><button className="btn btn-secondary" onClick={() => setConfirming(null)}>{t("Keep them")}</button></div> : null}<div className="mobile-action-bar">{open ? <DetailLink href={`${path}/edit`} className="btn btn-primary">{t("Edit")}</DetailLink> : null}<button className="btn btn-ghost" disabled={!open || pending} onClick={() => setConfirming(row.id)}>{t("Remove")}</button></div></article>;
+  }
+
+  if (mobile) return <div className="mobile-list">{rows.map((row) => <DetailLink key={row.id} href={`${path}/${row.id}`}><span className="pd-num">#{row.number}</span><div><strong>{row.name}</strong><small>{row.people.map((person) => person.fullName).join(" · ")}</small><small>{t(row.category)} · {t(row.division)}</small></div><span className={`badge ${teamStatusTone(row.status)}`}>{t(teamStatusLabel(row.status))}</span><span aria-hidden="true">›</span></DetailLink>)}</div>;
 
   return (
     <>

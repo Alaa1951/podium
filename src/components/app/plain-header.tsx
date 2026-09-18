@@ -6,6 +6,10 @@ import { signOut } from "next-auth/react";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { useT } from "@/components/i18n/locale-provider";
 import { NotificationBell } from "@/components/app/notification-bell";
+import { PodiumMark } from "@/components/brand/podium-mark";
+import { MobileBack } from "@/components/app/mobile-navigation";
+import { usePathname } from "next/navigation";
+import { parentRoute } from "@/lib/mobile-navigation";
 
 const tinyLink: React.CSSProperties = {
   padding: 0,
@@ -18,11 +22,14 @@ const tinyLink: React.CSSProperties = {
 };
 
 /** The slim bar for screens that sit outside an event (series management). */
-export function PlainHeader({ roleLabel }: { roleLabel: string }) {
+export function PlainHeader({ roleLabel, homeHref = "/", backHref }: { roleLabel: string; homeHref?: string; backHref?: string }) {
   const t = useT();
+  const path = usePathname();
+  const mobileTitle = ({"/me":"My team","/studio":"Competitions","/my-wave":"My wave","/account":"Account","/notifications":"Notifications","/me/edit":"Edit team"} as Record<string,string>)[path] ?? (path.startsWith("/studio/announcements") ? "Announcements" : path.startsWith("/my-wave/") ? "My wave" : undefined);
 
   return (
     <div
+      className="plain-header"
       style={{
         display: "flex",
         alignItems: "center",
@@ -33,9 +40,10 @@ export function PlainHeader({ roleLabel }: { roleLabel: string }) {
         flexWrap: "wrap",
       }}
     >
+      <div className="mobile-heading">{["/me","/studio","/my-wave"].includes(path) ? <PodiumMark tone="auto" height={22} /> : <MobileBack fallback={backHref ?? (["/account","/notifications"].includes(path) ? homeHref : parentRoute(path))} />}<strong>{mobileTitle ? t(mobileTitle) : roleLabel}</strong></div>
       <div style={{ marginInlineStart: "auto", display: "flex", alignItems: "center", gap: 14 }}>
         <NotificationBell />
-        <LanguageSwitch />
+        <div className="desktop-only"><LanguageSwitch /></div>
         <div style={{ textAlign: "end" }}>
           <div
             style={{

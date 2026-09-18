@@ -1,8 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
 import { useT } from "@/components/i18n/locale-provider";
 import { deleteWave, saveWave } from "@/lib/actions/waves";
 import { autoAssignWaves, setTeamWave } from "@/lib/actions/teams";
@@ -25,6 +27,8 @@ export type { SetupTeam };
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function WaveBoard({
+  detailId,
+  editMode = false,
   seriesId,
   teams,
   waves,
@@ -33,6 +37,8 @@ export function WaveBoard({
   isAdmin,
   ownStudioId,
 }: {
+  detailId?: string;
+  editMode?: boolean;
   seriesId: string;
   teams: SetupTeam[];
   /** The running order as it stands, each wave with its own settings. */
@@ -46,10 +52,12 @@ export function WaveBoard({
 }) {
   const t = useT();
   const router = useRouter();
+  const path = usePathname();
+  const mobile = useIsMobile();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [perWave, setPerWave] = useState(waveCapacity);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(editMode ? detailId ?? null : null);
 
   const studioName = (id: string | null) =>
     id ? (studios.find((s) => s.id === id)?.name ?? "—") : t("Non-member");
@@ -135,14 +143,14 @@ export function WaveBoard({
         number: form.get("number"),
         startTime: form.get("startTime"),
       });
-      if (result.ok) setEditing(null);
+      if (result.ok) { setEditing(null); if (editMode) router.replace(path.replace(/\/edit$/, "")); }
       report(result);
     });
   }
 
   const grid = {
     pickable,
-    pending,
+    pending: pending || !isAdmin,
     studioName,
     onMove: moveTeam,
     onCycle: cycleMembership,
@@ -220,7 +228,7 @@ export function WaveBoard({
       ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 22 }}>
-        {waves.map((wave) => (
+        {waves.filter(wave => !detailId || wave.id === detailId).map((wave) => mobile && !detailId ? <DetailLink key={wave.id} href={`${path}/${wave.id}`}><strong>{t("Wave")} {wave.number}</strong><span>{wave.startTime} · {teams.filter(team => team.wave === wave.number).length} {t("Teams")}</span><span className="badge badge-neutral">{t(wave.status === "running" ? "On the floor" : wave.status === "complete" ? "Complete" : "Not started")}</span></DetailLink> : (
           <WaveCard
             key={wave.id}
             wave={wave}
@@ -228,7 +236,7 @@ export function WaveBoard({
             isAdmin={isAdmin}
             pending={pending}
             editing={editing === wave.id}
-            onToggleSettings={() => setEditing(editing === wave.id ? null : wave.id)}
+            onToggleSettings={() => mobile && detailId ? router.push(`${path.replace(/\/edit$/, "")}/edit`) : setEditing(editing === wave.id ? null : wave.id)}
             onRemove={() => removeWave(wave.id)}
             onSaveSettings={saveSettings}
             grid={grid}
@@ -236,7 +244,7 @@ export function WaveBoard({
         ))}
 
         {/* Teams pointing at a wave that is not in the running order. */}
-        {orphanNumbers.map((number) => (
+        {!detailId && orphanNumbers.map((number) => (
           <OrphanCard
             key={`orphan-${number}`}
             number={number}

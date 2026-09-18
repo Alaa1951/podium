@@ -1,7 +1,7 @@
 # MOBILE — the store shells around the live site
 
 The stores get a thin native shell, not a second app. Each shell is a WebView
-that opens `https://podium.bftmiddleeast.com/results` full-screen under the
+that opens `https://podium.bftmiddleeast.com/login` full-screen under the
 PODIUM icon, so **the website is the app**: a web deploy reaches every install
 immediately, with no store review and nothing to upload. A store release is
 only needed when the shell itself changes — a native plugin, an icon, a
@@ -20,6 +20,8 @@ Loading the live site keeps one app and one deploy pipeline.
 | [.github/workflows/mobile-ios.yml](../.github/workflows/mobile-ios.yml) | signs, exports and uploads version 1.0 to App Store Connect |
 | [MOBILE-APPLE.md](MOBILE-APPLE.md) | Windows CSR, Apple human setup, six GitHub secrets and TestFlight checks |
 | [MOBILE-PLAY.md](MOBILE-PLAY.md) | remaining Play Console steps, exact listing copy and existing asset paths |
+
+See [MOBILE-UX.md](MOBILE-UX.md) for the mobile interface, route coverage, test builds and device review checklist.
 
 ## Day to day
 
@@ -59,7 +61,7 @@ number without changing the marketing version.
 
 For a local Mac release:
 
-1. `npm ci && npx cap sync ios`, then `npm run mobile:ios` (or open `ios/App/App.xcodeproj`).
+1. `npm ci && npm run mobile:sync -- ios`, then `npm run mobile:ios` (or open `ios/App/App.xcodeproj`).
 2. Signing & Capabilities: pick the team, let Xcode manage the certificate.
 3. Use marketing version **1.0** for this release and a fresh build number in the target's General tab.
 4. Product → Archive → Distribute App → App Store Connect. TestFlight first: install on a real iPhone, sign in, enter a live round.

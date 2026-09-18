@@ -1,10 +1,16 @@
-import Link from "next/link";
+import { RecoveryLink } from "@/components/app/recovery-link";
+import { getTranslator } from "@/lib/i18n/server";
+import { getCurrentUser, homeForUser } from "@/lib/session";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const {t}=await getTranslator();
+  const user=await getCurrentUser();
+  const home=user ? await homeForUser(user) : "/login";
   return (
     <div
+      data-route-error="true"
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -37,12 +43,9 @@ export default function NotFound() {
           404
         </h1>
         <p style={{ fontSize: 14, color: "var(--on-navy-secondary)" }}>
-          That screen does not exist — or it belongs to an event or a team this account cannot
-          see.
+          {t("This screen is unavailable or this account does not have access to it.")}
         </p>
-        <Link href="/" className="btn btn-cyan" style={{ marginTop: 18, textDecoration: "none" }}>
-          Back to the start
-        </Link>
+        <RecoveryLink fallback={home} className="btn btn-cyan">{t("Back to the start")}</RecoveryLink>
       </div>
     </div>
   );

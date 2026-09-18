@@ -5,6 +5,7 @@ import { FloorRow, Stat, statLabel } from "@/components/board/running-board-part
 import type { BoardTeam } from "@/lib/board";
 import { FLOOR_ROTATE_SECONDS } from "@/lib/waves";
 import { BRACKETS } from "@/lib/scoring";
+import { FilterSheet } from "@/components/app/filter-sheet";
 
 /** The two selections that are not a bracket. */
 export { ALL_TEAMS, ON_FLOOR } from "@/components/board/running-board-scope";
@@ -163,6 +164,7 @@ export function BracketChips({
   const allActive = !floorView && marks.length === 0;
 
   return (
+    <div className="board-filters"><FilterSheet>
       <div
         style={{
           display: "flex",
@@ -223,7 +225,7 @@ export function BracketChips({
           {rotate ? t("Auto-rotate on") : t("Auto-rotate off")}
         </button>
       </div>
-
+    </FilterSheet></div>
   );
 }
 

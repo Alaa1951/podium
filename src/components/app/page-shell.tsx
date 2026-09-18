@@ -17,7 +17,7 @@ export function PageShell({
   children: ReactNode;
 }) {
   return (
-    <div style={{ maxWidth: width, margin: "0 auto", padding: "34px 28px 80px" }}>
+    <div className="page-shell" style={{ maxWidth: width, margin: "0 auto", padding: "34px 28px 80px" }}>
       <div className="page-head">
         {eyebrow ? <div className="page-eyebrow">{eyebrow}</div> : null}
         <div

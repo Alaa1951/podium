@@ -61,8 +61,9 @@ function contentSecurityPolicy(nonce: string) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "upgrade-insecure-requests",
-  ].join("; ");
+    // WebKit upgrades even localhost assets; development runs over plain HTTP.
+    dev ? "" : "upgrade-insecure-requests",
+  ].filter(Boolean).join("; ");
 }
 
 function securityHeaders(response: NextResponse, policy: string) {

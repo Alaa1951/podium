@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { createRegistration } from "@/lib/actions/registrations";
 import { PersonBlock, Field } from "@/components/admin/registration-fields";
+import { approveHistoryBack, confirmUnsaved, readNavigationTrail, useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAKING A REGISTRATION IN.
@@ -55,6 +56,8 @@ export function RegistrationForm({
   const [amount, setAmount] = useState(defaultAmount);
   const [billingNumber, setBillingNumber] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
+  const [saved, setSaved] = useState(false);
+  useUnsavedChanges(!saved && (teamName !== "" || category !== "Womens" || division !== "Rookie" || JSON.stringify(one) !== JSON.stringify(EMPTY) || JSON.stringify(two) !== JSON.stringify(EMPTY) || !paid || amount !== defaultAmount || billingNumber !== "" || paymentNote !== ""));
 
   // What the board will actually call them, shown while they type — the rule
   // is invisible otherwise, and the first thing somebody asks about.
@@ -63,31 +66,34 @@ export function RegistrationForm({
   function submit() {
     setError("");
     startTransition(async () => {
-      const result = await createRegistration({
-        seriesId,
-        teamName: teamName.trim() || null,
-        category,
-        division,
-        one: { ...one, studioId: one.studioId || null },
-        two: { ...two, studioId: two.studioId || null },
-        paymentStatus: paid ? "paid" : "pending",
-        amount: paid ? amount : null,
-        currency,
-        billingNumber: billingNumber || null,
-        paymentNote: paymentNote || null,
-      });
+      try {
+        const result = await createRegistration({
+          seriesId,
+          teamName: teamName.trim() || null,
+          category,
+          division,
+          one: { ...one, studioId: one.studioId || null },
+          two: { ...two, studioId: two.studioId || null },
+          paymentStatus: paid ? "paid" : "pending",
+          amount: paid ? amount : null,
+          currency,
+          billingNumber: billingNumber || null,
+          paymentNote: paymentNote || null,
+        });
 
-      if (!result.ok) {
-        setError(
-          result.error === "INVALID_INPUT"
-            ? t("Check the form — both competitors need a name, and any email must be valid.")
-            : t("Something went wrong. Try again.")
-        );
-        return;
-      }
+        if (!result.ok) {
+          setError(
+            result.error === "INVALID_INPUT"
+              ? t("Check the form — both competitors need a name, and any email must be valid.")
+              : t("Something went wrong. Try again.")
+          );
+          return;
+        }
 
-      router.push("../");
-      router.refresh();
+        setSaved(true);
+        router.replace(location.pathname.replace(/\/new$/, ""));
+        router.refresh();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -199,7 +205,7 @@ export function RegistrationForm({
         ) : null}
       </section>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
+      <div className="mobile-action-bar" style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
         <button
           type="button"
           className="btn btn-primary"
@@ -212,7 +218,7 @@ export function RegistrationForm({
         <button
           type="button"
           className="btn btn-ghost"
-          onClick={() => router.back()}
+          onClick={() => {if(!confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) return; if(readNavigationTrail().length>1){approveHistoryBack();router.back();}else router.replace(location.pathname.replace(/\/new$/, ""));}}
           disabled={pending}
         >
           {t("Cancel")}

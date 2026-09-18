@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { useIsMobile } from "@/components/app/use-mobile";
 
 /**
  * THE SPONSOR STRIP — the last band on the wall screen, drawn straight from the
@@ -31,6 +32,7 @@ export function SponsorStrip({
   const t = useT();
   const count = Math.max(logos.length, 10);
   const [spot, setSpot] = useState(0);
+  const mobile = useIsMobile();
 
   useEffect(() => {
     if (count <= 1) return;
@@ -39,6 +41,10 @@ export function SponsorStrip({
   }, [count]);
 
   if (!enabled) return null;
+  if (mobile) {
+    const logo = logos[spot % count];
+    return <div className="sponsor-bar"><div className="sponsor-bar-label">{t("Official partners")}</div><div className="sponsor-featured">{logo ? <Image src={logo.src} alt={logo.alt} width={170} height={56} style={{maxWidth:"100%",height:"auto",objectFit:"contain"}} /> : <span className="sponsor-placeholder">{t("Sponsor")} {spot + 1}</span>}</div><div className="sponsor-bar-label">{t("Powered by BFT MENA")}</div></div>;
+  }
 
   return (
     <div className="sponsor-bar">

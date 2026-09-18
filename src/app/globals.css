@@ -5,6 +5,7 @@
    other with it — which is exactly how they were lost once. */
 @import "./ui.css";
 @import "./board.css";
+@import "./mobile.css";
 
 /* ══════════════════════════════════════════════════════════════════════════
    PODIUM — BFT MENA design system
@@ -1215,7 +1216,7 @@ tr[data-unscored] td { color: var(--text-muted); }
 .picker-choice:hover { border-color: var(--board-text-muted); }
 .picker-choice[data-on] {
   border-color: var(--podium-blue);
-  background: var(--color-accent-100);
+  background: #23146a;
   box-shadow: 0 0 0 1px var(--podium-blue) inset;
 }
 

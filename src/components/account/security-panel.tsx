@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { BlueprintCard } from "@/components/app/page-shell";
 import { useT } from "@/components/i18n/locale-provider";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import {
   ActivityTable,
   DeviceTable,
@@ -33,6 +34,8 @@ export function SecurityPanel() {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [dirty,setDirty]=useState(false);
+  useUnsavedChanges(dirty);
 
   const load = useCallback(async () => {
     try {
@@ -41,35 +44,39 @@ export function SecurityPanel() {
       const data = (await res.json()) as { devices: Device[]; events: SignInEvent[] };
       setDevices(data.devices);
       setEvents(data.events);
-    } finally {
+    } catch { setError(t("Could not load. Check your connection and try again.")); } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
-    void load();
+    let active = true;
+    queueMicrotask(() => { if(active) void load(); });
+    return () => { active = false; };
   }, [load]);
 
   function revoke(deviceId?: string) {
     setNotice("");
     setError("");
     startTransition(async () => {
-      const res = await fetch("/api/auth/devices/revoke", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(deviceId ? { deviceId } : { all: true }),
-      });
-      const data = (await res.json()) as { ok?: boolean; revoked?: number };
-      if (!data.ok) {
-        setError(t("Something went wrong. Try again."));
-        return;
-      }
-      setNotice(
-        deviceId
-          ? t("That device will be asked for a code next time.")
-          : t("Every device will be asked for a code next time.")
-      );
-      await load();
+      try {
+        const res = await fetch("/api/auth/devices/revoke", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(deviceId ? { deviceId } : { all: true }),
+        });
+        const data = (await res.json()) as { ok?: boolean; revoked?: number };
+        if (!data.ok) {
+          setError(t("Something went wrong. Try again."));
+          return;
+        }
+        setNotice(
+          deviceId
+            ? t("That device will be asked for a code next time.")
+            : t("Every device will be asked for a code next time.")
+        );
+        await load();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -81,26 +88,29 @@ export function SecurityPanel() {
     setError("");
 
     startTransition(async () => {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: String(data.get("currentPassword") || ""),
-          newPassword: String(data.get("newPassword") || ""),
-          confirmPassword: String(data.get("confirmPassword") || ""),
-        }),
-      });
-      const result = (await res.json()) as { ok?: boolean; error?: string };
+      try {
+        const res = await fetch("/api/auth/change-password", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            currentPassword: String(data.get("currentPassword") || ""),
+            newPassword: String(data.get("newPassword") || ""),
+            confirmPassword: String(data.get("confirmPassword") || ""),
+          }),
+        });
+        const result = (await res.json()) as { ok?: boolean; error?: string };
 
-      if (!result.ok) {
-        setError(t(ERRORS[result.error ?? ""] ?? "Something went wrong. Try again."));
-        return;
-      }
-      form.reset();
-      setNotice(
-        t("Password changed. Every device was signed out and will need a code next time.")
-      );
-      await load();
+        if (!result.ok) {
+          setError(t(ERRORS[result.error ?? ""] ?? "Something went wrong. Try again."));
+          return;
+        }
+        form.reset();
+        setDirty(false);
+        setNotice(
+          t("Password changed. Every device was signed out and will need a code next time.")
+        );
+        await load();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -119,7 +129,7 @@ export function SecurityPanel() {
 
       <h2 className="section-title">{t("Change password")}</h2>
       <BlueprintCard style={{ padding: "20px 22px", maxWidth: 520, gap: 10 }}>
-        <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <form onInput={()=>setDirty(true)} onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
             <label className="field-label" htmlFor="currentPassword">
               {t("Current password")}

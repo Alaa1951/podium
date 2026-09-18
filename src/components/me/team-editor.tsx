@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import Link from "next/link";
+import { useIsMobile } from "@/components/app/use-mobile";
+import { confirmUnsaved, useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { updateMyTeam, type MyTeamMemberInput } from "@/lib/actions/my-team";
@@ -27,14 +30,19 @@ const ERRORS: Record<string, string> = {
 export function TeamEditor({
   members,
   open,
+  editMode = false,
 }: {
   members: EditableMember[];
   open: boolean;
+  editMode?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(editMode);
+  const mobile = useIsMobile();
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(editing && dirty);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -53,14 +61,18 @@ export function TeamEditor({
     }));
 
     startTransition(async () => {
-      const result = await updateMyTeam(input);
-      if (!result.ok) {
-        setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
-        return;
-      }
-      setSaved(true);
-      setEditing(false);
-      router.refresh();
+      try {
+        const result = await updateMyTeam(input);
+        if (!result.ok) {
+          setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
+          return;
+        }
+        setSaved(true);
+        setDirty(false);
+        setEditing(false);
+        if (editMode) router.replace("/me");
+        router.refresh();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -75,9 +87,9 @@ export function TeamEditor({
   if (!editing) {
     return (
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+        {mobile ? <Link href="/me/edit" className="btn btn-secondary">{t("Edit team")}</Link> : <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
           {t("Edit team")}
-        </button>
+        </button>}
         <span className="field-note" style={{ marginTop: 0 }}>
           {t("Names and emails can be changed until 24 hours before the event.")}
         </span>
@@ -86,7 +98,7 @@ export function TeamEditor({
   }
 
   return (
-    <form onSubmit={save} style={{ marginTop: 10, display: "grid", gap: 14, maxWidth: 560 }}>
+    <form onInput={() => setDirty(true)} onSubmit={save} style={{ marginTop: 10, display: "grid", gap: 14, maxWidth: 560 }}>
       {members.map((member) => (
         <fieldset key={member.position} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, display: "grid", gap: 8 }}>
           <legend className="field-label">{seat(member.position)}</legend>
@@ -120,12 +132,12 @@ export function TeamEditor({
       ) : null}
       {saved ? <div className="notice">{t("Team updated.")}</div> : null}
 
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="mobile-action-bar" style={{ display: "flex", gap: 10 }}>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)} disabled={pending}>
+        <button type="button" className="btn btn-ghost" onClick={() => {if (!confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) return; setDirty(false); setEditing(false); if(editMode) router.replace("/me");}} disabled={pending}>
           {t("Close")}
         </button>
       </div>

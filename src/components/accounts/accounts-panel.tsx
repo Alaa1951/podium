@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -9,6 +11,8 @@ import { useT } from "@/components/i18n/locale-provider";
 import { inviteAccount, resendInvite, setAccountStatus } from "@/lib/actions/accounts";
 import { archiveAccount, restoreAccount } from "@/lib/actions/accounts";
 import { startViewAs } from "@/lib/actions/view-as";
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
 
 export type AccountRow = {
   id: string;
@@ -40,6 +44,10 @@ export function AccountsPanel({
   archivedAccounts = [],
   ownUserId,
   canViewAs = false,
+  detailId,
+  editMode = false,
+  compose = false,
+  readOnly = false,
 }: {
   accounts: AccountRow[];
   studios: { id: string; name: string }[];
@@ -52,9 +60,14 @@ export function AccountsPanel({
   ownUserId?: string;
   /** Admin holding no preview already: rows offer to see the app as them. */
   canViewAs?: boolean;
+  detailId?: string;
+  editMode?: boolean;
+  compose?: boolean;
+  readOnly?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
+  const mobile = useIsMobile();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -63,6 +76,8 @@ export function AccountsPanel({
   // two chances to save the wrong person.
   const [editing, setEditing] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [dirty,setDirty]=useState(false);
+  useUnsavedChanges(dirty);
 
   function create(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -85,6 +100,8 @@ export function AccountsPanel({
       }
       setMessage(result.message ?? "");
       form.reset();
+      setDirty(false);
+      if(compose) router.replace("/users");
       router.refresh();
     });
   }
@@ -148,12 +165,18 @@ export function AccountsPanel({
   const statusLabel = (status: AccountRow["status"]) =>
     status === "active" ? t("Active") : status === "invited" ? t("Invited") : t("Disabled");
 
+  if (detailId) {
+    const account = accounts.find((account) => account.id === detailId)!;
+    if (editMode && isAdmin) return <div className="mobile-detail"><h1>{account.name ?? account.email}</h1><AccountEditor account={account} studios={studios} accessRoles={accessRoles} onDone={() => router.replace(`/users/${account.id}`)} /></div>;
+    return <article className="mobile-detail"><h1>{account.name ?? account.email}</h1><dl><dt>{t("Email")}</dt><dd>{account.email}</dd><dt>{t("Access level")}</dt><dd>{t(account.role)}</dd><dt>{t("Studio")}</dt><dd>{account.studioName ?? "—"}</dd><dt>{t("Status")}</dt><dd>{statusLabel(account.status)}</dd></dl>{error ? <p className="notice-error" role="alert">{error}</p> : null}{message ? <p className="notice" role="status">{message}</p> : null}<div className="mobile-action-bar" hidden={readOnly} style={readOnly?{display:"none"}:undefined}>{isAdmin ? <DetailLink href={`/users/${account.id}/edit`} className="btn btn-primary">{t("Edit")}</DetailLink> : null}<button className="btn btn-secondary" disabled={pending} onClick={() => resend(account.id)}>{account.status === "invited" ? t("Resend invitation") : t("Reset password")}</button><button className="btn btn-ghost" disabled={pending} onClick={() => toggleStatus(account.id,account.status === "disabled" ? "active" : "disabled")}>{account.status === "disabled" ? t("Enable") : t("Disable")}</button>{canViewAs && account.role !== "admin" && account.status === "active" ? <button className="btn btn-secondary" disabled={pending} onClick={() => viewAs(account.id)}>{t("View as")}</button> : null}{isAdmin && account.id !== ownUserId ? <button className="btn btn-ghost" disabled={pending} onClick={() => { if(window.confirm(t("Remove {name} from this competition?",{name:account.name ?? account.email}))) remove(account.id); }}>{t("Remove")}</button> : null}</div></article>;
+  }
+
   return (
     <>
-      <BlueprintCard style={{ padding: "20px 22px", marginTop: 22, maxWidth: 560, gap: 10 }}>
+      {!readOnly && (!mobile || compose) ? <BlueprintCard style={{ padding: "20px 22px", marginTop: 22, maxWidth: 560, gap: 10 }}>
         <div className="card-kicker">{t("Create an account")}</div>
 
-        <form onSubmit={create} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <form onInput={()=>setDirty(true)} onSubmit={create} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {isAdmin ? (
             <div>
               <label className="field-label" htmlFor="ac-role">
@@ -226,7 +249,7 @@ export function AccountsPanel({
             )}
           </p>
         </form>
-      </BlueprintCard>
+      </BlueprintCard> : !readOnly && !compose ? <Link href="/users/new" className="btn btn-primary">{t("Create an account")}</Link> : null}
 
       {message ? (
         <div className="notice" style={{ marginTop: 16 }}>
@@ -239,8 +262,8 @@ export function AccountsPanel({
         </div>
       ) : null}
 
-      <h2 className="section-title">{t("Active accounts")}</h2>
-      <div className="table-scroll">
+      {!compose ? <><h2 className="section-title">{t("Active accounts")}</h2>
+      {mobile ? <div className="mobile-list">{accounts.map((account) => <DetailLink key={account.id} href={`/users/${account.id}`}><div><strong>{account.name ?? account.email}</strong><small>{account.email}</small><small>{account.studioName ?? t(account.role)}</small></div><span className="badge">{statusLabel(account.status)}</span><span aria-hidden="true">›</span></DetailLink>)}</div> : <div className="table-scroll">
         <table className="table">
           <thead>
             <tr>
@@ -366,7 +389,7 @@ export function AccountsPanel({
             ) : null}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {isAdmin && archivedAccounts.length > 0 ? (
         <div style={{ marginTop: 16 }}>
@@ -422,6 +445,7 @@ export function AccountsPanel({
           ) : null}
         </div>
       ) : null}
+      </> : null}
     </>
   );
 }

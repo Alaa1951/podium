@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
 
 const RULES_MESSAGE =
@@ -24,6 +25,7 @@ export function SetPasswordForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  useUnsavedChanges(!done && (!!password || !!confirm));
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -52,7 +54,7 @@ export function SetPasswordForm({
       }
 
       setDone(true);
-      setTimeout(() => router.push("/login"), 1200);
+      setTimeout(() => router.replace("/login"), 1200);
     } catch {
       setError(t("Something went wrong. Try again."));
     } finally {

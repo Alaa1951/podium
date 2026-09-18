@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+import { DetailLink, useListFilter } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
+import { FilterSheet } from "@/components/app/filter-sheet";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { fmt } from "@/lib/scoring";
@@ -47,6 +51,7 @@ export function ResultsTable({
   studios,
   zoneNames,
   exportHref,
+  detailId,
 }: {
   podiums: PodiumBlock[];
   rows: ResultRow[];
@@ -54,12 +59,15 @@ export function ResultsTable({
   studios: string[];
   zoneNames: { number: number; name: string }[];
   exportHref: string;
+  detailId?: string;
 }) {
   const t = useT();
-  const [bracket, setBracket] = useState("all");
-  const [studio, setStudio] = useState("all");
-  const [query, setQuery] = useState("");
+  const [bracket, setBracket] = useListFilter("bracket");
+  const [studio, setStudio] = useListFilter("studio");
+  const [query, setQuery] = useListFilter("q", "");
   const [open, setOpen] = useState<string | null>(null);
+  const path = usePathname();
+  const mobile = useIsMobile();
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -76,6 +84,11 @@ export function ResultsTable({
   }, [rows, bracket, studio, query]);
 
   const scored = rows.filter((row) => row.submitted).length;
+
+  if (detailId) {
+    const row = rows.find((row) => row.id === detailId)!;
+    return <article className="mobile-detail"><h1>{row.name}</h1><p>{row.competitors.join(" · ")}</p><dl><dt>{t("Rank")}</dt><dd>{row.submitted ? row.rank : "—"}</dd><dt>{t("Total")}</dt><dd>{row.submitted ? fmt(row.total,2) : t("no score")}</dd><dt>{t("Bracket")}</dt><dd>{t(row.category)} · {t(row.division)}</dd><dt>{t("Wave")}</dt><dd>{row.wave}</dd><dt>{t("Studio")}</dt><dd>{row.studioName ?? t("Non-member")}</dd></dl>{row.zones.map((zone) => <div key={zone.number} className="mobile-list-card"><div><strong>{t("Zone")} {zone.number}</strong><small>{zone.name}</small></div><strong className="pd-num">{row.submitted ? fmt(zone.points,2) : "—"}</strong></div>)}</article>;
+  }
 
   return (
     <>
@@ -122,7 +135,7 @@ export function ResultsTable({
           aria-label={t("Search results")}
           style={{ flex: "1 1 220px", minWidth: 0 }}
         />
-        <select
+        <FilterSheet><select
           className="input"
           value={bracket}
           onChange={(e) => setBracket(e.target.value)}
@@ -148,7 +161,7 @@ export function ResultsTable({
             </option>
           ))}
         </select>
-        <div className="reg-filters-count">
+        </FilterSheet><div className="reg-filters-count">
           {visible.length === rows.length
             ? `${rows.length} ${t("teams")} · ${scored} ${t("scored")}`
             : `${visible.length} ${t("of")} ${rows.length}`}
@@ -158,7 +171,7 @@ export function ResultsTable({
         </div>
       </div>
 
-      <div className="table-scroll" style={{ marginTop: 12 }}>
+      {mobile ? <div className="mobile-list">{visible.length ? visible.map((row) => <DetailLink key={row.id} href={`${path}/${row.id}`}><span className="pd-num">{row.submitted ? `#${row.rank}` : "—"}</span><div><strong>{row.name}</strong><small>{row.competitors.join(" · ")}</small><small>{t(row.category)} · {t(row.division)}</small></div><strong className="pd-num">{row.submitted ? fmt(row.total,2) : "—"}</strong><span aria-hidden="true">›</span></DetailLink>) : <p className="notice">{t("No teams match those filters.")}</p>}</div> : <div className="table-scroll" style={{ marginTop: 12 }}>
         <table className="table">
           <thead>
             <tr>
@@ -194,7 +207,7 @@ export function ResultsTable({
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
     </>
   );
 }

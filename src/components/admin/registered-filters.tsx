@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { FilterSheet } from "@/components/app/filter-sheet";
 
 /**
  * One search box and three filters, all of them in the URL.
@@ -74,7 +75,7 @@ export function RegisteredFilters({
         style={{ flex: "1 1 260px", minWidth: 0 }}
       />
 
-      <Select
+      <FilterSheet><Select
         label={t("Payment")}
         value={payment}
         onChange={(value) => apply({ payment: value })}
@@ -108,7 +109,7 @@ export function RegisteredFilters({
         ]}
       />
 
-      <div className="reg-filters-count">
+      </FilterSheet><div className="reg-filters-count">
         {showing === total
           ? `${total} ${t("registered")}`
           : `${showing} ${t("of")} ${total}`}

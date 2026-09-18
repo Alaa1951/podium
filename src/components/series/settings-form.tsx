@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { setSeriesStatus, updateSeriesSettings } from "@/lib/actions/series";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import {
   BoardDisplay,
   Field,
@@ -50,6 +51,8 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState(initial);
   const [message, setMessage] = useState("");
+  const [baseline, setBaseline] = useState(JSON.stringify(initial));
+  useUnsavedChanges(JSON.stringify(form) !== baseline);
 
   const set = <K extends keyof SeriesSettings>(key: K, value: SeriesSettings[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -57,30 +60,36 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
   function save() {
     setMessage("");
     startTransition(async () => {
-      const result = await updateSeriesSettings({ seriesId: form.id, ...form });
-      if (!result.ok) {
-        setMessage(
-          result.error === "SERIES_DATE_INVALID"
-            ? t("That date could not be read.")
-            : t("Check the form — a required value is missing or out of range.")
-        );
-        return;
-      }
-      setMessage(t("Saved."));
-      router.refresh();
+      try {
+        const result = await updateSeriesSettings({ seriesId: form.id, ...form });
+        if (!result.ok) {
+          setMessage(
+            result.error === "SERIES_DATE_INVALID"
+              ? t("That date could not be read.")
+              : t("Check the form — a required value is missing or out of range.")
+          );
+          return;
+        }
+        setMessage(t("Saved."));
+        setBaseline(JSON.stringify(form));
+        router.refresh();
+      } catch { setMessage(t("Could not save. Check your connection and try again.")); }
     });
   }
 
   function changeStatus(status: SeriesSettings["status"]) {
     setMessage("");
     startTransition(async () => {
-      const result = await setSeriesStatus({ seriesId: form.id, status });
-      if (result.ok) {
-        set("status", status);
-        router.refresh();
-      } else {
-        setMessage(t("Something went wrong. Try again."));
-      }
+      try {
+        const result = await setSeriesStatus({ seriesId: form.id, status });
+        if (result.ok) {
+          set("status", status);
+          setBaseline((previous) => JSON.stringify({ ...JSON.parse(previous), status }));
+          router.refresh();
+        } else {
+          setMessage(t("Something went wrong. Try again."));
+        }
+      } catch { setMessage(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -256,7 +265,7 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
       <StudioPermissions form={form} set={set} />
       <BoardDisplay form={form} set={set} />
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div className="mobile-action-bar" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-primary" onClick={save} disabled={pending}>
           {pending ? <span className="spinner" /> : null}
           {t("Save settings")}

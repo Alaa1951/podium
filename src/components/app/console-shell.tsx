@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { MobileBack, MobileIcon } from "@/components/app/mobile-navigation";
+import { mobileTabs, parentRoute } from "@/lib/mobile-navigation";
 
 import { PodiumMark } from "@/components/brand/podium-mark";
 import { SignOutButton } from "@/components/app/sign-out-button";
@@ -48,6 +49,7 @@ export function ConsoleShell({
   crumbs,
   contextName,
   contextNote,
+  contextHref,
   utilities,
   homeHref = "/",
   viewAs,
@@ -59,6 +61,7 @@ export function ConsoleShell({
   /** What this sidebar is about: PODIUM, or the competition you are inside. */
   contextName: string;
   contextNote?: string;
+  contextHref?: string;
   utilities: React.ReactNode;
   /** Where the wordmark goes — each role has its own top, and "/" is BFT MENA's. */
   homeHref?: string;
@@ -69,19 +72,28 @@ export function ConsoleShell({
 }) {
   const t = useT();
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const search = useSearchParams();
+  const open = search.get("menu") === "more";
+  const setOpen = (value: boolean) => {
+    const url = new URL(location.href);
+    if (value) {
+      url.searchParams.set("menu", "more");
+      window.history.pushState({ podiumMenu: true }, "", url.pathname + url.search);
+    } else {
+      url.searchParams.delete("menu");
+      if (window.history.state?.podiumMenu) window.history.back();
+      else router.replace(url.pathname + url.search, { scroll: false });
+    }
+  };
+  const tabs = mobileTabs(groups);
+  const activeTab = tabs.filter((item) => isActive(pathname, item.href, groups));
+  const current = groups.flatMap((group) => group.items).find((item) => isActive(pathname, item.href, groups));
+  const overview = groups.flatMap((group) => group.items).find((item) => item.href && /^\/(series|studio)\/[^/]+$/.test(item.href) && (pathname === item.href || pathname.startsWith(`${item.href}/`)));
+  const fallback = current?.href && pathname !== current.href ? parentRoute(pathname) : crumbs.at(-1)?.href ?? homeHref;
 
   return (
     <div className="console">
-      <button
-        type="button"
-        className="console-burger btn btn-secondary"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-controls="console-nav"
-      >
-        {open ? t("Close") : t("Menu")}
-      </button>
 
       <nav
         id="console-nav"
@@ -89,7 +101,8 @@ export function ConsoleShell({
         data-open={open || undefined}
         aria-label={t("Sections")}
       >
-        <Link href={homeHref} className="console-brand" onClick={() => setOpen(false)}>
+        <button type="button" className="mobile-menu-close" data-mobile-dismiss={open || undefined} onClick={() => setOpen(false)}>{t("Close")}</button>
+        <Link href={homeHref} className="console-brand">
           <PodiumMark tone="auto" height={30} />
         </Link>
 
@@ -98,7 +111,7 @@ export function ConsoleShell({
           {crumbs.length > 0 ? (
             <div className="console-crumbs">
               {crumbs.map((crumb) => (
-                <Link key={crumb.href} href={crumb.href} onClick={() => setOpen(false)}>
+                <Link key={crumb.href} href={crumb.href}>
                   ← {crumb.label}
                 </Link>
               ))}
@@ -125,7 +138,7 @@ export function ConsoleShell({
                     data-active={active || undefined}
                     aria-current={active ? "page" : undefined}
                     title={item.title}
-                    onClick={() => setOpen(false)}
+
                   >
                     <span className="console-link-label">{item.label}</span>
                     {item.badge ? (
@@ -159,12 +172,20 @@ export function ConsoleShell({
         </div>
       </nav>
 
-      {open ? <div className="console-scrim" onClick={() => setOpen(false)} aria-hidden /> : null}
-
       <main className="console-main">
-        <header className="console-inbox-head"><NotificationBell /></header>
-        {children}
+        <header className="console-inbox-head">
+          <div className="mobile-heading">
+            {open ? <button className="mobile-back" type="button" aria-label={t("Back")} onClick={() => setOpen(false)}><span aria-hidden="true">‹</span></button> : pathname !== homeHref ? <MobileBack fallback={fallback} /> : <PodiumMark tone="auto" height={24} />}
+            <Link href={contextHref ?? overview?.href ?? (/^\/studio\/[^/]+/.test(pathname) ? pathname.split("/").slice(0,3).join("/") : homeHref)} className="mobile-heading-title"><strong>{open ? t("More") : current?.label ?? contextName}</strong><small>{contextName}</small></Link>
+          </div>
+          <NotificationBell />
+        </header>
+        <div hidden={open} className="console-content">{children}</div>
       </main>
+      <nav className="mobile-tabbar" aria-label={t("Sections")}>
+        {tabs.map((item) => <Link key={item.href} href={item.href!} aria-current={!open && activeTab.includes(item) ? "page" : undefined} data-active={!open && activeTab.includes(item) || undefined}><MobileIcon href={item.href!} /><span>{item.label}</span>{item.badge ? <b className="mobile-tab-badge">{item.badge > 99 ? "99+" : item.badge}</b> : null}</Link>)}
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="console-nav" data-active={open || (!activeTab.length && !!current) || undefined}><MobileIcon href="/more" /><span>{t("More")}</span></button>
+      </nav>
     </div>
   );
 }

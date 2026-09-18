@@ -27,27 +27,34 @@ export function FinisherStop({
   const t = useT();
   // The clock reads the wall through state, so every render is pure: the
   // tick only moves 'now', and the rest is arithmetic on it.
-  const [now, setNow] = useState(() => Date.now());
+  // The server and first browser render share a placeholder. Reading the wall
+  // during initial render can change the second while HTML is in transit.
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if(active) setNow(Date.now()); });
     const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return () => { active = false; clearInterval(id); };
   }, []);
 
-  const remainingMs = Math.max(0, new Date(endsAt).getTime() - now);
+  const remainingMs = now === null ? 0 : Math.max(0, new Date(endsAt).getTime() - now);
   const minutes = Math.floor(remainingMs / 60_000);
   const seconds = Math.floor((remainingMs % 60_000) / 1000);
-  const over = remainingMs === 0;
+  const over = now !== null && remainingMs === 0;
 
   return (
     <button
       type="button"
       className="btn btn-sm btn-cyan"
-      disabled={disabled || over}
+      disabled={disabled || now === null || over}
       title={t("Record the wave's remaining time for this team")}
-      onClick={() => onCapture({ minutes, seconds })}
+      onClick={() => {
+        const captured = Math.max(0, new Date(endsAt).getTime() - Date.now());
+        onCapture({ minutes: Math.floor(captured / 60_000), seconds: Math.floor((captured % 60_000) / 1000) });
+      }}
     >
-      {over ? t("Wave clock finished") : `${t("Stop")} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
+      {now === null ? `${t("Stop")} · --:--` : over ? t("Wave clock finished") : `${t("Stop")} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
     </button>
   );
 }

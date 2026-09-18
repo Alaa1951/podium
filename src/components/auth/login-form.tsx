@@ -59,7 +59,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           callbackUrl,
           trust: String(trustDevice),
         });
-        router.push(`/verify?${params.toString()}`);
+        router.replace(`/verify?${params.toString()}`);
         return;
       }
       if (authError.includes("ACCOUNT_DISABLED")) {
@@ -83,7 +83,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         return;
       }
 
-      router.push(callbackUrl);
+      router.replace(callbackUrl);
       router.refresh();
     } catch {
       setError(t("Something went wrong. Try again."));

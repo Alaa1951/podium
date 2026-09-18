@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export default async function StudioAnnouncements() {
   const user = await requireRole("studio");
   const { t } = await getTranslator();
-  return <><PlainHeader roleLabel={user.name ?? t("Studio")} /><AnnouncementsPage /></>;
+  return <><PlainHeader roleLabel={user.name ?? t("Studio")} />{await AnnouncementsPage()}</>;
 }

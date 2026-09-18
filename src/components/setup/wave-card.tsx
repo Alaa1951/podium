@@ -1,6 +1,8 @@
 "use client";
 
 import { BlueprintCard } from "@/components/app/page-shell";
+import { useState } from "react";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
 import { Field, TeamRow, type SetupTeam } from "@/components/setup/wave-board-parts";
 import { waveWindowLabel, type WaveState } from "@/lib/waves";
@@ -65,6 +67,8 @@ export function WaveCard({
   const t = useT();
 
   const window = waveWindowLabel(wave.startTime, wave.durationMinutes);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(editing && dirty);
   const over = inWave.length > wave.capacity;
   const brackets = [...new Set(inWave.map((team) => `${team.category} ${team.division}`))];
 
@@ -111,7 +115,7 @@ export function WaveCard({
       </div>
 
       {isAdmin && editing ? (
-        <form action={(form) => onSaveSettings(wave, form)} className="wave-card-settings">
+        <form onInput={() => setDirty(true)} action={(form) => onSaveSettings(wave, form)} className="wave-card-settings">
           <Field label={t("Wave")} name="number" value={wave.number} min={1} max={99} />
           <div>
             <label className="field-label" htmlFor={`start-${wave.id}`}>

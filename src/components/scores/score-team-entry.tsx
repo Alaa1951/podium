@@ -20,6 +20,7 @@ import {
 
 import { halfOf, scoreErrorMessage, show } from "@/components/scores/score-grid-row";
 import type { GridTeam } from "@/components/scores/score-grid-types";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE PHONE'S ENTRY SCREEN: one team, nothing else on the page.
@@ -84,6 +85,7 @@ export function ScoreTeamEntry({
     zone.inputs.some((input) => (draft[input.id] ?? null) !== (team.values[input.id] ?? null))
   );
   const status = teamStatus(team);
+  useUnsavedChanges(dirty && !saved);
 
   function set(inputId: string, value: number | null) {
     setSaved(false);
@@ -94,19 +96,23 @@ export function ScoreTeamEntry({
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveScore({ teamId: team.id, values });
-      if (!result.ok) {
-        setError(scoreErrorMessage(result.error, t));
-        return;
-      }
-      setSaved(true);
-      router.refresh();
+      try {
+        const result = await saveScore({ teamId: team.id, values });
+        if (!result.ok) {
+          setError(scoreErrorMessage(result.error, t));
+          return;
+        }
+        setSaved(true);
+        router.refresh();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
   return (
     <div className="team-entry">
-      <button type="button" className="team-entry-back" onClick={onBack}>
+      <button type="button" className="team-entry-back" onClick={() => {
+        if (!dirty || saved || window.confirm(t("You have unsaved changes. Leave this screen?"))) onBack();
+      }}>
         ← {t("Back to the list")}
       </button>
 

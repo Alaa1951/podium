@@ -63,7 +63,7 @@ export function CompetitorLoginForm() {
       return;
     }
 
-    router.push("/me");
+    router.replace("/me");
     router.refresh();
   }
 
@@ -75,7 +75,6 @@ export function CompetitorLoginForm() {
           ask();
         }}
       >
-        <h1 className="auth-title">{t("Competitor sign-in")}</h1>
         <p className="auth-sub">
           {t("Use the email you registered with. We will send you a six-digit code.")}
         </p>

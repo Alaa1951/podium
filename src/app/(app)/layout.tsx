@@ -1,5 +1,6 @@
-import { requireUser } from "@/lib/session";
+import { homeForUser, requireUser } from "@/lib/session";
 import { ViewAsBanner } from "@/components/app/view-as-banner";
+import { PersonalMobileNavigation } from "@/components/app/mobile-navigation";
 
 /**
  * Everything below this layout needs an account. `requireUser` redirects to
@@ -16,6 +17,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <>
       {user.viewAs ? <ViewAsBanner name={user.name} role={user.role} /> : null}
       {children}
+      <PersonalMobileNavigation role={user.role} homeHref={await homeForUser(user)} />
     </>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useIsMobile } from "@/components/app/use-mobile";
+import { confirmUnsaved } from "@/components/app/mobile-runtime";
 import { useSession } from "next-auth/react";
 
 import { useLocale } from "@/components/i18n/locale-provider";
@@ -18,6 +20,8 @@ export function NotificationBell() {
 function NotificationInbox() {
   const { t, locale } = useLocale();
   const pathname = usePathname();
+  const router = useRouter();
+  const mobile = useIsMobile();
   const [feed, setFeed] = useState<NotificationFeed | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -86,14 +90,17 @@ function NotificationInbox() {
 
   return (
     <>
-      <button type="button" className="notification-bell btn btn-ghost" aria-label={t("Notifications, {count} unread", { count: unread })} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+      <button type="button" className="notification-bell btn btn-ghost" aria-label={t("Notifications, {count} unread", { count: unread })} aria-haspopup={mobile ? undefined : "dialog"} aria-expanded={mobile ? undefined : open} onClick={() => {
+        if (!mobile) { setOpen(true); return; }
+        if (confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) router.push("/notifications");
+      }}>
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" /><path d="M10 21h4" /></svg>
         {unread > 0 ? <span className="notification-count pd-num" aria-hidden="true">{unread > 99 ? "99+" : unread}</span> : null}
       </button>
       <dialog ref={dialog} className="notification-dialog" aria-labelledby="notification-title" onClose={() => setOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
         <div className="notification-dialog-head">
           <h2 id="notification-title">{t("Notifications")}</h2>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>{t("Close")}</button>
+          <button type="button" className="btn btn-ghost btn-sm" data-mobile-dismiss={open || undefined} onClick={() => setOpen(false)}>{t("Close")}</button>
         </div>
         <div className="notification-toolbar">
           <span aria-live="polite">{t("{count} unread", { count: unread })}</span>

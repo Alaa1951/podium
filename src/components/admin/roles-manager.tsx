@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import Link from "next/link";
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { createAccessRole, deleteAccessRole, updateAccessRole } from "@/lib/actions/roles";
@@ -41,15 +45,17 @@ function groupState(keys: string[], permissions: string[]) {
   return "partial" as const;
 }
 
-export function RolesManager({ roles }: { roles: RoleDTO[] }) {
+export function RolesManager({ roles, detailId, editMode = false }: { roles: RoleDTO[]; detailId?: string; editMode?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [newName, setNewName] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(editMode ? detailId ?? null : null);
+  const mobile = useIsMobile();
   const [searches, setSearches] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  useUnsavedChanges(!!newName || roles.some(role => drafts[role.id] && JSON.stringify(drafts[role.id]) !== JSON.stringify(draftOf(role))));
 
   function draftFor(role: RoleDTO): Draft {
     return drafts[role.id] ?? draftOf(role);
@@ -91,18 +97,21 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
     const draft = draftFor(role);
     setMessage("");
     startTransition(async () => {
-      const result = await updateAccessRole({
-        roleId: role.id,
-        name: draft.name,
-        nameAr: draft.nameAr || undefined,
-        permissions: draft.permissions,
-      });
-      if (result.ok) {
-        setMessage(result.message ?? "");
-        router.refresh();
-      } else {
-        report(result);
-      }
+      try {
+        const result = await updateAccessRole({
+          roleId: role.id,
+          name: draft.name,
+          nameAr: draft.nameAr || undefined,
+          permissions: draft.permissions,
+        });
+        if (result.ok) {
+          setDrafts(current => {const next = {...current}; delete next[role.id]; return next;});
+          setMessage(result.message ?? "");
+          router.refresh();
+        } else {
+          report(result);
+        }
+      } catch { setMessage(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -112,6 +121,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
       const result = await deleteAccessRole({ roleId: role.id });
       if (result.ok) {
         setMessage(result.message ?? "");
+        if (detailId) router.replace("/roles");
         router.refresh();
       } else {
         report(result);
@@ -128,7 +138,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
       ) : null}
 
       {/* ── Create ─────────────────────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 18 }}>
+      {!detailId ? <div className="card" style={{ marginBottom: 18 }}>
         <div className="form-row" style={{ alignItems: "flex-end", marginTop: 0 }}>
           <Field label={t("New role name")}>
             <input
@@ -150,7 +160,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
             {t("Add role")}
           </button>
         </div>
-      </div>
+      </div> : null}
 
       {roles.length === 0 ? (
         <div className="notice">
@@ -161,19 +171,18 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
         </div>
       ) : null}
 
-      {roles.map((role) => {
+      {roles.filter(role => !detailId || role.id === detailId).map((role) => {
+        if (mobile && !detailId) return <DetailLink key={role.id} href={`/roles/${role.id}`}><strong>{role.name}</strong><span>{role.permissions.length} {t("permissions")} · {role.usersCount} {t("accounts")}</span></DetailLink>;
         const draft = draftFor(role);
         const search = (searches[role.id] ?? "").toLowerCase();
         const open = openId === role.id;
-        const dirty =
-          JSON.stringify([...draft.permissions].sort()) !==
-          JSON.stringify([...role.permissions].sort());
+        const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(role));
 
         return (
           <div key={role.id} className="card" style={{ marginBottom: 14 }}>
             {/* Role header: open/close, name, count, delete. */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <button
+              {detailId ? <h2>{role.name}</h2> : <button
                 type="button"
                 className="linkish"
                 aria-expanded={open}
@@ -185,7 +194,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
               >
                 <span style={{ fontSize: 12 }}>{open ? "▾" : "▸"}</span>
                 <strong>{draft.name || role.name}</strong>
-              </button>
+              </button>}
               <span className="reg-sub pd-num">
                 {draft.permissions.length} {t("permissions")}
                 {role.usersCount ? ` · ${role.usersCount} ${t("accounts")}` : ""}
@@ -204,6 +213,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
                 <span className="badge badge-neutral push">{t("System role")}</span>
               )}
             </div>
+            {detailId && !editMode ? <><p>{role.description}</p><Link href={`/roles/${role.id}/edit`} className="btn btn-primary">{t("Edit")}</Link><div className="detail-facts">{PERMISSION_GROUPS.map(group=><section key={group.key}><h3>{t(group.label)}</h3>{group.permissions.filter(permission=>role.permissions.includes(permission.key)).map(permission=><p key={permission.key}>{t(permission.label)}</p>)}</section>)}</div></> : null}
 
             {open ? (
               <div style={{ marginTop: 14 }}>
@@ -225,7 +235,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
                   </Field>
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-primary desktop-only"
                     disabled={pending || !dirty}
                     onClick={() => save(role)}
                   >
@@ -354,6 +364,7 @@ export function RolesManager({ roles }: { roles: RoleDTO[] }) {
                     </div>
                   );
                 })}
+                <div className="mobile-action-bar mobile-only"><button type="button" className="btn btn-primary" disabled={pending || !dirty} onClick={() => save(role)}>{pending ? <span className="spinner" /> : null}{t("Save role")}</button></div>
               </div>
             ) : null}
           </div>

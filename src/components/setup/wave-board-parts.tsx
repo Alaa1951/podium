@@ -64,7 +64,7 @@ export function TeamRow({
   const t = useT();
 
   return (
-    <div
+    <div className="setup-team-row"
       style={{
         display: "grid",
         gridTemplateColumns: "38px minmax(0,1fr) auto",

@@ -1,8 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { confirmUnsaved, useUnsavedChanges } from "@/components/app/mobile-runtime";
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
 import { useT } from "@/components/i18n/locale-provider";
 import { deleteZone, saveZone, seedDefaultZones } from "@/lib/actions/zones";
 import { factorLabel, type ZoneDef } from "@/lib/zones";
@@ -49,24 +52,37 @@ export function ZoneEditor({
   seriesName,
   zones,
   recordedValues,
+  detailId,
+  editMode = false,
+  readOnly = false,
 }: {
   seriesId: string;
   seriesName: string;
   zones: ZoneDef[];
   /** How many measurements already exist under this definition. */
   recordedValues: number;
+  detailId?: string;
+  editMode?: boolean;
+  readOnly?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
+  const path = usePathname();
+  const mobile = useIsMobile();
+  const basePath = path.split("/settings")[0] + "/settings/zones";
+  const nextNumber = String(Math.max(0, ...zones.map((z) => z.number)) + 1);
+  const selected = zones.find(zone => zone.id === detailId);
   const [pending, startTransition] = useTransition();
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(() => editMode ? selected ? toDraft(selected) : { number: nextNumber, name: "", inputs: [{ ...BLANK_INPUT }] } : null);
   const [message, setMessage] = useState("");
+  useUnsavedChanges(!!draft && (!draft.zoneId || JSON.stringify(draft) !== JSON.stringify(toDraft(zones.find(zone=>zone.id === draft.zoneId)!))));
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
     if (result.ok) {
       setMessage(result.message ?? "");
       setDraft(null);
-      router.refresh();
+      if (editMode) router.replace(detailId === "new" ? basePath : `${basePath}/${detailId}`);
+      else router.refresh();
       return;
     }
     setMessage(
@@ -81,7 +97,7 @@ export function ZoneEditor({
   function save() {
     if (!draft) return;
     setMessage("");
-    startTransition(async () =>
+    startTransition(async () => { try {
       report(
         await saveZone({
           seriesId,
@@ -90,8 +106,8 @@ export function ZoneEditor({
           name: draft.name,
           inputs: draft.inputs,
         })
-      )
-    );
+      );
+    } catch { setMessage(t("Could not save. Check your connection and try again.")); } });
   }
 
   function remove(zoneId: string) {
@@ -104,11 +120,9 @@ export function ZoneEditor({
     startTransition(async () => report(await seedDefaultZones({ seriesId })));
   }
 
-  const nextNumber = String(Math.max(0, ...zones.map((z) => z.number)) + 1);
-
   return (
     <section style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+      {!editMode ? <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
         <h2 className="section-title" style={{ marginTop: 0 }}>
           {seriesName}
         </h2>
@@ -122,7 +136,7 @@ export function ZoneEditor({
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={pending}
+              disabled={pending || readOnly}
               onClick={startFromDefault}
             >
               {t("Start from the Series 1 table")}
@@ -131,15 +145,15 @@ export function ZoneEditor({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
+            disabled={pending || readOnly}
             onClick={() =>
-              setDraft({ number: nextNumber, name: "", inputs: [{ ...BLANK_INPUT }] })
+              mobile ? router.push(`${basePath}/new`) : setDraft({ number: nextNumber, name: "", inputs: [{ ...BLANK_INPUT }] })
             }
           >
             {t("Add zone")}
           </button>
         </div>
-      </div>
+      </div> : null}
 
       {message ? (
         <div className="notice" style={{ marginTop: 10 }}>
@@ -156,11 +170,12 @@ export function ZoneEditor({
         </div>
       ) : null}
 
-      <div className="zone-list">
-        {zones.map((zone) => (
+      {!editMode ? <div className="zone-list">
+        {(detailId ? zones.filter(zone => zone.id === detailId) : zones).map((zone) => (
           <article key={zone.id} className="zone-card">
             <div className="zone-card-head">
-              <div>
+              {mobile && !detailId ? <DetailLink href={`${basePath}/${zone.id}`}><strong>{t("Zone")} {zone.number} · {zone.name}</strong><span>{t("View details")} ›</span></DetailLink> : null}
+              <div className={mobile && !detailId ? "desktop-only" : undefined}>
                 <div className="console-group-title">
                   {t("Zone")} {zone.number}
                 </div>
@@ -170,15 +185,15 @@ export function ZoneEditor({
                 <button
                   type="button"
                   className="chip-sm"
-                  disabled={pending}
-                  onClick={() => setDraft(toDraft(zone))}
+                  disabled={pending || readOnly}
+                  onClick={() => mobile ? router.push(`${basePath}/${zone.id}/edit`) : setDraft(toDraft(zone))}
                 >
                   {t("Edit")}
                 </button>
                 <button
                   type="button"
                   className="chip-sm"
-                  disabled={pending}
+                  disabled={pending || readOnly}
                   onClick={() => remove(zone.id)}
                 >
                   {t("Remove")}
@@ -186,7 +201,7 @@ export function ZoneEditor({
               </div>
             </div>
 
-            <table className="table" style={{ marginTop: 8 }}>
+            <table className={mobile && !detailId ? "table desktop-only" : "table"} style={{ marginTop: 8 }}>
               <thead>
                 <tr>
                   <th>{t("Movement")}</th>
@@ -217,7 +232,7 @@ export function ZoneEditor({
             {t("Scores cannot be entered for this series until there is at least one.")}
           </div>
         ) : null}
-      </div>
+      </div> : null}
 
       {/* ── The editor itself ────────────────────────────────────────────── */}
       {draft ? (
@@ -272,7 +287,7 @@ export function ZoneEditor({
             />
           ))}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          <div className="mobile-action-bar" style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
             <button
               type="button"
               className="btn btn-secondary"
@@ -280,14 +295,14 @@ export function ZoneEditor({
             >
               {t("Add movement")}
             </button>
-            <button type="button" className="btn btn-primary" onClick={save} disabled={pending}>
+            <button type="button" className="btn btn-primary" onClick={save} disabled={pending || readOnly}>
               {t("Save zone")}
             </button>
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => setDraft(null)}
-              disabled={pending}
+              onClick={() => { if (!confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) return; if(editMode) router.replace(detailId === "new" ? basePath : `${basePath}/${detailId}`); else setDraft(null); }}
+              disabled={pending || readOnly}
             >
               {t("Cancel")}
             </button>

@@ -4,7 +4,11 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { SecurityPanel } from "@/components/account/security-panel";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { homeForUser, requireUser } from "@/lib/session";
+import { SignOutButton } from "@/components/app/sign-out-button";
+import { ThemeToggle } from "@/components/app/theme-toggle";
+import { getTheme } from "@/lib/theme-server";
+import { LanguageSwitch } from "@/components/i18n/language-switch";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage() {
   const user = await requireUser();
   const { t } = await getTranslator();
+  const [homeHref, theme] = await Promise.all([homeForUser(user),getTheme()]);
 
   const studio = user.studioId
     ? await prisma.studio.findUnique({ where: { id: user.studioId }, select: { name: true } })
@@ -29,10 +34,10 @@ export default async function AccountPage() {
 
   return (
     <>
-      <PlainHeader roleLabel={roleLabel} />
+      <PlainHeader roleLabel={t("Account")} homeHref={homeHref} />
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "34px 28px 70px" }}>
-        <Link href="/" className="btn btn-ghost" style={{ marginBottom: 16 }}>
+      <div className="page-shell" style={{ maxWidth: 900, margin: "0 auto", padding: "34px 28px 70px" }}>
+        <Link href={homeHref} className="btn btn-ghost desktop-only" style={{ marginBottom: 16 }}>
           ← {t("Back")}
         </Link>
 
@@ -47,6 +52,7 @@ export default async function AccountPage() {
         </div>
 
         <SecurityPanel />
+        <div className="mobile-only"><p>{roleLabel}</p><div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:24}}><LanguageSwitch /><ThemeToggle current={theme} /></div><div className="mobile-action-bar"><SignOutButton /></div></div>
       </div>
     </>
   );

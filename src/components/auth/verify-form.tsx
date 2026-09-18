@@ -59,7 +59,7 @@ export function VerifyForm({
         return;
       }
 
-      router.push(callbackUrl);
+      router.replace(callbackUrl);
       router.refresh();
     } catch {
       setError(t("Something went wrong. Try again."));

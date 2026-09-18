@@ -2,6 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import Link from "next/link";
+import { DetailLink } from "@/components/app/detail-link";
+import { useIsMobile } from "@/components/app/use-mobile";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { renameStudio } from "@/lib/actions/account-admin";
@@ -23,7 +27,7 @@ export type DirectoryRow = {
  * Retiring is not deleting. A studio that has run competitions keeps its
  * history — it simply stops being offered when the next one is set up.
  */
-export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
+export function StudioDirectory({ studios, detailId, editMode = false }: { studios: DirectoryRow[]; detailId?: string; editMode?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -31,7 +35,10 @@ export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
   const [message, setMessage] = useState("");
   // The row being renamed, and what it is being renamed to.
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const selected = studios.find(studio => studio.id === detailId);
+  const [draft, setDraft] = useState(selected?.name ?? "");
+  const mobile = useIsMobile();
+  useUnsavedChanges(!!name || (editMode && draft !== selected?.name) || (!!editing && draft !== studios.find(studio => studio.id === editing)?.name));
 
   function add() {
     if (name.trim().length < 2) return;
@@ -64,6 +71,7 @@ export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
         return;
       }
       setEditing(null);
+      if (editMode) router.replace(`/studios/${studio.id}`);
       router.refresh();
     });
   }
@@ -71,11 +79,13 @@ export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
   function toggle(studio: DirectoryRow) {
     setMessage("");
     startTransition(async () => {
-      await setStudioActive({ studioId: studio.id, isActive: !studio.isActive });
+      const result = await setStudioActive({ studioId: studio.id, isActive: !studio.isActive });
+      if (!result.ok) { setMessage(t("Something went wrong. Try again.")); return; }
       router.refresh();
     });
   }
 
+  if (selected) return <section className="detail-screen"><h2>{selected.name}</h2>{message ? <div role="alert" className="notice-error">{message}</div> : null}{editMode ? <form onSubmit={event => {event.preventDefault(); rename(selected);}}><label className="field-label">{t("Name")}<input className="input" value={draft} onChange={event=>setDraft(event.target.value)} required /></label><div className="mobile-action-bar"><button className="btn btn-primary" disabled={pending || draft.trim().length < 2}>{t("Save")}</button></div></form> : <><dl className="detail-facts">{[["Competitions",selected.competitions],["Teams",selected.teams],["Members",selected.members],["Accounts",selected.accounts],["Status",t(selected.isActive?"Active":"Retired")]].map(([label,value])=><div key={label}><dt>{t(String(label))}</dt><dd>{value}</dd></div>)}</dl><div className="mobile-action-bar"><Link className="btn btn-primary" href={`/studios/${selected.id}/edit`}>{t("Edit")}</Link><button className="btn btn-secondary" disabled={pending} onClick={()=>toggle(selected)}>{t(selected.isActive?"Retire":"Activate")}</button></div></>}</section>;
   return (
     <>
       <section className="form-block">
@@ -111,7 +121,7 @@ export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
         </div>
       ) : null}
 
-      <div className="table-scroll">
+      {mobile ? <div className="mobile-list">{studios.map(studio=><DetailLink key={studio.id} href={`/studios/${studio.id}`}><strong>{studio.name}</strong><span className="reg-sub">{studio.competitions} {t("Competitions")} · {studio.teams} {t("Teams")}</span><span className="badge badge-neutral">{t(studio.isActive?"Active":"Retired")}</span></DetailLink>)}</div> : <div className="table-scroll">
         <table className="table">
           <thead>
             <tr>
@@ -201,7 +211,7 @@ export function StudioDirectory({ studios }: { studios: DirectoryRow[] }) {
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
     </>
   );
 }

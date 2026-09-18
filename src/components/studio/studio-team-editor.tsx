@@ -7,6 +7,7 @@ import { updateRegistration } from "@/lib/actions/registrations";
 import { CATEGORIES } from "@/lib/scoring";
 
 import type { StudioTeamRow } from "@/components/studio/studio-teams-table";
+import { confirmUnsaved, useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORRECTING AN ENTRY.
@@ -24,10 +25,12 @@ export function StudioTeamEditor({
   row,
   studios,
   onDone,
+  canChooseDivision = false,
 }: {
   row: StudioTeamRow;
   studios: { id: string; name: string }[];
   onDone: () => void;
+  canChooseDivision?: boolean;
 }) {
   const t = useT();
   const [pending, startTransition] = useTransition();
@@ -35,7 +38,10 @@ export function StudioTeamEditor({
 
   const [name, setName] = useState(row.name);
   const [category, setCategory] = useState(row.category);
+  const [division, setDivision] = useState(row.division);
+  const [saved, setSaved] = useState(false);
   const [people, setPeople] = useState(row.people);
+  useUnsavedChanges(!saved && (name !== row.name || category !== row.category || division !== row.division || JSON.stringify(people) !== JSON.stringify(row.people)));
 
   function person(index: number, patch: Partial<StudioTeamRow["people"][number]>) {
     setPeople((current) => current.map((p, i) => (i === index ? { ...p, ...patch } : p)));
@@ -44,28 +50,31 @@ export function StudioTeamEditor({
   function save() {
     setError("");
     startTransition(async () => {
-      const result = await updateRegistration({
-        teamId: row.id,
-        teamName: name,
-        category,
-        division: row.division,
-        one: toPerson(people[0]),
-        two: toPerson(people[1]),
-      });
+      try {
+        const result = await updateRegistration({
+          teamId: row.id,
+          teamName: name,
+          category,
+          division,
+          one: toPerson(people[0]),
+          two: toPerson(people[1]),
+        });
 
-      if (!result.ok) {
-        setError(
-          result.error === "DIVISION_LOCKED"
-            ? t("A change of division comes from BFT MENA.")
-            : result.error === "REGISTRATION_CLOSED"
-              ? t("Registrations have closed. Ask BFT MENA for any further change.")
-              : result.error === "INVALID_INPUT"
-                ? t("Check the fields — a name is missing or an email is not valid.")
-                : t("Something went wrong. Try again.")
-        );
-        return;
-      }
-      onDone();
+        if (!result.ok) {
+          setError(
+            result.error === "DIVISION_LOCKED"
+              ? t("A change of division comes from BFT MENA.")
+              : result.error === "REGISTRATION_CLOSED"
+                ? t("Registrations have closed. Ask BFT MENA for any further change.")
+                : result.error === "INVALID_INPUT"
+                  ? t("Check the fields — a name is missing or an email is not valid.")
+                  : t("Something went wrong. Try again.")
+          );
+          return;
+        }
+        setSaved(true);
+        onDone();
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
   }
 
@@ -94,8 +103,7 @@ export function StudioTeamEditor({
 
         <label>
           <span className="field-label">{t("Division")}</span>
-          <input className="input" value={t(row.division)} disabled readOnly />
-          <span className="field-note">{t("A change of division comes from BFT MENA.")}</span>
+          {canChooseDivision ? <select className="input" value={division} onChange={event=>setDivision(event.target.value)}>{["Rookie","Open","Pro"].map(value=><option key={value} value={value}>{t(value)}</option>)}</select> : <><input className="input" value={t(row.division)} disabled readOnly /><span className="field-note">{t("A change of division comes from BFT MENA.")}</span></>}
         </label>
       </div>
 
@@ -164,12 +172,12 @@ export function StudioTeamEditor({
         </div>
       ) : null}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <div className="mobile-action-bar" style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={save}>
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
         </button>
-        <button type="button" className="btn btn-ghost" disabled={pending} onClick={onDone}>
+        <button type="button" className="btn btn-ghost" disabled={pending} onClick={()=>{if(confirmUnsaved(t("You have unsaved changes. Leave this screen?")))onDone();}}>
           {t("Cancel")}
         </button>
       </div>

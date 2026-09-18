@@ -5,6 +5,9 @@ import { useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import type { RegisteredRow } from "@/components/admin/registered-table";
+import { usePathname } from "next/navigation";
+import { DetailLink } from "@/components/app/detail-link";
+import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // One registration: the row, and the panel that opens under it with the
 // contact details and the payment action.
@@ -20,7 +23,11 @@ export function RowPair({
   onReverse,
   onAttendance,
   onArchive,
+  detailOnly = false,
+  readOnly = false,
 }: {
+  detailOnly?: boolean;
+  readOnly?: boolean;
   row: RegisteredRow;
   open: boolean;
   pending: boolean;
@@ -40,6 +47,150 @@ export function RowPair({
 
   const paid = row.paymentStatus === "paid";
   const status = teamStatus(row);
+  const path = usePathname();
+  useUnsavedChanges(!readOnly && !paid && (amount !== defaultAmount || billing !== (row.billingNumber ?? "") || note !== ""));
+
+  const details = (
+<div className="reg-detail-grid">
+              {/* ── Who they are, in full ──────────────────────────────── */}
+              <div>
+                <div className="console-group-title">{t("Contact")}</div>
+                {row.people.map((person, index) => (
+                  <div key={person.fullName} style={{ marginTop: 8 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {detailOnly && person.id ? <DetailLink href={`${path}/people/${person.id}`} className="linkish">{index + 1}. {person.fullName}</DetailLink> : <>{index + 1}. {person.fullName}</>}
+                    </div>
+                    <div className="reg-sub">{person.email ?? t("no email")}</div>
+                    <div className="reg-sub pd-num">{person.phone ?? t("no phone")}</div>
+                    <div className="reg-sub">
+                      {person.studioName
+                        ? `${t("Member of")} ${person.studioName}`
+                        : t("Not a BFT member")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── The money ──────────────────────────────────────────── */}
+              <div>
+                <div className="console-group-title">{t("Payment")}</div>
+
+                {paid ? (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="pd-num" style={{ fontSize: 20, fontWeight: 600 }}>
+                      {row.amount} {row.currency}
+                    </div>
+                    <div className="reg-sub">
+                      {row.billingNumber
+                        ? `${t("Invoice")} ${row.billingNumber}`
+                        : t("No billing number recorded")}
+                    </div>
+                    <div hidden={readOnly} style={{ display: readOnly ? "none" : "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={pending || readOnly}
+                        onClick={() => onReverse(row, "pending")}
+                        style={{ height: 32, fontSize: 12 }}
+                      >
+                        {t("Mark unpaid")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={pending || readOnly}
+                        onClick={() => onReverse(row, "refunded")}
+                        style={{ height: 32, fontSize: 12 }}
+                      >
+                        {t("Refund")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  readOnly ? <p>{t("Awaiting payment")}</p> : <div style={{ marginTop: 8, display: "grid", gap: 8, maxWidth: 320 }}>
+                    <p className="reg-sub" style={{ margin: 0 }}>
+                      {t(
+                        "Confirming payment puts this team on the board. Record what was actually taken."
+                      )}
+                    </p>
+                    <label>
+                      <span className="field-label">
+                        {t("Amount")} ({defaultCurrency})
+                      </span>
+                      <input
+                        className="input pd-num"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        inputMode="decimal"
+                      />
+                    </label>
+                    <label>
+                      <span className="field-label">{t("Invoice number")}</span>
+                      <input
+                        className="input"
+                        value={billing}
+                        onChange={(e) => setBilling(e.target.value)}
+                        placeholder={t("optional")}
+                      />
+                    </label>
+                    <label>
+                      <span className="field-label">{t("Note")}</span>
+                      <input
+                        className="input"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder={t("cash at the door, card, transfer…")}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={pending || readOnly}
+                      onClick={() => onConfirm(row, amount, billing, note)}
+                    >
+                      {t("Confirm payment")}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Where they are in the day ──────────────────────────── */}
+              <div>
+                <div className="console-group-title">{t("Progress")}</div>
+                <dl className="reg-facts">
+                  <div>
+                    <dt>{t("Wave")}</dt>
+                    <dd className="pd-num">{row.wave ?? t("unassigned")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("Attended")}</dt>
+                    <dd>{row.attended ? t("yes") : t("no")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("Score")}</dt>
+                    <dd>{row.submitted ? t("submitted") : t("not yet")}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("On the board")}</dt>
+                    <dd>{paid ? t("yes") : t("no — unpaid")}</dd>
+                  </div>
+                </dl>
+
+                {onArchive ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={pending || readOnly}
+                    onClick={() => onArchive(row)}
+                    style={{ marginTop: 10, color: "var(--status-danger-text)", height: 32, fontSize: 12 }}
+                  >
+                    {t("Archive registration")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+  );
+  if (detailOnly) return <section className="mobile-detail">{details}</section>;
 
   return (
     <>
@@ -90,7 +241,7 @@ export function RowPair({
             type="button"
             className={row.attended ? "chip-sm" : "chip-sm"}
             data-active={row.attended || undefined}
-            disabled={pending}
+            disabled={pending || readOnly}
             onClick={() => onAttendance(row)}
           >
             {row.attended ? t("Checked in") : t("Check in")}
@@ -101,144 +252,7 @@ export function RowPair({
       {open ? (
         <tr className="reg-detail">
           <td colSpan={7}>
-            <div className="reg-detail-grid">
-              {/* ── Who they are, in full ──────────────────────────────── */}
-              <div>
-                <div className="console-group-title">{t("Contact")}</div>
-                {row.people.map((person, index) => (
-                  <div key={person.fullName} style={{ marginTop: 8 }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {index + 1}. {person.fullName}
-                    </div>
-                    <div className="reg-sub">{person.email ?? t("no email")}</div>
-                    <div className="reg-sub pd-num">{person.phone ?? t("no phone")}</div>
-                    <div className="reg-sub">
-                      {person.studioName
-                        ? `${t("Member of")} ${person.studioName}`
-                        : t("Not a BFT member")}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* ── The money ──────────────────────────────────────────── */}
-              <div>
-                <div className="console-group-title">{t("Payment")}</div>
-
-                {paid ? (
-                  <div style={{ marginTop: 8 }}>
-                    <div className="pd-num" style={{ fontSize: 20, fontWeight: 600 }}>
-                      {row.amount} {row.currency}
-                    </div>
-                    <div className="reg-sub">
-                      {row.billingNumber
-                        ? `${t("Invoice")} ${row.billingNumber}`
-                        : t("No billing number recorded")}
-                    </div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={pending}
-                        onClick={() => onReverse(row, "pending")}
-                        style={{ height: 32, fontSize: 12 }}
-                      >
-                        {t("Mark unpaid")}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={pending}
-                        onClick={() => onReverse(row, "refunded")}
-                        style={{ height: 32, fontSize: 12 }}
-                      >
-                        {t("Refund")}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 8, display: "grid", gap: 8, maxWidth: 320 }}>
-                    <p className="reg-sub" style={{ margin: 0 }}>
-                      {t(
-                        "Confirming payment puts this team on the board. Record what was actually taken."
-                      )}
-                    </p>
-                    <label>
-                      <span className="field-label">
-                        {t("Amount")} ({defaultCurrency})
-                      </span>
-                      <input
-                        className="input pd-num"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        inputMode="decimal"
-                      />
-                    </label>
-                    <label>
-                      <span className="field-label">{t("Invoice number")}</span>
-                      <input
-                        className="input"
-                        value={billing}
-                        onChange={(e) => setBilling(e.target.value)}
-                        placeholder={t("optional")}
-                      />
-                    </label>
-                    <label>
-                      <span className="field-label">{t("Note")}</span>
-                      <input
-                        className="input"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        placeholder={t("cash at the door, card, transfer…")}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={pending}
-                      onClick={() => onConfirm(row, amount, billing, note)}
-                    >
-                      {t("Confirm payment")}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Where they are in the day ──────────────────────────── */}
-              <div>
-                <div className="console-group-title">{t("Progress")}</div>
-                <dl className="reg-facts">
-                  <div>
-                    <dt>{t("Wave")}</dt>
-                    <dd className="pd-num">{row.wave ?? t("unassigned")}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("Attended")}</dt>
-                    <dd>{row.attended ? t("yes") : t("no")}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("Score")}</dt>
-                    <dd>{row.submitted ? t("submitted") : t("not yet")}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("On the board")}</dt>
-                    <dd>{paid ? t("yes") : t("no — unpaid")}</dd>
-                  </div>
-                </dl>
-
-                {onArchive ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={pending}
-                    onClick={() => onArchive(row)}
-                    style={{ marginTop: 10, color: "var(--status-danger-text)", height: 32, fontSize: 12 }}
-                  >
-                    {t("Archive registration")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
+            {details}
           </td>
         </tr>
       ) : null}

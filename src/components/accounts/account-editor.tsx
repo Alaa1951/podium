@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { sendResetLink, updateAccount } from "@/lib/actions/account-admin";
+import { confirmUnsaved, useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORRECTING ONE ACCOUNT.
@@ -56,6 +57,10 @@ export function AccountEditor({
   const [accessRoleId, setAccessRoleId] = useState(account.accessRoleId ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [savedDraft, setSavedDraft] = useState("");
+  const fingerprint = JSON.stringify([name,email,role,studioId,accessRoleId]);
+  const original = JSON.stringify([account.name ?? "",account.email,account.role,account.studioId ?? "",account.accessRoleId ?? ""]);
+  useUnsavedChanges(fingerprint !== (savedDraft || original));
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
     if (result.ok) {
@@ -71,18 +76,20 @@ export function AccountEditor({
   function save() {
     setError("");
     setMessage("");
-    startTransition(async () =>
-      report(
-        await updateAccount({
-          userId: account.id,
-          name,
-          email,
-          role,
-          studioId: role === "admin" ? null : studioId || null,
-          accessRoleId: accessRoleId || null,
-        })
-      )
-    );
+    startTransition(async () => {
+      try {
+        const result = await updateAccount({
+            userId: account.id,
+            name,
+            email,
+            role,
+            studioId: role === "admin" ? null : studioId || null,
+            accessRoleId: accessRoleId || null,
+          });
+        if (result.ok) setSavedDraft(fingerprint);
+        report(result);
+      } catch { setError(t("Could not save. Check your connection and try again.")); }
+    });
   }
 
   function reset() {
@@ -92,7 +99,7 @@ export function AccountEditor({
   }
 
   return (
-    <div className="account-editor">
+    <div className="account-editor" data-unsaved={fingerprint !== (savedDraft || original)}>
       {error ? (
         <div className="notice-error" role="alert" style={{ marginBottom: 10 }}>
           {error}
@@ -171,7 +178,7 @@ export function AccountEditor({
         ) : null}
       </div>
 
-      <div className="form-row" style={{ marginTop: 14 }}>
+      <div className="form-row mobile-action-bar" style={{ marginTop: 14 }}>
         <button type="button" className="btn btn-primary" onClick={save} disabled={pending}>
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
@@ -179,7 +186,7 @@ export function AccountEditor({
         <button type="button" className="btn btn-secondary" onClick={reset} disabled={pending}>
           {t("Email a password reset link")}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onDone} disabled={pending}>
+        <button type="button" className="btn btn-ghost" onClick={()=>{if(confirmUnsaved(t("You have unsaved changes. Leave this screen?")))onDone();}} disabled={pending}>
           {t("Close")}
         </button>
       </div>

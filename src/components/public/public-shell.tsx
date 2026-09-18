@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { PoweredBy, PublicBrand } from "@/components/board/board-brand";
 import { NotificationBell } from "@/components/app/notification-bell";
+import { PersonalMobileNavigation } from "@/components/app/mobile-navigation";
+import { homeForUser, getCurrentUser } from "@/lib/session";
 
 /**
  * THE PUBLISHED RESULTS.
@@ -11,7 +13,7 @@ import { NotificationBell } from "@/components/app/notification-bell";
  * the result. The wordmark is the whole header, the way BFT's own board does
  * it, and the back link is the only navigation there is.
  */
-export function PublicShell({
+export async function PublicShell({
   back,
   children,
 }: {
@@ -19,6 +21,7 @@ export function PublicShell({
   back?: { href: string; label: string };
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
   return (
     <div className="public">
       <header className="public-head">
@@ -47,6 +50,7 @@ export function PublicShell({
           PRIVACY · الخصوصية
         </Link>
       </footer>
+      {user ? <PersonalMobileNavigation role={user.role} homeHref={await homeForUser(user)} /> : null}
     </div>
   );
 }
