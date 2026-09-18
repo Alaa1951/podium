@@ -27,7 +27,7 @@ export function PlainHeader({ roleLabel }: { roleLabel: string }) {
         display: "flex",
         alignItems: "center",
         gap: 12,
-        padding: "10px 20px",
+        padding: "calc(10px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) 10px calc(20px + env(safe-area-inset-left, 0px))",
         borderBottom: "1px solid var(--border)",
         minHeight: "var(--app-bar-h)",
         flexWrap: "wrap",

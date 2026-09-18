@@ -27,6 +27,9 @@ export const viewport: Viewport = {
   themeColor: "#07073d",
   width: "device-width",
   initialScale: 1,
+  // Edge to edge in the mobile app shell — the safe-area insets below keep
+  // the interface clear of the notch and the clock.
+  viewportFit: "cover",
   // The board is read on phones in a gym; pinch-zoom must keep working.
   maximumScale: 5,
 };
