@@ -30,6 +30,7 @@ export function ScoreGridRow({
   zones,
   editBudget,
   budgetApplies = false,
+  canEditAfterClose = false,
   isAdmin,
   frozen,
   onExpand,
@@ -41,6 +42,9 @@ export function ScoreGridRow({
   editBudget: number;
   /** Only a studio is bound by the edit budget — the server's rule, mirrored. */
   budgetApplies?: boolean;
+  /** Full admins, and accounts granted the after-close permission, may still
+   *  correct a wave whose clock has run out. */
+  canEditAfterClose?: boolean;
   isAdmin: boolean;
   /** The series has closed score entry, or this account may not enter at all. */
   frozen: boolean;
@@ -68,11 +72,12 @@ export function ScoreGridRow({
   // The budget is a studio's limit, and only a studio's: admins write freely,
   // and a wave scorer writes through the grant. Mirrors canEditScore on the
   // server — when these two disagree, a judge stares at dead buttons.
+  const waveLocked = team.waveEnded && !canEditAfterClose;
   const spent = budgetApplies && team.scoreEdits >= editBudget;
   // On the desktop sheet the one-team card opens below and becomes the editor,
   // so the row's own fields step aside while it is open. On mobile the card's
   // stacked fields ARE the editor — opening it must not lock them.
-  const locked = spent || frozen || (!mobile && expanded);
+  const locked = spent || frozen || waveLocked || (!mobile && expanded);
   const total = totalPoints(zones, draft);
   const rank = 1 + team.peerTotals.filter((peer) => peer > total).length;
   const dirty = zones.some((zone) =>
@@ -188,26 +193,44 @@ export function ScoreGridRow({
                       }
                     />
                     {isCounted(group.input) ? (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-cyan"
-                        disabled={locked || pending}
-                        aria-label={`${t(group.input.label)} +1`}
-                        title={`+1 ${t(group.input.label)}`}
-                        onClick={() =>
-                          set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))
-                        }
-                        style={{
-                          minWidth: 32,
-                          height: 32,
-                          fontSize: 16,
-                          fontWeight: 700,
-                          padding: 0,
-                          flex: "none",
-                        }}
-                      >
-                        +1
-                      </button>
+                      <div style={{ display: "flex", gap: 3, flex: "none" }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-cyan"
+                          disabled={locked || pending}
+                          aria-label={`${t(group.input.label)} +1`}
+                          title={`+1 ${t(group.input.label)}`}
+                          onClick={() =>
+                            set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))
+                          }
+                          style={{
+                            minWidth: 32,
+                            height: 32,
+                            fontSize: 16,
+                            fontWeight: 700,
+                            padding: 0,
+                          }}
+                        >
+                          +1
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          disabled={locked || pending}
+                          aria-label={`${t(group.input.label)} −1`}
+                          title={`−1 ${t(group.input.label)}`}
+                          onClick={() => set(group.input.id, Math.max(0, (draft[group.input.id] ?? 0) - 1))}
+                          style={{
+                            minWidth: 32,
+                            height: 32,
+                            fontSize: 16,
+                            fontWeight: 700,
+                            padding: 0,
+                          }}
+                        >
+                          −1
+                        </button>
+                      </div>
                     ) : null}
                   </div>
                 )
@@ -260,9 +283,11 @@ export function ScoreGridRow({
               peerTotals={team.peerTotals}
               projectedRank={rank}
               budgetApplies={budgetApplies}
+              canEditAfterClose={canEditAfterClose}
               isAdmin={isAdmin}
               editBudget={frozen ? 0 : editBudget}
               waveEndsAt={team.waveEndsAt}
+              waveEnded={team.waveEnded}
             />
 
             {team.audit.length > 0 ? (
@@ -305,6 +330,8 @@ export function scoreErrorMessage(code: string, t: (key: string) => string) {
       return t("This score is locked. Ask BFT MENA to make further corrections.");
     case "SCORE_ENTRY_CLOSED":
       return t("Score entry has closed for this competition.");
+    case "WAVE_CLOCK_ENDED":
+      return t("The wave clock has ended — this score is locked.");
     case "FORBIDDEN":
       return t("You may not enter scores for this team.");
     case "INVALID_SCORE":

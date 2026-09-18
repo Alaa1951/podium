@@ -49,6 +49,10 @@ type Props = {
   budgetApplies?: boolean;
   /** When this team's wave clock runs out — the finisher stop reads it. */
   waveEndsAt?: string | null;
+  /** True once that clock has run out. */
+  waveEnded?: boolean;
+  /** Full admins, and accounts granted the after-close permission. */
+  canEditAfterClose?: boolean;
 };
 
 export function ScoreEntry({
@@ -60,6 +64,8 @@ export function ScoreEntry({
   editBudget,
   budgetApplies = false,
   waveEndsAt,
+  waveEnded = false,
+  canEditAfterClose = false,
 }: Props) {
   const t = useT();
   const router = useRouter();
@@ -85,7 +91,8 @@ export function ScoreEntry({
   // A studio gets a fixed number of writes; after that only BFT MENA can
   // change the score. The server enforces this too — this only greys the form.
   const studioSpent = budgetApplies && team.scoreEdits >= editBudget;
-  const locked = studioSpent;
+  const waveLocked = waveEnded && !canEditAfterClose;
+  const locked = studioSpent || waveLocked;
 
   function setValue(inputId: string, value: number | null) {
     setDraft((d) => ({ ...d, [inputId]: value }));
@@ -208,6 +215,12 @@ export function ScoreEntry({
             : undefined
         }
       />
+
+      {waveLocked ? (
+        <div className="notice" role="status" style={{ marginTop: 14 }}>
+          {t("The wave clock has ended — this score is locked.")}
+        </div>
+      ) : null}
 
       {outlier ? (
         <div className="notice" style={{ marginTop: 14 }}>

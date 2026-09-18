@@ -28,4 +28,6 @@ export type GridTeam = {
   audit: ScoreAuditLine[];
   /** When this team's own wave clock runs out — the finisher stop reads it. */
   waveEndsAt: string | null;
+  /** True once that clock has run out: the wave's scores are closed. */
+  waveEnded: boolean;
 };

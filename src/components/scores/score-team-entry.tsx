@@ -39,6 +39,8 @@ export function ScoreTeamEntry({
   budgetApplies = false,
   frozen,
   waveEndsAt,
+  waveEnded = false,
+  canEditAfterClose = false,
   onBack,
 }: {
   team: GridTeam;
@@ -50,6 +52,10 @@ export function ScoreTeamEntry({
   frozen: boolean;
   /** When this team's wave clock runs out — the finisher stop reads it. */
   waveEndsAt?: string | null;
+  /** True once that clock has run out. */
+  waveEnded?: boolean;
+  /** Full admins, and accounts granted the after-close permission. */
+  canEditAfterClose?: boolean;
   onBack: () => void;
 }) {
   const t = useT();
@@ -70,7 +76,8 @@ export function ScoreTeamEntry({
 
   // The budget is a studio's limit, and only a studio's — see ScoreGridRow.
   const spent = budgetApplies && team.scoreEdits >= editBudget;
-  const locked = spent || frozen;
+  const waveLocked = waveEnded && !canEditAfterClose;
+  const locked = spent || frozen || waveLocked;
   const total = totalPoints(zones, draft);
   const rank = 1 + team.peerTotals.filter((peer) => peer > total).length;
   const dirty = zones.some((zone) =>
@@ -102,6 +109,12 @@ export function ScoreTeamEntry({
       <button type="button" className="team-entry-back" onClick={onBack}>
         ← {t("Back to the list")}
       </button>
+
+      {waveLocked ? (
+        <div className="notice" role="status">
+          {t("The wave clock has ended — this score is locked.")}
+        </div>
+      ) : null}
 
       <div className="team-entry-head">
         <span className="pd-num team-entry-num">{team.number}</span>
@@ -152,23 +165,34 @@ export function ScoreTeamEntry({
                 ) : null}
               </div>
             ) : isCounted(group.input) ? (
-              // Counted movement: the whole slab is the button, and the count
-              // sits right under it — nothing small to aim for.
+              // Counted movement: the wide slab counts up, the narrow one
+              // takes a mis-tap back — 80/20 so the thumb lands on +1 by default.
               <div key={group.input.id} className="team-entry-field">
-                <button
-                  type="button"
-                  className="team-entry-stepper"
-                  disabled={locked || pending}
-                  aria-label={`${t(group.input.label)} +1`}
-                  onClick={() =>
-                    set(
-                      group.input.id,
-                      Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999)
-                    )
-                  }
-                >
-                  +1
-                </button>
+                <div className="team-entry-stepper-row">
+                  <button
+                    type="button"
+                    className="team-entry-stepper"
+                    disabled={locked || pending}
+                    aria-label={`${t(group.input.label)} +1`}
+                    onClick={() =>
+                      set(
+                        group.input.id,
+                        Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999)
+                      )
+                    }
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    className="team-entry-stepper-minus"
+                    disabled={locked || pending}
+                    aria-label={`${t(group.input.label)} −1`}
+                    onClick={() => set(group.input.id, Math.max(0, (draft[group.input.id] ?? 0) - 1))}
+                  >
+                    −1
+                  </button>
+                </div>
                 <div className="team-entry-count">
                   <span className="pd-num team-entry-count-value">
                     {draft[group.input.id] ?? 0}

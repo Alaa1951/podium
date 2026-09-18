@@ -265,6 +265,8 @@ export const AR_CORE: Phrases = {
 
   // ── The board's combined ranking ──────────────────────────────────────────
   "In the ranking": "داخل الترتيب",
+  "The wave clock has ended — this score is locked.":
+    "ساعة الموجة خلصت — التعديل على النتيجة مقفول.",
   "Stopped with {time} left on the clock": "اتوقفت وباقي {time} على الساعة",
   "Record the wave's remaining time for this team": "سجل الوقت المتبقي من الموجة للفريق ده",
   Stop: "إيقاف",

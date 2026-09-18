@@ -52,6 +52,7 @@ export function ScoreGrid({
   zones,
   editBudget,
   budgetApplies = false,
+  canEditAfterClose = false,
   isAdmin,
   frozen,
   frozenReason,
@@ -59,6 +60,7 @@ export function ScoreGrid({
   teams: GridTeam[];
   zones: ZoneDef[];
   editBudget: number;
+  canEditAfterClose?: boolean;
   /** Only a studio is bound by the edit budget — the server's rule, mirrored. */
   budgetApplies?: boolean;
   isAdmin: boolean;
@@ -78,6 +80,9 @@ export function ScoreGrid({
     );
   }
 
+  // A closed wave tells the judge why the sheet went quiet.
+  const someWaveLocked = !canEditAfterClose && teams.some((team) => team.waveEnded);
+
   if (isMobile) {
     // The phone sheet is a list, and the list is all it ever is: tapping a
     // team swaps the whole page for that team's own entry screen, and Back
@@ -94,12 +99,19 @@ export function ScoreGrid({
           </div>
         ) : null}
 
+        {someWaveLocked ? (
+          <div className="notice notice-warn" style={{ marginBottom: 14 }}>
+            {t("The wave clock has ended — this score is locked.")}
+          </div>
+        ) : null}
+
         {openTeam ? (
           <ScoreTeamEntry
             team={openTeam}
             zones={zones}
             editBudget={editBudget}
             budgetApplies={budgetApplies}
+            canEditAfterClose={canEditAfterClose}
             frozen={frozen}
             waveEndsAt={openTeam.waveEndsAt}
             onBack={() => {
@@ -116,6 +128,7 @@ export function ScoreGrid({
                 zones={zones}
                 editBudget={editBudget}
                 budgetApplies={budgetApplies}
+                canEditAfterClose={canEditAfterClose}
                 isAdmin={isAdmin}
                 frozen={frozen}
                 mobile
@@ -137,6 +150,12 @@ export function ScoreGrid({
       {frozen && frozenReason ? (
         <div className="notice notice-warn" style={{ marginBottom: 14 }}>
           {frozenReason}
+        </div>
+      ) : null}
+
+      {someWaveLocked ? (
+        <div className="notice notice-warn" style={{ marginBottom: 14 }}>
+          {t("The wave clock has ended — this score is locked.")}
         </div>
       ) : null}
 
@@ -168,6 +187,7 @@ export function ScoreGrid({
                 zones={zones}
                 editBudget={editBudget}
                 budgetApplies={budgetApplies}
+                canEditAfterClose={canEditAfterClose}
                 isAdmin={isAdmin}
                 frozen={frozen}
                 expanded={open === team.id}

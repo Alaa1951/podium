@@ -174,6 +174,31 @@ describe("canWriteScore — the whole rule for writing a score", () => {
     expect(result.allowed === false && result.reason).toBe("SCORE_ENTRY_CLOSED");
   });
 
+  it("locks a finished wave against judges and studios — the clock outranks every grant", () => {
+    const judge: CurrentUser = {
+      ...studio,
+      role: "competitor",
+      studioId: null,
+      permissions: [],
+    };
+    const ended = canWriteScore(judge, ownTeam, series, during, { ended: true });
+    expect(ended.allowed).toBe(false);
+    expect(ended.allowed === false && ended.reason).toBe("WAVE_CLOCK_ENDED");
+    expect(canWriteScore(studio, ownTeam, series, during, { ended: true }).allowed).toBe(false);
+  });
+
+  it("still lets full admins — and the after-close permission — correct a finished wave", () => {
+    expect(canWriteScore(admin, ownTeam, series, during, { ended: true }).allowed).toBe(true);
+    const limited: CurrentUser = {
+      ...admin,
+      role: "competitor",
+      permissions: ["scores.afterClose"],
+    };
+    expect(canWriteScore(limited, ownTeam, series, during, { ended: true }).allowed).toBe(true);
+    const withoutIt: CurrentUser = { ...limited, permissions: ["scores.view"] };
+    expect(canWriteScore(withoutIt, ownTeam, series, during, { ended: true }).allowed).toBe(false);
+  });
+
   it("REFUSES a studio a second write when the series grants no corrections", () => {
     const result = canWriteScore(studio, { ...ownTeam, scoreEdits: 1 }, series, during);
     expect(result.allowed).toBe(false);

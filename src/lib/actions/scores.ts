@@ -65,12 +65,24 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
           scoreEntryClosesAt: true,
         },
       },
+      waveRef: { select: { endsAt: true } },
     },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
 
-  const permission = canWriteScore(user, team, team.series, new Date());
+  // A wave whose clock has run out is closed: judges and studios are locked
+  // out of its scores, and the wave-scorer grant below does not rescue them —
+  // only the after-close permission (or a full admin) gets past this.
+  const waveEnded =
+    !!team.waveRef?.endsAt && team.waveRef.endsAt.getTime() <= Date.now();
+
+  const permission = canWriteScore(user, team, team.series, new Date(), {
+    ended: waveEnded,
+  });
   if (!permission.allowed) {
+    if (permission.reason === "WAVE_CLOCK_ENDED") {
+      return { ok: false, error: permission.reason };
+    }
     // Fall through to the wave-scorer grant: an explicit, per-wave staff
     // permission that outranks the studio rules — it is how judges and
     // recorders are put on the floor at all. It covers exactly the teams of

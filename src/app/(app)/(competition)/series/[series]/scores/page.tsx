@@ -10,6 +10,7 @@ import { getSeriesTeams, getSeriesZones } from "@/lib/queries";
 import { getSeriesScoreAudit } from "@/lib/queries-people";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
+import { can } from "@/lib/access";
 import { requirePermission, scoreWriteBudget } from "@/lib/session";
 import { listAccounts } from "@/lib/queries-people";
 
@@ -74,6 +75,7 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
     submitted: team.submitted,
     scoreEdits: team.scoreEdits,
     waveEndsAt: waveEndsAt[team.wave] ?? null,
+    waveEnded: waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
     paymentStatus: team.paymentStatus,
     values: team.values,
     peerTotals: teams
@@ -133,6 +135,7 @@ export default async function ScoresPage(props: PageProps<"/series/[series]/scor
         zones={zones}
         editBudget={scoreWriteBudget(series)}
         budgetApplies={user.role === "studio"}
+        canEditAfterClose={user.role === "admin" || can(user, "scores.afterClose")}
         isAdmin={user.role === "admin"}
         frozen={false}
       />

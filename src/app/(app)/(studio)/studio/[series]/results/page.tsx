@@ -75,6 +75,7 @@ export default async function StudioResultsPage(props: PageProps<"/studio/[serie
       .map((other) => other.total),
     audit: audit.get(team.id) ?? [],
     waveEndsAt: null,
+    waveEnded: false,
   }));
 
   return (

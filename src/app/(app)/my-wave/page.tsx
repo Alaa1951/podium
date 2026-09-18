@@ -6,6 +6,7 @@ import type { GridTeam } from "@/components/scores/score-grid-types";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getSeriesZones } from "@/lib/queries";
+import { can } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +103,7 @@ export default async function MyWavePage() {
         submitted: team.score?.status === "submitted",
         scoreEdits: team.scoreEdits,
         waveEndsAt: grant.wave.endsAt?.toISOString() ?? null,
+        waveEnded: grant.wave.endsAt ? grant.wave.endsAt <= new Date() : false,
         paymentStatus: team.paymentStatus,
         values: Object.fromEntries(
           (team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value])
@@ -153,6 +155,7 @@ export default async function MyWavePage() {
               zones={sheet.zones}
               editBudget={0}
               budgetApplies={false}
+              canEditAfterClose={user.role === "admin" || can(user, "scores.afterClose")}
               isAdmin={false}
               frozen={sheet.frozen}
               frozenReason={

@@ -90,6 +90,11 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       },
       { key: "scores.view", label: "See the score sheet", labelAr: "عرض شيت الدرجات" },
       { key: "scores.edit", label: "Enter and correct scores", labelAr: "إدخال وتصحيح الدرجات" },
+      {
+        key: "scores.afterClose",
+        label: "Correct scores after the wave clock ended",
+        labelAr: "تصحيح الدرجات بعد انتهاء ساعة الموجة",
+      },
       { key: "waves.view", label: "See the wave schedule", labelAr: "عرض جدول الموجات" },
       {
         key: "waves.manage",
@@ -226,7 +231,11 @@ export type ScoreWriteDecision =
   | { allowed: true }
   | {
       allowed: false;
-      reason: "FORBIDDEN" | "EDIT_BUDGET_SPENT" | "SCORE_ENTRY_CLOSED";
+      reason:
+        | "FORBIDDEN"
+        | "EDIT_BUDGET_SPENT"
+        | "SCORE_ENTRY_CLOSED"
+        | "WAVE_CLOCK_ENDED";
     };
 
 /**
@@ -250,9 +259,24 @@ export function canWriteScore(
     studioScoreCorrections: number;
     scoreEntryClosesAt: Date | null;
   },
-  now: Date
+  now: Date,
+  wave: { ended: boolean } = { ended: false }
 ): ScoreWriteDecision {
+  // Once a wave's clock has run out, its scores are history. The competition's
+  // authority can still correct them — full admins always, and any account
+  // whose access role carries the after-close permission. Judges and studios
+  // cannot, however earned their access feels.
+  const afterClose = user.role === "admin" || can(user, "scores.afterClose");
+  if (wave.ended && !afterClose) {
+    return { allowed: false, reason: "WAVE_CLOCK_ENDED" };
+  }
+
   if (user.role === "admin") return { allowed: true };
+
+  // The after-close authority is a write path of its own: an account holding
+  // it is competition HQ for corrections, and is not bound by the studio's
+  // entering rules or budget.
+  if (afterClose) return { allowed: true };
 
   if (!series.studiosMayEnterScores) return { allowed: false, reason: "FORBIDDEN" };
 

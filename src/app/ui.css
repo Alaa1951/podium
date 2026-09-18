@@ -936,3 +936,21 @@ select.input { cursor: pointer; }
   font-size: 17px;
   font-weight: 700;
 }
+
+.team-entry-stepper-row { display: flex; gap: 8px; }
+.team-entry-stepper-row .team-entry-stepper { flex: 4; min-width: 0; }
+.team-entry-stepper-minus {
+  flex: 1;
+  min-width: 0;
+  height: 84px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-family: var(--font-heading), sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.team-entry-stepper-minus:active { transform: scale(0.97); }
+.team-entry-stepper-minus:disabled { opacity: 0.55; cursor: default; transform: none; }
