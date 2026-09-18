@@ -53,6 +53,7 @@ function contentSecurityPolicy(nonce: string) {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "worker-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
@@ -103,6 +104,10 @@ export function proxy(request: NextRequest) {
 
   const isPublic =
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    // Installation and offline recovery must work before authentication.
+    // Exact files only: never make other scripts or account routes public.
+    pathname === "/sw.js" ||
+    pathname === "/manifest.webmanifest" ||
     pathname === "/api/health" ||
     pathname.startsWith("/api/auth/");
 
