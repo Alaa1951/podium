@@ -1,25 +1,27 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import { useEffect } from "react";
+import { syncServiceWorker } from "@/lib/service-worker";
 
 /**
- * Registers the platform service worker once, on load.
+ * Registers the platform service worker once, on load — in browsers only.
  *
  * The worker caches nothing — it exists so Chromium offers the one-tap
  * install, and so a gym's wifi drop shows our offline page instead of the
- * browser's. iOS adds the app to the Home Screen without any of this.
+ * browser's. iOS adds the app to the Home Screen without any of this. Inside
+ * the store shells it is removed instead (see syncServiceWorker).
  */
 export function PwaRegister() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    const register = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
+    const sync = () => {
+      syncServiceWorker(Capacitor.isNativePlatform(), navigator.serviceWorker).catch(() => {
         // No worker = no install prompt; the app keeps working as a page.
       });
     };
-    if (document.readyState === "complete") register();
-    else window.addEventListener("load", register, { once: true });
-    return () => window.removeEventListener("load", register);
+    if (document.readyState === "complete") sync();
+    else window.addEventListener("load", sync, { once: true });
+    return () => window.removeEventListener("load", sync);
   }, []);
 
   return null;
