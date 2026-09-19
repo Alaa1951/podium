@@ -2,12 +2,15 @@ import { redirect } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, homeForUser } from "@/lib/session";
 import { getTranslator } from "@/lib/i18n/server";
 
 export default async function LoginPage(props: PageProps<"/login">) {
   const user = await getCurrentUser();
-  if (user) redirect("/");
+  // The store shells open here on every launch. Go straight to the person's
+  // home: "/" is streamed, so its own redirect for a non-admin arrives as a
+  // meta refresh after a second full page load.
+  if (user) redirect(await homeForUser(user));
 
   const { t } = await getTranslator();
   const params = await props.searchParams;
