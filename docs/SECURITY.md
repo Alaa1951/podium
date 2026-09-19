@@ -30,11 +30,14 @@ can then see or change is filtered on the server by their role and their studio.
 | Device fingerprints stored as HMAC, never raw | `hashDeviceFingerprint` |
 | Rate limit per IP **and** per address | [`rate-limit.ts`](../src/lib/rate-limit.ts) |
 | Recent failures force a code even on a trusted device | `isSuspiciousLogin` |
-| Session: httpOnly, SameSite=Lax, Secure in production, 12 hours | `auth.ts` |
+| Session: httpOnly, SameSite=Lax, Secure in production, 30 days since last use | `session-deadline.ts` |
 | Role, studio and status re-read from the database every 5 min | `jwt` callback |
 
-**Twelve hours** is one event day. A session that outlives the event is a laptop
-left open in a gym.
+**Signed in until sign-out**, or 30 days without use. The mobile app is expected
+to stay signed in; every open extends the deadline, and an expired session is
+never revived. The cost: a shared laptop left signed in stays signed in, so staff
+must sign out on shared machines. Disabled or archived accounts still lose access
+within the five-minute refresh above.
 
 `OTP_EXEMPT_EMAILS` is a server-only, exact email allowlist for temporary reviewer
 staff access. It is evaluated only after a valid password and account status checks

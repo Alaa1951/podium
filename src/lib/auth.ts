@@ -6,24 +6,13 @@ import type { Role, UserStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { providers } from "@/lib/auth-providers";
 import type { SessionUser } from "@/lib/auth-shared";
+import { nextSessionDeadline, SESSION_IDLE_MS } from "@/lib/session-deadline";
 
 export { AUTH_ERRORS } from "@/lib/auth-shared";
 
-// How long each kind of person stays signed in.
-//
-// Staff get an event day, not a fortnight: a laptop left open on a gym floor
-// is the realistic threat, and twelve hours covers the longest day anyone
-// works. A competitor gets a full day, because they sign in once in the
-// morning and want to still be in that evening when the results are argued
-// over — and their session can reach nothing but their own result.
-const SESSION_HOURS: Record<string, number> = {
-  admin: 12,
-  studio: 12,
-  competitor: 24,
-};
-
-/** The cookie has to outlive the longest of them; the token expires sooner. */
-const SESSION_MAX_AGE = 24 * 3_600;
+// Everyone stays signed in until they sign out, or until 30 days pass without
+// using the app (session-deadline.ts). The cookie and the token live as long.
+const SESSION_MAX_AGE = SESSION_IDLE_MS / 1000;
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -56,15 +45,17 @@ export const authOptions: NextAuthOptions = {
         token.role = u.role;
         token.status = u.status;
         token.accessRoleId = u.accessRoleId ?? null;
-        // The role's own deadline, stamped at sign-in. The cookie is longer
-        // than this for everyone but a competitor; session.ts is what enforces
-        // it, so a token that outlives its role simply stops resolving.
-        token.expiresAt = Date.now() + (SESSION_HOURS[u.role] ?? 12) * 3_600_000;
+        // The idle deadline, enforced by session.ts on every request.
+        token.expiresAt = Date.now() + SESSION_IDLE_MS;
         token.studioId = u.studioId;
         token.locale = u.locale;
         token.refreshedAt = Date.now();
         return token;
       }
+
+      // Using the app moves the idle deadline forward; the re-issued cookie
+      // carries it. An already expired session stays expired.
+      token.expiresAt = nextSessionDeadline(token.expiresAt);
 
       // Re-read role, studio and status on a throttle so a change an admin
       // makes takes effect without forcing a sign-out — and so a disabled or

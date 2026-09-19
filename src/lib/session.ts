@@ -93,9 +93,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // check is repeated here rather than trusted from sign-in time.
   if (session.user.status !== "active") return null;
 
-  // Each role has its own session length — staff twelve hours, a competitor
-  // twenty-four. The cookie is cut to the longest of them, so the shorter
-  // deadlines are kept here, on every request, rather than by the cookie.
+  // The idle deadline (session-deadline.ts) is kept here, on every request,
+  // so a session past it stops resolving even if its cookie is still sent.
   if (session.user.expiresAt && Date.now() > session.user.expiresAt) return null;
 
   // An admin holding a preview cookie sees the whole app through another
