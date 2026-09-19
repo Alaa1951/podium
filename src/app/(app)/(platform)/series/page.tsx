@@ -3,13 +3,13 @@ import Link from "next/link";
 import { ArchivedSeriesStrip } from "@/components/admin/series-archive";
 import { getTranslator } from "@/lib/i18n/server";
 import { listArchivedSeries, listSeries } from "@/lib/queries";
-import { requireRole } from "@/lib/session";
+import { can, requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** Every PODIUM, soonest first. One card is one competition. */
 export default async function CompetitionsPage() {
-  await requireRole("admin");
+  const user = await requireAccess("competitions.view");
   const { t, locale } = await getTranslator();
 
   const [competitions, archived] = await Promise.all([
@@ -34,11 +34,13 @@ export default async function CompetitionsPage() {
             )}
           </p>
         </div>
-        <div className="screen-head-actions">
-          <Link href="/series/new" className="btn btn-primary">
-            {t("New competition")}
-          </Link>
-        </div>
+        {can(user, "competitions.create") && !user.viewAs ? (
+          <div className="screen-head-actions">
+            <Link href="/series/new" className="btn btn-primary">
+              {t("New competition")}
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       {competitions.length === 0 ? (

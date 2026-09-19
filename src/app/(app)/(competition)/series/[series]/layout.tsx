@@ -1,13 +1,13 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ConsoleShell, type NavGroup } from "@/components/app/console-shell";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
-import { can } from "@/lib/access";
+import { can, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, homeForUser } from "@/lib/session";
 import { getTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +20,10 @@ export const dynamic = "force-dynamic";
  * the room sees, and what the result was. Settings last, because it is the
  * thing you touch once.
  *
- * BFT MENA sees every section. An account carrying an access role sees exactly
- * the sections its permissions open, and never lands here without at least one.
+ * The console belongs to BFT MENA and the event's organisers. Each section
+ * checks the same permission key as the screen behind it, so the menu offers
+ * exactly what the account's roles open. Studios and athletes have areas of
+ * their own and are sent there.
  */
 export default async function CompetitionLayout({
   children,
@@ -29,6 +31,7 @@ export default async function CompetitionLayout({
 }: LayoutProps<"/series/[series]">) {
   const user = await getCurrentUser();
   if (!user) notFound();
+  if (user.role === "studio" || user.role === "competitor") redirect(await homeForUser(user));
   const { t, locale } = await getTranslator();
   const theme = await getTheme();
 
@@ -48,45 +51,45 @@ export default async function CompetitionLayout({
     series.resultsPublicAt !== null &&
     series.resultsPublicAt <= new Date();
 
-  const maySee = (permission: string) => can(user, permission);
+  // Each item names the key its screen checks. `null` means open to everyone
+  // who reaches the console (the public results page is public).
+  const allowed = <T extends { key: PermissionKey | null }>(items: T[]) =>
+    items.filter((item) => item.key === null || can(user, item.key));
 
   const groups: NavGroup[] = [
     {
       title: "",
-      items: [
-        { href: at("board"), label: t("Live board") },
-        { href: at(), label: t("Overview") },
-      ].filter((item) => user.role === "admin" || item.href === at() || maySee("board.view")),
+      items: allowed([
+        { href: at("board"), label: t("Live board"), key: "board.view" },
+        { href: at(), label: t("Overview"), key: "overview.view" },
+      ]),
     },
     {
       title: t("Before the day"),
-      items: [
-        { href: at("studios"), label: t("Studios"), badge: series._count.studios },
+      items: allowed([
+        { href: at("studios"), label: t("Studios"), badge: series._count.studios, key: "competitionStudios.view" },
         {
           href: at("registrations"),
-          label: t("Competitors"),
+          label: t("Athletes"),
           badge: awaitingPayment,
           alert: awaitingPayment > 0,
+          key: "registrations.view",
         },
         {
           href: at("waves"),
           label: t("Waves"),
           badge: unassigned,
           alert: unassigned > 0 && teamCount > 0,
+          key: "waves.view",
         },
-      ].filter((item) => {
-        if (user.role === "admin") return true;
-        if (item.href === at("studios")) return maySee("studios.view");
-        if (item.href === at("registrations")) return maySee("competitors.view");
-        if (item.href === at("waves")) return maySee("waves.view");
-        return true;
-      }),
+      ]),
     },
     {
       title: t("On the day"),
-      items: [
-        { href: at("scores"), label: t("Score entry") },
-        { href: at("results"), label: t("Results") },
+      items: allowed<{ key: PermissionKey | null; href: string; label: string; title?: string }>([
+        { href: at("wave-control"), label: t("Wave control"), key: "waveControl.view" },
+        { href: at("scores"), label: t("Score entry"), key: "scores.view" },
+        { href: at("results"), label: t("Results"), key: "results.view" },
         {
           // The results the whole world is allowed to see. It opens the same
           // door a stranger opens — /results — so the operator is always
@@ -95,19 +98,13 @@ export default async function CompetitionLayout({
           href: "/results",
           label: t("Public results"),
           title: published ? undefined : t("Not published yet"),
+          key: null,
         },
-      ].filter((item) => {
-        if (user.role === "admin") return true;
-        if ("href" in item && item.href === at("scores")) return maySee("scores.view");
-        if ("href" in item && item.href === at("results")) return maySee("results.view");
-        return true;
-      }),
+      ]),
     },
     {
       title: t("Setup"),
-      items: [{ href: at("settings"), label: t("Settings") }].filter(
-        () => user.role === "admin" || maySee("settings.view")
-      ),
+      items: allowed([{ href: at("settings"), label: t("Settings"), key: "settings.view" }]),
     },
   ];
 
@@ -124,7 +121,11 @@ export default async function CompetitionLayout({
   return (
     <ConsoleShell
       groups={groups}
-      crumbs={[{ href: "/series", label: t("Competitions") }]}
+      crumbs={
+        can(user, "competitions.view")
+          ? [{ href: "/series", label: t("Competitions") }]
+          : [{ href: "/home", label: t("Home") }]
+      }
       contextName={series.name}
       contextNote={`${date} · ${phaseLabel}${
         waveSummary.running > 0 ? ` · ${waveSummary.running} ${t("on the floor")}` : ""

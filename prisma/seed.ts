@@ -2,7 +2,7 @@
  * THE FOUNDATION: the things that exist before any competition does.
  *
  * Four studios, the bootstrap BFT MENA account, a studio account for each
- * studio, and the prescribed load standards. Nothing here belongs to a
+ * studio, the roles Podium ships with, and the prescribed load standards. Nothing here belongs to a
  * particular competition — `npm run db:scenarios` builds those.
  *
  * Safe to re-run: everything keys off a stable name and is upserted.
@@ -16,6 +16,7 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client.ts";
 
 import type { Division } from "../src/generated/prisma/enums.ts";
+import { SYSTEM_ROLES } from "../src/lib/permissions/system-roles.ts";
 
 process.loadEnvFile?.(path.join(process.cwd(), ".env"));
 
@@ -98,6 +99,27 @@ async function main() {
     });
   }
 
+  // ── The roles Podium ships with ───────────────────────────────────────────
+  // Created when missing, never overwritten: once a system role exists it
+  // belongs to BFT MENA, who edit it on the Roles screen.
+  for (const role of SYSTEM_ROLES) {
+    await prisma.accessRole.upsert({
+      where: { key: role.key },
+      create: {
+        key: role.key,
+        name: role.name,
+        nameAr: role.nameAr,
+        description: role.description,
+        permissions: role.permissions,
+        isSystem: true,
+        assignableBy: role.assignableBy,
+        accountTypes: role.accountTypes,
+        sortOrder: role.sortOrder,
+      },
+      update: { isSystem: true },
+    });
+  }
+
   // ── Load standards ────────────────────────────────────────────────────────
   for (const standard of LOAD_STANDARDS) {
     await prisma.loadStandard.upsert({
@@ -107,7 +129,7 @@ async function main() {
     });
   }
 
-  console.info("[seed] foundation ready: studios, accounts, load standards.");
+  console.info("[seed] foundation ready: studios, accounts, roles, load standards.");
   console.info(`[seed] BFT MENA admin: ${adminEmail}`);
   console.info("[seed] Build the competitions with: npm run db:scenarios");
 }

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(), account: vi.fn(), accessRole: vi.fn(), rows: vi.fn(), cursor: vi.fn(), count: vi.fn(), receipts: vi.fn(),
 }));
 vi.mock("@/lib/session", () => ({ getCurrentUser: mocks.session }));
+vi.mock("@/lib/permissions/load", () => ({ loadPermissions: mocks.accessRole }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   user: { findUnique: mocks.account }, accessRole: { findUnique: mocks.accessRole },
   notification: { findMany: mocks.rows, findFirst: mocks.cursor, count: mocks.count }, notificationRead: { createMany: mocks.receipts },
@@ -27,9 +28,11 @@ describe("fresh account authority", () => {
   });
   it("uses the database studio and permission profile after a scope change", async () => {
     mocks.session.mockResolvedValue({ ...user, role: "studio", studioId: "old", permissions: ["announcements.manage"] });
-    mocks.account.mockResolvedValue({ status: "active", archivedAt: null, role: "studio", studioId: "new", accessRoleId: "restricted" });
-    mocks.accessRole.mockResolvedValue({ permissions: ["announcements.view"] });
+    mocks.account.mockResolvedValue({ status: "active", archivedAt: null, role: "studio", studioId: "new" });
+    mocks.accessRole.mockResolvedValue(["announcements.view"]);
     expect(await getNotificationUser()).toMatchObject({ studioId: "new", permissions: ["announcements.view"] });
+    // Resolved fresh, against the account type in the database.
+    expect(mocks.accessRole).toHaveBeenCalledWith("u1", "studio");
   });
 });
 

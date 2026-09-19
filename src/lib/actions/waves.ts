@@ -3,136 +3,109 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
+import { fillFinisherTimes, floorTimingFor, waveLengthFor } from "@/lib/wave-clock";
 
-export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; message?: string }
+  | { ok: false; error: string; freeInMs?: number };
 
 // ── Waves ────────────────────────────────────────────────────────────────────
-// A wave is a row, not a number on the event. That is what lets an operator
-// press START on wave 3 while wave 2 is still on the floor, and what lets one
-// wave be twenty minutes of nine teams and the next fifteen of five.
+// A wave is a row, not a number on the event. The supervisor presses START
+// once; the wave then moves through every zone by itself (src/lib/floor.ts),
+// and several waves can be on the floor at once, one zone apart.
 
 const waveSchema = z.object({
   waveId: z.string().min(1),
-  action: z.enum(["start", "finish", "reset", "extend"]),
-  /** Minutes to add, for "extend" only. */
-  minutes: z.coerce.number().int().min(1).max(60).optional(),
+  /** start · finish ("End now", for emergencies) · reset (back to not run). */
+  action: z.enum(["start", "finish", "reset"]),
 });
 
 /**
- * The wave clock. It lives on the wave row rather than in a browser, so every
- * screen in the venue — the board on the wall, the operator's laptop — reads
- * the same countdown, and several waves can be counting down at once.
+ * The supervisor's buttons. Gated by `waveControl.control` — the supervisor
+ * permission — and re-checked against the database on every press.
  */
 export async function controlWave(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("waveControl.control");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = waveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const wave = await prisma.wave.findUnique({
     where: { id: parsed.data.waveId },
-    include: { _count: { select: { teams: true } } },
+    include: {
+      series: { select: { status: true } },
+      teams: { where: { archivedAt: null }, select: { station: true } },
+    },
   });
   if (!wave) return { ok: false, error: "NOT_FOUND" };
 
-  const now = Date.now();
-  const fullMs = wave.durationMinutes * 60_000;
-  let data: Record<string, unknown>;
+  const now = new Date();
+  let detail = "";
 
   switch (parsed.data.action) {
     case "start": {
+      if (wave.series.status !== "live") return { ok: false, error: "SERIES_NOT_LIVE" };
+      if (wave.status !== "pending") return { ok: false, error: "ALREADY_STARTED" };
       // Starting an empty wave would put a clock on an empty floor.
-      if (wave._count.teams === 0) return { ok: false, error: "NO_TEAMS" };
-      if (wave.status === "running") return { ok: false, error: "ALREADY_RUNNING" };
-      data = {
-        status: "running",
-        startedAt: new Date(now),
-        endsAt: new Date(now + fullMs),
-      };
+      if (wave.teams.length === 0) return { ok: false, error: "NO_TEAMS" };
+      if (wave.teams.length > MAX_STATIONS || wave.teams.some((team) => team.station === null)) {
+        return { ok: false, error: "STATIONS_MISSING" };
+      }
+
+      const timing = await floorTimingFor(wave.seriesId);
+      if (timing.zoneCount === 0) return { ok: false, error: "NO_ZONES" };
+
+      // Zone 1 must be free: waves stay one zone apart, so two never meet.
+      const running = await prisma.wave.findMany({
+        where: { seriesId: wave.seriesId, status: "running", NOT: { id: wave.id } },
+        select: { startedAt: true },
+      });
+      const freeAt = zoneOneFreeAt(running, timing, now);
+      if (freeAt) return { ok: false, error: "ZONE_OCCUPIED", freeInMs: freeAt.getTime() - now.getTime() };
+
+      const minutes = waveLengthFor(timing);
+      const started = await prisma.wave.updateMany({
+        where: { id: wave.id, status: "pending" },
+        data: {
+          status: "running",
+          durationMinutes: minutes,
+          startedAt: now,
+          endsAt: new Date(now.getTime() + minutes * 60_000),
+        },
+      });
+      if (started.count === 0) return { ok: false, error: "ALREADY_STARTED" };
+      detail = `${minutes} min, ${timing.zoneCount} zones`;
       break;
     }
     case "finish": {
-      // A wave ends when the floor says it ends, not when the clock runs out —
-      // the clock is the plan, the operator is the authority.
-      data = { status: "complete", endsAt: new Date(now) };
+      if (wave.status !== "running") return { ok: false, error: "NOT_RUNNING" };
+      // "End now" is for emergencies. Every team that competed without being
+      // stopped keeps the time the wave had left at this instant.
+      const remainingMs = Math.max(0, (wave.endsAt?.getTime() ?? now.getTime()) - now.getTime());
+      const filled = await prisma.$transaction(async (tx) => {
+        const done = await tx.wave.updateMany({
+          where: { id: wave.id, status: "running" },
+          data: { status: "complete", endsAt: now },
+        });
+        return done.count === 1 ? fillFinisherTimes(tx, wave, remainingMs) : 0;
+      });
+      detail = `ended early with ${Math.round(remainingMs / 1000)}s left${filled ? `; finisher time recorded for ${filled}` : ""}`;
       break;
     }
     case "reset": {
       // Back to not-yet-run. Scores already entered are untouched: this is a
       // correction to the schedule, never to the results.
-      data = { status: "pending", startedAt: null, endsAt: null };
-      break;
-    }
-    case "extend": {
-      if (wave.status !== "running") return { ok: false, error: "NOT_RUNNING" };
-      const addMs = (parsed.data.minutes ?? 1) * 60_000;
-      const base = Math.max(now, wave.endsAt?.getTime() ?? now);
-      data = { endsAt: new Date(base + addMs) };
-      break;
-    }
-  }
-
-  await prisma.wave.update({ where: { id: wave.id }, data });
-
-  // ── Stopping a wave records what the clock owed its finishers ────────────
-  // Ending a wave before 00:00 freezes the remaining time at this instant, and
-  // every team that already submitted a score but has no finisher time on
-  // record receives that remaining time in Zone 4 — the seconds between the
-  // wave's allotted length and where they actually got to. Teams the judges
-  // captured individually keep their own times; the clock is only the
-  // fallback for the ones nobody timed.
-  let backfilled = 0;
-  if (
-    parsed.data.action === "finish" &&
-    wave.status === "running" &&
-    wave.startedAt
-  ) {
-    const elapsedMs = Math.max(0, now - wave.startedAt.getTime());
-    const remainingMs = Math.max(0, fullMs - elapsedMs);
-    const minutes = Math.floor(remainingMs / 60_000);
-    const seconds = Math.floor((remainingMs % 60_000) / 1000);
-
-    const clockInputs = await prisma.zoneInput.findMany({
-      where: { zone: { seriesId: wave.seriesId }, inputMode: { in: ["minutes", "seconds"] } },
-      select: { id: true, inputMode: true },
-    });
-    const minutesId = clockInputs.find((one) => one.inputMode === "minutes")?.id;
-    const secondsId = clockInputs.find((one) => one.inputMode === "seconds")?.id;
-
-    if (minutesId && secondsId) {
-      const scored = await prisma.team.findMany({
-        where: { waveId: wave.id, score: { status: "submitted" } },
-        select: {
-          score: { select: { id: true, entries: { select: { inputId: true, value: true } } } },
-        },
+      await prisma.wave.update({
+        where: { id: wave.id },
+        data: { status: "pending", startedAt: null, endsAt: null },
       });
-      for (const team of scored) {
-        const score = team.score;
-        if (!score) continue;
-        // The judges' own captures are never overwritten by the clock.
-        if (
-          score.entries.some(
-            (entry) => (entry.inputId === minutesId || entry.inputId === secondsId) && entry.value !== null
-          )
-        ) {
-          continue;
-        }
-        await prisma.zoneEntry.upsert({
-          where: { scoreId_inputId: { scoreId: score.id, inputId: minutesId } },
-          create: { scoreId: score.id, inputId: minutesId, value: minutes },
-          update: { value: minutes },
-        });
-        await prisma.zoneEntry.upsert({
-          where: { scoreId_inputId: { scoreId: score.id, inputId: secondsId } },
-          create: { scoreId: score.id, inputId: secondsId, value: seconds },
-          update: { value: seconds },
-        });
-        backfilled += 1;
-      }
+      break;
     }
   }
 
@@ -142,9 +115,7 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
     targetType: "event",
     targetId: wave.seriesId,
     targetLabel: `Wave ${wave.number}`,
-    detail:
-      `wave=${wave.number} action=${parsed.data.action}` +
-      (backfilled > 0 ? ` finisher_backfilled=${backfilled}` : ""),
+    detail: `wave=${wave.number} action=${parsed.data.action}${detail ? ` ${detail}` : ""}`,
   });
 
   revalidateCompetitionViews();
@@ -165,7 +136,7 @@ const waveSaveSchema = z.object({
  * change in Settings reaches every wave at once.
  */
 export async function saveWave(input: unknown): Promise<ActionResult> {
-  await requireRole("admin");
+  await requireAccess("waves.edit");
 
   const parsed = waveSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -205,7 +176,7 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
  * is the honest state for a team whose wave no longer exists.
  */
 export async function deleteWave(input: unknown): Promise<ActionResult> {
-  await requireRole("admin");
+  await requireAccess("waves.edit");
 
   const parsed = z.object({ waveId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -223,7 +194,7 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
   if (!phase.allowed) return { ok: false, error: phase.reason };
 
   await prisma.$transaction([
-    prisma.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null } }),
+    prisma.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null, station: null } }),
     prisma.wave.delete({ where: { id: wave.id } }),
   ]);
 
@@ -234,11 +205,12 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
 const scheduleSchema = z.object({
   seriesId: z.string().min(1),
   firstWaveTime: z.string().regex(/^\d{2}:\d{2}$/),
-  waveCapacity: z.coerce.number().int().min(1).max(40),
+  // One team per station: never more than nine.
+  waveCapacity: z.coerce.number().int().min(1).max(MAX_STATIONS),
 });
 
 export async function updateSchedule(input: unknown): Promise<ActionResult> {
-  await requireRole("admin");
+  await requireAccess("waves.edit");
 
   const parsed = scheduleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

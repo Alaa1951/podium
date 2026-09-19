@@ -954,3 +954,128 @@ select.input { cursor: pointer; }
 }
 .team-entry-stepper-minus:active { transform: scale(0.97); }
 .team-entry-stepper-minus:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+/* ── Permission trees: Module → Screen → action ──────────────────────────
+   Shared by the Roles screen (tick what a role carries) and a person's
+   Access panel (Inherit / Grant / Lock). A locked row is never a greyed-out
+   control with no explanation — it carries a badge saying why. */
+.perm-tree { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.perm-module > summary {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: var(--r-sm);
+  background: var(--surface-sunken); cursor: pointer; list-style: none;
+  font-family: var(--font-heading), sans-serif; font-weight: 700; font-size: 13px;
+}
+.perm-module > summary::-webkit-details-marker { display: none; }
+.perm-module > summary::before { content: "▸"; font-size: 11px; color: var(--text-muted); }
+.perm-module[open] > summary::before { content: "▾"; }
+.perm-screen { border: 1px solid var(--border); border-radius: var(--r-sm); margin: 8px 0 0; }
+.perm-screen-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.perm-screen-head strong { font-size: 13px; }
+.perm-screen-head .push { margin-inline-start: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.perm-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 6px 12px; font-size: 13px;
+}
+.perm-row + .perm-row { border-top: 1px dashed var(--border); }
+.perm-row-label { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.perm-row-key { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono, monospace); }
+.perm-source { flex: 0 1 200px; min-width: 0; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.perm-lock { font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.perm-lock::before { content: "🔒"; font-size: 10px; }
+.perm-row[data-effective="true"] .perm-row-label { color: var(--text); }
+.perm-row[data-effective="false"] .perm-row-label { color: var(--text-secondary); }
+.perm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex: none; }
+.perm-row[data-effective="true"] .perm-dot { background: var(--status-ok-text); }
+
+/* Inherit / Grant / Lock — one decision per row. */
+.seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-pill); overflow: hidden; }
+.seg button {
+  height: 26px; padding: 0 10px; border: 0; background: var(--surface);
+  color: var(--text-secondary); font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.seg button + button { border-inline-start: 1px solid var(--border-strong); }
+.seg button:disabled { opacity: 0.4; cursor: default; }
+.seg button[data-active="inherit"] { background: var(--surface-sunken); color: var(--text); }
+.seg button[data-active="grant"] { background: rgba(22, 163, 74, 0.18); color: var(--status-ok-text); }
+.seg button[data-active="lock"] { background: rgba(220, 38, 38, 0.18); color: var(--status-danger-text); }
+
+.role-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.role-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 4px 0 10px;
+  border-radius: var(--r-pill); background: var(--bft-cyan-soft); color: var(--bft-cyan-text);
+  font-size: 12px; font-weight: 700;
+}
+.role-chip button {
+  width: 20px; height: 20px; border-radius: 50%; border: 0; background: transparent;
+  color: inherit; cursor: pointer; font-size: 13px; line-height: 1;
+}
+.role-chip button:hover:not(:disabled) { background: rgba(0, 0, 0, 0.08); }
+.role-chip[data-default="true"] { background: var(--surface-sunken); color: var(--text-secondary); padding-inline-end: 10px; }
+
+/* ── The floor: waves moving through zones, stations fixed ─────────────── */
+.floor-map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+.floor-zone { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 12px; min-height: 64px; }
+.floor-zone[data-phase="work"] { border-color: var(--bft-cyan); background: var(--bft-cyan-soft); }
+.floor-zone[data-phase="break"] { border-style: dashed; }
+.floor-zone-name { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.floor-zone-wave { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.floor-waves { display: grid; gap: 12px; }
+.floor-wave[data-status="running"] { border-color: var(--bft-cyan); }
+.floor-wave-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.floor-wave-number { font-family: var(--font-heading), sans-serif; font-size: 18px; }
+.floor-wave-now { margin-inline-start: auto; font-size: 13px; }
+.zone-track { display: flex; gap: 3px; margin-top: 10px; }
+.zone-track-seg {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 11px; padding: 4px 6px; border-radius: 4px; background: var(--surface-sunken); color: var(--text-secondary);
+}
+.zone-track-seg[data-state="now"] { background: var(--bft-cyan); color: var(--bft-ink); font-weight: 700; }
+.zone-track-seg[data-state="done"] { opacity: 0.55; }
+.station-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-top: 10px; }
+.station-cell { display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 8px; min-width: 0; }
+.station-cell[data-empty] { opacity: 0.55; }
+.station-number {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-sunken); font-weight: 700; font-size: 12px;
+}
+.station-team { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.zone-staff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.zone-entries { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.zone-entry-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.zone-entry-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.zone-entry[data-locked] { opacity: 0.8; }
+
+/* Sign-up requests waiting for approval. */
+.approval-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; }
+.approval-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.approval-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 12px 0; font-size: 13px; }
+.approval-facts dt { color: var(--text-muted); }
+.approval-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.approval-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.approval-readonly { margin: 0; padding-inline-start: 18px; color: var(--text-secondary); }
+.status-banner { border: 1px solid var(--border-strong); border-inline-start: 4px solid var(--bft-cyan); border-radius: var(--r-md, 10px); padding: 12px 14px; margin-bottom: 16px; background: var(--surface); }
+.status-banner[data-tone="warn"] { border-inline-start-color: var(--status-warn-text, #d97706); }
+.status-banner h2 { margin: 0 0 4px; font-size: 15px; }
+.status-banner p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.seg button[data-active="true"] { background: var(--bft-cyan); color: var(--bft-ink); }
+.seg-lg button { height: 36px; padding: 0 16px; font-size: 13px; }
+
+/* Sign-up, on the dark auth ground. */
+.signup-choices { display: grid; gap: 8px; }
+.signup-choices-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.signup-choice {
+  display: grid; gap: 4px; text-align: start; padding: 14px 16px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04); color: var(--on-navy);
+}
+.signup-choice span { font-size: 12px; color: var(--on-navy-secondary); }
+.signup-choice:hover { border-color: rgba(0, 181, 204, 0.6); }
+.signup-choice[data-active="true"] { border-color: var(--bft-cyan); background: rgba(0, 181, 204, 0.14); box-shadow: inset 0 0 0 1px var(--bft-cyan); }
+.signup-choice-sm { padding: 10px 14px; }
+.signup-field { display: block; margin-top: 12px; }
+.signup-hint { display: block; margin-top: 4px; font-size: 12px; color: var(--on-navy-secondary); }
+.signup-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 12px; }

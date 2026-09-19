@@ -29,19 +29,19 @@ export async function BoardFrame({
     where: { studioId: user.studioId, series: { slug: seriesSlug } },
     select: { seriesId: true },
   });
-  const contextual = user?.role === "admin" || studioMember;
+  const contextual = user?.role === "admin" || user?.role === "staff" || user?.role === "organiser" || studioMember;
   const base = `${studioMember ? "/studio" : "/series"}/${seriesSlug}`;
   const homeHref = user ? await homeForUser(user) : back;
   const groups: NavGroup[] = contextual && user ? [
     { title: "", items: [{ href: base, label: t("Overview") }, { href: `/series/${seriesSlug}/board`, label: t("Live board") }] },
     { title: t("Sections"), items: [
-      { href: `${base}/${studioMember ? "teams" : "registrations"}`, label: t(studioMember ? "Teams" : "Competitors"), permission: "competitors.view" },
-      { href: `${base}/waves`, label: t("Waves"), permission: "waves.view" },
-      { href: `${base}/scores`, label: t("Score entry"), permission: "scores.view" },
-      { href: `${base}/results`, label: t("Results"), permission: "results.view" },
+      { href: `${base}/${studioMember ? "teams" : "registrations"}`, label: t(studioMember ? "Teams" : "Athletes"), permission: "registrations.view" as const },
+      { href: `${base}/waves`, label: t("Waves"), permission: "waves.view" as const },
+      { href: `${base}/scores`, label: t("Score entry"), permission: "scores.view" as const },
+      { href: `${base}/results`, label: t("Results"), permission: "results.view" as const },
       ...(studioMember
-        ? [{ href: "/studio/announcements", label: t("Announcements"), permission: "announcements.manage" }]
-        : [{ href: `${base}/settings`, label: t("Settings"), permission: "settings.view" }]),
+        ? [{ href: "/studio/announcements", label: t("Announcements"), permission: "announcements.send" as const }]
+        : [{ href: `${base}/settings`, label: t("Settings"), permission: "settings.view" as const }]),
     ].filter(item => can(user, item.permission)).map(({ href, label }) => ({ href, label })) },
   ] : [];
   return (

@@ -100,7 +100,7 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
           })),
         }))}
         studios={studios.map((studio) => ({ id: studio.id, name: studio.name }))}
-        open={deadline.open && can(user,"competitors.manage") && !user.viewAs}
+        open={deadline.open && can(user, "registrations.edit") && !user.viewAs}
       />
     </div>
   );

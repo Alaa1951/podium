@@ -18,8 +18,9 @@ try {
   const users = {};
   for (const role of ["admin","studio","competitor","limited"]) {
     const id=`${prefix}-${role}`;
-    users[role]=await prisma.user.upsert({where:{id},update:{status:"active",archivedAt:null},create:{id,email:`${role}@mobile-qa.invalid`,name:`Mobile QA ${role}`,status:"active",role:role==='limited'?'studio':role,studioId:role==='admin'?null:`${prefix}-studio`,accessRoleId:role==='limited'?accessRole.id:null}});
+    users[role]=await prisma.user.upsert({where:{id},update:{status:"active",archivedAt:null},create:{id,email:`${role}@mobile-qa.invalid`,name:`Mobile QA ${role}`,status:"active",role:role==='limited'?'studio':role,studioId:role==='admin'?null:`${prefix}-studio`}});
   }
+  await prisma.userAccessRole.upsert({where:{userId_accessRoleId:{userId:users.limited.id,accessRoleId:accessRole.id}},update:{},create:{userId:users.limited.id,accessRoleId:accessRole.id}});
   const series = [];
   for(const status of ["scheduled","live","final"]){
     const id=`${prefix}-${status}`, slug=`mobile-qa-${status}`;
@@ -31,14 +32,15 @@ try {
     const teams=[];
     for(let number=1;number<=3;number++){
       const teamId=`${id}-team-${number}`, studioId=number===3?`${prefix}-other-studio`:`${prefix}-studio`;
-      const team=await prisma.team.upsert({where:{id:teamId},update:{archivedAt:null},create:{id:teamId,seriesId:id,number,name:number===1?'Mobile QA Team — long name for layout validation':'Mobile QA Team '+number,category:"Womens",division:"Rookie",studioId,waveId:wave.id,wave:1,paymentStatus:number===2?'pending':'paid',amountMinor:number===2?null:25000,currency:"QAR"}});
+      const team=await prisma.team.upsert({where:{id:teamId},update:{archivedAt:null,station:number},create:{id:teamId,seriesId:id,number,station:number,name:number===1?'Mobile QA Team — long name for layout validation':'Mobile QA Team '+number,category:"Womens",division:"Rookie",studioId,waveId:wave.id,wave:1,paymentStatus:number===2?'pending':'paid',amountMinor:number===2?null:25000,currency:"QAR"}});
       for(let position=1;position<=2;position++)await prisma.competitor.upsert({where:{teamId_position:{teamId,position}},update:{},create:{id:`${teamId}-person-${position}`,teamId,position,fullName:`Mobile QA Competitor ${number}-${position}`,normalizedName:`mobile qa competitor ${number} ${position}`,email:`person-${status}-${number}-${position}@mobile-qa.invalid`,phone:"+97412345678",studioId,dateOfBirth:new Date("1995-01-01"),userId:number===1&&position===1?users.competitor.id:null}});
       if(status==='final'&&number!==2)await prisma.score.upsert({where:{teamId},update:{},create:{teamId,status:"submitted",submittedAt:new Date()}});
       teams.push(team.id);
     }
     series.push({id,slug,status,teams,waveId:wave.id,zoneId:(await prisma.zone.findFirst({where:{seriesId:id},orderBy:{number:"asc"}})).id});
   }
-  await prisma.waveAccess.upsert({where:{userId_waveId:{waveId:series.find(s=>s.status==='live').waveId,userId:users.limited.id}},update:{},create:{waveId:series.find(s=>s.status==='live').waveId,userId:users.limited.id}});
+  const liveSeries=series.find(s=>s.status==='live');
+  await prisma.zoneStaff.upsert({where:{zoneId_userId:{zoneId:liveSeries.zoneId,userId:users.limited.id}},update:{position:"judge",station:1},create:{seriesId:liveSeries.id,zoneId:liveSeries.zoneId,userId:users.limited.id,position:"judge",station:1}});
   for(const suffix of ["own","other"]) await prisma.notification.upsert({where:{id:`${prefix}-notice-${suffix}`},update:{audience:suffix==="own"?"all":"studio",audienceStudioId:suffix==="own"?null:`${prefix}-other-studio`},create:{id:`${prefix}-notice-${suffix}`,title:`Mobile QA ${suffix} announcement`,body:"Local mobile layout fixture. ".repeat(30),audience:suffix==="own"?"all":"studio",audienceStudioId:suffix==="own"?null:`${prefix}-other-studio`,createdBy:users.admin.id}});
   await prisma.notification.upsert({where:{id:`${prefix}-notice-studio`},update:{},create:{id:`${prefix}-notice-studio`,title:"Mobile QA studio announcement",body:"Local studio history fixture.",audience:"studio",audienceStudioId:`${prefix}-studio`,createdBy:users.studio.id}});
   await prisma.adminAuditLog.upsert({where:{id:`${prefix}-audit`},update:{},create:{id:`${prefix}-audit`,actorId:users.admin.id,action:"mobile.qa.fixture",targetType:"team",targetId:series[0].teams[0],targetLabel:"Mobile QA fixture",detail:"Local-only screen coverage fixture"}});

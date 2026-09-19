@@ -63,6 +63,14 @@ export async function accountForCompetitor(rawEmail: string, fullName: string) {
   if (existing) {
     if (existing.status === "disabled") return null;
     await linkRegistrations(existing.id, email);
+    // A paid entry is all the approval an athlete needs: someone who signed
+    // up and then registered and paid is not left waiting on a queue.
+    if (existing.role === "competitor" && existing.approvalStatus !== "approved") {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { approvalStatus: "approved", approvedAt: new Date(), rejectionReason: null },
+      });
+    }
     return existing;
   }
 
@@ -104,16 +112,31 @@ export type CodeRequest =
  */
 export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest> {
   const registrations = await findRegistrations(rawEmail);
-  if (registrations.length === 0) return { ok: false };
 
   // Only a paid entry is a competitor. An unpaid registration has not been
-  // confirmed by anybody yet, and is not a way into the system.
+  // confirmed by anybody yet, and is not a way into the system — but an
+  // athlete who signed up has an account of their own, approved or waiting.
   const paid = registrations.filter((one) => one.team.paymentStatus === "paid");
-  if (paid.length === 0) return { ok: false };
+  if (paid.length === 0) return issueSignedUpAthleteCode(rawEmail);
 
   const account = await accountForCompetitor(rawEmail, paid[0].fullName);
   if (!account) return { ok: false };
 
   const { code } = await createOtpChallenge({ userId: account.id, purpose: "login" });
   return { ok: true, code, name: paid[0].fullName };
+}
+
+/** A code for an athlete who signed up themselves, whatever their approval. */
+async function issueSignedUpAthleteCode(rawEmail: string): Promise<CodeRequest> {
+  const email = normalizeEmail(rawEmail);
+  if (!email) return { ok: false };
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, name: true, role: true, status: true, signupType: true },
+  });
+  if (!user || user.role !== "competitor" || !user.signupType || user.status === "disabled") {
+    return { ok: false };
+  }
+  const { code } = await createOtpChallenge({ userId: user.id, purpose: "login" });
+  return { ok: true, code, name: user.name ?? email };
 }

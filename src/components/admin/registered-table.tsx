@@ -176,7 +176,7 @@ export function RegisteredTable({
             <tr>
               <th style={{ width: 56 }}>#</th>
               <th>{t("Team")}</th>
-              <th>{t("Competitors")}</th>
+              <th>{t("Athletes")}</th>
               <th style={{ width: 120 }}>{t("Bracket")}</th>
               <th style={{ width: 66 }}>{t("Wave")}</th>
               <th style={{ width: 150 }}>{t("Status")}</th>
@@ -224,7 +224,7 @@ export function RegisteredTable({
                   <tr>
                     <th style={{ width: 56 }}>#</th>
                     <th>{t("Team")}</th>
-                    <th>{t("Competitors")}</th>
+                    <th>{t("Athletes")}</th>
                     <th style={{ width: 120 }}>{t("Bracket")}</th>
                     <th style={{ width: 150 }}>{t("Status")}</th>
                     <th style={{ width: 110 }}>{t("Archived")}</th>

@@ -6,7 +6,7 @@ export function matchesRoute(path: string, href: string) {
 
 /** Pick the current route's shell, not DOM left behind by retained screens. */
 export function hasContextNavigation(path: string) {
-  if (path === "/" || ["/series", "/users", "/studios", "/roles", "/audit", "/announcements"].some(prefix => matchesRoute(path, prefix))) return true;
+  if (path === "/" || ["/series", "/users", "/approvals", "/studios", "/roles", "/audit", "/announcements"].some(prefix => matchesRoute(path, prefix))) return true;
   return path.startsWith("/studio/") && !matchesRoute(path, "/studio/announcements");
 }
 

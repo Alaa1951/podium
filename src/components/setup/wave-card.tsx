@@ -23,12 +23,13 @@ type TeamGridProps = {
   studioName: (studioId: string | null) => string;
   onMove: (teamId: string, wave: number) => void;
   onCycle: (competitorId: string, current: string | null) => void;
+  onStation?: (teamId: string, station: number) => void;
 };
 
 function TeamGrid(props: TeamGridProps) {
   return (
     <div className="wave-card-teams">
-      {props.teams.map((team) => (
+      {[...props.teams].sort((a, b) => (a.station ?? 99) - (b.station ?? 99)).map((team) => (
         <TeamRow
           key={team.id}
           team={team}
@@ -37,6 +38,7 @@ function TeamGrid(props: TeamGridProps) {
           studioName={props.studioName}
           onMove={props.onMove}
           onCycle={props.onCycle}
+          onStation={props.onStation}
         />
       ))}
     </div>

@@ -27,6 +27,8 @@ function wave(number: number, status: WaveState["status"], extra: Partial<WaveSt
     stoppedRemainingMs: null,
     teamCount: 9,
     scoredCount: 0,
+    startedAt: null,
+    floor: { phase: status === "running" ? "work" : status === "complete" ? "done" : "pending", zoneNumber: null, phaseRemainingMs: null },
     ...extra,
   };
 }
@@ -104,8 +106,9 @@ describe("waveWindowLabel", () => {
 });
 
 // ── The wave clock sweep ─────────────────────────────────────────────────────
-// A wave whose time has run out comes off the floor by itself, and the next
-// wave with teams steps on — chained by the clock, with no operator present.
+// A wave whose time has run out comes off the floor by itself. Starting the
+// next one is the supervisor's: waves overlap one zone apart, so the sweep
+// never chains a start.
 
 import { waveClockSweep, type WaveClockRow } from "@/lib/waves";
 
@@ -118,7 +121,7 @@ function clockRow(overrides: Partial<WaveClockRow>): WaveClockRow {
     number: 1,
     status: "pending",
     endsAt: null,
-    durationMinutes: 20,
+    durationMinutes: 75,
     teamCount: 5,
     ...overrides,
   };
@@ -131,8 +134,6 @@ describe("waveClockSweep", () => {
       SWEEP_NOW
     );
     expect(sweep.finish).toEqual(["a"]);
-    // The transition gap holds the next wave back for five minutes.
-    expect(sweep.start).toBeNull();
   });
 
   it("leaves a running wave that still has time", () => {
@@ -141,69 +142,28 @@ describe("waveClockSweep", () => {
       SWEEP_NOW
     );
     expect(sweep.finish).toEqual([]);
-    expect(sweep.start).toBeNull();
   });
 
-  it("holds the next wave through the transition gap, then starts it", () => {
-    const rows = [
-      clockRow({ id: "a", number: 1, status: "running", endsAt: sweepMinutes(-6), durationMinutes: 20 }),
-      clockRow({ id: "b", number: 2, status: "pending", durationMinutes: 15 }),
-    ];
-
-    // One minute after the wave came off: it is finished at once, but the
-    // five-minute transition gap still holds the next wave back.
-    const during = waveClockSweep(rows, sweepMinutes(-5));
-    expect(during.finish).toEqual(["a"]);
-    expect(during.start).toBeNull();
-
-    // Five minutes after it came off: the next wave steps on, clocked from NOW.
-    const after = waveClockSweep(rows, sweepMinutes(0));
-    expect(after.finish).toEqual(["a"]);
-    expect(after.start).toEqual({
-      id: "b",
-      startedAt: SWEEP_NOW,
-      endsAt: sweepMinutes(15),
-    });
-  });
-
-  it("never starts an empty wave — it skips to the next one with teams", () => {
-    const sweep = waveClockSweep(
-      [
-        clockRow({ id: "a", number: 1, status: "complete", endsAt: sweepMinutes(-6) }),
-        clockRow({ id: "b", number: 2, status: "pending", teamCount: 0 }),
-        clockRow({ id: "c", number: 3, status: "pending", teamCount: 4, durationMinutes: 10 }),
-      ],
-      sweepMinutes(0)
-    );
-    expect(sweep.finish).toEqual([]);
-    expect(sweep.start?.id).toBe("c");
-    expect(sweep.start?.endsAt).toEqual(sweepMinutes(10));
-  });
-
-  it("does not start a follower while another wave is still legitimately running", () => {
+  it("finishes only the expired one of several waves on the floor", () => {
     const sweep = waveClockSweep(
       [
         clockRow({ id: "a", number: 1, status: "running", endsAt: sweepMinutes(-1) }),
-        clockRow({ id: "b", number: 2, status: "running", endsAt: sweepMinutes(9) }),
-        clockRow({ id: "c", number: 3, status: "pending", durationMinutes: 10 }),
+        clockRow({ id: "b", number: 2, status: "running", endsAt: sweepMinutes(19) }),
+        clockRow({ id: "c", number: 3, status: "pending" }),
       ],
       SWEEP_NOW
     );
     expect(sweep.finish).toEqual(["a"]);
-    expect(sweep.start).toBeNull();
   });
 
-  it("never auto-starts the first wave — that stays with the operator", () => {
-    // A scheduled event whose waves were never started: nothing completed, so
-    // nothing rolls forward no matter how far past their times it is.
+  it("never starts anything — not even long after the last wave came off", () => {
     const sweep = waveClockSweep(
       [
-        clockRow({ id: "a", number: 1, status: "pending" }),
+        clockRow({ id: "a", number: 1, status: "complete", endsAt: sweepMinutes(-60) }),
         clockRow({ id: "b", number: 2, status: "pending" }),
       ],
       SWEEP_NOW
     );
-    expect(sweep.finish).toEqual([]);
-    expect(sweep.start).toBeNull();
+    expect(sweep).toEqual({ finish: [] });
   });
 });

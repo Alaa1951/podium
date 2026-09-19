@@ -6,7 +6,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
-import { canRegisterTeams, requireRole, requireUser, teamScope } from "@/lib/session";
+import { isBft, requireAccess, teamScope } from "@/lib/session";
 import { registrationOpen } from "@/lib/visibility";
 import {
   optionalText,
@@ -67,7 +67,8 @@ async function nextTeamNumber(seriesId: string) {
  * its own rules.
  */
 export async function createRegistration(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("registrations.create");
+  if (!isBft(actor)) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = registrationSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -148,8 +149,8 @@ const editSchema = z.object({
  * merely displayed.
  */
 export async function updateRegistration(input: unknown): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (!canRegisterTeams(actor)) return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("registrations.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -178,7 +179,7 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
   });
   if (!deadline.open) return { ok: false, error: deadline.reason };
 
-  if (actor.role !== "admin" && data.division !== team.division) {
+  if (!isBft(actor) && data.division !== team.division) {
     return { ok: false, error: "DIVISION_LOCKED" };
   }
 
@@ -194,7 +195,7 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
         // Which studio owns the entry is what scopes it, so only BFT MENA may
         // move it. A studio editing its own team keeps it — otherwise saving
         // the form with a different first competitor would hand the team away.
-        ...(actor.role === "admin" ? { studioId: data.one.studioId } : {}),
+        ...(isBft(actor) ? { studioId: data.one.studioId } : {}),
       },
     });
 

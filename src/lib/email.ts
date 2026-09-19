@@ -186,3 +186,75 @@ export async function sendSecurityAlertEmail(params: {
   );
   await sendMail({ to: params.email, subject: `${BRAND} · ${params.subject}`, text, html });
 }
+
+/** The answer to a sign-up request — approved, or turned down with a reason. */
+export async function sendSignupDecisionEmail(params: {
+  email: string;
+  approved: boolean;
+  reason?: string | null;
+  url: string;
+}) {
+  const subject = params.approved
+    ? `Your ${BRAND} account is approved`
+    : `About your ${BRAND} sign-up`;
+  const reason = params.reason ? `\n\nReason: ${params.reason}` : "";
+  const text = params.approved
+    ? `Your ${BRAND} account has been approved. Sign in here: ${params.url}`
+    : `Your ${BRAND} sign-up was not approved.${reason}`;
+  const html = shell(
+    params.approved ? "You are approved" : "Sign-up not approved",
+    params.approved
+      ? `<p style="color:#c6c6ff;font-size:14px;text-align:center">Your account is ready. Everything your roles open is waiting for you.</p>
+     <div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">Sign in</a>
+     </div>`
+      : `<p style="color:#c6c6ff;font-size:14px;text-align:center">Your sign-up was not approved.</p>${
+          params.reason ? `<p style="color:#9a9aff;font-size:13px;text-align:center">${escapeHtml(params.reason)}</p>` : ""
+        }`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
+/**
+ * Somebody named this address as their partner. Without an account yet, the
+ * link signs them up; with one, it opens their page to name them back.
+ */
+export async function sendPartnerInviteEmail(params: {
+  email: string;
+  fromName: string;
+  url: string;
+  hasAccount?: boolean;
+}) {
+  const subject = `${params.fromName} named you as their ${BRAND} partner`;
+  const how = params.hasAccount
+    ? "Name them as your partner on your page and the two of you are linked as a pair."
+    : "Sign up with this email and the two of you are linked as a pair.";
+  const text = `${params.fromName} named you as their ${BRAND} partner.\n\n${how} ${params.url}`;
+  const html = shell(
+    "You have a partner",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${escapeHtml(params.fromName)}</strong> named you as their partner. ${how}</p>
+     <div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">${params.hasAccount ? "Open my page" : "Sign up"}</a>
+     </div>
+     <p style="color:#9a9aff;font-size:12px;text-align:center;margin:0">If you do not know them, ignore this email.</p>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
+/** A sign-up for an address that already has an account: point them at sign-in. */
+export async function sendAlreadyRegisteredEmail(params: { email: string; url: string }) {
+  const subject = `You already have a ${BRAND} account`;
+  const text = `Someone tried to sign up with this email, but it already has a ${BRAND} account. Sign in here: ${params.url}\n\nIf this was not you, ignore this email.`;
+  const html = shell(
+    "You already have an account",
+    `<div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">Sign in</a>
+     </div>
+     <p style="color:#9a9aff;font-size:12px;text-align:center;margin:0">If this was not you, ignore this email.</p>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}

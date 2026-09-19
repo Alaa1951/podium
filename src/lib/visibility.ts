@@ -83,9 +83,13 @@ export type BoardAccess = {
  *
  * BFT MENA is exempt: it runs the event and must be able to check the board
  * before anyone else can, or nothing could be rehearsed.
+ *
+ * The live board is open to every signed-in account — even one still waiting
+ * for approval. Before the event that means the countdown and nothing of the
+ * field; the board itself opens when the event does.
  */
 export function boardAccess(role: Role | "anonymous", phase: EventPhase): BoardAccess {
-  if (role === "admin") {
+  if (role === "admin" || role === "staff") {
     return { canSeeBoard: true, scope: "all", canSeeResults: true, isPublic: false };
   }
 
@@ -103,9 +107,9 @@ export function boardAccess(role: Role | "anonymous", phase: EventPhase): BoardA
 
   switch (phase) {
     case "before":
-      // Own entries only. A studio still manages its teams; it simply cannot
-      // read the rest of the field yet.
-      return { canSeeBoard: false, scope: "own", canSeeResults: false, isPublic: false };
+      // The countdown only. A studio still manages its own teams elsewhere; the
+      // rest of the field is nobody else’s to read yet.
+      return { canSeeBoard: true, scope: "own", canSeeResults: false, isPublic: false };
 
     case "live":
       return { canSeeBoard: true, scope: "all", canSeeResults: false, isPublic: false };
@@ -133,7 +137,7 @@ export function registrationOpen(params: {
   registrationClosesAt: Date | null;
   now: Date;
 }): DeadlineState {
-  if (params.role === "admin") return { open: true };
+  if (params.role === "admin" || params.role === "staff") return { open: true };
   if (!params.registrationClosesAt) return { open: true };
   if (params.now < params.registrationClosesAt) return { open: true };
   return { open: false, reason: "REGISTRATION_CLOSED" };
@@ -145,7 +149,7 @@ export function scoreEntryOpen(params: {
   scoreEntryClosesAt: Date | null;
   now: Date;
 }): DeadlineState {
-  if (params.role === "admin") return { open: true };
+  if (params.role === "admin" || params.role === "staff") return { open: true };
   if (!params.scoreEntryClosesAt) return { open: true };
   if (params.now < params.scoreEntryClosesAt) return { open: true };
   return { open: false, reason: "SCORE_ENTRY_CLOSED" };

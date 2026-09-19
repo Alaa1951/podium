@@ -110,7 +110,7 @@ export function StudioTeamEditor({
       {people.map((p, index) => (
         <div key={index} className="studio-editor-person">
           <div className="console-group-title">
-            {t("Competitor")} {index + 1}
+            {t("Athlete")} {index + 1}
           </div>
           <div className="form-grid">
             <label>

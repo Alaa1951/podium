@@ -165,12 +165,18 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         {loading ? t("Signing in…") : t("Sign in")}
       </button>
 
-      {/* Competitors do not have a password and never will — they arrive by
+      {/* Athletes do not have a password and never will — they arrive by
           code. Sending them through the staff form is how they get stuck. */}
       <p className="auth-note">
-        {t("Competed in PODIUM?")}{" "}
-        <Link href="/competitor" style={{ color: "var(--bft-cyan)" }}>
-          {t("Sign in with your email")}
+        {t("Competing in PODIUM?")}{" "}
+        <Link href="/athlete" style={{ color: "var(--bft-cyan)" }}>
+          {t("Athlete sign-in")}
+        </Link>
+      </p>
+      <p className="auth-note">
+        {t("New here?")}{" "}
+        <Link href="/signup" style={{ color: "var(--bft-cyan)" }}>
+          {t("Sign up")}
         </Link>
       </p>
     </form>

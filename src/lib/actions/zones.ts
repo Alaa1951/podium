@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 import { DEFAULT_ZONES } from "@/lib/zones";
 
@@ -52,7 +52,7 @@ const zoneSchema = z.object({
 
 /** Create or rewrite one zone and its movements. */
 export async function saveZone(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("settings.edit");
 
   const parsed = zoneSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -127,7 +127,7 @@ export async function saveZone(input: unknown): Promise<ActionResult> {
 
 /** Remove a zone. Its recorded values go with it. */
 export async function deleteZone(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("settings.edit");
 
   const parsed = z.object({ zoneId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -173,7 +173,7 @@ export async function deleteZone(input: unknown): Promise<ActionResult> {
  * a series that already has one, so it can never wipe an edited definition.
  */
 export async function seedDefaultZones(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("settings.edit");
 
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

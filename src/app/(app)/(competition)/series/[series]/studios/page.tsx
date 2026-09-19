@@ -4,7 +4,7 @@ import { StudioPicker, type StudioRow } from "@/components/series/studio-picker"
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireSeries } from "@/lib/require-series";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * a competition had no idea which of them it concerned.
  */
 export default async function SeriesStudiosPage(props: PageProps<"/series/[series]/studios">) {
-  await requireRole("admin");
+  await requireAccess("competitionStudios.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
@@ -79,15 +79,11 @@ export default async function SeriesStudiosPage(props: PageProps<"/series/[serie
 
       <div className="notice" style={{ marginTop: 20 }}>
         <strong>{t("What a studio may do here.")}</strong>{" "}
-        {series.studiosMayEnterScores
-          ? t(
-              "Studios may ENTER scores for their own teams in this competition. They can never change one afterwards — every correction comes from BFT MENA."
-            )
-          : t(
-              "Score entry is BFT MENA's only, in this competition. Studios can still register teams and follow their own entries."
-            )}{" "}
+        {t(
+          "Studios register and pair their own athletes, place their teams in waves, and follow their own results. Scores are entered by the judges on the floor."
+        )}{" "}
         <Link href={`/series/${series.slug}/settings`} className="linkish">
-          {t("Change this in Settings")}
+          {t("Settings")}
         </Link>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { can, type CurrentUser } from "@/lib/access";
+import { can, isBft, type CurrentUser } from "@/lib/access";
 
 const content = {
   title: z.string().trim().min(1).max(160),
@@ -10,18 +10,19 @@ const content = {
 
 export const announcementSchema = z.discriminatedUnion("audience", [
   z.object({ ...content, audience: z.literal("all") }).strict(),
-  z.object({ ...content, audience: z.literal("role"), audienceRole: z.enum(["admin", "studio", "competitor"]) }).strict(),
+  z.object({ ...content, audience: z.literal("role"), audienceRole: z.enum(["admin", "staff", "studio", "competitor", "organiser"]) }).strict(),
   z.object({ ...content, audience: z.literal("studio"), audienceStudioId: z.string().min(1).max(191) }).strict(),
 ]);
 export type AnnouncementInput = z.infer<typeof announcementSchema>;
 
+/** BFT MENA writes to anyone; a studio writes to its own people only. */
 export function canComposeAnnouncements(user: CurrentUser): boolean {
-  return (user.role === "admin" || (user.role === "studio" && !!user.studioId)) && can(user, "announcements.view");
+  return (isBft(user) || (user.role === "studio" && !!user.studioId)) && can(user, "announcements.send");
 }
 
 export function canSendAnnouncement(user: CurrentUser, input: AnnouncementInput): boolean {
-  if (user.viewAs || !canComposeAnnouncements(user) || !can(user, "announcements.manage")) return false;
-  if (user.role === "admin") return true;
+  if (user.viewAs || !canComposeAnnouncements(user)) return false;
+  if (isBft(user)) return true;
   return input.audience === "studio" && input.audienceStudioId === user.studioId;
 }
 

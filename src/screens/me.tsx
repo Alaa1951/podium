@@ -1,7 +1,10 @@
 import Link from "next/link";
 
+import { ApprovalBanner } from "@/components/app/approval-banner";
 import { PlainHeader } from "@/components/app/plain-header";
+import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
 import { TeamEditor } from "@/components/me/team-editor";
+import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/queries";
@@ -15,7 +18,7 @@ import { getSeriesWaves } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 
 /**
- * A COMPETITOR'S OWN PAGE.
+ * AN ATHLETE'S OWN PAGE.
  *
  * The competitor sign-in has always pushed here; until now there was nothing at
  * the other end of it. One person, one entry: who they are paired with, when
@@ -28,6 +31,34 @@ export default async function MyPage(editMode = false) {
   const user = await requireRole("competitor");
   const { t, locale } = await getTranslator();
 
+  // The profile an athlete filled in at sign-up: level, category, partner.
+  const profileRow = await prisma.athleteProfile.findUnique({
+    where: { userId: user.id },
+    select: {
+      division: true,
+      category: true,
+      lookingForPartner: true,
+      partnerName: true,
+      partnerEmail: true,
+      partnerPhone: true,
+      partnerUserId: true,
+    },
+  });
+  const profile: AthleteProfileDTO | null = profileRow
+    ? {
+        division: profileRow.division,
+        category: profileRow.category,
+        lookingForPartner: profileRow.lookingForPartner,
+        partnerName: profileRow.partnerName,
+        partnerEmail: profileRow.partnerEmail,
+        partnerPhone: profileRow.partnerPhone,
+        partnerLinked: Boolean(profileRow.partnerUserId),
+      }
+    : null;
+  const profileCard = profile ? (
+    <AthleteProfile profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
+  ) : null;
+
   // The competition they are in: the most recent one with an entry of theirs.
   const entry = await prisma.team.findFirst({
     where: { competitors: { some: { userId: user.id } } },
@@ -38,10 +69,12 @@ export default async function MyPage(editMode = false) {
   if (!entry) {
     return (
       <div className="screen">
-        <PlainHeader roleLabel={user.name ?? t("Competitor")} />
+        <PlainHeader roleLabel={user.name ?? t("Athlete")} />
         <div className="screen-head">
           <h1>{t("Your PODIUM")}</h1>
         </div>
+        <ApprovalBanner userId={user.id} />
+        {profileCard}
         <div className="notice">
           <strong>{t("No entry found for you yet.")}</strong>{" "}
           {t("Your studio registers your pair. It appears here as soon as they do.")}
@@ -51,8 +84,8 @@ export default async function MyPage(editMode = false) {
   }
 
   const series = entry.series;
-  const waveGrant = await prisma.waveAccess.findFirst({
-    where: { userId: user.id, wave: { series: { status: "live" } } },
+  const waveGrant = await prisma.zoneStaff.findFirst({
+    where: { userId: user.id, series: { status: "live" } },
     select: { id: true },
   });
   const [team, zones, everyone, waves] = await Promise.all([
@@ -84,7 +117,9 @@ export default async function MyPage(editMode = false) {
   if (!team) {
     return (
       <div className="screen">
-        <PlainHeader roleLabel={user.name ?? t("Competitor")} />
+        <PlainHeader roleLabel={user.name ?? t("Athlete")} />
+        <ApprovalBanner userId={user.id} />
+        {profileCard}
         <div className="notice">{t("Your entry could not be found. Ask your studio to check it.")}</div>
       </div>
     );
@@ -114,7 +149,8 @@ export default async function MyPage(editMode = false) {
 
   return (
     <div className="screen">
-      <PlainHeader roleLabel={user.name ?? t("Competitor")} />
+      <PlainHeader roleLabel={user.name ?? t("Athlete")} />
+      <ApprovalBanner userId={user.id} />
 
       <div className="screen-head">
         <div>
@@ -210,6 +246,8 @@ export default async function MyPage(editMode = false) {
           </tbody>
         </table>
       </div>
+
+      {profileCard}
 
       {/* Correcting who stands on the team — the clock decided above. */}
       <TeamEditor

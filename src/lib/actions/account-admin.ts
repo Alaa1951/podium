@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { canManageTarget } from "@/lib/permissions/grant-policy";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -20,25 +21,24 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 // name that was typed wrong, the email that changed, the studio somebody was
 // put under by mistake, and the reset link for the person who cannot get in.
 //
-// BFT MENA only. Nobody edits their own row here — a person changing their own
-// role is the one change this screen must never make — and the checks are all
-// re-derived from the database rather than trusted from the form.
+// BFT MENA only (users.edit). Nobody edits their own row here — a person
+// changing their own account type is the one change this screen must never
+// make — and the checks are all re-derived from the database rather than
+// trusted from the form. What a person may DO is their roles, changed from the
+// Access panel (user-access.ts), not here.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const editSchema = z.object({
   userId: z.string().min(1),
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().max(200),
-  role: z.enum(["admin", "studio", "competitor"]),
+  role: z.enum(["admin", "staff", "studio", "competitor", "organiser"]),
   studioId: z.union([z.string(), z.null()]).optional(),
-  /** Optional access profile: when set, its permission list governs this
-   *  account's screens and actions instead of the role defaults. */
-  accessRoleId: z.union([z.string(), z.null()]).optional(),
 });
 
-/** Correct a person's name, email, role, studio or access role. */
+/** Correct a person's name, email, account type or studio. */
 export async function updateAccount(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("users.edit");
 
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -53,9 +53,16 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
 
   const before = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true, studioId: true, accessRoleId: true },
+    select: { id: true, email: true, name: true, role: true, studioId: true },
   });
   if (!before) return { ok: false, error: "NOT_FOUND" };
+
+  // Only BFT MENA Full access makes (or unmakes) BFT MENA Full access.
+  const manage = canManageTarget(actor, before);
+  if (!manage.allowed) return { ok: false, error: manage.reason };
+  if (actor.role !== "admin" && (role === "admin" || before.role === "admin")) {
+    return { ok: false, error: "FORBIDDEN" };
+  }
 
   if (email !== before.email) {
     const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
@@ -67,26 +74,14 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
   const studioId = parsed.data.studioId || null;
   if (role === "studio" && !studioId) return { ok: false, error: "STUDIO_REQUIRED" };
 
-  // An access role must exist if one is named; null clears the assignment.
-  const accessRoleId = parsed.data.accessRoleId === undefined
-    ? before.accessRoleId
-    : parsed.data.accessRoleId || null;
-  if (accessRoleId) {
-    const known = await prisma.accessRole.findUnique({
-      where: { id: accessRoleId },
-      select: { id: true },
-    });
-    if (!known) return { ok: false, error: "INVALID_INPUT" };
-  }
-
   await prisma.user.update({
     where: { id: userId },
     data: {
       name,
       email,
       role,
-      studioId: role === "admin" ? null : studioId,
-      accessRoleId,
+      studioId: role === "admin" || role === "staff" ? null : studioId,
+      permissionsUpdatedAt: before.role !== role ? new Date() : undefined,
     },
   });
 
@@ -97,7 +92,6 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
     before.email !== email && `email ${before.email} → ${email}`,
     before.role !== role && `role ${before.role} → ${role}`,
     before.studioId !== studioId && `studio changed`,
-    before.accessRoleId !== accessRoleId && `access role changed`,
   ].filter(Boolean);
 
   await recordAudit({
@@ -122,7 +116,7 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
  * person who owns the account, and nobody else.
  */
 export async function sendResetLink(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("users.edit");
 
   const parsed = z.object({ userId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -157,7 +151,7 @@ const studioSchema = z.object({
 
 /** Rename a studio. Everything that points at it follows, because it is a row. */
 export async function renameStudio(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("studios.edit");
 
   const parsed = studioSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

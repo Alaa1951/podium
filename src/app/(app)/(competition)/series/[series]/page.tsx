@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesReport, money } from "@/lib/reports";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * change it. A number you cannot act on is decoration.
  */
 export default async function CompetitionOverview(props: PageProps<"/series/[series]">) {
-  await requireRole("admin");
+  await requireAccess("overview.view");
   const { t, locale } = await getTranslator();
 
   const { series, waveSummary, phase } = await requireSeries(props.params);
@@ -167,16 +167,6 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           label={t("Scored")}
           value={`${report.scored}/${report.paid}`}
           bar={pct(report.scored, report.paid)}
-        />
-        <Stat
-          href={at("settings")}
-          label={t("Studios may score")}
-          value={series.studiosMayEnterScores ? t("Yes") : t("No")}
-          note={
-            series.studiosMayEnterScores
-              ? t("entry only — corrections stay with BFT MENA")
-              : t("BFT MENA only")
-          }
         />
       </div>
 

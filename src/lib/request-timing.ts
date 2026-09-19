@@ -10,7 +10,7 @@ export function timingRoute(url: string): string | null {
   if (competition) return `/${competition[1]}/[series]/${competition[2]}${competition[3] ? "/detail" : ""}`;
   const api = path.match(/^\/api\/series\/[^/]+\/(board|export)$/);
   if (api) return `/api/series/[series]/${api[1]}`;
-  for (const base of ["/api/notifications", "/api/auth", "/api/results", "/series", "/studio", "/users", "/studios", "/roles", "/audit", "/account", "/me", "/my-wave", "/results", "/notifications", "/announcements", "/login", "/verify", "/privacy"]) {
+  for (const base of ["/api/notifications", "/api/auth", "/api/results", "/series", "/studio", "/users", "/studios", "/approvals", "/roles", "/home", "/signup", "/athlete", "/audit", "/account", "/me", "/my-wave", "/results", "/notifications", "/announcements", "/login", "/verify", "/privacy"]) {
     if (path === base) return base;
     if (path.startsWith(`${base}/`)) return `${base}/detail`;
   }

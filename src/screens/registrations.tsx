@@ -9,11 +9,11 @@ import { RegisteredFilters } from "@/components/admin/registered-filters";
 import { RegisteredTable, type RegisteredRow } from "@/components/admin/registered-table";
 import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
-import { can } from "@/lib/access";
+import { can, isBft } from "@/lib/access";
 import { getSeriesPaymentDefaults, getSeriesReport, money } from "@/lib/reports";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { normalizeName } from "@/lib/scoring";
-import { requireRole, requirePermission } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +28,15 @@ export const dynamic = "force-dynamic";
  * at the desk is given whichever of the two the competitor happens to say.
  */
 export default async function RegistrationsPage(props: SeriesScreenProps, detailId?: string, editMode = false) {
-  const user = await requirePermission("competitors.view");
-  if(editMode) await requireRole("admin");
+  const user = await requireAccess(editMode ? "registrations.edit" : "registrations.view");
   const searchParams = await props.searchParams;
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
-  const needsFullReport = !detailId && user.role === "admin";
+  const needsFullReport = !detailId && isBft(user);
   const [teams, archivedTeams, report, paymentDefaults] = await Promise.all([
     getScopedRoster(series.id, user, detailId),
-    !detailId && user.role === "admin" ? getArchivedRoster(series.id, user) : Promise.resolve([]),
+    !detailId && can(user, "registrations.archive") ? getArchivedRoster(series.id, user) : Promise.resolve([]),
     needsFullReport ? getSeriesReport(series.id) : Promise.resolve(null),
     needsFullReport ? Promise.resolve(null) : getSeriesPaymentDefaults(series.id),
   ]);
@@ -122,7 +121,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
-  if (detailId) return <div className="screen"><RegisteredTable readOnly={user.role !== "admin" || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && user.role === "admin" && !user.viewAs && can(user, "competitors.manage")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><RegisteredTable readOnly={!can(user, "registrations.payment") || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -145,7 +144,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         </div>
       </div>
 
-      {user.role === "admin" && report ? <div className="stat-grid">
+      {isBft(user) && report ? <div className="stat-grid">
         <div className="stat-card">
           <span className="stat-label">{t("Registered")}</span>
           <span className="stat-value">{report.registered}</span>
@@ -185,11 +184,11 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       />
 
       <RegisteredTable
-        readOnly={user.role !== "admin" || !!user.viewAs}
+        readOnly={!can(user, "registrations.payment") || !!user.viewAs}
         rows={rows}
         archivedRows={archivedRows}
         seriesId={series.id}
-        canArchive={series.status === "scheduled" && user.role === "admin" && !user.viewAs}
+        canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")}
         defaultAmount={(typicalMinor / 100).toFixed(2)}
         defaultCurrency={paymentReport.currency}
       />

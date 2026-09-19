@@ -48,7 +48,9 @@ export function PersonalMobileNavigation({ role, homeHref, insideBoard = false }
     ? [{ href: "/me", label: "My team" }, { href: "/my-wave", label: "My wave" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }]
     : homeHref === "/my-wave" ? [{href:"/my-wave",label:"My wave"},{href:"/results",label:"Results"},{href:"/account",label:"Account"}] : role === "studio"
       ? [{ href: "/studio", label: "Competitions" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }]
-      : [{ href: "/", label: "Dashboard" }, { href: "/series", label: "Competitions" }, { href: "/users", label: "Users" }, { href: "/?menu=more", label: "More" }];
+      : role === "admin" || homeHref === "/"
+        ? [{ href: "/", label: "Dashboard" }, { href: "/series", label: "Competitions" }, { href: "/users", label: "Users" }, { href: "/?menu=more", label: "More" }]
+        : [{ href: "/home", label: "Home" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }];
   const commonScreen = matchesRoute(path, "/account") || matchesRoute(path, "/notifications");
   const activePath = commonScreen ? "/account" : /^\/series\/[^/]+\/board$/.test(path) ? "/results" : path;
   return <nav className="mobile-tabbar personal-tabbar" aria-label={t("Sections")}>{items.map((item) => {

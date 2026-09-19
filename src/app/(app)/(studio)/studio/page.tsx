@@ -6,6 +6,8 @@ import { getTranslator } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { getStudioSeries } from "@/lib/studio-queries";
 import { canComposeAnnouncements } from "@/lib/notification-access";
+import { can } from "@/lib/access";
+import { countPendingSignups } from "@/lib/approvals";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,7 @@ export default async function StudioHome() {
   const user = await requireRole("studio");
   const { t, locale } = await getTranslator();
 
-  const series = await getStudioSeries(user);
+  const [series, waiting] = await Promise.all([getStudioSeries(user), countPendingSignups(user)]);
   if (series.length === 1) redirect(`/studio/${series[0].slug}/teams`);
 
   const date = (value: Date) =>
@@ -40,7 +42,10 @@ export default async function StudioHome() {
           <h1>{t("Your competitions")}</h1>
           <p>{t("The PODIUM competitions your studio is entered in.")}</p>
         </div>
-        {canComposeAnnouncements(user) ? <Link href="/studio/announcements" className="btn btn-secondary">{t("Announcements")}</Link> : null}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {can(user, "users.view") ? <Link href="/studio/people" className="btn btn-secondary">{t("People")}{waiting ? ` (${waiting})` : ""}</Link> : null}
+          {canComposeAnnouncements(user) ? <Link href="/studio/announcements" className="btn btn-secondary">{t("Announcements")}</Link> : null}
+        </div>
       </div>
 
       {series.length === 0 ? (

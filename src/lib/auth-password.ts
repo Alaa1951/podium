@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 import { sendSecurityAlertEmail } from "@/lib/email";
 import { verifyOtpChallenge } from "@/lib/otp";
+import { onAthleteVerified } from "@/lib/partners";
 import { otpDevBypassEnabled, staffOtpExempt } from "@/lib/otp-bypass";
 import { prisma } from "@/lib/prisma";
 import { limitAuthAttempt } from "@/lib/rate-limit";
@@ -265,6 +266,12 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       });
 
       await logLoginEvent({ userId: user.id, eventType: "COMPETITOR_OTP_VERIFIED", ip });
+
+      // An athlete who signed up proves their address for the first time:
+      // link their partner, or invite them (partners.ts).
+      if (!user.emailVerified && user.signupType === "athlete") {
+        await onAthleteVerified(user.id, user.email).catch(() => undefined);
+      }
 
       return toSessionUser({ ...user, status: "active" });
     },

@@ -1,4 +1,3 @@
-import { can } from "@/lib/access";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 
@@ -7,9 +6,8 @@ import type { GridTeam } from "@/components/scores/score-grid-types";
 import { getTranslator } from "@/lib/i18n/server";
 import { getScopedTeams, getSeriesZones } from "@/lib/queries";
 import { getSeriesScoreAudit } from "@/lib/queries-people";
-import { scoreWriteBudget, requireRole } from "@/lib/session";
+import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
-import { scoreEntryOpen } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -36,17 +34,10 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
     getSeriesScoreAudit(series.id, 8, detailId),
   ]);
 
-  const deadline = scoreEntryOpen({
-    role: "studio",
-    scoreEntryClosesAt: series.scoreEntryClosesAt,
-    now: new Date(),
-  });
-  const frozen = !!user.viewAs || !can(user,"scores.edit") || !series.studiosMayEnterScores || !deadline.open;
-  const frozenReason = !series.studiosMayEnterScores
-    ? t("BFT MENA has not opened score entry for studios in this competition.")
-    : !deadline.open
-      ? t("Score entry has closed. Ask BFT MENA for any correction.")
-      : undefined;
+  // Studios follow their scores here; they do not enter them. Judges do, on
+  // their zone and station — a studio person who judges holds the Judge role.
+  const frozen = true;
+  const frozenReason = t("Scores are entered by the judges on the floor. Ask BFT MENA for any correction.");
 
   const rows: GridTeam[] = (detailId ? teams.filter(team => team.id === detailId) : teams).map((team) => ({
     id: team.id,
@@ -76,7 +67,7 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
 
-  if (detailId) return <div className="screen"><ScoreGrid teams={rows} zones={zones} editBudget={scoreWriteBudget(series)} budgetApplies={user.role === "studio"} isAdmin={user.role === "admin"} frozen={frozen} frozenReason={frozenReason} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><ScoreGrid teams={rows} zones={zones} editBudget={0} budgetApplies={false} isAdmin={false} frozen={frozen} frozenReason={frozenReason} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -92,8 +83,8 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
       <ScoreGrid
         teams={rows}
         zones={zones}
-        budgetApplies={user.role === "studio"}
-        editBudget={scoreWriteBudget(series)}
+        budgetApplies={false}
+        editBudget={0}
         isAdmin={false}
         frozen={frozen}
         frozenReason={frozenReason}

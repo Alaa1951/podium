@@ -36,7 +36,8 @@ async function main() {
     const password = `Pw!${randomBytes(24).toString('base64url')}`;
     const passwordHash = await bcrypt.hash(password, 12);
     const account = await prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({ data: { email, name, role: 'studio', status: 'active', passwordHash, emailVerified: new Date(), locale: 'en', studioId: studio.id, accessRoleId: accessRole.id, createdById: actor.id }, select: { id: true, email: true, name: true, role: true, studioId: true, accessRoleId: true } });
+      const created = await tx.user.create({ data: { email, name, role: 'studio', status: 'active', passwordHash, emailVerified: new Date(), locale: 'en', studioId: studio.id, createdById: actor.id }, select: { id: true, email: true, name: true, role: true, studioId: true } });
+      await tx.userAccessRole.create({ data: { userId: created.id, accessRoleId: accessRole.id, assignedById: actor.id } });
       await tx.adminAuditLog.create({ data: { actorId: actor.id, action: 'account.review.create', targetType: 'user', targetId: created.id, targetLabel: email, detail: `Owner-authorized Apple App Review studio account created by production provisioning script. Read-only ${ACCESS_ROLE_KEY} permissions; scoped to the empty ${SANDBOX_STUDIO_NAME} studio.` } });
       return created;
     });

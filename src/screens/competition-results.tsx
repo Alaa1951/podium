@@ -6,7 +6,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesTeams, getSeriesZones, podiums, rankBracket } from "@/lib/queries";
 import { requireSeries } from "@/lib/require-series";
 import { bracketLabel } from "@/lib/scoring";
-import { requirePermission } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  * by category and division, so totals are only comparable within one.
  */
 export default async function ResultsPage(props: SeriesScreenProps, detailId?: string) {
-  await requirePermission("results.view");
+  await requireAccess("results.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);

@@ -3,7 +3,7 @@ import { DraftGuard } from "@/components/app/draft-guard";
 
 import { getTranslator } from "@/lib/i18n/server";
 import { createSeries } from "@/lib/actions/series";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * that and everything else are editable in its own Settings afterwards.
  */
 export default async function NewCompetitionPage() {
-  await requireRole("admin");
+  await requireAccess("competitions.create");
   const { t } = await getTranslator();
 
   const today = new Date();

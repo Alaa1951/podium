@@ -25,6 +25,7 @@
     "verify:fast": "node scripts/verify.mjs --fast",
     "db:generate": "prisma generate",
     "db:migrate:status": "prisma migrate status",
+    "docs:access": "node scripts/access-doc.ts",
     "package:hostinger": "node scripts/prepare-hostinger-package.mjs",
     "mobile:sync": "node scripts/mobile-sync.mjs",
     "mobile:android": "npx cap open android",

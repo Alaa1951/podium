@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_STUDIO_PERMISSIONS, type CurrentUser } from "@/lib/access";
+import type { CurrentUser } from "@/lib/access";
+import { systemRole } from "@/lib/permissions/system-roles";
+
+/** What a studio holds by default: the Gym/Studio role. */
+const DEFAULT_STUDIO_PERMISSIONS: string[] = systemRole("gym-studio")!.permissions;
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), studio: vi.fn(), create: vi.fn(), read: vi.fn(), audit: vi.fn(), revalidate: vi.fn(), rate: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));

@@ -1,7 +1,8 @@
 import "server-only";
 
-import { DEFAULT_STUDIO_PERMISSIONS, type CurrentUser } from "@/lib/access";
+import type { CurrentUser } from "@/lib/access";
 import { notificationScope } from "@/lib/notification-access";
+import { loadPermissions } from "@/lib/permissions/load";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
@@ -11,18 +12,17 @@ export async function getNotificationUser(): Promise<CurrentUser | null> {
   if (!sessionUser) return null;
   const account = await prisma.user.findUnique({
     where: { id: sessionUser.id },
-    select: { status: true, archivedAt: true, role: true, studioId: true, accessRoleId: true },
+    select: { status: true, archivedAt: true, role: true, studioId: true },
   });
   if (!account || account.status !== "active" || account.archivedAt) return null;
-  const permissions = account.role === "admin" ? ["*"] : account.role === "studio" ? DEFAULT_STUDIO_PERMISSIONS : [];
-  const customRole = account.accessRoleId
-    ? await prisma.accessRole.findUnique({ where: { id: account.accessRoleId }, select: { permissions: true } })
-    : null;
+  // A preview keeps the previewed account's permissions; otherwise the same
+  // resolver as every other request, read against the fresh account type.
+  if (sessionUser.viewAs) return { ...sessionUser, role: account.role, studioId: account.studioId };
   return {
     ...sessionUser,
     role: account.role,
     studioId: account.studioId,
-    permissions: account.accessRoleId ? (customRole?.permissions as string[] | undefined) ?? [] : permissions,
+    permissions: await loadPermissions(sessionUser.id, account.role),
   };
 }
 

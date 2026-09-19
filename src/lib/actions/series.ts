@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { waveLengthMinutes } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 import { seriesArchiveGuard } from "@/lib/series-guard";
 import { DEFAULT_ZONES } from "@/lib/zones";
 
@@ -63,7 +64,7 @@ const seriesSchema = z.object({
  * nobody's intention. It is edited in Settings like everything else.
  */
 export async function createSeries(formData: FormData): Promise<void> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("competitions.create");
 
   const parsed = seriesSchema.safeParse({
     name: formData.get("name"),
@@ -118,16 +119,16 @@ const settingsSchema = z.object({
   competitionDate: z.string().min(1),
   venue: z.string().trim().min(1).max(120),
   firstWaveTime: z.string().regex(/^\d{2}:\d{2}$/),
-  waveMinutes: z.coerce.number().int().min(1).max(180),
-  waveCapacity: z.coerce.number().int().min(1).max(99),
+  // One team per station: never more than nine.
+  waveCapacity: z.coerce.number().int().min(1).max(9),
+  zoneWorkMinutes: z.coerce.number().int().min(1).max(60),
+  zoneBreakMinutes: z.coerce.number().int().min(0).max(30),
   boardOpensAt: z.string().optional(),
   registrationClosesAt: z.string().optional(),
   registrationsFinalAt: z.string().optional(),
   scoreEntryClosesAt: z.string().optional(),
   resultsPublicAt: z.string().optional(),
   championsAnnouncedAt: z.string().optional(),
-  studiosMayEnterScores: z.coerce.boolean().default(false),
-  studioScoreCorrections: z.coerce.number().int().min(0).max(5),
   teamEditCloseHours: z.coerce.number().int().min(0).max(720),
   showTeamName: z.coerce.boolean().default(true),
   showCompetitorNames: z.coerce.boolean().default(true),
@@ -142,7 +143,7 @@ const whenever = (value: string | undefined) => {
 
 /** Everything about a competition that is a setting rather than a fact. */
 export async function updateSeriesSettings(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("settings.edit");
 
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -150,12 +151,20 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
 
   const before = await prisma.series.findUnique({
     where: { id: seriesId },
-    select: { name: true, studiosMayEnterScores: true },
+    select: { name: true },
   });
   if (!before) return { ok: false, error: "NOT_FOUND" };
 
   const date = whenever(data.competitionDate);
   if (!date) return { ok: false, error: "SERIES_DATE_INVALID" };
+
+  // The wave's length is not a setting of its own: it is the zones' work plus
+  // the changeovers between them (src/lib/floor.ts).
+  const zoneCount = await prisma.zone.count({ where: { seriesId } });
+  const waveMinutes = Math.max(
+    1,
+    waveLengthMinutes({ workMinutes: data.zoneWorkMinutes, breakMinutes: data.zoneBreakMinutes, zoneCount })
+  );
 
   await prisma.series.update({
     where: { id: seriesId },
@@ -165,16 +174,16 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
       competitionDate: date,
       venue: data.venue,
       firstWaveTime: data.firstWaveTime,
-      waveMinutes: data.waveMinutes,
+      waveMinutes,
       waveCapacity: data.waveCapacity,
+      zoneWorkMinutes: data.zoneWorkMinutes,
+      zoneBreakMinutes: data.zoneBreakMinutes,
       boardOpensAt: whenever(data.boardOpensAt),
       registrationClosesAt: whenever(data.registrationClosesAt),
       registrationsFinalAt: whenever(data.registrationsFinalAt),
       scoreEntryClosesAt: whenever(data.scoreEntryClosesAt),
       resultsPublicAt: whenever(data.resultsPublicAt),
       championsAnnouncedAt: whenever(data.championsAnnouncedAt),
-      studiosMayEnterScores: data.studiosMayEnterScores,
-      studioScoreCorrections: data.studioScoreCorrections,
       teamEditCloseHours: data.teamEditCloseHours,
       showTeamName: data.showTeamName,
       showCompetitorNames: data.showCompetitorNames,
@@ -183,25 +192,21 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
   });
 
   // Length and capacity belong to the competition, not to each wave —
-  // changing them here restamps every wave in the running order at once.
+  // changing them here restamps every wave not yet on the floor. A wave that
+  // has started keeps the clock it started with.
   await prisma.wave.updateMany({
-    where: { seriesId },
-    data: { durationMinutes: data.waveMinutes, capacity: data.waveCapacity },
+    where: { seriesId, status: "pending" },
+    data: { durationMinutes: waveMinutes, capacity: data.waveCapacity },
   });
 
-  // Who may write a score is the setting worth naming in the log by itself.
-  if (before.studiosMayEnterScores !== data.studiosMayEnterScores) {
-    await recordAudit({
-      actorId: actor.id,
-      action: AUDIT.seriesSettingsChanged,
-      targetType: "event",
-      targetId: seriesId,
-      targetLabel: data.name,
-      detail: data.studiosMayEnterScores
-        ? "studios may now enter scores"
-        : "score entry closed to studios",
-    });
-  }
+  await recordAudit({
+    actorId: actor.id,
+    action: AUDIT.seriesSettingsChanged,
+    targetType: "event",
+    targetId: seriesId,
+    targetLabel: data.name,
+    detail: before.name !== data.name ? `renamed from "${before.name}"` : "settings saved",
+  });
 
   revalidateCompetitionViews();
   return { ok: true };
@@ -214,7 +219,7 @@ const statusSchema = z.object({
 
 /** Scheduled → live → final. What the board shows follows from it. */
 export async function setSeriesStatus(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("settings.edit");
 
   const parsed = statusSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -247,7 +252,7 @@ export async function setSeriesStatus(input: unknown): Promise<ActionResult> {
  * scheduler for "publish at"; this is the switch for "publish now".
  */
 export async function setSeriesPublished(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("results.publish");
 
   const parsed = z
     .object({ seriesId: z.string().min(1), published: z.boolean() })
@@ -306,7 +311,7 @@ const studioSchema = z.object({
  * simply be dropped — the entries would have nowhere to belong.
  */
 export async function setSeriesStudio(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("competitionStudios.edit");
 
   const parsed = studioSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -352,7 +357,7 @@ export async function setSeriesStudio(input: unknown): Promise<ActionResult> {
  * is locked and a finished one is the record — neither is ever removable.
  */
 export async function archiveSeries(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("competitions.create");
 
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -386,7 +391,7 @@ export async function archiveSeries(input: unknown): Promise<ActionResult> {
 
 /** Bring an archived competition back onto the series list. Admin only. */
 export async function restoreSeries(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("competitions.create");
 
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

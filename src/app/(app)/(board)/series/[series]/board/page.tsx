@@ -7,7 +7,7 @@ import { RunningBoard } from "@/components/board/running-board";
 import { buildBoardPayload, remainingMs } from "@/lib/board";
 import { getTranslator } from "@/lib/i18n/server";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { getCurrentUser } from "@/lib/session";
+import { can, getCurrentUser } from "@/lib/session";
 import { boardAccess } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
@@ -41,16 +41,19 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
   // BFT MENA sees the countdown too — it is literally what will be on the wall
   // and somebody has to check it looks right. What they get instead of a lock
   // is ?preview=1, to rehearse the board behind it.
-  const previewing = searchParams.preview === "1";
+  const bft = user.role === "admin" || user.role === "staff";
+  const previewing = searchParams.preview === "1" && bft;
 
   // The way back depends on who is watching: BFT MENA goes to the competition's
   // menu; a studio or competitor watching live goes to their own dashboard.
   const back =
-    user.role === "admin"
-      ? seriesHref(series.slug)
-      : user.role === "studio"
-        ? "/studio"
-        : "/me";
+    user.role === "studio"
+      ? "/studio"
+      : user.role === "competitor"
+        ? "/me"
+        : can(user, "overview.view")
+          ? seriesHref(series.slug)
+          : "/home";
 
   if (phase === "before" && !previewing) {
     const opensAt = series.boardOpensAt ?? series.competitionDate;
@@ -60,7 +63,7 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
         remainingMs={remainingMs(opensAt) ?? 0}
         opensAtLabel={formatOpensAt(opensAt, locale)}
         seriesName={series.name}
-        previewHref={`${seriesHref(series.slug, "board")}?preview=1`}
+        previewHref={bft ? `${seriesHref(series.slug, "board")}?preview=1` : undefined}
       />
       </BoardFrame>
     );

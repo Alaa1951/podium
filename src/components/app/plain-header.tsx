@@ -25,7 +25,7 @@ const tinyLink: React.CSSProperties = {
 export function PlainHeader({ roleLabel, homeHref = "/", backHref }: { roleLabel: string; homeHref?: string; backHref?: string }) {
   const t = useT();
   const path = usePathname();
-  const mobileTitle = ({"/me":"My team","/studio":"Competitions","/my-wave":"My wave","/account":"Account","/notifications":"Notifications","/me/edit":"Edit team"} as Record<string,string>)[path] ?? (path.startsWith("/studio/announcements") ? "Announcements" : path.startsWith("/my-wave/") ? "My wave" : undefined);
+  const mobileTitle = ({"/home":"Home","/me":"My team","/studio":"Competitions","/my-wave":"My wave","/account":"Account","/notifications":"Notifications","/me/edit":"Edit team"} as Record<string,string>)[path] ?? (path.startsWith("/studio/announcements") ? "Announcements" : path.startsWith("/my-wave/") ? "My wave" : undefined);
 
   return (
     <>

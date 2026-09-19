@@ -6,81 +6,57 @@ import { getServerSession } from "next-auth";
 
 import type { Role } from "@/generated/prisma/enums";
 import { authOptions } from "@/lib/auth";
-import { can, DEFAULT_STUDIO_PERMISSIONS, type CurrentUser } from "@/lib/access";
-import { prisma } from "@/lib/prisma";
+import { can, type CurrentUser, type PermissionKey } from "@/lib/access";
+import { loadPermissions } from "@/lib/permissions/load";
+import { hasLiveZonePost } from "@/lib/zone-staff";
 import { readViewAsState } from "@/lib/view-as";
 
 // Resolving who is asking. The rules about what they may then do live in
-// access.ts, which is pure and tested on its own — this file only reads the
-// session and applies them.
+// access.ts and permissions/, which are pure and tested on their own — this
+// file only reads the session and applies them.
 
 export type { CurrentUser } from "@/lib/access";
 export {
   accountScope,
+  can,
+  canAny,
   canCreateAccount,
-  canEditScore,
-  canManageAccounts,
-  canManageEvent,
-  canRegisterTeams,
   canWriteScore,
   isAdmin,
+  isBft,
   isCompetitor,
   isStudio,
-  scoreWriteBudget,
   teamScope,
 } from "@/lib/access";
 
 /**
- * Where a role belongs when it lands somewhere it may not be.
+ * Where an account type belongs when it lands somewhere it may not be.
  *
- * Every console route used to redirect a refusal to "/", which is itself
- * admin-only — so a studio or a competitor signing in bounced between the two
- * forever. A refusal has to land somewhere the refused role can actually stand.
+ * A refusal has to land somewhere the refused person can actually stand, or a
+ * studio and the console bounce between each other forever.
  */
 export function homeFor(role: Role): string {
   if (role === "studio") return "/studio";
   if (role === "competitor") return "/me";
-  return "/";
+  if (role === "admin") return "/";
+  return "/home";
 }
 
 /**
- * The same, resolved for a PERSON rather than a role: an account holding a
- * wave-scorer grant belongs on that wave's score sheet, whatever role the
- * account carries. Checked on every refused route, so a scorer typing the
- * console's address lands on their sheet instead of in a hallway.
+ * The same, resolved for a PERSON rather than an account type: somebody
+ * working a zone of a running competition belongs on their judge sheet,
+ * whatever type the account is. BFT MENA Partial staff whose roles open the
+ * dashboard land on it; everyone else without a home of their own on /home.
  */
 export async function homeForUser(user: CurrentUser): Promise<string> {
   try {
-    const grant = await prisma.waveAccess.findFirst({
-      where: { userId: user.id, wave: { series: { status: "live" } } },
-      select: { id: true },
-    });
-    if (grant) return "/my-wave";
+    if (await hasLiveZonePost(user.id)) return "/my-wave";
   } catch {
     // A refused route must never turn into a 500 because the grant lookup
     // hiccuped — the role's ordinary home is always a safe answer.
   }
+  if (user.role === "staff" && can(user, "dashboard.view")) return "/";
   return homeFor(user.role);
-}
-
-/**
- * Permissions resolve from the account's access role when it carries one;
- * otherwise the role's own defaults apply. Admins bypass in can().
- */
-async function resolvePermissions(
-  role: Role,
-  accessRoleId: string | null | undefined
-): Promise<string[]> {
-  if (role === "admin") return ["*"];
-  if (accessRoleId) {
-    const accessRole = await prisma.accessRole.findUnique({
-      where: { id: accessRoleId },
-      select: { permissions: true },
-    });
-    return (accessRole?.permissions as string[] | undefined) ?? [];
-  }
-  if (role === "studio") return DEFAULT_STUDIO_PERMISSIONS;
-  return [];
 }
 
 // React cache lasts for this server render only, never across users or requests.
@@ -112,12 +88,14 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
         role: viewed.role,
         studioId: viewed.studioId,
         locale: viewed.locale,
-        permissions: await resolvePermissions(viewed.role, viewed.accessRoleId),
+        permissions: await loadPermissions(viewed.userId, viewed.role),
         viewAs: { byAdminId: session.user.id },
       };
     }
   }
 
+  // Permissions are read fresh from the account's roles and overrides on every
+  // request, so a role change applies on the next click — no sign-out needed.
   return {
     id: session.user.id,
     email: session.user.email ?? "",
@@ -125,7 +103,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     role: session.user.role,
     studioId: session.user.studioId,
     locale: session.user.locale,
-    permissions: await resolvePermissions(session.user.role, session.user.accessRoleId),
+    permissions: await loadPermissions(session.user.id, session.user.role),
   };
 });
 
@@ -135,6 +113,10 @@ export async function requireUser(): Promise<CurrentUser> {
   return user;
 }
 
+/**
+ * Gate by ACCOUNT TYPE. Only for screens whose data is inherently one type's —
+ * the studio area, an athlete's own page. Everything else gates by permission.
+ */
 export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
   const user = await requireUser();
   if (!roles.includes(user.role)) redirect(await homeForUser(user));
@@ -142,12 +124,34 @@ export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
 }
 
 /**
- * Gate a screen or action by a CATALOG permission key (see access.ts).
- * Admins pass everything; everyone else passes when their resolved permission
- * list carries the key. A refusal lands where that person belongs.
+ * Gate a SCREEN by a catalog permission key (permissions/catalog.ts).
+ * BFT MENA Full passes everything; everyone else passes when their resolved
+ * permission list carries the key. A refusal lands where that person belongs.
  */
-export async function requirePermission(permission: string): Promise<CurrentUser> {
+export async function requireAccess(permission: PermissionKey): Promise<CurrentUser> {
   const user = await requireUser();
   if (!can(user, permission)) redirect(await homeForUser(user));
   return user;
+}
+
+/** Same as requireAccess, passing when the user holds any one of the keys. */
+export async function requireAnyAccess(permissions: PermissionKey[]): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!permissions.some((permission) => can(user, permission))) redirect(await homeForUser(user));
+  return user;
+}
+
+export type Forbidden = { ok: false; error: "FORBIDDEN" | "UNAUTHENTICATED" };
+
+/**
+ * Gate a SERVER ACTION by a catalog key. Returns the user, or a result the
+ * action hands straight back — an action must never redirect a fetch.
+ */
+export async function assertAccess(
+  permission: PermissionKey
+): Promise<{ user: CurrentUser; denied: null } | { user: null; denied: Forbidden }> {
+  const user = await getCurrentUser();
+  if (!user) return { user: null, denied: { ok: false, error: "UNAUTHENTICATED" } };
+  if (!can(user, permission)) return { user: null, denied: { ok: false, error: "FORBIDDEN" } };
+  return { user, denied: null };
 }

@@ -1,0 +1,104 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Signing up: what the form must carry, and that an existing address is told
+// by email rather than on screen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const mocks = vi.hoisted(() => {
+  process.env.NEXTAUTH_SECRET ||= "test-secret-not-used-anywhere-real";
+  return {
+    findUser: vi.fn(),
+    createUser: vi.fn(),
+    updateUser: vi.fn(),
+    upsertProfile: vi.fn(),
+    deleteProfiles: vi.fn(),
+    findStudio: vi.fn(),
+    otp: vi.fn(),
+    sendOtp: vi.fn(),
+    alreadyRegistered: vi.fn(),
+    rate: vi.fn(),
+  };
+});
+
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: { findUnique: mocks.findUser, create: mocks.createUser, update: mocks.updateUser },
+    athleteProfile: { upsert: mocks.upsertProfile, deleteMany: mocks.deleteProfiles },
+    studio: { findFirst: mocks.findStudio },
+  },
+}));
+vi.mock("@/lib/otp", () => ({ createOtpChallenge: mocks.otp, getOtpConfig: () => ({ ttlMinutes: 10 }) }));
+vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendAlreadyRegisteredEmail: mocks.alreadyRegistered }));
+vi.mock("@/lib/rate-limit", () => ({ checkRate: mocks.rate, MINUTE_MS: 60_000 }));
+
+const athlete = {
+  type: "athlete",
+  name: "Sara Ali",
+  email: "Sara@Example.com",
+  phone: "+97455512345",
+  dateOfBirth: "1995-04-02",
+  sex: "f",
+  division: "Open",
+  category: "Womens",
+  hasPartner: false,
+};
+
+describe("startSignup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.rate.mockReturnValue({ ok: true });
+    mocks.findUser.mockResolvedValue(null);
+    mocks.createUser.mockResolvedValue({ id: "u1" });
+    mocks.otp.mockResolvedValue({ code: "123456" });
+  });
+
+  it("creates a waiting athlete looking for a partner, and emails a code", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+    const data = mocks.createUser.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      email: "sara@example.com",
+      role: "competitor",
+      status: "invited",
+      approvalStatus: "pending",
+      signupType: "athlete",
+      requestedRoleKey: "athlete",
+      passwordHash: null,
+    });
+    expect(mocks.upsertProfile.mock.calls[0][0].create).toMatchObject({ lookingForPartner: true, partnerEmail: null });
+    expect(mocks.sendOtp).toHaveBeenCalledWith(expect.objectContaining({ email: "sara@example.com", code: "123456" }));
+  });
+
+  it("requires the athlete details, and a partner when they say they have one", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup({ ...athlete, division: undefined })).toEqual({ ok: false, error: "ATHLETE_DETAILS_REQUIRED" });
+    expect(await startSignup({ ...athlete, hasPartner: true })).toEqual({ ok: false, error: "PARTNER_REQUIRED" });
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("requires an organiser to pick a role and a strong password", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    const organiser = { type: "organiser", name: "Omar", email: "omar@example.com", phone: "+97455500000" };
+    expect(await startSignup(organiser)).toEqual({ ok: false, error: "ROLE_REQUIRED" });
+    expect(await startSignup({ ...organiser, roleKey: "judge", password: "short" })).toEqual({ ok: false, error: "PASSWORD_TOO_SHORT" });
+    expect(await startSignup({ ...organiser, roleKey: "gym-studio", password: "Str0ngPassword" })).toEqual({ ok: false, error: "GYM_REQUIRED" });
+  });
+
+  it("never reveals an existing account — it gets an email instead of a code", async () => {
+    mocks.findUser.mockResolvedValue({ id: "old", role: "studio", status: "active", signupType: null, approvalStatus: "approved" });
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(mocks.alreadyRegistered).toHaveBeenCalled();
+    expect(mocks.createUser).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.sendOtp).not.toHaveBeenCalled();
+  });
+
+  it("throttles repeated sign-ups", async () => {
+    mocks.rate.mockReturnValue({ ok: false });
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup(athlete)).toEqual({ ok: false, error: "TOO_MANY" });
+  });
+});

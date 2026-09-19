@@ -8,8 +8,6 @@ declare module "next-auth" {
       id: string;
       role: Role;
       status: UserStatus;
-      /** The access role this account carries, when it has one. */
-      accessRoleId?: string | null;
       studioId: string | null;
       locale: string;
       expiresAt?: number;
@@ -21,7 +19,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: Role;
     status?: UserStatus;
-    accessRoleId?: string | null;
     studioId?: string | null;
     locale?: string;
     refreshedAt?: number;

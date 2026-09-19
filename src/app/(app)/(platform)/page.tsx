@@ -4,7 +4,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { listSeries } from "@/lib/queries";
 import { money } from "@/lib/reports";
-import { requireRole } from "@/lib/session";
+import { can, requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * totals, then the rest of the competitions.
  */
 export default async function PlatformDashboard() {
-  await requireRole("admin");
+  const user = await requireAccess("dashboard.view");
   const { t, locale } = await getTranslator();
 
   const competitions = await listSeries();
@@ -56,11 +56,13 @@ export default async function PlatformDashboard() {
           <h1>{t("Dashboard")}</h1>
           <p>{t("Every PODIUM competition, and what is happening in each.")}</p>
         </div>
-        <div className="screen-head-actions">
-          <Link href="/series/new" className="btn btn-primary">
-            {t("New competition")}
-          </Link>
-        </div>
+        {can(user, "competitions.create") && !user.viewAs ? (
+          <div className="screen-head-actions">
+            <Link href="/series/new" className="btn btn-primary">
+              {t("New competition")}
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       {/* ── The one that matters today ─────────────────────────────────────── */}
@@ -104,7 +106,7 @@ export default async function PlatformDashboard() {
       <div className="stat-grid" style={{ marginTop: 10 }}>
         <Stat label={t("Teams registered")} value={teams} note={`${paid} ${t("paid")}`} />
         <Stat
-          label={t("Competitors")}
+          label={t("Athletes")}
           value={people}
           note={`${members} ${t("BFT members")} · ${people - members} ${t("non-members")}`}
         />

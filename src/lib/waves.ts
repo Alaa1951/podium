@@ -31,6 +31,16 @@ export type WaveState = {
   stoppedRemainingMs: number | null;
   teamCount: number;
   scoredCount: number;
+  /** When START was pressed. The whole zone rotation is worked out from it. */
+  startedAt: string | null;
+  /** Where the wave is on the floor right now (src/lib/floor.ts). */
+  floor: {
+    phase: "pending" | "work" | "break" | "done";
+    /** 1-based zone number the wave is working in, or has just left. */
+    zoneNumber: number | null;
+    /** Time left in the current zone's work or changeover. */
+    phaseRemainingMs: number | null;
+  };
 };
 
 export type WaveSummary = {
@@ -95,13 +105,10 @@ export function waveWindowLabel(startTime: string, durationMinutes: number) {
 }
 
 // ── The wave clock, kept honest ──────────────────────────────────────────────
-// A wave starts when the operator starts it, and it ends by its own clock:
-// when its time runs out it comes off the floor by itself, a transition gap
-// passes for preparing the next one, and then the next wave with teams steps
-// on — automatically, chained by order, with no operator present.
-
-/** Minutes between one wave coming off the floor and the next stepping on. */
-export const WAVE_TRANSITION_MINUTES = 5;
+// A wave starts when the supervisor presses START, moves through the zones by
+// itself (src/lib/floor.ts), and ends by its own clock: when its time runs out
+// it comes off the floor. The NEXT wave is the supervisor's to start — waves
+// overlap on the floor one zone apart, so there is no single "next" to chain.
 
 export type WaveClockRow = {
   id: string;
@@ -115,50 +122,19 @@ export type WaveClockRow = {
 export type WaveClockSweep = {
   /** Running waves whose time is up — to be marked complete. */
   finish: string[];
-  /** The next wave with teams, when its transition gap has passed. */
-  start: { id: string; startedAt: Date; endsAt: Date } | null;
 };
 
 /**
- * Which wave transitions are DUE at `now`.
+ * Which waves are DUE to come off the floor at `now`: every running wave
+ * whose endsAt has passed, counted from the moment it actually started.
+ * Nothing is ever started here — START is the supervisor's.
  *
- * Pure and dependency-free so the rules can be tested directly.
- *
- *   FINISH   every running wave whose endsAt has passed — a wave ends by its
- *            own clock, counted from the moment it actually started, however
- *            late its competitors trickled onto the floor.
- *   START    once the floor is empty and the transition gap has passed, the
- *            lowest-numbered pending wave with teams steps on. Only a chain
- *            already in motion rolls forward: the very first start stays in
- *            the operator's hands.
+ * Pure and dependency-free so the rule can be tested directly.
  */
 export function waveClockSweep(rows: WaveClockRow[], now: Date): WaveClockSweep {
-  const finish = rows
-    .filter((row) => row.status === "running" && row.endsAt !== null && row.endsAt <= now)
-    .map((row) => row.id);
-
-  const stillRunning = rows.some(
-    (row) => row.status === "running" && !finish.includes(row.id)
-  );
-
-  let start: WaveClockSweep["start"] = null;
-  if (!stillRunning) {
-    // The floor's most recent moment of work: when the last wave came off it.
-    const lastOffFloor = rows
-      .filter((row) => row.status === "complete" || finish.includes(row.id))
-      .reduce((latest, row) => Math.max(latest, row.endsAt?.getTime() ?? 0), 0);
-
-    if (lastOffFloor > 0 && now.getTime() >= lastOffFloor + WAVE_TRANSITION_MINUTES * 60_000) {
-      const next = rows
-        .filter((row) => row.status === "pending" && row.teamCount > 0)
-        .sort((a, b) => a.number - b.number)[0];
-      if (next) {
-        const startedAt = now;
-        const endsAt = new Date(now.getTime() + next.durationMinutes * 60_000);
-        start = { id: next.id, startedAt, endsAt };
-      }
-    }
-  }
-
-  return { finish, start };
+  return {
+    finish: rows
+      .filter((row) => row.status === "running" && row.endsAt !== null && row.endsAt <= now)
+      .map((row) => row.id),
+  };
 }

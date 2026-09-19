@@ -50,12 +50,35 @@ datasource db {
 // Access control
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The ACCOUNT TYPE: who the person is. It decides whose data the account can
+/// reach (all of it, one studio's, one team's) and which roles it may hold.
+/// What the account may DO comes from its roles (AccessRole) — see
+/// src/lib/permissions/.
 enum Role {
-  admin // BFT MENA — unrestricted
+  admin // BFT MENA — Full access. Passes every check.
+  staff // BFT MENA — Partial access. Exactly what their roles grant.
   studio // scoped to its own studio's teams
   // Scoped to their own team. Called "competitor", never "member": membership
   // is a BFT studio relationship and half the competitors do not have one.
   competitor
+  organiser // event staff: organisers, judges, volunteers, coaches
+}
+
+/// Who may give a role to somebody. `bft_studio` roles can also be handed out
+/// by a studio to its own people; such a role can never carry a BFT-only
+/// permission (enforced when the role is saved).
+enum RoleAssigner {
+  bft
+  bft_studio
+}
+
+/// Whether BFT MENA (or the chosen studio) has accepted a sign-up. Accounts
+/// created any other way — invited, or through a paid registration — start
+/// approved. Until then an account sees the general pages only.
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
 }
 
 enum UserStatus {
@@ -69,11 +92,32 @@ model User {
   email         String     @unique
   name          String?
   role          Role       @default(competitor)
-  /// An optional access profile: when set, its permission list decides which
-  /// screens and actions this account may open, instead of the role defaults.
-  accessRoleId  String?
-  accessRole    AccessRole? @relation(fields: [accessRoleId], references: [id], onDelete: SetNull)
-  status        UserStatus @default(invited)
+  /// Per-person exceptions on top of the account's roles:
+  /// `{ "grant": string[], "deny": string[] }`. A deny ("lock") always wins.
+  permissionOverrides  Json?
+  /// Bumped on every change to this person's roles or overrides. The editor
+  /// sends back the value it loaded, and a stale save is refused.
+  permissionsUpdatedAt DateTime?
+  status       UserStatus @default(invited)
+
+  // ── Sign-up and approval ─────────────────────────────────────────────────
+  approvalStatus  ApprovalStatus @default(approved)
+  approvedAt      DateTime?
+  /// Who decided — kept as an id (the audit log carries the rest).
+  approvedById    String?
+  rejectionReason String?
+  phone           String?
+  /// Set for a self-service sign-up: "athlete" or "organiser".
+  signupType      String?
+  signupAt        DateTime?
+  /// What they asked to be: athlete · organiser · judge · volunteer · coach · gym-studio.
+  requestedRoleKey    String?
+  /// The gym they chose at sign-up — it routes the request to that studio.
+  requestedStudioId   String?
+  requestedStudio     Studio? @relation("RequestedStudio", fields: [requestedStudioId], references: [id], onDelete: SetNull)
+  /// A Gym/Studio request: the gym to create or link on approval.
+  requestedStudioName String?
+  requestedCity       String?
   passwordHash  String?
   emailVerified DateTime?
   locale        String     @default("en")
@@ -109,13 +153,56 @@ model User {
   confirmedPayments Team[]       @relation("PaymentConfirmedBy")
   scoreAudits    ScoreAudit[]
   adminAudits    AdminAuditLog[] @relation("AuditActor")
-  waveAccess     WaveAccess[]
+  zoneStaff      ZoneStaff[]      @relation("ZoneStaffMember")
+  zoneStaffAssigned ZoneStaff[]   @relation("ZoneStaffAssignedBy")
+  zoneScoresSubmitted ZoneScore[] @relation("ZoneScoreSubmittedBy")
+  accessRoles    UserAccessRole[] @relation("UserAccessRoles")
+  athleteProfile AthleteProfile?  @relation("AthleteProfileOwner")
+  partneredProfiles AthleteProfile[] @relation("AthletePartner")
+  assignedAccessRoles UserAccessRole[] @relation("AccessRoleAssignedBy")
   notificationsCreated Notification[] @relation("NotificationCreator")
   notificationReads NotificationRead[]
 
   @@index([studioId])
   @@index([role])
   @@index([createdById])
+  @@index([approvalStatus])
+  @@index([requestedStudioId])
+}
+
+/// An athlete's own details, captured at sign-up: who they are as a
+/// competitor, and either their partner or that they are looking for one.
+/// "Looking for a partner" is indexed by level and category, for pairing.
+model AthleteProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation("AthleteProfileOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  dateOfBirth DateTime?
+  /// "m" | "f"
+  sex         String?
+  /// The level they compete at (Rookie / Open / Pro).
+  division    Division?
+  /// The category they want to enter (Womens / Mens / Mixed).
+  category    Category?
+
+  lookingForPartner Boolean @default(false)
+
+  /// The partner, once both sides have an account and are linked.
+  partnerUserId      String?
+  partner            User?     @relation("AthletePartner", fields: [partnerUserId], references: [id], onDelete: SetNull)
+  partnerName        String?
+  partnerEmail       String?
+  partnerPhone       String?
+  partnerDateOfBirth DateTime?
+  partnerLinkedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lookingForPartner, division, category])
+  @@index([partnerEmail])
+  @@index([partnerUserId])
 }
 
 enum NotificationAudience {
@@ -327,6 +414,7 @@ model Studio {
   updatedAt DateTime @updatedAt
 
   users       User[]         @relation("StudioUsers")
+  signupRequests User[]      @relation("RequestedStudio")
   teams       Team[]
   competitors Competitor[]
   notifications Notification[]
@@ -350,8 +438,15 @@ model Series {
   // Event-day configuration — held as data, never in code, so a different
   // finisher length or wave size does not require a release.
   firstWaveTime      String    @default("09:00") // HH:mm
+  /// The whole wave, derived: zones × work + (zones − 1) × break. Kept on the
+  /// row (and stamped onto each wave) so every clock reads one number.
   waveMinutes        Int       @default(20)
+  /// At most nine — one team per station.
   waveCapacity       Int       @default(9)
+  /// Work time in each zone, and the changeover between zones (none after the
+  /// last). One START press runs the whole rotation — see src/lib/floor.ts.
+  zoneWorkMinutes    Int       @default(15)
+  zoneBreakMinutes   Int       @default(5)
   boardOpensAt       DateTime? // live board unlocks at this instant
 
   // ── What a studio may do here ────────────────────────────────────────────
@@ -409,6 +504,7 @@ model Series {
   /// movements from Series 1 and is not required to have four zones.
   zones    Zone[]
   waves    Wave[]
+  zoneStaff ZoneStaff[]
   teams    Team[]
   sponsors Sponsor[]
   /// The studios taking part. A studio in the directory but not in this list
@@ -453,6 +549,8 @@ model Zone {
   name   String
 
   inputs ZoneInput[]
+  staff  ZoneStaff[]
+  scores ZoneScore[]
 
   @@unique([seriesId, number])
 }
@@ -572,30 +670,40 @@ model Wave {
 
   teams Team[]
 
-  /// Wave scorers: accounts granted entry to THIS wave's score sheet and
-  /// nothing else. One wave, one location, one person on a laptop.
-  waveAccess WaveAccess[]
-
   @@unique([seriesId, number])
   @@index([seriesId, status])
 }
 
-/// A grant letting one account score one specific wave.
-///
-/// Judges and recorders sit at different locations — sometimes several waves
-/// run at once, in different rooms — and none of them should see the whole
-/// console. The grant is the whole permission: with it, the account's home
-/// becomes the score sheet of exactly that wave; without it, nothing.
-model WaveAccess {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  waveId String
-  wave   Wave   @relation(fields: [waveId], references: [id], onDelete: Cascade)
+enum ZoneStaffPosition {
+  leader // one per zone: places judges on stations, scores any station
+  judge // scores the team on their station
+  reserve // same as a judge; a label for organising people
+}
+
+/// Who works a zone, for a whole competition — access is per ZONE, not per
+/// wave, because several waves pass through each zone. A judge's station is
+/// set by the zone's leader; null means "not placed yet".
+model ZoneStaff {
+  id       String            @id @default(cuid())
+  seriesId String
+  series   Series            @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  zoneId   String
+  zone     Zone              @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User              @relation("ZoneStaffMember", fields: [userId], references: [id], onDelete: Cascade)
+  position ZoneStaffPosition @default(judge)
+  /// 1–9. Several people may share one (a warning, not an error).
+  station  Int?
+
+  assignedById String?
+  assignedBy   User?   @relation("ZoneStaffAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([userId, waveId])
+  @@unique([zoneId, userId])
+  @@index([seriesId])
+  @@index([userId])
 }
 
 /// A TEAM IS A REGISTRATION.
@@ -653,6 +761,8 @@ model Team {
   wave     Int      @default(1)
   waveId   String?
   waveRef  Wave?    @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  /// The station (1–9) this team stands on in every zone of its wave.
+  station  Int?
 
   // The studio that registered the team — the scope key for studio accounts.
   studioId String?
@@ -673,6 +783,7 @@ model Team {
   @@index([seriesId, paymentStatus])
   @@index([studioId])
   @@index([waveId])
+  @@unique([waveId, station])
 }
 
 /// One of the two people on a team — a person, with the details the
@@ -728,6 +839,8 @@ model Score {
 
   audits  ScoreAudit[]
   entries ZoneEntry[]
+  /// Per-zone lock. The team score is submitted when every zone is.
+  zones   ZoneScore[]
 
   @@index([status])
 }
@@ -748,6 +861,29 @@ model ZoneEntry {
 
   @@unique([scoreId, inputId])
   @@index([inputId])
+}
+
+/// One zone of one team's score, locked when its judge submits it.
+///
+/// Judges work per zone, so a team's score is finished zone by zone. The
+/// Score row becomes `submitted` in the same transaction as its last zone;
+/// after that only BFT MENA Full access can correct a zone.
+model ZoneScore {
+  id      String      @id @default(cuid())
+  scoreId String
+  score   Score       @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  zoneId  String
+  zone    Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  status  ScoreStatus @default(draft)
+
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   User?     @relation("ZoneScoreSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([scoreId, zoneId])
+  @@index([zoneId])
 }
 
 model ScoreAudit {
@@ -783,28 +919,52 @@ model LoadStandard {
   @@unique([division, sex])
 }
 
-/// An ACCESS ROLE — a named bundle of permission keys ("Wave scorer",
-/// "Studio manager"). Assigned to an account through `User.accessRoleId`; the
-/// account then resolves exactly that permission list instead of its role's
-/// defaults. BFT MENA admins bypass permissions entirely and need no role.
+/// An ACCESS ROLE — a named, editable bundle of permission keys ("Organiser",
+/// "Judge", "Gym/Studio"). A person can hold several (UserAccessRole), and
+/// their permissions add up. A person holding none gets the default role for
+/// their account type. BFT MENA Full access passes every check and needs no role.
 model AccessRole {
   id      String @id @default(cuid())
-  /// Stable slug, unique — used in code and seeds ("wave-scorer").
+  /// Stable slug, unique. Used in code and seeds ("organiser").
   key     String @unique
   name    String
   nameAr  String?
   /// What the role is for, shown on the roles screen.
   description String?
 
-  /// The granted permission keys. Must all exist in PERMISSION_GROUPS —
-  /// the roles screen only offers keys from the catalog.
+  /// The granted permission keys, from the catalog (permissions/catalog.ts).
+  /// Always read through normalizeStoredPermissions, so older keys still resolve.
   permissions Json
 
   /// System roles ship with the product and cannot be deleted.
   isSystem Boolean @default(false)
 
-  users User[]
+  /// Who may hand this role out.
+  assignableBy RoleAssigner @default(bft)
+  /// The account types this role is meant for (a JSON array of Role values);
+  /// null means any.
+  accountTypes Json?
+  sortOrder    Int  @default(0)
+
+  users UserAccessRole[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// One role held by one person. A person may hold several.
+model UserAccessRole {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation("UserAccessRoles", fields: [userId], references: [id], onDelete: Cascade)
+  accessRoleId String
+  accessRole   AccessRole @relation(fields: [accessRoleId], references: [id], onDelete: Cascade)
+  /// Who gave it, for the audit trail.
+  assignedById String?
+  assignedBy   User?      @relation("AccessRoleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, accessRoleId])
+  @@index([accessRoleId])
+  @@index([assignedById])
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ACCOUNT_TYPE_LABEL } from "@/components/accounts/account-types";
 import { PlainHeader } from "@/components/app/plain-header";
 import { SecurityPanel } from "@/components/account/security-panel";
 import { getTranslator } from "@/lib/i18n/server";
@@ -26,11 +27,9 @@ export default async function AccountPage() {
     : null;
 
   const roleLabel =
-    user.role === "admin"
-      ? t("BFT MENA · full admin")
-      : user.role === "studio"
-        ? `${studio?.name ?? "—"} ${t("Studio").toLowerCase()}`
-        : `${t("Member")} · ${user.name ?? user.email}`;
+    user.role === "studio"
+      ? `${studio?.name ?? "—"} ${t("Studio").toLowerCase()}`
+      : `${t(ACCOUNT_TYPE_LABEL[user.role])} · ${user.name ?? user.email}`;
 
   return (
     <>

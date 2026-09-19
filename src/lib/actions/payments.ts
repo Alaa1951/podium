@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -32,7 +32,7 @@ const paymentSchema = z.object({
  * never a deletion.
  */
 export async function setPayment(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("registrations.payment");
 
   const parsed = paymentSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -74,7 +74,7 @@ export async function setPayment(input: unknown): Promise<ActionResult> {
 
 /** Checked in on the day, or not after all. */
 export async function setAttendance(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("registrations.payment");
 
   const parsed = z
     .object({ teamId: z.string().min(1), attended: z.boolean() })

@@ -58,7 +58,7 @@ export function AnnouncementComposer({ admin, studioId, studios, readOnly }: {
           <select id="announcement-audience" value={audience} onChange={(event) => setAudience(event.target.value)}>
             <option value="all">{t("Everyone")}</option><option value="role">{t("By role")}</option><option value="studio">{t("By studio")}</option>
           </select>
-          {audience === "role" ? <><label htmlFor="announcement-role">{t("Role")}</label><select id="announcement-role" name="audienceRole"><option value="competitor">{t("Competitor")}</option><option value="studio">{t("Studio")}</option><option value="admin">{t("BFT MENA")}</option></select></> : null}
+          {audience === "role" ? <><label htmlFor="announcement-role">{t("Role")}</label><select id="announcement-role" name="audienceRole"><option value="competitor">{t("Athlete")}</option><option value="studio">{t("Studio")}</option><option value="admin">{t("BFT MENA")}</option></select></> : null}
           {audience === "studio" ? <><label htmlFor="announcement-studio">{t("Studio")}</label><select id="announcement-studio" name="audienceStudioId" required><option value="">{t("Choose a studio")}</option>{studios.map((studio) => <option key={studio.id} value={studio.id}>{studio.name}</option>)}</select></> : null}
         </> : <p>{t("Audience: your studio only.")}</p>}
         <label htmlFor="announcement-title">{t("Title")}</label>

@@ -64,32 +64,82 @@ not possession of a device.
 Changing a password from inside a session still requires the current one: a
 borrowed unlocked laptop must not be enough to take an account over.
 
+### Sign-up and approval
+
+Anyone can ask for an account at `/signup`, as an athlete or an organiser
+(organiser, judge, volunteer, coach, or a Gym/Studio). The request is created
+**waiting for approval** and a code goes to the address; typing it in proves the
+address and signs the person in. Until someone approves them, their permissions
+are the _everyone_ set only — the general pages and the live board — whatever
+roles the account might carry ([`load.ts`](../src/lib/permissions/load.ts)).
+
+- The reply never says whether an address already has an account; an existing
+  address gets an email pointing at sign-in instead of a code.
+- Rate limited per address and, more loosely, per network, so a gym signing up
+  its members on one Wi-Fi is not throttled as one person.
+- **Who decides** ([`approvals.ts`](../src/lib/approvals.ts)): BFT MENA sees every
+  request; a studio sees only requests that named it, and never a request to
+  become a Gym/Studio. Whoever acts first decides; a second decision is refused.
+- Approving applies the same anti-escalation rules as the Access panel: a
+  studio approves only into itself and gives only roles marked "studios can
+  give". Nobody decides their own request. Every decision is audited and emailed.
+- A **paid registration** approves an athlete account automatically.
+- Partners are linked only when both addresses are proven and each named the
+  other (or the named one was looking for a partner) — typing someone's email
+  never attaches you to them ([`partners.ts`](../src/lib/partners.ts)).
+
 ---
 
 ## Authorization
 
-The rules are pure functions in [`access.ts`](../src/lib/access.ts) and are
-applied on the server on every read and every write.
+Two separate questions, answered separately:
 
-| Role | Sees | Writes |
+- **What may this person do?** Their permissions, worked out from the roles
+  they hold. The catalog, the resolver and the anti-escalation rules are pure
+  functions in [`src/lib/permissions/`](../src/lib/permissions/); the full
+  matrix of default roles is generated into [ACCESS.md](ACCESS.md).
+- **Whose data may they touch?** Their account type, as the Prisma filters in
+  [`access.ts`](../src/lib/access.ts).
+
+| Account type | Data it reaches | What it may do |
 | --- | --- | --- |
-| **BFT MENA** | everything | everything; the only role that can unlock a submitted score |
-| **Studio** | its own teams and its own people | its own teams' scores — one submission plus one correction |
-| **Member** | their own registration; the board while it runs; results when it is over | nothing |
+| **BFT MENA · Full access** (`admin`) | everything | everything; the only account that can correct or unlock a submitted score |
+| **BFT MENA · Partial access** (`staff`) | everything | exactly what its roles grant |
+| **Gym / Studio** (`studio`) | its own teams and its own people | its roles (default: Gym / Studio) — never score entry, never BFT MENA-only permissions |
+| **Organiser** (`organiser`) | every team, read through its roles | its roles (Organiser, Judge, Volunteer, Coach) |
+| **Athlete** (`competitor`) | their own team | their roles (default: Athlete) |
 
-Three properties are worth stating explicitly, because each is tested:
+Every permission carries a policy: _everyone_ (always on, even while waiting
+for approval — the live board is one), _role_, _BFT MENA only_ (above the
+ceiling of every studio, organiser and athlete account, whatever a role says),
+or _Full access only_ (never grantable: `scores.correct`, `scores.unlock`).
+Effective access is `(general ∪ roles ∪ grants) ∩ ceiling − locks`, and a
+per-person **lock always wins**.
 
+Properties worth stating explicitly, because each is tested
+([`permissions.test.ts`](../src/lib/permissions/permissions.test.ts),
+[`access.test.ts`](../src/lib/access.test.ts)):
+
+- **You can only give what you hold.** Editing a role, giving a role (BFT MENA
+  Partial) or granting/locking a single permission touches only keys the actor
+  holds; BFT MENA Full access is the only exemption. A studio's authority to
+  appoint judges comes from the role's "studios can give" flag, which only BFT
+  MENA sets — and such a role can never carry a BFT MENA-only permission.
+- **Nobody changes their own access**, and nobody below Full access touches a
+  Full-access account.
+- **Saves only touch what the editor could change.** Keys an editor could not
+  see or change keep their stored state whatever the request carried, and a
+  stale save (someone else changed the role or the person meanwhile) is refused.
 - **Fails closed.** A studio account with no studio assigned scopes to
   `__none__` and sees nothing, rather than scoping to `{}` and seeing the whole
   field.
-- **Submitted values are overridden, not validated.** When a studio creates a
-  competitor, the studio id it sent is discarded and replaced with its own. A
+- **Submitted values are overridden, not validated.** When a studio creates an
+  account, the studio id it sent is discarded and replaced with its own. A
   crafted request cannot place someone in another studio.
-- **The edit budget is stored.** `Team.scoreEdits` is a database column. A
-  second tab, a replayed request or a direct call to the action all hit the same
-  counter.
 
-Hiding a tab is presentation. Each page re-checks the same rule.
+Menus, pages and actions check the **same** permission key, so a menu can never
+offer a door that refuses. Hiding a tab is still only presentation: each page
+and each server action re-checks the rule.
 
 ---
 

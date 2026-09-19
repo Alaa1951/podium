@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
  * reload.
  *
  * The same rule the board page applies, through boardAccess: BFT MENA always;
- * a signed-in studio or competitor while the event is live or finished — that
- * is exactly what a live leaderboard promises them. While the event is still
+ * every other signed-in account once the event is live or finished — that is
+ * exactly what a live leaderboard promises them. While the event is still
  * being scheduled the payload carries drafts and unreleased waves, so nobody
  * but BFT MENA reads it.
  */
@@ -24,7 +24,11 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
   const { series } = await ctx.params;
   const state = await getSeriesState(series);
   if (!state) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (!boardAccess(user.role, state.phase).canSeeBoard) {
+  // Before the event everyone signed in may open the board page — it shows the
+  // countdown — but the payload carries drafts and unreleased waves, so only an
+  // account whose access covers the whole field reads it.
+  const access = boardAccess(user.role, state.phase);
+  if (!access.canSeeBoard || access.scope !== "all") {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 

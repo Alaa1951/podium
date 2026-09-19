@@ -3,6 +3,8 @@ import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { accountScope, type CurrentUser } from "@/lib/session";
+import { wavePosition, type FloorTiming } from "@/lib/floor";
+import { fillFinisherTimes } from "@/lib/wave-clock";
 import { waveClockSweep, type WaveState } from "@/lib/waves";
 
 // Studios, accounts, the score audit, the prescribed loads and the wave rows:
@@ -26,7 +28,10 @@ export async function listAccounts(user: CurrentUser) {
       name: true,
       role: true,
       status: true,
-      accessRoleId: true,
+      accessRoles: {
+        select: { accessRole: { select: { id: true, name: true, nameAr: true } } },
+        orderBy: { accessRole: { sortOrder: "asc" } },
+      },
       archivedAt: true,
       lastLoginAt: true,
       createdAt: true,
@@ -46,7 +51,10 @@ export async function listArchivedAccounts(user: CurrentUser) {
       name: true,
       role: true,
       status: true,
-      accessRoleId: true,
+      accessRoles: {
+        select: { accessRole: { select: { id: true, name: true, nameAr: true } } },
+        orderBy: { accessRole: { sortOrder: "asc" } },
+      },
       archivedAt: true,
       lastLoginAt: true,
       createdAt: true,
@@ -118,10 +126,14 @@ export async function getLoadStandards() {
  * screen anchors it against its own clock.
  *
  * Before reading, the wave clock is SWEPT: a running wave whose time has run
- * out is finished and the next wave with teams steps on — automatically, with
- * no operator present, so a wave can never hang on the floor after its clock
- * has died. Chained by order, not by wall-clock time; only a LIVE event sweeps
- * (a scheduled one must not run itself, a finished one must not change).
+ * out comes off the floor, and every team that competed without being stopped
+ * gets 0:00 as its finisher time — so a wave can never hang on the floor after
+ * its clock has died. Nothing is started here: START is the supervisor's. Only
+ * a LIVE event sweeps (a scheduled one must not run itself, a finished one
+ * must not change).
+ *
+ * Each wave also carries where it is on the floor right now — which zone, work
+ * or changeover — worked out from when it started (src/lib/floor.ts).
  */
 export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[]> => {
   // The clock sweep and displayed counts use the same snapshot. Previously a
@@ -131,7 +143,14 @@ export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[
     where: { seriesId },
     orderBy: { number: "asc" },
     include: {
-      series: { select: { status: true } },
+      series: {
+        select: {
+          status: true,
+          zoneWorkMinutes: true,
+          zoneBreakMinutes: true,
+          _count: { select: { zones: true } },
+        },
+      },
       teams: { select: { score: { select: { status: true } } } },
     },
   });
@@ -151,24 +170,17 @@ export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[
       new Date()
     );
 
-    if (sweep.finish.length > 0 || sweep.start) {
-      await prisma.$transaction([
-        ...sweep.finish.map((id) =>
-          prisma.wave.update({ where: { id }, data: { status: "complete" } })
-        ),
-        ...(sweep.start
-          ? [
-              prisma.wave.update({
-                where: { id: sweep.start.id },
-                data: {
-                  status: "running",
-                  startedAt: sweep.start.startedAt,
-                  endsAt: sweep.start.endsAt,
-                },
-              }),
-            ]
-          : []),
-      ]);
+    if (sweep.finish.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        for (const id of sweep.finish) {
+          // Conditional, so two readers sweeping at once finish it only once.
+          const done = await tx.wave.updateMany({
+            where: { id, status: "running" },
+            data: { status: "complete" },
+          });
+          if (done.count === 1) await fillFinisherTimes(tx, { id, seriesId }, 0);
+        }
+      });
       // Read the committed rows after the sweep, including concurrent score
       // changes, before presenting a completed/running wave to the caller.
       waves = await load();
@@ -176,8 +188,20 @@ export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[
   }
 
   const now = Date.now();
+  const series = waves[0]?.series;
+  const timing: FloorTiming = {
+    workMinutes: series?.zoneWorkMinutes ?? 15,
+    breakMinutes: series?.zoneBreakMinutes ?? 5,
+    zoneCount: series?._count.zones ?? 0,
+  };
 
-  return waves.map((wave) => ({
+  return waves.map((wave) => {
+    const position = wavePosition(
+      { startedAt: wave.startedAt, completed: wave.status === "complete" },
+      timing,
+      new Date(now)
+    );
+    return {
     id: wave.id,
     number: wave.number,
     status: wave.status,
@@ -198,5 +222,12 @@ export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[
         : null,
     teamCount: wave.teams.length,
     scoredCount: wave.teams.filter((t) => t.score?.status === "submitted").length,
-  }));
+    startedAt: wave.startedAt?.toISOString() ?? null,
+    floor: {
+      phase: wave.status === "pending" ? "pending" : position.phase,
+      zoneNumber: position.zoneIndex === null ? null : position.zoneIndex + 1,
+      phaseRemainingMs: position.phaseRemainingMs,
+    },
+  };
+  });
 });

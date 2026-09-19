@@ -97,10 +97,10 @@ describe("eventPhase", () => {
 });
 
 describe("boardAccess — a studio", () => {
-  it("sees only its own teams before the event, and no board", () => {
+  it("sees the countdown before the event, and nothing of the field", () => {
     const access = boardAccess("studio", "before");
     expect(access).toEqual({
-      canSeeBoard: false,
+      canSeeBoard: true,
       scope: "own",
       canSeeResults: false,
       isPublic: false,
@@ -120,8 +120,9 @@ describe("boardAccess — a studio", () => {
 });
 
 describe("boardAccess — a member", () => {
-  it("sees no board before the event", () => {
-    expect(boardAccess("competitor", "before").canSeeBoard).toBe(false);
+  it("sees only the countdown before the event — never the field", () => {
+    expect(boardAccess("competitor", "before").canSeeBoard).toBe(true);
+    expect(boardAccess("competitor", "before").scope).toBe("own");
   });
 
   it("sees the whole field while it runs", () => {

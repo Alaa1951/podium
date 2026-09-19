@@ -212,10 +212,14 @@ test('local registration, editing and wave locking complete through mobile scree
   await page.locator('.mobile-list-card').filter({hasText:name.toUpperCase()}).click();await expect(page.locator('.mobile-detail h1')).toHaveText(name.toUpperCase());
   await page.getByRole('link',{name:'Edit',exact:true}).click();await page.getByRole('textbox',{name:'Team name',exact:true}).fill(name+' edited');await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.locator('.mobile-detail h1')).toHaveText((name+' edited').toUpperCase());
   await page.getByRole('button',{name:'Archive registration',exact:true}).click();await expect(page).toHaveURL(new RegExp('/registrations$'));await expect(page.locator('.mobile-list-card').filter({hasText:(name+' edited').toUpperCase()})).toHaveCount(0);
-  await page.goto(`/series/${scheduled.slug}/scores`);const rack=page.locator('.wave-rack');await rack.getByRole('button',{name:'Start wave',exact:true}).click();await expect(rack.getByRole('button',{name:'End wave',exact:true})).toBeVisible();
-  await rack.getByRole('button',{name:'End wave',exact:true}).click();await expect(rack.getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
+  // Wave control is the supervisor's page, and waves only start while the competition runs.
+  page.on('dialog',dialog=>dialog.accept());
+  await page.goto(`/series/${live!.slug}/wave-control`);const wave=page.locator('.floor-wave').first();
+  await wave.getByRole('button',{name:'End now',exact:true}).click();await expect(wave.getByRole('button',{name:'Reset',exact:true})).toBeVisible();
+  await wave.getByRole('button',{name:'Reset',exact:true}).click();await expect(wave.getByRole('button',{name:'Start wave',exact:true})).toBeVisible();
+  // Studios read their scores; the judges enter them.
   await setup(context,info,'studio');await page.goto(`/studio/${scheduled.slug}/scores/${scheduled.teams[0]}`);await expect(page.locator('.team-entry-save')).toBeDisabled();
-  await setup(context,info,'admin');await page.goto(`/series/${scheduled.slug}/scores`);await rack.getByRole('button',{name:'Reopen',exact:true}).click();await expect(rack.getByRole('button',{name:'Start wave',exact:true})).toBeVisible();
+  await setup(context,info,'admin');await page.goto(`/series/${live!.slug}/wave-control`);await wave.getByRole('button',{name:'Start wave',exact:true}).click();await expect(wave.getByRole('button',{name:'End now',exact:true})).toBeVisible();
 });
 
 test('a failed offline save retains the draft and never reports success',async({page,context},info)=>{

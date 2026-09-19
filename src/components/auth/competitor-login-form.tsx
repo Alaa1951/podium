@@ -8,7 +8,7 @@ import { useT } from "@/components/i18n/locale-provider";
 import { requestCompetitorCode } from "@/lib/actions/competitor-login";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SIGNING IN AS A COMPETITOR.
+// SIGNING IN AS AN ATHLETE.
 //
 // No password, because there never was one: they gave an email when they
 // registered, and that is the credential. Ask for a code, type it in, done —
@@ -50,15 +50,15 @@ export function CompetitorLoginForm() {
     setError("");
     setBusy(true);
 
-    const result = await signIn("competitor", {
-      redirect: false,
-      email,
-      code: code.trim(),
-    });
+    const attempt = () => signIn("competitor", { redirect: false, email, code: code.trim() });
+    // A stale CSRF cookie comes back as "success" pointing at ?csrf=true, with
+    // no session; the second try carries a fresh token.
+    let result = await attempt();
+    if (result?.url?.includes("csrf=true")) result = await attempt();
 
     setBusy(false);
 
-    if (!result || result.error) {
+    if (!result || result.error || result.url?.includes("csrf=true")) {
       setError(t("That code is not valid or has expired."));
       return;
     }
@@ -120,7 +120,7 @@ export function CompetitorLoginForm() {
     >
       <h1 className="auth-title">{t("Check your email")}</h1>
       <p className="auth-sub">
-        {t("If {email} registered for PODIUM, a six-digit code is on its way.", { email })}
+        {t("If {email} has a PODIUM entry or account, a six-digit code is on its way.", { email })}
       </p>
 
       {error ? (
@@ -167,7 +167,7 @@ export function CompetitorLoginForm() {
         {t("Use a different email")}
       </button>
 
-      <p className="auth-note">{t("You will stay signed in for 24 hours.")}</p>
+      <p className="auth-note">{t("You stay signed in until you sign out.")}</p>
     </form>
   );
 }

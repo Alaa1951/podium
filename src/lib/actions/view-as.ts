@@ -61,10 +61,10 @@ export async function startViewAs(userId: string): Promise<{ ok: false; error: s
  * a real account that carries it — the platform exactly as a member, a wave
  * scorer, or a studio lives in it, without keeping a login for any of them.
  * The first active account of that kind stands in; a judge means an account
- * actually carrying a wave grant.
+ * actually working a zone.
  */
 export async function startViewAsRole(
-  role: "member" | "judge" | "studio"
+  role: "member" | "judge" | "studio" | "organiser"
 ): Promise<{ ok: false; error: string } | never> {
   const user = await requirePreviewOpener();
   if (!user) return { ok: false, error: "FORBIDDEN" };
@@ -72,14 +72,19 @@ export async function startViewAsRole(
   const base = { id: true, role: true, status: true, archivedAt: true } as const;
   let target: { id: string; role: Role; status: string; archivedAt: Date | null } | null = null;
 
-  if (role === "member" || role === "studio") {
+  if (role === "member" || role === "studio" || role === "organiser") {
     target = await prisma.user.findFirst({
-      where: { role: role === "member" ? "competitor" : "studio", status: "active", archivedAt: null },
+      where: {
+        role: role === "member" ? "competitor" : role,
+        status: "active",
+        archivedAt: null,
+      },
       orderBy: { createdAt: "asc" },
       select: base,
     });
   } else {
-    const grant = await prisma.waveAccess.findFirst({
+    // A judge means an account actually working a zone.
+    const grant = await prisma.zoneStaff.findFirst({
       where: { user: { status: "active", archivedAt: null } },
       orderBy: { createdAt: "asc" },
       select: { userId: true },

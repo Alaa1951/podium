@@ -45,7 +45,6 @@ export type ViewAsState = {
   role: Role;
   studioId: string | null;
   locale: string;
-  accessRoleId: string | null;
 };
 
 /**
@@ -72,7 +71,6 @@ export async function readViewAsState(): Promise<ViewAsState | null> {
       role: true,
       studioId: true,
       locale: true,
-      accessRoleId: true,
       status: true,
       archivedAt: true,
     },
@@ -86,7 +84,6 @@ export async function readViewAsState(): Promise<ViewAsState | null> {
     role: account.role,
     studioId: account.studioId,
     locale: account.locale,
-    accessRoleId: account.accessRoleId,
   };
 }
 

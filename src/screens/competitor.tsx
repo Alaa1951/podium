@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/app/page-shell";
 import { getScopedRoster } from "@/lib/queries";
-import { requirePermission, requireRole } from "@/lib/session";
+import { requireAccess, requireRole } from "@/lib/session";
 import { requireSeries } from "@/lib/require-series";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
 import { getTranslator } from "@/lib/i18n/server";
 
 export default async function CompetitorScreen(params: Promise<{ series: string; id: string; personId: string }>, studio: boolean) {
-  const user = studio ? await requireRole("studio") : await requirePermission("competitors.view");
+  const user = studio ? await requireRole("studio") : await requireAccess("registrations.view");
   const { series: slug, id, personId } = await params;
   const series = studio ? await getStudioSeriesBySlug(user,slug) : (await requireSeries(params)).series;
   if (!series) notFound();

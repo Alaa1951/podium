@@ -44,7 +44,6 @@ export const authOptions: NextAuthOptions = {
         token.sub = u.id;
         token.role = u.role;
         token.status = u.status;
-        token.accessRoleId = u.accessRoleId ?? null;
         // The idle deadline, enforced by session.ts on every request.
         token.expiresAt = Date.now() + SESSION_IDLE_MS;
         token.studioId = u.studioId;
@@ -74,13 +73,11 @@ export const authOptions: NextAuthOptions = {
               locale: true,
               name: true,
               archivedAt: true,
-              accessRoleId: true,
             },
           });
           if (fresh && !fresh.archivedAt) {
             token.role = fresh.role;
             token.status = fresh.status;
-            token.accessRoleId = fresh.accessRoleId;
             token.studioId = fresh.studioId;
             token.locale = fresh.locale;
             token.name = fresh.name;
@@ -102,7 +99,6 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub;
         session.user.role = (token.role as Role) ?? "competitor";
         session.user.status = (token.status as UserStatus) ?? "active";
-        session.user.accessRoleId = (token.accessRoleId as string | null) ?? null;
         session.user.studioId = (token.studioId as string | null) ?? null;
         session.user.locale = (token.locale as string) ?? "en";
         session.user.expiresAt = token.expiresAt as number | undefined;

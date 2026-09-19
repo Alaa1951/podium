@@ -8,7 +8,17 @@ import { getTranslator } from "@/lib/i18n/server";
 export async function ViewAsBanner({ name, role }: { name: string | null; role: string }) {
   const { t } = await getTranslator();
   const who = name ?? t("an account");
-  const roleLabel = t(role === "admin" ? "Admin" : role === "studio" ? "Studio" : "Member");
+  const roleLabel = t(
+    role === "admin"
+      ? "Admin"
+      : role === "staff"
+        ? "BFT MENA"
+        : role === "studio"
+          ? "Studio"
+          : role === "organiser"
+            ? "Organiser"
+            : "Athlete"
+  );
 
   return (
     <div className="view-as-banner" role="status">

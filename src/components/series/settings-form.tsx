@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { setSeriesStatus, updateSeriesSettings } from "@/lib/actions/series";
+import { waveLengthMinutes } from "@/lib/floor";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import {
   BoardDisplay,
@@ -31,21 +32,31 @@ export type SeriesSettings = {
   firstWaveTime: string;
   waveMinutes: number;
   waveCapacity: number;
+  zoneWorkMinutes: number;
+  zoneBreakMinutes: number;
   boardOpensAt: string;
   registrationClosesAt: string;
   registrationsFinalAt: string;
   scoreEntryClosesAt: string;
   resultsPublicAt: string;
   championsAnnouncedAt: string;
-  studiosMayEnterScores: boolean;
-  studioScoreCorrections: number;
   teamEditCloseHours: number;
   showTeamName: boolean;
   showCompetitorNames: boolean;
   showStudioColumn: boolean;
 };
 
-export function SettingsForm({ initial }: { initial: SeriesSettings }) {
+/** `readOnly`: the viewer holds settings.view but not settings.edit. */
+export function SettingsForm({
+  initial,
+  readOnly = false,
+  zoneCount = 0,
+}: {
+  initial: SeriesSettings;
+  readOnly?: boolean;
+  /** How many zones the wave rotates through — the wave length follows. */
+  zoneCount?: number;
+}) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -94,7 +105,7 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
   }
 
   return (
-    <>
+    <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {message ? (
         <div className="notice" style={{ marginBottom: 14 }}>
           {message}
@@ -166,7 +177,7 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
         <h2 className="section-title">{t("The floor")}</h2>
         <p className="reg-sub" style={{ marginTop: 4 }}>
           {t(
-            "What a NEW wave starts out as. Each wave then carries its own length and capacity, so one can be twenty minutes of nine and the next fifteen of five."
+            "The supervisor presses Start once and the wave moves through every zone by itself: the work time in each zone, then the changeover, with no changeover after the last zone. Each team keeps one station (1–9) in every zone."
           )}
         </p>
         <div className="form-row">
@@ -178,27 +189,47 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
               onChange={(e) => set("firstWaveTime", e.target.value)}
             />
           </Field>
-          <Field label={t("Wave length (minutes)")}>
+          <Field label={t("Work per zone (minutes)")}>
             <input
               className="input pd-num"
               type="number"
               min={1}
-              max={180}
-              value={form.waveMinutes}
-              onChange={(e) => set("waveMinutes", Number(e.target.value) || 1)}
+              max={60}
+              value={form.zoneWorkMinutes}
+              onChange={(e) => set("zoneWorkMinutes", Number(e.target.value) || 1)}
             />
           </Field>
-          <Field label={t("Teams per wave")}>
+          <Field label={t("Changeover between zones (minutes)")}>
+            <input
+              className="input pd-num"
+              type="number"
+              min={0}
+              max={30}
+              value={form.zoneBreakMinutes}
+              onChange={(e) => set("zoneBreakMinutes", Math.max(0, Number(e.target.value) || 0))}
+            />
+          </Field>
+          <Field label={t("Teams per wave")} hint={t("one per station, nine at most")}>
             <input
               className="input pd-num"
               type="number"
               min={1}
-              max={99}
+              max={9}
               value={form.waveCapacity}
-              onChange={(e) => set("waveCapacity", Number(e.target.value) || 1)}
+              onChange={(e) => set("waveCapacity", Math.min(9, Number(e.target.value) || 1))}
             />
           </Field>
         </div>
+        <p className="reg-sub pd-num" style={{ marginTop: 8 }}>
+          {t("Each wave runs {minutes} minutes across {zones} zones.", {
+            minutes: waveLengthMinutes({
+              workMinutes: form.zoneWorkMinutes,
+              breakMinutes: form.zoneBreakMinutes,
+              zoneCount,
+            }),
+            zones: zoneCount,
+          })}
+        </p>
       </section>
 
       {/* ── Deadlines ──────────────────────────────────────────────────────── */}
@@ -279,6 +310,6 @@ export function SettingsForm({ initial }: { initial: SeriesSettings }) {
           {t("Revert")}
         </button>
       </div>
-    </>
+    </fieldset>
   );
 }

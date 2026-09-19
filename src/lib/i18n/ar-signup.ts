@@ -1,0 +1,140 @@
+import type { Phrases } from "@/lib/i18n/phrases";
+
+/** Sign-up, athlete sign-in, the approval queue, and the athlete's profile. */
+export const AR_SIGNUP: Phrases = {
+  // ── Sign-up ────────────────────────────────────────────────────────────────
+  "Sign up": "إنشاء حساب",
+  "Join PODIUM as an athlete, or as part of the team that runs it.": "انضم إلى PODIUM كرياضي، أو كجزء من الفريق الذي يديرها.",
+  "What are you signing up as?": "بأي صفة تريد التسجيل؟",
+  "I compete in PODIUM.": "أشارك في منافسات PODIUM.",
+  "I organise, judge, volunteer or coach — or I represent a gym or studio.":
+    "أنظّم أو أحكّم أو أتطوّع أو أدرّب — أو أمثّل جيمًا أو استوديو.",
+  "What do you do?": "ما دورك؟",
+  "Runs the competition floor.": "يدير أرض المنافسة.",
+  "Scores teams in a zone.": "يسجّل درجات الفرق في منطقة.",
+  Volunteer: "متطوع",
+  "Helps on the day.": "يساعد في يوم المنافسة.",
+  Coach: "مدرب",
+  "Follows their athletes.": "يتابع رياضييه.",
+  "Gym/Studio": "جيم/استوديو",
+  "A gym or studio joining PODIUM.": "جيم أو استوديو ينضم إلى PODIUM.",
+  "Already have an account?": "لديك حساب بالفعل؟",
+  "Signing up as an athlete.": "التسجيل كرياضي.",
+  "Signing up as: {role}": "التسجيل بصفة: {role}",
+  Change: "تغيير",
+  "Gym or studio name": "اسم الجيم أو الاستوديو",
+  City: "المدينة",
+  "Your gym or studio": "الجيم أو الاستوديو الخاص بك",
+  None: "لا يوجد",
+  "Your studio can approve you. Without one, BFT MENA does.": "يمكن للاستوديو الخاص بك الموافقة عليك. وبدونه توافق BFT MENA.",
+  "At least 10 characters, with an uppercase letter, a lowercase letter and a number.":
+    "10 أحرف على الأقل، منها حرف كبير وحرف صغير ورقم.",
+  Sex: "الجنس",
+  Female: "أنثى",
+  Male: "ذكر",
+  Level: "المستوى",
+  "Do you have a partner?": "هل لديك شريك؟",
+  "No — looking for a partner": "لا — أبحث عن شريك",
+  "Partner's name": "اسم الشريك",
+  "Partner's email": "بريد الشريك الإلكتروني",
+  "Partner's phone": "هاتف الشريك",
+  "Partner's date of birth": "تاريخ ميلاد الشريك",
+  "If they are not on PODIUM yet, we invite them. You are linked once they sign up.":
+    "إذا لم يكن على PODIUM بعد فسنرسل له دعوة، ويتم ربطكما بمجرد تسجيله.",
+  "We match you with athletes at the same level and category. Your studio can pair you into a team.":
+    "نطابقك مع رياضيين من نفس المستوى والفئة، ويمكن للاستوديو الخاص بك تكوين فريق منكما.",
+  "Tell us whether you have a partner.": "أخبرنا إن كان لديك شريك.",
+  "We sent a six-digit code to {email}. Type it in to confirm your address.":
+    "أرسلنا رمزًا من ستة أرقام إلى {email}. أدخله لتأكيد بريدك.",
+  Confirm: "تأكيد",
+  "Send the code again": "إعادة إرسال الرمز",
+  "A new code is on its way.": "رمز جديد في الطريق إليك.",
+  "After this you can sign in straight away. BFT MENA or your studio approves your account.":
+    "بعد ذلك يمكنك الدخول مباشرة، وتوافق BFT MENA أو الاستوديو الخاص بك على حسابك.",
+  "Could not send. Check your connection and try again.": "تعذّر الإرسال. تحقق من الاتصال وحاول مجددًا.",
+  "Choose what you do.": "اختر دورك.",
+  "Fill in your date of birth, sex, level and category.": "أدخل تاريخ ميلادك وجنسك ومستواك وفئتك.",
+  "Enter your partner's name and email.": "أدخل اسم شريكك وبريده الإلكتروني.",
+  "Enter the name of your gym or studio.": "أدخل اسم الجيم أو الاستوديو.",
+  "That partner email does not look right.": "بريد الشريك غير صحيح.",
+  "The password needs at least 10 characters.": "كلمة المرور تحتاج 10 أحرف على الأقل.",
+  "The password needs a number.": "كلمة المرور تحتاج رقمًا.",
+  "The password needs a lowercase letter.": "كلمة المرور تحتاج حرفًا صغيرًا.",
+  "The password needs an uppercase letter.": "كلمة المرور تحتاج حرفًا كبيرًا.",
+  "We could not send the email. Try again in a moment.": "تعذّر إرسال البريد. حاول مجددًا بعد قليل.",
+  "Check the details and try again.": "راجع البيانات وحاول مجددًا.",
+
+  // ── Athlete sign-in ────────────────────────────────────────────────────────
+  "Athlete sign-in": "دخول الرياضي",
+  "New here?": "جديد هنا؟",
+  "Competing in PODIUM?": "تشارك في PODIUM؟",
+  "If {email} has a PODIUM entry or account, a six-digit code is on its way.":
+    "إذا كان لـ {email} تسجيل أو حساب في PODIUM فرمز من ستة أرقام في الطريق إليه.",
+  "You stay signed in until you sign out.": "تبقى مسجّل الدخول حتى تسجّل الخروج.",
+
+  // ── Approvals ──────────────────────────────────────────────────────────────
+  Approvals: "الموافقات",
+  "Requests to join": "طلبات الانضمام",
+  "People who signed up and are waiting to be let in. Until they are approved they see the general pages only.":
+    "أشخاص سجّلوا وينتظرون الموافقة. حتى تتم الموافقة لا يرون إلا الصفحات العامة.",
+  "New gym": "جيم جديد",
+  "Looking for a partner": "يبحث عن شريك",
+  linked: "مرتبط",
+  "Signed up": "تاريخ التسجيل",
+  "A new studio…": "استوديو جديد…",
+  "New studio name": "اسم الاستوديو الجديد",
+  "Roles to give": "الأدوار الممنوحة",
+  "No role you can give fits this request.": "لا يوجد دور يمكنك منحه يناسب هذا الطلب.",
+  "Reason (sent to them)": "السبب (يُرسل إليه)",
+  Approve: "موافقة",
+  "Turn down": "رفض",
+  "Turn down…": "رفض…",
+  "No requests are waiting.": "لا توجد طلبات في الانتظار.",
+  "Someone else already decided this request.": "قرّر شخص آخر هذا الطلب بالفعل.",
+  "That request is no longer waiting.": "هذا الطلب لم يعد في الانتظار.",
+  "You cannot give that role.": "لا يمكنك منح هذا الدور.",
+  "You cannot give a role with permissions you do not hold.": "لا يمكنك منح دور فيه صلاحيات لا تملكها.",
+  "Pick the studio, or type the name of a new one.": "اختر الاستوديو أو اكتب اسم استوديو جديد.",
+  "A studio with that name already exists — pick it from the list.": "يوجد استوديو بهذا الاسم — اختره من القائمة.",
+  "That studio no longer exists.": "هذا الاستوديو لم يعد موجودًا.",
+  "You cannot decide your own request.": "لا يمكنك البتّ في طلبك.",
+
+  // ── Waiting / profile ──────────────────────────────────────────────────────
+  "Awaiting approval": "في انتظار الموافقة",
+  "{studio} or BFT MENA will review your sign-up. Until then you can open the general pages and the live board.":
+    "سيراجع {studio} أو BFT MENA تسجيلك. حتى ذلك الحين يمكنك فتح الصفحات العامة ولوحة النتائج المباشرة.",
+  "BFT MENA will review your sign-up. Until then you can open the general pages and the live board.":
+    "ستراجع BFT MENA تسجيلك. حتى ذلك الحين يمكنك فتح الصفحات العامة ولوحة النتائج المباشرة.",
+  "Your sign-up was not approved": "لم تتم الموافقة على تسجيلك",
+  "Reason: {reason}": "السبب: {reason}",
+  "Contact BFT MENA if you think this is a mistake.": "تواصل مع BFT MENA إذا كنت ترى أن هذا خطأ.",
+  "Your athlete profile": "ملفك كرياضي",
+  "{name} — linked": "{name} — مرتبط",
+  "{name} — waiting for them to name you back": "{name} — في انتظار أن يختارك شريكًا",
+  "I have a partner": "لدي شريك",
+  "Your studio sees you as looking for a partner at your level and category.":
+    "يراك الاستوديو كباحث عن شريك في مستواك وفئتك.",
+  "Your partner needs their own email.": "يحتاج شريكك إلى بريد إلكتروني خاص به.",
+  "You are already linked to a partner.": "أنت مرتبط بشريك بالفعل.",
+  "You cannot change this yet.": "لا يمكنك تغيير هذا بعد.",
+
+  // ── Pairing ────────────────────────────────────────────────────────────────
+  "Pair athletes into a team": "تكوين فريق من رياضيين",
+  "Pick two different athletes.": "اختر رياضيين مختلفين.",
+  "That athlete or competition is no longer available.": "هذا الرياضي أو هذه البطولة لم تعد متاحة.",
+  "One of them is already partnered with someone else.": "أحدهما مرتبط بشريك آخر بالفعل.",
+  "One of them is already entered in this competition.": "أحدهما مسجّل في هذه البطولة بالفعل.",
+  "Registration for this competition is closed.": "التسجيل في هذه البطولة مغلق.",
+  "You are not allowed to do that.": "غير مسموح لك بذلك.",
+  looking: "يبحث عن شريك",
+  "No competition of yours is open for registration.": "لا توجد بطولة لك مفتوحة للتسجيل.",
+  "You need two approved athletes to make a team.": "تحتاج إلى رياضيين اثنين موافق عليهما لتكوين فريق.",
+  "Team name (optional)": "اسم الفريق (اختياري)",
+  "Enter as a team": "تسجيل كفريق",
+  "These two are at different levels.": "هذان الرياضيان في مستويين مختلفين.",
+
+  // ── Athlete wording ────────────────────────────────────────────────────────
+  "Athlete 1": "الرياضي ١",
+  "Athlete 2": "الرياضي ٢",
+  "Athlete names": "أسماء الرياضيين",
+};

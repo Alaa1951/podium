@@ -5,8 +5,9 @@ import { useT } from "@/components/i18n/locale-provider";
 import type { SeriesSettings } from "@/components/series/settings-form";
 
 // The two sections of the settings screen that are only checkboxes and a
-// number: what a studio may do, and what the board shows. Lifted out so the
-// form itself stays readable in one sitting.
+// number: what athletes and studios may change, and what the board shows.
+// Lifted out so the form itself stays readable in one sitting. Scores are
+// entered by judges only, so there is no studio score-entry switch here.
 
 export type Setter = <K extends keyof SeriesSettings>(key: K, value: SeriesSettings[K]) => void;
 
@@ -15,37 +16,7 @@ export function StudioPermissions({ form, set }: { form: SeriesSettings; set: Se
 
   return (
     <section className="form-block">
-      <h2 className="section-title">{t("What studios may do")}</h2>
-      <label className="checkline" style={{ marginTop: 10 }}>
-        <input
-          type="checkbox"
-          checked={form.studiosMayEnterScores}
-          onChange={(e) => set("studiosMayEnterScores", e.target.checked)}
-        />
-        <span>{t("Studios may enter scores for their own teams")}</span>
-      </label>
-      <p className="reg-sub" style={{ marginTop: 8, maxWidth: "68ch" }}>
-        {t(
-          "Entering is not the same as changing. The BFT manual is explicit that a saved score is final: a studio that records a result cannot edit it, and every correction comes from BFT MENA."
-        )}
-      </p>
-
-      <div className="form-row">
-        <Field
-          label={t("Further writes allowed")}
-          hint={t("0 means a saved score locks immediately")}
-        >
-          <input
-            className="input pd-num"
-            type="number"
-            min={0}
-            max={5}
-            value={form.studioScoreCorrections}
-            onChange={(e) => set("studioScoreCorrections", Number(e.target.value) || 0)}
-          />
-        </Field>
-      </div>
-
+      <h2 className="section-title">{t("Team changes")}</h2>
       <div className="form-row">
         <Field
           label={t("Team changes close (hours before the event)")}
@@ -70,7 +41,7 @@ export function BoardDisplay({ form, set }: { form: SeriesSettings; set: Setter 
 
   const lines: { key: keyof SeriesSettings; label: string }[] = [
     { key: "showTeamName", label: t("Team name") },
-    { key: "showCompetitorNames", label: t("Competitor names") },
+    { key: "showCompetitorNames", label: t("Athlete names") },
     { key: "showStudioColumn", label: t("Studio column") },
   ];
 

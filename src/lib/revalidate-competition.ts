@@ -22,6 +22,7 @@ export function revalidateCompetitionViews() {
     "/(app)/(board)/series/[series]/board",
     "/(app)/(me)/me",
     "/(app)/(me)/me/edit",
+    "/(app)/home",
     "/(app)/my-wave",
     "/(app)/my-wave/[id]",
     "/(public)/results",

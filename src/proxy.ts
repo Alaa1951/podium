@@ -14,7 +14,10 @@ import { VIEW_AS_COOKIE } from "@/lib/view-as-token";
 
 const PUBLIC_PATHS = [
   "/login",
+  // The athlete sign-in (and its old address, which redirects), and sign-up.
+  "/athlete",
   "/competitor",
+  "/signup",
   "/verify",
   "/activate",
   "/reset-password",

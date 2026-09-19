@@ -148,7 +148,7 @@ export function RegistrationForm({
       </section>
 
       <PersonBlock
-        title={t("Competitor 1")}
+        title={t("Athlete 1")}
         note={t("The person who registered. Their studio owns the entry.")}
         person={one}
         onChange={setOne}
@@ -156,7 +156,7 @@ export function RegistrationForm({
       />
 
       <PersonBlock
-        title={t("Competitor 2")}
+        title={t("Athlete 2")}
         note={t("Their partner. May be a member of a different studio, or of none.")}
         person={two}
         onChange={setTwo}

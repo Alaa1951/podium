@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSeries, getSeriesZones, getScopedTeams } from "@/lib/queries";
-import { getCurrentUser } from "@/lib/session";
+import { can, getCurrentUser } from "@/lib/session";
 import { allInputs, zonePoints } from "@/lib/zones";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ function cell(value: unknown) {
 export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]/export">) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role === "competitor") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if (!can(user, "registrations.export")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
   const { series } = await ctx.params;
   const competition = await getSeries(series);

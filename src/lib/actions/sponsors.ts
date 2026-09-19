@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PER-EVENT SPONSOR LOGOS.
@@ -38,7 +38,7 @@ const saveSchema = z.object({
 
 /** Create or replace one sponsor logo, placing it at `position`. */
 export async function saveSponsor(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("sponsors.edit");
 
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -94,7 +94,7 @@ export async function saveSponsor(input: unknown): Promise<ActionResult> {
 
 /** Remove one sponsor; the audit line says which. */
 export async function deleteSponsor(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("sponsors.edit");
 
   const parsed = z
     .object({ seriesId: z.string().min(1), sponsorId: z.string().min(1) })
@@ -128,7 +128,7 @@ export async function deleteSponsor(input: unknown): Promise<ActionResult> {
  *  way — an event that closes its rail for one series can reopen it for the
  *  next with everything still in place. */
 export async function setSponsorsEnabled(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("sponsors.edit");
 
   const parsed = z
     .object({ seriesId: z.string().min(1), enabled: z.boolean() })
@@ -162,7 +162,7 @@ export async function setSponsorsEnabled(input: unknown): Promise<ActionResult> 
 
 /** Move one logo up or down the rail, swapping with its neighbour. */
 export async function moveSponsor(input: unknown): Promise<ActionResult> {
-  await requireRole("admin");
+  await requireAccess("sponsors.edit");
 
   const parsed = z
     .object({

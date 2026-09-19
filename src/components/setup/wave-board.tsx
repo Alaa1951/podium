@@ -7,7 +7,7 @@ import { DetailLink } from "@/components/app/detail-link";
 import { useIsMobile } from "@/components/app/use-mobile";
 import { useT } from "@/components/i18n/locale-provider";
 import { deleteWave, saveWave } from "@/lib/actions/waves";
-import { autoAssignWaves, setTeamWave } from "@/lib/actions/teams";
+import { autoAssignWaves, setTeamStation, setTeamWave } from "@/lib/actions/teams";
 import { setAthleteStudio } from "@/lib/actions/team-people";
 import { waveWindowLabel, type WaveState } from "@/lib/waves";
 import { type SetupTeam } from "@/components/setup/wave-board-parts";
@@ -22,8 +22,8 @@ export type { SetupTeam };
 // estimated start. Its length and capacity come from the competition's
 // settings, so one change there reaches every wave at once.
 //
-// Teams are linked to waves from this screen; STARTING a wave is the operator's
-// job and lives on the Scores screen next to the clock.
+// Teams are linked to waves and stations here; STARTING a wave is the
+// supervisor's job and lives on Wave control.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function WaveBoard({
@@ -56,7 +56,7 @@ export function WaveBoard({
   const mobile = useIsMobile();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
-  const [perWave, setPerWave] = useState(waveCapacity);
+  const [perWave, setPerWave] = useState(Math.min(9, waveCapacity));
   const [editing, setEditing] = useState<string | null>(editMode ? detailId ?? null : null);
 
   const studioName = (id: string | null) =>
@@ -92,12 +92,20 @@ export function WaveBoard({
           ? t("That wave has already run — only BFT MENA can move a team out of it.")
           : result.error === "WAVE_NUMBER_TAKEN"
             ? t("There is already a wave with that number.")
-            : t("Something went wrong. Try again.")
+            : result.error === "WAVE_FULL"
+              ? t("That wave is full — nine teams, one per station.")
+              : result.error === "STATION_TAKEN"
+                ? t("Another studio's team is on that station.")
+                : t("Something went wrong. Try again.")
     );
   }
 
   function moveTeam(teamId: string, wave: number) {
     startTransition(async () => report(await setTeamWave({ teamId, wave })));
+  }
+
+  function moveStation(teamId: string, station: number) {
+    startTransition(async () => report(await setTeamStation({ teamId, station })));
   }
 
   function cycleMembership(competitorId: string, current: string | null) {
@@ -154,6 +162,7 @@ export function WaveBoard({
     studioName,
     onMove: moveTeam,
     onCycle: cycleMembership,
+    onStation: moveStation,
   };
 
   return (
@@ -193,10 +202,10 @@ export function WaveBoard({
                 id="perWave"
                 type="number"
                 min={1}
-                max={40}
+                max={9}
                 className="input pd-num"
                 value={perWave}
-                onChange={(e) => setPerWave(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => setPerWave(Math.min(9, Math.max(1, Number(e.target.value) || 1)))}
                 style={{ width: 90 }}
               />
             </div>

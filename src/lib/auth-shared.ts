@@ -66,7 +66,6 @@ export type SessionUser = {
   name: string | null;
   role: Role;
   status: UserStatus;
-  accessRoleId?: string | null;
   studioId: string | null;
   locale: string;
 };
@@ -77,7 +76,6 @@ export function toSessionUser(user: {
   name: string | null;
   role: Role;
   status: UserStatus;
-  accessRoleId?: string | null;
   studioId: string | null;
   locale: string;
 }): SessionUser {
@@ -87,7 +85,6 @@ export function toSessionUser(user: {
     name: user.name,
     role: user.role,
     status: user.status,
-    accessRoleId: user.accessRoleId ?? null,
     studioId: user.studioId,
     locale: user.locale,
   };

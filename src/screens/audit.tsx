@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { DetailLink } from "@/components/app/detail-link";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * back to the person who caused it.
  */
 export default async function AuditPage(props: {searchParams:Promise<Record<string,string|string[]|undefined>>}, detailId?: string) {
-  await requirePermission("audit.view");
+  await requireAccess("audit.view");
   const searchParams = await props.searchParams;
   const { t } = await getTranslator();
 

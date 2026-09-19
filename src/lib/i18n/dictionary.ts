@@ -8,6 +8,9 @@ import { AR_CORE } from "@/lib/i18n/ar-core";
 import { AR_RESULTS } from "@/lib/i18n/ar-results";
 import { AR_NOTIFICATIONS } from "@/lib/i18n/ar-notifications";
 import { AR_MOBILE } from "@/lib/i18n/ar-mobile";
+import { AR_ACCESS } from "@/lib/i18n/ar-access";
+import { AR_FLOOR } from "@/lib/i18n/ar-floor";
+import { AR_SIGNUP } from "@/lib/i18n/ar-signup";
 
 /**
  * The Arabic table, assembled from three.
@@ -15,7 +18,7 @@ import { AR_MOBILE } from "@/lib/i18n/ar-mobile";
  * One file per area rather than one long scroll — a phrase is found by knowing
  * which screen it is on, which is how anybody looks for it.
  */
-export const AR: Record<string, string> = { ...AR_CORE, ...AR_CONSOLE, ...AR_RESULTS, ...AR_NOTIFICATIONS, ...AR_MOBILE,
+export const AR: Record<string, string> = { ...AR_CORE, ...AR_CONSOLE, ...AR_RESULTS, ...AR_NOTIFICATIONS, ...AR_MOBILE, ...AR_ACCESS, ...AR_FLOOR, ...AR_SIGNUP,
   More: "المزيد", Back: "رجوع", "My team": "فريقي", "My wave": "موجتي",
   "You have unsaved changes. Leave this screen?": "لديك تعديلات غير محفوظة. هل تريد مغادرة الشاشة؟",
   "You are offline. Reconnect to save changes.": "أنت غير متصل. اتصل بالإنترنت لحفظ التعديلات.",

@@ -10,7 +10,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getSeriesZones } from "@/lib/queries";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { requireRole, requirePermission } from "@/lib/session";
+import { can, requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +31,7 @@ function forInput(date: Date | null) {
  * 2 is allowed to be a different sport from Series 1.
  */
 export default async function SettingsPage(props: SeriesScreenProps, zoneId?: string, zoneEdit = false) {
-  const user = await requirePermission("settings.view");
-  if(zoneEdit) await requireRole("admin");
+  const user = await requireAccess(zoneEdit ? "settings.edit" : "settings.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
@@ -50,7 +49,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
   ]);
 
   if(zoneId && zoneId !== "new" && zoneId !== "list" && !zones.some(zone => zone.id === zoneId)) notFound();
-  if(zoneId) return <div className="screen"><div className="screen-head"><h1>{t("Zones")}</h1></div><ZoneEditor seriesId={series.id} seriesName={t("Zones")} zones={zones} recordedValues={recorded} detailId={zoneId === "list" ? undefined : zoneId} editMode={zoneEdit} readOnly={user.role !== "admin" || !!user.viewAs} /></div>;
+  if(zoneId) return <div className="screen"><div className="screen-head"><h1>{t("Zones")}</h1></div><ZoneEditor seriesId={series.id} seriesName={t("Zones")} zones={zones} recordedValues={recorded} detailId={zoneId === "list" ? undefined : zoneId} editMode={zoneEdit} readOnly={!can(user, "settings.edit") || !!user.viewAs} /></div>;
 
   const initial: SeriesSettings = {
     id: series.id,
@@ -62,14 +61,14 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
     firstWaveTime: series.firstWaveTime,
     waveMinutes: series.waveMinutes,
     waveCapacity: series.waveCapacity,
+    zoneWorkMinutes: series.zoneWorkMinutes,
+    zoneBreakMinutes: series.zoneBreakMinutes,
     boardOpensAt: forInput(series.boardOpensAt),
     registrationClosesAt: forInput(series.registrationClosesAt),
     registrationsFinalAt: forInput(series.registrationsFinalAt),
     scoreEntryClosesAt: forInput(series.scoreEntryClosesAt),
     resultsPublicAt: forInput(series.resultsPublicAt),
     championsAnnouncedAt: forInput(series.championsAnnouncedAt),
-    studiosMayEnterScores: series.studiosMayEnterScores,
-    studioScoreCorrections: series.studioScoreCorrections,
     teamEditCloseHours: series.teamEditCloseHours,
     showTeamName: series.showTeamName,
     showCompetitorNames: series.showCompetitorNames,
@@ -85,7 +84,11 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
         </div>
       </div>
 
-      <SettingsForm initial={initial} />
+      <SettingsForm
+        initial={initial}
+        zoneCount={zones.length}
+        readOnly={!can(user, "settings.edit") || !!user.viewAs}
+      />
 
       <h2 className="section-title" style={{ marginTop: 34 }}>
         {t("Scoring")}
@@ -101,7 +104,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
         seriesName={t("Zones")}
         zones={zones}
         recordedValues={recorded}
-        readOnly={user.role !== "admin" || !!user.viewAs}
+        readOnly={!can(user, "settings.edit") || !!user.viewAs}
       />
 
       <h2 className="section-title" style={{ marginTop: 34 }}>
@@ -113,11 +116,11 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
         )}
       </p>
 
-      <SponsorEditor
-        seriesId={series.id}
-        sponsors={sponsors}
-        enabled={series.sponsorsEnabled}
-      />
+      {can(user, "sponsors.edit") && !user.viewAs ? (
+        <SponsorEditor seriesId={series.id} sponsors={sponsors} enabled={series.sponsorsEnabled} />
+      ) : (
+        <p className="reg-sub">{t("Only BFT MENA manages sponsors.")}</p>
+      )}
 
       <h2 className="section-title" style={{ marginTop: 34 }}>
         {t("Archive")}
@@ -127,12 +130,12 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
           "Only a competition that has not started can be archived. It leaves the list but stays restorable — nothing on it is deleted."
         )}
       </p>
-      <ArchiveSeriesButton seriesId={series.id} />
+      {can(user, "competitions.create") && !user.viewAs ? <ArchiveSeriesButton seriesId={series.id} /> : null}
 
       <div className="notice" style={{ marginTop: 30 }}>
         <strong>{t("Waves and wave access.")}</strong>{" "}
         {t(
-          "Assign teams to their waves from the Waves screen; grant an account the score sheet of one wave from Score entry."
+          "Assign teams to their waves from the Waves screen; put judges on the floor from Score entry."
         )}{" "}
         <Link href={seriesHref(series.slug, "waves")} className="linkish">
           {t("Waves")} →

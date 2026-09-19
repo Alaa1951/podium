@@ -7,7 +7,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
-import { canRegisterTeams, requireRole, requireUser, teamScope } from "@/lib/session";
+import { isBft, requireAccess, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 import { registrationOpen } from "@/lib/visibility";
 import { nextTeamNumber } from "@/lib/actions/teams";
@@ -25,8 +25,8 @@ const athleteStudioSchema = z.object({
 });
 
 export async function setAthleteStudio(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canRegisterTeams(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("registrations.edit");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = athleteStudioSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -53,8 +53,7 @@ export async function setAthleteStudio(input: unknown): Promise<ActionResult> {
 const studioSchema = z.object({ name: z.string().trim().min(2).max(80) });
 
 export async function addStudio(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (user.role !== "admin") return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("studios.create");
 
   const parsed = studioSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return { ok: false, error: "STUDIO_NAME_REQUIRED" };
@@ -90,8 +89,8 @@ const importSchema = z.object({
  * than guessed at.
  */
 export async function importTeams(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canRegisterTeams(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("registrations.create");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = importSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -167,8 +166,8 @@ export async function importTeams(input: unknown): Promise<ActionResult> {
  * from a live board, and once it is finished the field is the record itself.
  */
 export async function archiveTeam(teamId: string): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canRegisterTeams(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("registrations.archive");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const team = await prisma.team.findFirst({
     where: { id: teamId, archivedAt: null, ...teamScope(user) },
@@ -193,13 +192,14 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
   if (!deadline.open) return { ok: false, error: deadline.reason };
 
   // A submitted score is a result; withdrawing a scored team is BFT MENA's call.
-  if (team.score?.status === "submitted" && user.role !== "admin") {
+  if (team.score?.status === "submitted" && !isBft(user)) {
     return { ok: false, error: "TEAM_ALREADY_SCORED" };
   }
 
+  // A withdrawn team gives its station back to the wave.
   await prisma.team.update({
     where: { id: team.id },
-    data: { archivedAt: new Date() },
+    data: { archivedAt: new Date(), station: null },
   });
 
   await recordAudit({
@@ -217,7 +217,8 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
 
 /** Bring an archived registration back — admin only. */
 export async function restoreTeam(seriesId: string, teamId: string): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("registrations.archive");
+  if (!isBft(actor)) return { ok: false, error: "FORBIDDEN" };
 
   const team = await prisma.team.findFirst({
     where: { id: teamId, seriesId, NOT: { archivedAt: null } },

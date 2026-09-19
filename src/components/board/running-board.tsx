@@ -163,12 +163,24 @@ export function RunningBoard({
       ? `${String(focusWave?.durationMinutes ?? data.waveMinutes).padStart(2, "0")}:00`
       : clockFromMs(focusRemaining);
 
-  const waveState = waveStateLabel({
-    t,
-    teamCount: data.teams.length,
-    reached,
-    summary,
-  });
+  // Where the wave in focus is in its rotation: "Zone 3", or changing zones.
+  const focusFloor = focusWave?.status === "running" ? focusWave.floor : null;
+  const zoneState = focusFloor?.zoneNumber
+    ? focusFloor.phase === "break"
+      ? `${t("Zone")} ${focusFloor.zoneNumber} → ${t("changing zones")}`
+      : `${t("Zone")} ${focusFloor.zoneNumber}`
+    : null;
+  const waveState = [
+    waveStateLabel({
+      t,
+      teamCount: data.teams.length,
+      reached,
+      summary,
+    }),
+    zoneState,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const floor = useMemo(() => {
     const onFloor = data.teams.filter((team) => team.wave === focusNumber);

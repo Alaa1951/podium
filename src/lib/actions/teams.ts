@@ -4,10 +4,11 @@ import { z } from "zod";
 
 import type { Category, Division } from "@/generated/prisma/enums";
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { lowestFreeStation, MAX_STATIONS } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
-import { canRegisterTeams, requireUser, teamScope } from "@/lib/session";
+import { can, requireAccess, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 import { resolveOwningStudio } from "@/lib/team-scope";
 
@@ -37,8 +38,8 @@ const addTeamSchema = z.object({
 });
 
 export async function addTeam(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canRegisterTeams(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("registrations.create");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = addTeamSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "TEAM_NAME_REQUIRED" };
@@ -121,9 +122,13 @@ const setWaveSchema = z.object({
   wave: z.coerce.number().int().min(1).max(40),
 });
 
+/**
+ * Put a team into a wave. It takes the lowest free station there (1–9), which
+ * it then keeps in every zone; a full wave refuses with WAVE_FULL.
+ */
 export async function setTeamWave(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canRegisterTeams(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("waves.placeTeams");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = setWaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -132,23 +137,87 @@ export async function setTeamWave(input: unknown): Promise<ActionResult> {
   // studio's team by guessing its id.
   const team = await prisma.team.findFirst({
     where: { id: parsed.data.teamId, ...teamScope(user) },
-    select: { id: true, seriesId: true, waveRef: { select: { status: true, number: true } } },
+    select: { id: true, seriesId: true, waveId: true, waveRef: { select: { status: true, number: true } } },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
 
-  // A team cannot be pulled out of a wave that has already run or is running:
-  // the running order is the record of what happened on the floor. BFT MENA
-  // can, because a mis-scheduled team is theirs to correct.
-  if (user.role !== "admin" && team.waveRef && team.waveRef.status !== "pending") {
+  // A team cannot be pulled out of — or pushed into — a wave that has already
+  // run or is running: the running order is the record of what happened on
+  // the floor. Whoever edits the schedule itself (waves.edit) can, because a
+  // mis-scheduled team is theirs to correct.
+  if (!can(user, "waves.edit") && team.waveRef && team.waveRef.status !== "pending") {
     return { ok: false, error: "WAVE_STARTED" };
   }
 
   const waveId = await waveRowFor(team.seriesId, parsed.data.wave);
+  if (!waveId) return { ok: false, error: "NOT_FOUND" };
+  if (waveId === team.waveId) return { ok: true };
 
-  await prisma.team.update({
-    where: { id: team.id },
-    data: { wave: parsed.data.wave, waveId },
+  const target = await prisma.wave.findUnique({
+    where: { id: waveId },
+    select: { status: true, capacity: true, teams: { where: { archivedAt: null }, select: { station: true } } },
   });
+  if (!target) return { ok: false, error: "NOT_FOUND" };
+  if (!can(user, "waves.edit") && target.status !== "pending") return { ok: false, error: "WAVE_STARTED" };
+
+  const station = lowestFreeStation(target.teams.map((row) => row.station), target.capacity);
+  if (station === null) return { ok: false, error: "WAVE_FULL" };
+
+  try {
+    await prisma.team.update({
+      where: { id: team.id },
+      data: { wave: parsed.data.wave, waveId, station },
+    });
+  } catch {
+    // Two placements raced for the same station: the unique index kept one.
+    return { ok: false, error: "WAVE_FULL" };
+  }
+
+  revalidateCompetitionViews();
+  return { ok: true };
+}
+
+const stationSchema = z.object({
+  teamId: z.string().min(1),
+  station: z.coerce.number().int().min(1).max(MAX_STATIONS),
+});
+
+/**
+ * Move a team to another station in its wave, before the wave starts. If a
+ * team already stands there the two swap — provided the mover may move that
+ * team too (a studio cannot shift another studio's team).
+ */
+export async function setTeamStation(input: unknown): Promise<ActionResult> {
+  const user = await requireAccess("waves.placeTeams");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
+
+  const parsed = stationSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+
+  const team = await prisma.team.findFirst({
+    where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(user) },
+    select: { id: true, waveId: true, station: true, waveRef: { select: { status: true, capacity: true } } },
+  });
+  if (!team?.waveId || !team.waveRef) return { ok: false, error: "NOT_FOUND" };
+  if (team.waveRef.status !== "pending") return { ok: false, error: "WAVE_STARTED" };
+  if (parsed.data.station > team.waveRef.capacity) return { ok: false, error: "INVALID_INPUT" };
+  if (team.station === parsed.data.station) return { ok: true };
+
+  const occupant = await prisma.team.findFirst({
+    where: { waveId: team.waveId, station: parsed.data.station, archivedAt: null },
+    select: { id: true },
+  });
+  if (occupant) {
+    const mayMove = await prisma.team.count({ where: { id: occupant.id, ...teamScope(user) } });
+    if (!mayMove) return { ok: false, error: "STATION_TAKEN" };
+  }
+
+  // Free the target first so the unique (wave, station) index never sees two.
+  await prisma.$transaction([
+    ...(occupant ? [prisma.team.update({ where: { id: occupant.id }, data: { station: null } })] : []),
+    prisma.team.update({ where: { id: team.id }, data: { station: parsed.data.station } }),
+    ...(occupant ? [prisma.team.update({ where: { id: occupant.id }, data: { station: team.station } })] : []),
+  ]);
 
   revalidateCompetitionViews();
   return { ok: true };
@@ -156,7 +225,8 @@ export async function setTeamWave(input: unknown): Promise<ActionResult> {
 
 const autoAssignSchema = z.object({
   seriesId: z.string().min(1),
-  perWave: z.coerce.number().int().min(1).max(40),
+  // One team per station: never more than nine.
+  perWave: z.coerce.number().int().min(1).max(MAX_STATIONS),
 });
 
 /**
@@ -164,8 +234,8 @@ const autoAssignSchema = z.object({
  * two brackets at a time and the judges use one set of loads per floor.
  */
 export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (user.role !== "admin") return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("waves.edit");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = autoAssignSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -187,7 +257,7 @@ export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
   if (!phase.allowed) return { ok: false, error: phase.reason };
 
   const teams = await prisma.team.findMany({
-    where: { seriesId: parsed.data.seriesId },
+    where: { seriesId: parsed.data.seriesId, archivedAt: null },
     select: { id: true, category: true, division: true, number: true },
   });
 
@@ -222,15 +292,18 @@ export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
     where: { seriesId: parsed.data.seriesId, number: { gt: waveCount }, status: "pending" },
   });
 
-  await prisma.$transaction(
-    ordered.map((team, index) => {
+  // Stations are re-dealt from 1 in every wave. Clear them all first, so the
+  // unique (wave, station) index never sees two teams on one station mid-way.
+  await prisma.$transaction([
+    prisma.team.updateMany({ where: { seriesId: parsed.data.seriesId }, data: { station: null } }),
+    ...ordered.map((team, index) => {
       const number = Math.floor(index / perWave) + 1;
       return prisma.team.update({
         where: { id: team.id },
-        data: { wave: number, waveId: waveIds.get(number) ?? null },
+        data: { wave: number, waveId: waveIds.get(number) ?? null, station: (index % perWave) + 1 },
       });
-    })
-  );
+    }),
+  ]);
 
   await recordAudit({
     actorId: user.id,

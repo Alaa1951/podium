@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { ACCOUNT_TYPE_LABEL, type AccountType } from "@/components/accounts/account-types";
 import { useT } from "@/components/i18n/locale-provider";
 import { sendResetLink, updateAccount } from "@/lib/actions/account-admin";
 import { confirmUnsaved, useUnsavedChanges } from "@/components/app/mobile-runtime";
@@ -20,13 +21,14 @@ export type EditableAccount = {
   id: string;
   name: string | null;
   email: string;
-  role: "admin" | "studio" | "competitor";
+  role: AccountType;
   studioId: string | null;
-  accessRoleId?: string | null;
 };
 
 const ERRORS: Record<string, string> = {
   CANNOT_CHANGE_OWN_ACCOUNT: "You cannot change your own account — ask another admin.",
+  CANNOT_CHANGE_OWN_ACCESS: "You cannot change your own account — ask another admin.",
+  FORBIDDEN: "You are not allowed to do that.",
   EMAIL_ALREADY_REGISTERED: "Another account already uses that email.",
   EMAIL_INVALID: "That email does not look right.",
   STUDIO_REQUIRED: "A studio account has to be assigned to a studio.",
@@ -37,13 +39,13 @@ const ERRORS: Record<string, string> = {
 export function AccountEditor({
   account,
   studios,
-  accessRoles = [],
+  canMakeFullAdmin = false,
   onDone,
 }: {
   account: EditableAccount;
   studios: { id: string; name: string }[];
-  /** Named permission bundles the admin can assign to this account. */
-  accessRoles?: { id: string; name: string }[];
+  /** Only BFT MENA Full access makes (or unmakes) BFT MENA Full access. */
+  canMakeFullAdmin?: boolean;
   onDone: () => void;
 }) {
   const t = useT();
@@ -54,12 +56,11 @@ export function AccountEditor({
   const [email, setEmail] = useState(account.email);
   const [role, setRole] = useState(account.role);
   const [studioId, setStudioId] = useState(account.studioId ?? "");
-  const [accessRoleId, setAccessRoleId] = useState(account.accessRoleId ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savedDraft, setSavedDraft] = useState("");
-  const fingerprint = JSON.stringify([name,email,role,studioId,accessRoleId]);
-  const original = JSON.stringify([account.name ?? "",account.email,account.role,account.studioId ?? "",account.accessRoleId ?? ""]);
+  const fingerprint = JSON.stringify([name, email, role, studioId]);
+  const original = JSON.stringify([account.name ?? "", account.email, account.role, account.studioId ?? ""]);
   useUnsavedChanges(fingerprint !== (savedDraft || original));
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
@@ -83,8 +84,7 @@ export function AccountEditor({
             name,
             email,
             role,
-            studioId: role === "admin" ? null : studioId || null,
-            accessRoleId: accessRoleId || null,
+            studioId: role === "admin" || role === "staff" ? null : studioId || null,
           });
         if (result.ok) setSavedDraft(fingerprint);
         report(result);
@@ -129,19 +129,23 @@ export function AccountEditor({
 
       <div className="form-row">
         <label style={{ flex: "1 1 160px" }}>
-          <span className="field-label">{t("Role")}</span>
+          <span className="field-label">{t("Account type")}</span>
           <select
             className="input"
             value={role}
             onChange={(e) => setRole(e.target.value as EditableAccount["role"])}
           >
-            <option value="admin">{t("BFT MENA")}</option>
-            <option value="studio">{t("Studio")}</option>
-            <option value="competitor">{t("Competitor")}</option>
+            {(["admin", "staff", "studio", "organiser", "competitor"] as const)
+              .filter((type) => type !== "admin" || canMakeFullAdmin || account.role === "admin")
+              .map((type) => (
+                <option key={type} value={type} disabled={type === "admin" && !canMakeFullAdmin}>
+                  {t(ACCOUNT_TYPE_LABEL[type])}
+                </option>
+              ))}
           </select>
         </label>
 
-        {role !== "admin" ? (
+        {role !== "admin" && role !== "staff" ? (
           <label style={{ flex: "1 1 200px" }}>
             <span className="field-label">{t("Studio")}</span>
             <select
@@ -153,24 +157,6 @@ export function AccountEditor({
               {studios.map((studio) => (
                 <option key={studio.id} value={studio.id}>
                   {studio.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {accessRoles.length > 0 ? (
-          <label style={{ flex: "1 1 200px" }}>
-            <span className="field-label">{t("Access role")}</span>
-            <select
-              className="input"
-              value={accessRoleId ?? ""}
-              onChange={(e) => setAccessRoleId(e.target.value)}
-            >
-              <option value="">{t("None — role defaults")}</option>
-              {accessRoles.map((accessRole) => (
-                <option key={accessRole.id} value={accessRole.id}>
-                  {accessRole.name}
                 </option>
               ))}
             </select>

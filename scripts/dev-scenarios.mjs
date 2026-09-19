@@ -50,7 +50,7 @@ async function upsertUser(data) {
 
 // ── 1. The limited admin (RBAC test) ────────────────────────────────────────
 const LIMITED_KEY = "limited-admin";
-const limitedRole = await prisma.accessRole.findUnique({ where: { key: LIMITED_KEY } });
+let limitedRole = await prisma.accessRole.findUnique({ where: { key: LIMITED_KEY } });
 if (!limitedRole) {
   limitedRole = await prisma.accessRole.create({
     data: {
@@ -64,13 +64,18 @@ if (!limitedRole) {
   });
 }
 
-await upsertUser({
+// BFT MENA Partial access holding exactly the limited role.
+const limitedUser = await upsertUser({
   email: "limited.admin@keysintl.com",
   name: "Limited admin (test)",
-  role: "competitor",
-  accessRoleId: limitedRole.id,
+  role: "staff",
   studioId: null,
   locale: "en",
+});
+await prisma.userAccessRole.upsert({
+  where: { userId_accessRoleId: { userId: limitedUser.id, accessRoleId: limitedRole.id } },
+  update: {},
+  create: { userId: limitedUser.id, accessRoleId: limitedRole.id },
 });
 
 // ── 2. One manager per studio ───────────────────────────────────────────────

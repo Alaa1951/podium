@@ -30,4 +30,8 @@ export type GridTeam = {
   waveEndsAt: string | null;
   /** True once that clock has run out: the wave's scores are closed. */
   waveEnded: boolean;
+  /** Zones the zone judge has submitted — each one locked on its own. */
+  lockedZones?: string[];
+  /** The station (1–9) the team stands on in every zone. */
+  station?: number | null;
 };

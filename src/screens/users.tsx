@@ -1,60 +1,86 @@
-import { can } from "@/lib/access";
 import { notFound } from "next/navigation";
+
+import { AccessPanel } from "@/components/accounts/access-panel";
 import { AccountsPanel, type AccountRow } from "@/components/accounts/accounts-panel";
+import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
+import { buildAccessPanel } from "@/lib/permissions/access-panel";
 import { listAccounts, listStudios } from "@/lib/queries";
 import { listArchivedAccounts } from "@/lib/queries-people";
-import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/session";
+import { requireAccess, type CurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+type Listed = Awaited<ReturnType<typeof listAccounts>>[number];
+
+function toRow(account: Listed): AccountRow {
+  return {
+    id: account.id,
+    email: account.email,
+    name: account.name,
+    role: account.role,
+    status: account.status,
+    studioId: account.studio?.id ?? null,
+    studioName: account.studio?.name ?? null,
+    roles: account.accessRoles.map(({ accessRole }) => accessRole),
+    lastLoginAt: account.lastLoginAt ? account.lastLoginAt.toISOString().slice(0, 10) : null,
+  };
+}
+
+/** What the viewer may do on this screen, one flag per permission. */
+function abilities(user: CurrentUser) {
+  const live = !user.viewAs;
+  return {
+    canInvite: live && can(user, "users.invite"),
+    canEdit: live && can(user, "users.edit"),
+    canDisable: live && can(user, "users.disable"),
+    canRemove: live && can(user, "users.delete"),
+    canViewAs: user.role === "admin" && live,
+    canInviteBft: user.role === "admin" || user.role === "staff",
+  };
+}
+
 /**
- * WHO CAN SIGN IN.
+ * WHO CAN SIGN IN, AND WHAT EACH OF THEM MAY DO.
  *
- * BFT MENA staff, and studio staff. Competitors are data rather than accounts:
- * a pair registers and competes without ever having a password, which is why
- * this list is short and the registrations list is long.
+ * The list shows every account the viewer may manage with the roles each one
+ * holds. A person's own page adds their Access panel: roles as chips, and the
+ * full permission tree showing where each permission comes from.
  */
 export default async function PeoplePage(detailId?: string, editMode = false, compose = false) {
-  const user = await requirePermission(editMode || compose ? "users.manage" : "users.view");
+  const user = await requireAccess(editMode ? "users.edit" : compose ? "users.invite" : "users.view");
   const { t } = await getTranslator();
 
-  const [accounts, archived, studios, accessRoles] = await Promise.all([
+  const [accounts, archived, studios] = await Promise.all([
     listAccounts(user),
     listArchivedAccounts(user),
     listStudios(),
-    prisma.accessRole.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
-  const rows: AccountRow[] = accounts.map((account) => ({
-    id: account.id,
-    email: account.email,
-    name: account.name,
-    role: account.role,
-    status: account.status,
-    studioId: account.studio?.id ?? null,
-    studioName: account.studio?.name ?? null,
-    accessRoleId: account.accessRoleId ?? null,
-    lastLoginAt: account.lastLoginAt ? account.lastLoginAt.toISOString().slice(0, 10) : null,
-  }));
-
-  const archivedRows: AccountRow[] = archived.map((account) => ({
-    id: account.id,
-    email: account.email,
-    name: account.name,
-    role: account.role,
-    status: account.status,
-    studioId: account.studio?.id ?? null,
-    studioName: account.studio?.name ?? null,
-    accessRoleId: account.accessRoleId ?? null,
-    lastLoginAt: account.lastLoginAt ? account.lastLoginAt.toISOString().slice(0, 10) : null,
-  }));
-
+  const rows = accounts.map(toRow);
+  const archivedRows = archived.map(toRow);
+  const flags = abilities(user);
+  const studioOptions = studios.map((studio) => ({ id: studio.id, name: studio.name }));
   const invited = rows.filter((row) => row.status === "invited").length;
 
-  if (detailId && !rows.some((account) => account.id === detailId)) notFound();
-  if (detailId) return <div className="screen"><AccountsPanel accounts={rows} studios={studios.map((studio) => ({id:studio.id,name:studio.name}))} readOnly={!can(user,"users.manage") || !!user.viewAs} isAdmin={user.role === "admin" && !user.viewAs} ownStudioName={null} accessRoles={accessRoles} ownUserId={user.id} canViewAs={user.role === "admin" && !user.viewAs} detailId={detailId} editMode={editMode} /></div>;
+  if (detailId) {
+    if (!rows.some((account) => account.id === detailId)) notFound();
+    const access = editMode ? null : await buildAccessPanel(user, detailId);
+    return (
+      <div className="screen">
+        <AccountsPanel
+          accounts={rows}
+          studios={studioOptions}
+          ownStudioName={null}
+          ownUserId={user.id}
+          detailId={detailId}
+          editMode={editMode}
+          {...flags}
+        />
+        {access ? <AccessPanel key={access.loadedAt} data={access} /> : null}
+      </div>
+    );
+  }
 
   return (
     <div className="screen">
@@ -63,7 +89,7 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
           <h1>{t("Users")}</h1>
           <p>
             {t(
-              "Accounts that can sign in. No account is ever self-created: BFT MENA invites studios, and a studio invites its own staff."
+              "Everyone who can sign in, with the roles they hold. Open a person to see exactly what they can do, and to give or take away roles."
             )}
           </p>
         </div>
@@ -76,7 +102,13 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
         </div>
         <div className="stat-card">
           <span className="stat-label">{t("BFT MENA")}</span>
-          <span className="stat-value">{rows.filter((r) => r.role === "admin").length}</span>
+          <span className="stat-value">
+            {rows.filter((r) => r.role === "admin" || r.role === "staff").length}
+          </span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">{t("Organisers")}</span>
+          <span className="stat-value">{rows.filter((r) => r.role === "organiser").length}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">{t("Studio staff")}</span>
@@ -93,15 +125,12 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
 
       <AccountsPanel
         compose={compose}
-        readOnly={!can(user,"users.manage") || !!user.viewAs}
         accounts={rows}
-        studios={studios.map((studio) => ({ id: studio.id, name: studio.name }))}
-        isAdmin={user.role === "admin" && can(user,"users.manage") && !user.viewAs}
+        studios={studioOptions}
         ownStudioName={null}
-        accessRoles={accessRoles}
         archivedAccounts={archivedRows}
         ownUserId={user.id}
-        canViewAs={user.role === "admin" && !user.viewAs}
+        {...flags}
       />
     </div>
   );

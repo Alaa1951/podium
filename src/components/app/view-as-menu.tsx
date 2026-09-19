@@ -24,7 +24,7 @@ export function ViewAsMenu({ viewing }: { viewing?: { name: string | null; role:
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  function view(role: "member" | "judge" | "studio") {
+  function view(role: "member" | "judge" | "studio" | "organiser") {
     setError("");
     startTransition(async () => {
       const result = await startViewAsRole(role);
@@ -35,7 +35,9 @@ export function ViewAsMenu({ viewing }: { viewing?: { name: string | null; role:
   }
 
   if (viewing) {
-    const who = viewing.name ?? t(viewing.role === "admin" ? "Admin" : viewing.role === "studio" ? "Studio" : "Member");
+    const who =
+      viewing.name ??
+      t(viewing.role === "admin" ? "Admin" : viewing.role === "studio" ? "Studio" : viewing.role === "organiser" ? "Organiser" : "Athlete");
     return (
       <div className="view-as-menu">
         <button
@@ -76,7 +78,10 @@ export function ViewAsMenu({ viewing }: { viewing?: { name: string | null; role:
           <p className="view-as-menu-note">{t("See the whole platform as one of these — read-only.")}</p>
           <div className="view-as-menu-roles">
             <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => view("member")}>
-              {t("Member")}
+              {t("Athlete")}
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => view("organiser")}>
+              {t("Organiser")}
             </button>
             <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => view("judge")}>
               {t("Judge")}

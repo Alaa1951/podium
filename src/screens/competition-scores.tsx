@@ -4,26 +4,23 @@ import Link from "next/link";
 
 import { ScoreGrid } from "@/components/scores/score-grid";
 import type { GridTeam } from "@/components/scores/score-grid-types";
-import { WaveAccessCard } from "@/components/scores/wave-access-card";
 import { WavesTimer } from "@/components/scores/waves-timer";
-import { WaveControl } from "@/components/scores/wave-control";
 import { getTranslator } from "@/lib/i18n/server";
 import { getScopedTeams, getSeriesZones } from "@/lib/queries";
 import { getSeriesScoreAudit } from "@/lib/queries-people";
-import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { can } from "@/lib/access";
-import { requirePermission, scoreWriteBudget } from "@/lib/session";
-import { listAccounts } from "@/lib/queries-people";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /**
- * THE FLOOR.
+ * THE SCORE CONSOLE.
  *
- * Starting waves and recording what happened in them — the two things an
- * operator does all day, on one screen, because they are done standing in the
- * same place at the same moment.
+ * Every team on one sheet, for BFT MENA: the judges score zone by zone from
+ * their own sheets (my-wave), and each zone they submit shows here locked.
+ * Starting and ending waves is the supervisor's, on Wave control — this
+ * screen only shows the clocks.
  *
  * Scores are entered on ONE SHEET, the way the franchise manual does it: with a
  * hundred pairs, picking a team, opening a screen, saving and going back is the
@@ -31,32 +28,36 @@ export const dynamic = "force-dynamic";
  * row when its outlier check, its factors or its unlock are wanted.
  */
 export default async function ScoresPage(props: SeriesScreenProps, detailId?: string) {
-  const user = await requirePermission("scores.view");
+  const user = await requireAccess("scores.view");
+  const live = !user.viewAs;
+  const gridRights = {
+    editBudget: 0,
+    budgetApplies: false,
+    // Correcting after the clock, and unlocking, are BFT MENA Full access only.
+    canEditAfterClose: can(user, "scores.correct"),
+    isAdmin: can(user, "scores.unlock") && live,
+    // Whole-team entry here is BFT MENA's; judges have their own sheet.
+    frozen: !can(user, "scores.enter") || !live || !(user.role === "admin" || user.role === "staff"),
+  };
   const searchParams = await props.searchParams;
   const { t } = await getTranslator();
 
   const { series, waves, waveSummary } = await requireSeries(props.params);
 
-  const [teams, zones, audit, accounts, grants] = await Promise.all([
+  const [teams, zones, audit] = await Promise.all([
     getScopedTeams(series.id, user),
     getSeriesZones(series.id),
     getSeriesScoreAudit(series.id, 8, detailId),
-    !detailId && user.role === "admin" && !user.viewAs ? listAccounts(user) : Promise.resolve([]),
-    !detailId && user.role === "admin" && !user.viewAs ? prisma.waveAccess.findMany({
-      where: { wave: { seriesId: series.id } },
-      orderBy: [{ wave: { number: "asc" } }, { user: { email: "asc" } }],
-      select: {
-        id: true,
-        wave: { select: { number: true } },
-        user: { select: { email: true, name: true } },
-      },
-    }) : Promise.resolve([]),
   ]);
 
   // One wave at a time is how the floor actually runs, so the sheet narrows to
   // it — while the placings beside each row still come from the whole field.
   const waveFilter = typeof searchParams.wave === "string" ? Number(searchParams.wave) : null;
-  const shown = detailId ? teams.filter(team => team.id === detailId) : waveFilter ? teams.filter((team) => team.wave === waveFilter) : teams;
+  const shown = detailId
+    ? teams.filter((team) => team.id === detailId)
+    : waveFilter
+      ? teams.filter((team) => team.wave === waveFilter)
+      : teams;
   const waveNumbers = [...new Set(teams.map((team) => team.wave))].sort((a, b) => a - b);
   const here = seriesHref(series.slug, "scores");
 
@@ -73,8 +74,10 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
     category: team.category,
     division: team.division,
     wave: team.wave,
+    station: team.station,
     competitors: team.competitors.map((person) => person.fullName),
     submitted: team.submitted,
+    lockedZones: team.lockedZones,
     scoreEdits: team.scoreEdits,
     waveEndsAt: waveEndsAt[team.wave] ?? null,
     waveEnded: waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
@@ -94,17 +97,19 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
 
-  if (detailId) return <div className="screen"><ScoreGrid teams={rows} zones={zones} editBudget={scoreWriteBudget(series)} budgetApplies={user.role === "studio"} isAdmin={user.role === "admin"} frozen={!can(user, "scores.edit") || !!user.viewAs} canEditAfterClose={user.role === "admin" || can(user, "scores.afterClose")} detailId={detailId} /></div>;
+  if (detailId) {
+    return (
+      <div className="screen">
+        <ScoreGrid teams={rows} zones={zones} {...gridRights} detailId={detailId} />
+      </div>
+    );
+  }
 
   return (
     <div className="screen">
-      <WaveControl waves={waves} summary={waveSummary} canControl={user.role === "admin" && !user.viewAs} />
-
       <WavesTimer
         runningWaves={waveSummary.runningNumbers}
-        remainingByWave={Object.fromEntries(
-          waves.map((wave) => [wave.number, wave.remainingMs])
-        )}
+        remainingByWave={Object.fromEntries(waves.map((wave) => [wave.number, wave.remainingMs]))}
       />
 
       <div className="screen-head" style={{ marginTop: 26 }}>
@@ -112,10 +117,15 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
           <h1>{t("Score entry")}</h1>
           <p>
             {t(
-              "Every team on one sheet. Type across a row and save it; open a team's name for the full card and its outlier check."
+              "Every team on one sheet. The judges submit each zone from their own sheet, and it shows here locked. Starting and ending waves is on Wave control."
             )}
           </p>
         </div>
+        {can(user, "waveControl.view") ? (
+          <Link href={seriesHref(series.slug, "wave-control")} className="btn btn-secondary">
+            {t("Wave control")}
+          </Link>
+        ) : null}
       </div>
 
       {waveNumbers.length > 1 ? (
@@ -136,30 +146,7 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
         </div>
       ) : null}
 
-      <ScoreGrid
-        teams={rows}
-        zones={zones}
-        editBudget={scoreWriteBudget(series)}
-        budgetApplies={user.role === "studio"}
-        canEditAfterClose={user.role === "admin" || can(user, "scores.afterClose")}
-        isAdmin={user.role === "admin"}
-        frozen={!can(user, "scores.edit") || !!user.viewAs}
-      />
-
-      {user.role === "admin" && !user.viewAs ? <WaveAccessCard
-        waves={waves.map((wave) => ({ id: wave.id, number: wave.number }))}
-        accounts={accounts.map((account) => ({
-          id: account.id,
-          email: account.email,
-          name: account.name,
-        }))}
-        grants={grants.map((grant) => ({
-          id: grant.id,
-          waveNumber: grant.wave.number,
-          email: grant.user.email,
-          name: grant.user.name,
-        }))}
-      /> : null}
+      <ScoreGrid teams={rows} zones={zones} {...gridRights} />
     </div>
   );
 }

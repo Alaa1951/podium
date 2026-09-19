@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import type { Role } from "@/generated/prisma/enums";
+import { accountScope } from "@/lib/access";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendInviteEmail } from "@/lib/email";
@@ -11,17 +12,21 @@ import { prisma } from "@/lib/prisma";
 import { normalizeName } from "@/lib/scoring";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
 import { revokeTrustedDevices } from "@/lib/trusted-device";
-import { canCreateAccount, canManageAccounts, requireUser, requireRole } from "@/lib/session";
+import { canManageTarget } from "@/lib/permissions/grant-policy";
+import { canCreateAccount, requireAccess } from "@/lib/session";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Who may create whom.
+// Who may create whom (canCreateAccount, access.ts):
 //
-//   BFT MENA  →  another BFT MENA admin, or a studio (assigned to one studio),
-//                or a member of any studio.
-//   A studio  →  members of its own studio only.
-//   A member  →  nobody.
+//   BFT MENA Full     →  any account type, any studio.
+//   BFT MENA Partial  →  any account type but Full access.
+//   A studio          →  athletes and organisers of its own studio only.
+//
+// Each action is gated by its own permission (users.invite, users.disable,
+// users.delete), and every target is looked up inside the actor's account
+// scope and checked with canManageTarget — never yourself, never above you.
 //
 // Nothing is ever self-created: an account starts as `invited` with no password
 // hash, and only the emailed link can turn it into one that can sign in.
@@ -30,13 +35,21 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 const inviteSchema = z.object({
   email: z.string().trim().max(200),
   name: z.string().trim().min(1).max(120),
-  role: z.enum(["admin", "studio", "competitor"]),
+  role: z.enum(["admin", "staff", "studio", "competitor", "organiser"]),
   studioId: z.string().optional(),
 });
 
+const ROLE_LABEL: Record<Role, string> = {
+  admin: "BFT MENA (full access)",
+  staff: "BFT MENA",
+  studio: "a studio account",
+  organiser: "an organiser",
+  competitor: "an athlete",
+};
+
 export async function inviteAccount(input: unknown): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!canManageAccounts(user)) return { ok: false, error: "FORBIDDEN" };
+  const user = await requireAccess("users.invite");
+  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = inviteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "NAME_AND_EMAIL_REQUIRED" };
@@ -60,7 +73,7 @@ export async function inviteAccount(input: unknown): Promise<ActionResult> {
       name: parsed.data.name,
       role,
       status: "invited",
-      studioId: role === "admin" ? null : permission.studioId,
+      studioId: role === "admin" || role === "staff" ? null : permission.studioId,
       createdById: user.id,
     },
   });
@@ -78,7 +91,7 @@ export async function inviteAccount(input: unknown): Promise<ActionResult> {
   await sendInviteEmail({
     email,
     url,
-    roleLabel: role === "admin" ? "BFT MENA admin" : role === "studio" ? "a studio account" : "a competitor",
+    roleLabel: ROLE_LABEL[role],
     invitedBy: user.name || user.email,
   });
 
@@ -96,29 +109,20 @@ export async function inviteAccount(input: unknown): Promise<ActionResult> {
 }
 
 export async function resendInvite(userId: string): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (!canManageAccounts(actor)) return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("users.invite");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const target = await prisma.user.findFirst({
-    where: {
-      id: userId,
-      ...(actor.role === "studio"
-        ? { role: "competitor", studioId: actor.studioId ?? "__none__" }
-        : {}),
-    },
+    where: { id: userId, archivedAt: null, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
+  if (target.role === "admin" && actor.role !== "admin") return { ok: false, error: "FORBIDDEN" };
 
   const { url } = await issueAuthToken({ userId: target.id, purpose: "invite" });
   await sendInviteEmail({
     email: target.email,
     url,
-    roleLabel:
-      target.role === "admin"
-        ? "BFT MENA admin"
-        : target.role === "studio"
-          ? "a studio account"
-          : "a competitor",
+    roleLabel: ROLE_LABEL[target.role],
     invitedBy: actor.name || actor.email,
   });
 
@@ -140,8 +144,8 @@ const statusSchema = z.object({
 });
 
 export async function setAccountStatus(input: unknown): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (!canManageAccounts(actor)) return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("users.disable");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = statusSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -150,14 +154,11 @@ export async function setAccountStatus(input: unknown): Promise<ActionResult> {
   if (parsed.data.userId === actor.id) return { ok: false, error: "CANNOT_CHANGE_OWN_ACCOUNT" };
 
   const target = await prisma.user.findFirst({
-    where: {
-      id: parsed.data.userId,
-      ...(actor.role === "studio"
-        ? { role: "competitor", studioId: actor.studioId ?? "__none__" }
-        : {}),
-    },
+    where: { id: parsed.data.userId, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
+  const manage = canManageTarget(actor, target);
+  if (!manage.allowed) return { ok: false, error: manage.reason };
 
   // An account that never set a password stays `invited` — enabling it would
   // create an account with no way to sign in.
@@ -192,13 +193,20 @@ const assignStudioSchema = z.object({
   studioId: z.string().nullable(),
 });
 
-/** BFT MENA only: move a studio account to a different studio. */
+/** BFT MENA only (users.edit): move an account to a different studio. */
 export async function assignStudio(input: unknown): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (actor.role !== "admin") return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("users.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = assignStudioSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const current = await prisma.user.findUnique({
+    where: { id: parsed.data.userId },
+    select: { id: true, role: true, studioId: true },
+  });
+  if (!current) return { ok: false, error: "NOT_FOUND" };
+  const manage = canManageTarget(actor, current);
+  if (!manage.allowed) return { ok: false, error: manage.reason };
 
   const moved = await prisma.user.update({
     where: { id: parsed.data.userId },
@@ -227,7 +235,7 @@ export async function assignStudio(input: unknown): Promise<ActionResult> {
  * inside each one. This is only the list they are chosen from.
  */
 export async function addStudio(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("studios.create");
 
   const parsed = z.object({ name: z.string().trim().min(2).max(120) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -260,7 +268,7 @@ export async function addStudio(input: unknown): Promise<ActionResult> {
  * up, and leaves the ones it is already in alone.
  */
 export async function setStudioActive(input: unknown): Promise<ActionResult> {
-  const actor = await requireRole("admin");
+  const actor = await requireAccess("studios.edit");
 
   const parsed = z
     .object({ studioId: z.string().min(1), isActive: z.boolean() })
@@ -300,23 +308,19 @@ const archiveSchema = z.object({ userId: z.string().min(1) });
  * is refused, exactly like self-disabling.
  */
 export async function archiveAccount(input: unknown): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (!canManageAccounts(actor)) return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("users.delete");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = archiveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   if (parsed.data.userId === actor.id) return { ok: false, error: "CANNOT_CHANGE_OWN_ACCOUNT" };
 
   const target = await prisma.user.findFirst({
-    where: {
-      id: parsed.data.userId,
-      archivedAt: null,
-      ...(actor.role === "studio"
-        ? { role: "competitor", studioId: actor.studioId ?? "__none__" }
-        : {}),
-    },
+    where: { id: parsed.data.userId, archivedAt: null, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
+  const manage = canManageTarget(actor, target);
+  if (!manage.allowed) return { ok: false, error: manage.reason };
 
   await prisma.user.update({
     where: { id: target.id },
@@ -336,18 +340,20 @@ export async function archiveAccount(input: unknown): Promise<ActionResult> {
   return { ok: true, message: "Account archived." };
 }
 
-/** Bring a removed account back — it returns exactly as it was. Admin only. */
+/** Bring a removed account back — it returns exactly as it was. */
 export async function restoreAccount(input: unknown): Promise<ActionResult> {
-  const actor = await requireUser();
-  if (actor.role !== "admin") return { ok: false, error: "FORBIDDEN" };
+  const actor = await requireAccess("users.delete");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = archiveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const target = await prisma.user.findFirst({
-    where: { id: parsed.data.userId, NOT: { archivedAt: null } },
+    where: { id: parsed.data.userId, NOT: { archivedAt: null }, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
+  const manage = canManageTarget(actor, target);
+  if (!manage.allowed) return { ok: false, error: manage.reason };
 
   await prisma.user.update({
     where: { id: target.id },

@@ -236,7 +236,14 @@ export function ScoreGridRow({
                 )
               )}
             </div>
-            <div className="grid-zone-pts pd-num">{fmt(zonePoints(zone, draft), 2)}</div>
+            <div className="grid-zone-pts pd-num">
+              {fmt(zonePoints(zone, draft), 2)}
+              {team.lockedZones?.includes(zone.id) ? (
+                <span className="perm-lock" title={t("Submitted by the zone judge — locked")} style={{ marginInlineStart: 6 }}>
+                  {t("Locked")}
+                </span>
+              ) : null}
+            </div>
           </td>
         ))}
 

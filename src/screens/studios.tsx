@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { StudioDirectory, type DirectoryRow } from "@/components/series/studio-directory";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * — this is only the list they are chosen from.
  */
 export default async function StudiosPage(detailId?: string, editMode = false) {
-  await requireRole("admin");
+  await requireAccess("studios.view");
   const { t } = await getTranslator();
 
   const studios = await prisma.studio.findMany({

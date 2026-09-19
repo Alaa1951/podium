@@ -4,7 +4,7 @@ import { WaveBoard } from "@/components/setup/wave-board";
 import { getTranslator } from "@/lib/i18n/server";
 import { getScopedRoster, getSeriesStudios } from "@/lib/queries";
 import { requireSeries } from "@/lib/require-series";
-import { requireRole, requirePermission } from "@/lib/session";
+import { can, requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +16,7 @@ export const dynamic = "force-dynamic";
  * the operator's job and lives next to the scores, where they will be standing.
  */
 export default async function WavesPage(props: SeriesScreenProps, detailId?: string, editMode = false) {
-  const user = await requirePermission(editMode ? "waves.manage" : "waves.view");
-  if(editMode) await requireRole("admin");
+  const user = await requireAccess(editMode ? "waves.edit" : "waves.view");
   const { t } = await getTranslator();
 
   const { series, waves } = await requireSeries(props.params);
@@ -34,7 +33,7 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
           <h1>{t("Waves")}</h1>
           <p>
             {t(
-              "The floor only holds so many teams at once, so the field is dealt into waves. Length and capacity come from the competition settings; each wave carries its own estimated start."
+              "The floor holds nine teams at once, one per station, so the field is dealt into waves. Each team keeps its station in every zone. Timing comes from the competition settings; each wave carries its own estimated start."
             )}
           </p>
         </div>
@@ -49,6 +48,7 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
           category: team.category,
           division: team.division,
           wave: team.wave,
+          station: team.station,
           competitors: team.competitors.map((person) => ({
             id: person.id,
             fullName: person.fullName,
@@ -61,7 +61,7 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
         waveCapacity={series.waveCapacity}
         detailId={detailId}
         editMode={editMode}
-        isAdmin={user.role === "admin" && !user.viewAs}
+        isAdmin={can(user, "waves.edit") && !user.viewAs}
         ownStudioId={user.studioId}
       />
     </div>
