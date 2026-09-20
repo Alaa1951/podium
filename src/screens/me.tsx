@@ -55,8 +55,39 @@ export default async function MyPage(editMode = false) {
         partnerLinked: Boolean(profileRow.partnerUserId),
       }
     : null;
+  // Somebody has to be told they were asked, and there is no per-account
+  // notification row in this system — so the count is read here, on every
+  // render of the page they already open, rather than polled for.
+  const waitingRequests =
+    profile && !profile.partnerLinked
+      ? await prisma.partnerRequest.count({
+          where: {
+            toUserId: user.id,
+            status: "pending",
+            from: { archivedAt: null, status: { not: "disabled" } },
+          },
+        })
+      : 0;
+
   const profileCard = profile ? (
-    <AthleteProfile profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
+    <>
+      {waitingRequests > 0 ? (
+        <div className="notice" style={{ marginTop: 16 }} role="status">
+          {waitingRequests === 1
+            ? t("An athlete wants to partner with you.")
+            : t("{n} athletes want to partner with you.", { n: waitingRequests })}{" "}
+          <Link href="/me/partner/requests" style={{ color: "var(--bft-cyan-text)" }}>
+            {t("Open your requests")}
+          </Link>
+        </div>
+      ) : null}
+      <AthleteProfile profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
+      {profile.lookingForPartner && !profile.partnerLinked && can(user, "partner.browse") ? (
+        <Link href="/me/partner" className="btn btn-primary" style={{ marginTop: 12 }}>
+          {t("Find a partner")}
+        </Link>
+      ) : null}
+    </>
   ) : null;
 
   // The competition they are in: the most recent one with an entry of theirs.

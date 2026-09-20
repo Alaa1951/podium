@@ -328,6 +328,12 @@ export async function archiveAccount(input: unknown): Promise<ActionResult> {
   });
   await revokeTrustedDevices({ userId: target.id, reason: "account_archived" });
 
+  // Same rule as a self-deletion: no unanswerable request left behind.
+  await prisma.partnerRequest.updateMany({
+    where: { status: "pending", OR: [{ fromUserId: target.id }, { toUserId: target.id }] },
+    data: { status: "cancelled", openPairKey: null, respondedAt: new Date() },
+  });
+
   await recordAudit({
     actorId: actor.id,
     action: AUDIT.userArchived,

@@ -53,8 +53,9 @@ async function pairingData(user: CurrentUser) {
   const now = new Date();
   const athletes: PairableAthlete[] = rows.map((row) => ({
     id: row.id,
+    // The panel renders a name and a bracket. The address was being shipped
+    // to five hundred browser rows for nothing, so it stays on the server.
     name: row.name ?? row.email,
-    email: row.email,
     division: row.athleteProfile?.division ?? null,
     category: row.athleteProfile?.category ?? null,
     sex: row.athleteProfile?.sex ?? null,

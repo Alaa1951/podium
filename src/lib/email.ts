@@ -241,6 +241,37 @@ export async function sendPartnerInviteEmail(params: {
   await sendMail({ to: params.email, subject, text, html });
 }
 
+/**
+ * Somebody asked you to be their partner.
+ *
+ * Carries the same four facts the finder shows and not one more — a name, a
+ * level and a category. Never the asker's address or phone: those are
+ * exchanged when the answer is yes, and this email may well be read by
+ * somebody who is about to say no.
+ */
+export async function sendPartnerRequestEmail(params: {
+  email: string;
+  fromName: string;
+  division: string;
+  category: string;
+  url: string;
+}) {
+  const who = params.fromName || "An athlete";
+  const at = `${params.division} · ${params.category}`;
+  const subject = `${who} wants to be your ${BRAND} partner`;
+  const text = `${who} (${at}) wants to be your ${BRAND} partner.\n\nAccept or decline here: ${params.url}`;
+  const html = shell(
+    "A partner request",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${escapeHtml(who)}</strong> wants to be your partner.</p>
+     <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">${escapeHtml(at)}</p>
+     <div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">Open my requests</a>
+     </div>
+     <p style="color:#9a9aff;font-size:12px;text-align:center;margin:0">You can accept or decline. Nothing is shared with them until you accept.</p>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
 /** A sign-up for an address that already has an account: point them at sign-in. */
 export async function sendAlreadyRegisteredEmail(params: { email: string; url: string }) {
   const subject = `You already have a ${BRAND} account`;

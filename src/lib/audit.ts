@@ -57,6 +57,10 @@ export const AUDIT = {
   devicesRevoked: "security.devices_revoked",
   passwordChanged: "security.password_changed",
   passwordResetRequested: "security.password_reset_requested",
+  partnerRequestSent: "partner.request_sent",
+  partnerRequestAccepted: "partner.request_accepted",
+  partnerRequestDeclined: "partner.request_declined",
+  partnerRequestWithdrawn: "partner.request_withdrawn",
   announcementSent: "notification.sent",
 } as const;
 

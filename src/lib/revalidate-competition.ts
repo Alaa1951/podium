@@ -22,6 +22,11 @@ export function revalidateCompetitionViews() {
     "/(app)/(board)/series/[series]/board",
     "/(app)/(me)/me",
     "/(app)/(me)/me/edit",
+    // Pairing a team clears "looking for a partner" on both sides, so the
+    // finder's list and anybody's open requests change with a competition
+    // write just as the athlete's own page does.
+    "/(app)/(me)/me/partner",
+    "/(app)/(me)/me/partner/requests",
     "/(app)/home",
     "/(app)/my-wave",
     "/(app)/my-wave/[id]",

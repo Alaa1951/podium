@@ -140,7 +140,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     assignableBy: "bft_studio",
     accountTypes: ["competitor"],
     sortOrder: 70,
-    permissions: ["athleteHome.view", "athleteHome.editTeam", "partner.view", "partner.edit"],
+    permissions: [
+      "athleteHome.view",
+      "athleteHome.editTeam",
+      "partner.view",
+      "partner.edit",
+      "partner.browse",
+      "partner.request",
+    ],
   },
 ];
 

@@ -55,7 +55,13 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
   const open = registrationOpen({ role: actor.role, registrationClosesAt: series.registrationClosesAt, now: new Date() });
   if (!open.open) return { ok: false, error: open.reason };
 
-  // The two athletes: approved athlete accounts — a studio's own only.
+  // The two athletes: approved athlete accounts.
+  //
+  // A studio normally sees only its own. The exception is a pair who found
+  // EACH OTHER — athletes may look for a partner across every studio, so a
+  // cross-studio pair would otherwise be a team nobody could enter: not the
+  // one studio, not the other. When the two are already linked to each other,
+  // either of their studios may register them.
   const athletes = await prisma.user.findMany({
     where: {
       id: { in: data.athleteIds },
@@ -63,7 +69,6 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
       approvalStatus: "approved",
       archivedAt: null,
       status: { not: "disabled" },
-      ...(isStudio(actor) ? { studioId: actor.studioId } : {}),
     },
     select: {
       id: true,
@@ -71,7 +76,17 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
       email: true,
       phone: true,
       studioId: true,
-      athleteProfile: { select: { dateOfBirth: true, partnerUserId: true } },
+      athleteProfile: {
+        select: {
+          dateOfBirth: true,
+          partnerUserId: true,
+          division: true,
+          category: true,
+          sex: true,
+          shirtSize: true,
+          bftMember: true,
+        },
+      },
     },
   });
   if (athletes.length !== 2) return { ok: false, error: "NOT_FOUND" };
@@ -82,6 +97,34 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
     const partner = athlete.athleteProfile?.partnerUserId;
     if (partner && !data.athleteIds.includes(partner)) return { ok: false, error: "HAS_OTHER_PARTNER" };
   }
+
+  const choseEachOther =
+    ordered[0].athleteProfile?.partnerUserId === ordered[1].id &&
+    ordered[1].athleteProfile?.partnerUserId === ordered[0].id;
+
+  if (isStudio(actor)) {
+    const mine = ordered.filter((athlete) => athlete.studioId === actor.studioId).length;
+    // Both must be the studio's own — unless they picked each other, in which
+    // case one of them being ours is enough to enter the pair.
+    const allowed = choseEachOther ? mine >= 1 : mine === 2;
+    if (!allowed) return { ok: false, error: "NOT_FOUND" };
+  }
+
+  // The bracket decides the board AND the prescribed loads (LoadStandard is
+  // keyed on [division, sex]), so it is checked here rather than trusted from
+  // the form that submitted it.
+  const levels = ordered.map((athlete) => athlete.athleteProfile?.division).filter(Boolean);
+  if (levels.length === 2 && levels[0] !== levels[1]) {
+    return { ok: false, error: "MIXED_LEVELS" };
+  }
+  if (levels.some((level) => level !== data.division)) {
+    return { ok: false, error: "LEVEL_MISMATCH" };
+  }
+  const sexes = ordered.map((athlete) => athlete.athleteProfile?.sex).filter(Boolean);
+  const wrongCategory =
+    (data.category === "Womens" && sexes.some((sex) => sex === "m")) ||
+    (data.category === "Mens" && sexes.some((sex) => sex === "f"));
+  if (wrongCategory) return { ok: false, error: "CATEGORY_MISMATCH" };
 
   // Nobody enters the same competition twice.
   const entered = await prisma.competitor.findFirst({
@@ -115,6 +158,10 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
           email: athlete.email.toLowerCase(),
           phone: athlete.phone,
           dateOfBirth: athlete.athleteProfile?.dateOfBirth ?? null,
+          // Carried from the profile so the shirt order does not have to be
+          // chased separately once a pair is entered this way.
+          shirtSize: athlete.athleteProfile?.shirtSize ?? null,
+          bftMember: athlete.athleteProfile?.bftMember ?? false,
           studioId: athlete.studioId,
           userId: athlete.id,
         })),

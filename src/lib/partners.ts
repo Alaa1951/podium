@@ -19,38 +19,65 @@ import { getBaseUrl, normalizeEmail } from "@/lib/security";
 //     account is invited; somebody named who has one is told by email.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Link two athletes as partners, both ways. */
-export async function linkPair(a: string, b: string) {
+/** The slice of the client both `prisma` and a `$transaction` callback share. */
+type Db = Pick<typeof prisma, "user" | "athleteProfile">;
+
+const personSelect = {
+  name: true,
+  email: true,
+  phone: true,
+  athleteProfile: {
+    select: { dateOfBirth: true, sex: true, shirtSize: true, bftMember: true },
+  },
+} as const;
+
+/**
+ * Link two athletes as partners, both ways.
+ *
+ * Each side's profile keeps a copy of the other's details — the name, address
+ * and phone they will need to reach each other, and the date of birth, gender
+ * and shirt size the studio would otherwise have to retype at registration.
+ * Not `teamName`: what a pair competes as is their own choice, made when they
+ * are entered, and neither of them has agreed to one yet.
+ *
+ * Pass `db` to run inside a caller's transaction — accepting a partner request
+ * claims both profiles and links them in one go, and a gap between those two
+ * would be a gap somebody else could be linked through.
+ */
+export async function linkPair(a: string, b: string, db: Db = prisma) {
   const now = new Date();
   const [first, second] = await Promise.all([
-    prisma.user.findUnique({ where: { id: a }, select: { name: true, email: true, phone: true } }),
-    prisma.user.findUnique({ where: { id: b }, select: { name: true, email: true, phone: true } }),
+    db.user.findUnique({ where: { id: a }, select: personSelect }),
+    db.user.findUnique({ where: { id: b }, select: personSelect }),
   ]);
   if (!first || !second) return;
-  await prisma.$transaction([
-    prisma.athleteProfile.update({
-      where: { userId: a },
-      data: {
-        partnerUserId: b,
-        partnerLinkedAt: now,
-        lookingForPartner: false,
-        partnerName: second.name,
-        partnerEmail: second.email,
-        partnerPhone: second.phone,
-      },
-    }),
-    prisma.athleteProfile.update({
-      where: { userId: b },
-      data: {
-        partnerUserId: a,
-        partnerLinkedAt: now,
-        lookingForPartner: false,
-        partnerName: first.name,
-        partnerEmail: first.email,
-        partnerPhone: first.phone,
-      },
-    }),
-  ]);
+
+  const sideOf = (them: typeof first, theirId: string) => ({
+    partnerUserId: theirId,
+    partnerLinkedAt: now,
+    lookingForPartner: false,
+    partnerName: them.name,
+    partnerEmail: them.email,
+    partnerPhone: them.phone,
+    partnerDateOfBirth: them.athleteProfile?.dateOfBirth ?? null,
+    partnerSex: them.athleteProfile?.sex ?? null,
+    partnerShirtSize: them.athleteProfile?.shirtSize ?? null,
+    partnerBftMember: them.athleteProfile?.bftMember ?? false,
+  });
+
+  const writes = [
+    { where: { userId: a }, data: sideOf(second, b) },
+    { where: { userId: b }, data: sideOf(first, a) },
+  ];
+
+  // Half a link is worse than none, so the two writes are always atomic. When
+  // a caller hands in its own transaction they already are; on our own client
+  // they need wrapping, and nesting one inside the other is not allowed.
+  if (db === prisma) {
+    await prisma.$transaction(writes.map((write) => prisma.athleteProfile.update(write)));
+    return;
+  }
+  for (const write of writes) await db.athleteProfile.update(write);
 }
 
 /**

@@ -159,6 +159,8 @@ model User {
   accessRoles    UserAccessRole[] @relation("UserAccessRoles")
   athleteProfile AthleteProfile?  @relation("AthleteProfileOwner")
   partneredProfiles AthleteProfile[] @relation("AthletePartner")
+  partnerRequestsSent     PartnerRequest[] @relation("PartnerRequestFrom")
+  partnerRequestsReceived PartnerRequest[] @relation("PartnerRequestTo")
   assignedAccessRoles UserAccessRole[] @relation("AccessRoleAssignedBy")
   notificationsCreated Notification[] @relation("NotificationCreator")
   notificationReads NotificationRead[]
@@ -219,6 +221,54 @@ model AthleteProfile {
   @@index([lookingForPartner, division, category])
   @@index([partnerEmail])
   @@index([partnerUserId])
+}
+
+/// How a partner request ended. `cancelled` is the system's own answer: one of
+/// the two got a partner elsewhere while this was still open.
+enum PartnerRequestStatus {
+  pending
+  accepted
+  declined
+  withdrawn
+  cancelled
+}
+
+/// ONE ATHLETE ASKING ANOTHER TO BE THEIR PARTNER.
+///
+/// The asking happens in the app and the answer is the other athlete's alone.
+/// Accepting is what links the two — nothing else here writes a partnership.
+model PartnerRequest {
+  id         String @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  from       User   @relation("PartnerRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to         User   @relation("PartnerRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  status PartnerRequestStatus @default(pending)
+
+  /// The two ids sorted and joined with ":" — symmetric, so a pair's whole
+  /// history reads the same whichever way round the asking went.
+  pairKey     String  @db.VarChar(191)
+  /// The same key while the request is OPEN, null once it is answered. The
+  /// unique index on it IS the "one open request per pair" rule: nulls do not
+  /// collide, so answered rows pile up freely while only one can be open —
+  /// and A cannot ask B while B is already asking A.
+  openPairKey String? @db.VarChar(191)
+
+  /// What each of them was when the request went out. Kept so somebody who
+  /// changes level afterwards does not silently re-bracket a pending ask.
+  division   Division?
+  category   Category?
+  toDivision Division?
+  toCategory Category?
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([openPairKey])
+  @@index([toUserId, status, createdAt])
+  @@index([fromUserId, status, createdAt])
+  @@index([pairKey, createdAt])
 }
 
 enum NotificationAudience {

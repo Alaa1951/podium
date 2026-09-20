@@ -17,8 +17,8 @@ import { pairAthletes } from "@/lib/actions/pairing";
 
 export type PairableAthlete = {
   id: string;
+  /** Already falls back to the address server-side when there is no name. */
   name: string;
-  email: string;
   division: string | null;
   category: string | null;
   sex: string | null;
@@ -32,6 +32,9 @@ const ERRORS: Record<string, string> = {
   HAS_OTHER_PARTNER: "One of them is already partnered with someone else.",
   ALREADY_ENTERED: "One of them is already entered in this competition.",
   REGISTRATION_CLOSED: "Registration for this competition is closed.",
+  MIXED_LEVELS: "These two compete at different levels.",
+  LEVEL_MISMATCH: "That level is not the one these two compete at.",
+  CATEGORY_MISMATCH: "That category does not match who these two are.",
   FORBIDDEN: "You are not allowed to do that.",
   INVALID_INPUT: "Check the details and try again.",
 };
@@ -58,6 +61,14 @@ export function PairingPanel({
   const [division, setDivision] = useState("");
   const [category, setCategory] = useState("");
 
+  // Narrowing the list of people to choose from. Local rather than in the URL,
+  // unlike the roster filters: everything else in this panel is form state,
+  // and a router.replace on every keystroke would throw it away.
+  const [search, setSearch] = useState("");
+  const [onlyLooking, setOnlyLooking] = useState(true);
+  const [filterLevel, setFilterLevel] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+
   const first = athletes.find((athlete) => athlete.id === firstId) ?? null;
   const second = athletes.find((athlete) => athlete.id === secondId) ?? null;
 
@@ -66,9 +77,22 @@ export function PairingPanel({
       athlete.lookingForPartner ? ` · ${t("looking")}` : ""
     }`;
 
+  // A filter, not just a sort. Five hundred names in a dropdown is not a list
+  // anybody can use; the default narrows to the people this panel exists for.
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return athletes.filter((athlete) => {
+      if (onlyLooking && !athlete.lookingForPartner) return false;
+      if (filterLevel && athlete.division !== filterLevel) return false;
+      if (filterCategory && athlete.category !== filterCategory) return false;
+      if (needle && !athlete.name.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [athletes, onlyLooking, filterLevel, filterCategory, search]);
+
   const firstList = useMemo(
-    () => [...athletes].sort((a, b) => Number(b.lookingForPartner) - Number(a.lookingForPartner)),
-    [athletes]
+    () => [...visible].sort((a, b) => Number(b.lookingForPartner) - Number(a.lookingForPartner)),
+    [visible]
   );
   const secondList = useMemo(() => {
     if (!first) return firstList;
@@ -77,15 +101,29 @@ export function PairingPanel({
       (athlete.lookingForPartner ? 4 : 0) +
       (athlete.division === first.division ? 2 : 0) +
       (athlete.category === first.category ? 1 : 0);
-    return firstList.filter((athlete) => athlete.id !== first.id).sort((a, b) => score(b) - score(a));
-  }, [first, firstList]);
+    // Whoever is already chosen stays reachable even if the filter would now
+    // hide them — the form must never refer to somebody it cannot show.
+    const pool = second && !firstList.some((one) => one.id === second.id) ? [...firstList, second] : firstList;
+    return pool.filter((athlete) => athlete.id !== first.id).sort((a, b) => score(b) - score(a));
+  }, [first, second, firstList]);
 
   function pickFirst(id: string) {
     setFirstId(id);
     const athlete = athletes.find((one) => one.id === id);
     if (athlete?.division) setDivision(athlete.division);
     if (athlete?.category) setCategory(athlete.category);
+    // Once the first is chosen, the list for the second narrows to their own
+    // bracket — that is the pair that can actually be entered.
+    if (athlete?.division) setFilterLevel(athlete.division);
     if (athlete?.partnerId && athletes.some((one) => one.id === athlete.partnerId)) setSecondId(athlete.partnerId);
+  }
+
+  /** Back to every athlete: a filter must never hide a legitimate pairing. */
+  function showEveryone() {
+    setSearch("");
+    setOnlyLooking(false);
+    setFilterLevel("");
+    setFilterCategory("");
   }
 
   function pickSecond(id: string) {
@@ -141,6 +179,60 @@ export function PairingPanel({
               </option>
             ))}
           </select>
+        </label>
+        <label style={{ flex: "1 1 100%" }}>
+          <span className="field-label">{t("Narrow the list")}</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              className="input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("Search by name…")}
+              maxLength={80}
+              style={{ flex: "1 1 180px" }}
+            />
+            <select
+              className="input"
+              value={filterLevel}
+              onChange={(e) => setFilterLevel(e.target.value)}
+              style={{ flex: "0 1 140px" }}
+            >
+              <option value="">{t("Any level")}</option>
+              {["Rookie", "Open", "Pro"].map((level) => (
+                <option key={level} value={level}>
+                  {t(level)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              style={{ flex: "0 1 140px" }}
+            >
+              <option value="">{t("Any category")}</option>
+              {["Womens", "Mens", "Mixed"].map((one) => (
+                <option key={one} value={one}>
+                  {t(one)}
+                </option>
+              ))}
+            </select>
+            <label className="checkline" style={{ flex: "0 0 auto" }}>
+              <input
+                type="checkbox"
+                checked={onlyLooking}
+                onChange={(e) => setOnlyLooking(e.target.checked)}
+              />
+              <span>{t("Looking only")}</span>
+            </label>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={showEveryone}>
+              {t("Show everyone")}
+            </button>
+          </div>
+          <span className="reg-sub" style={{ display: "block", marginTop: 6 }}>
+            {t("{shown} of {total}", { shown: visible.length, total: athletes.length })}
+            {athletes.length === 500 ? ` · ${t("first 500")}` : ""}
+          </span>
         </label>
         <label style={{ flex: "1 1 200px" }}>
           <span className="field-label">{t("Athlete 1")}</span>

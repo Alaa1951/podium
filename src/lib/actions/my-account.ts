@@ -55,6 +55,13 @@ export async function deleteOwnAccount(): Promise<DeleteAccountResult> {
   // Trusted browsers have to stop being trusted now, not at the next refresh.
   await revokeTrustedDevices({ userId: user.id, reason: "account_deleted" });
 
+  // A closed account must not leave an unanswerable request sitting in
+  // somebody's inbox for ever.
+  await prisma.partnerRequest.updateMany({
+    where: { status: "pending", OR: [{ fromUserId: user.id }, { toUserId: user.id }] },
+    data: { status: "cancelled", openPairKey: null, respondedAt: new Date() },
+  });
+
   await recordAudit({
     actorId: user.id,
     action: AUDIT.accountSelfDeleted,

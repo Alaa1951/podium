@@ -245,6 +245,13 @@ export const CATALOG = {
         actions: {
           view: view(),
           edit: act("Change partner details", "تعديل بيانات الشريك"),
+          // Split from `edit` on purpose: `browse` is the one read in the whole
+          // system that steps outside an athlete's own account scope, and
+          // `request` is the write that follows it. Answering a request you
+          // have already received stays on `edit`, so withdrawing `request`
+          // never leaves somebody with an inbox they cannot reply to.
+          browse: act("Find a partner", "البحث عن شريك"),
+          request: act("Send partner requests", "إرسال طلبات الشراكة"),
         },
       },
       judgeSheet: {

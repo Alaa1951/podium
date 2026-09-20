@@ -64,8 +64,38 @@ export async function savePartner(input: unknown): Promise<PartnerResult> {
     update: fields,
   });
 
+  // Naming a partner is the end of looking for one, so the asks this athlete
+  // sent are withdrawn. Asks they RECEIVED are left alone — those are other
+  // people's, and this athlete can still answer them properly.
+  if (data.hasPartner) {
+    await prisma.partnerRequest.updateMany({
+      where: { fromUserId: user.id, status: "pending" },
+      data: { status: "withdrawn", openPairKey: null, respondedAt: new Date() },
+    });
+  }
+
   // The athlete's own address is proven — they are signed in with it.
   await onAthleteVerified(user.id, user.email).catch(() => undefined);
+
+  // The old email flow may have just linked them. Anything still open on
+  // either side of that pair is moot now.
+  const linked = await prisma.athleteProfile.findUnique({
+    where: { userId: user.id },
+    select: { partnerUserId: true },
+  });
+  if (linked?.partnerUserId) {
+    const pair = [user.id, linked.partnerUserId];
+    await prisma.partnerRequest.updateMany({
+      where: {
+        status: "pending",
+        OR: [{ fromUserId: { in: pair } }, { toUserId: { in: pair } }],
+      },
+      data: { status: "cancelled", openPairKey: null, respondedAt: new Date() },
+    });
+  }
+
   revalidatePath("/me");
+  revalidatePath("/me/partner");
+  revalidatePath("/me/partner/requests");
   return { ok: true };
 }

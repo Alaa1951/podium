@@ -10,13 +10,17 @@ const mocks = vi.hoisted(() => ({
   user: vi.fn(),
   countUsers: vi.fn(),
   updateUser: vi.fn(),
+  cancelRequests: vi.fn(),
   revoke: vi.fn(),
   audit: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getCurrentUser: mocks.user }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { count: mocks.countUsers, update: mocks.updateUser } },
+  prisma: {
+    user: { count: mocks.countUsers, update: mocks.updateUser },
+    partnerRequest: { updateMany: mocks.cancelRequests },
+  },
 }));
 vi.mock("@/lib/trusted-device", () => ({ revokeTrustedDevices: mocks.revoke }));
 vi.mock("@/lib/audit", () => ({
@@ -31,6 +35,7 @@ const athlete = { id: "u1", email: "runner@example.com", role: "competitor" };
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.updateUser.mockResolvedValue({});
+  mocks.cancelRequests.mockResolvedValue({ count: 0 });
   mocks.revoke.mockResolvedValue(undefined);
   mocks.audit.mockResolvedValue(undefined);
 });
@@ -59,6 +64,17 @@ describe("deleting your own account", () => {
     expect(mocks.updateUser).toHaveBeenCalledOnce();
     // There is no delete on the mocked client at all: calling one would throw.
     expect(mocks.updateUser.mock.calls[0][0].data).not.toHaveProperty("email", null);
+  });
+
+  it("cancels open partner requests, so none is left unanswerable", async () => {
+    mocks.user.mockResolvedValue(athlete);
+
+    await deleteOwnAccount();
+
+    expect(mocks.cancelRequests).toHaveBeenCalledWith({
+      where: { status: "pending", OR: [{ fromUserId: "u1" }, { toUserId: "u1" }] },
+      data: { status: "cancelled", openPairKey: null, respondedAt: expect.any(Date) },
+    });
   });
 
   it("refuses a signed-out caller", async () => {
