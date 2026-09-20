@@ -12,6 +12,7 @@ import {
   PASSWORD_RULES_SHORT,
   PASSWORD_RULE_VALUES,
 } from "@/lib/password-rules";
+import { SHIRT_SIZES, type ShirtSizeValue } from "@/lib/shirt-sizes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIGNING UP.
@@ -38,6 +39,9 @@ const ERRORS: Record<string, string> = {
   ROLE_REQUIRED: "Choose what you do.",
   ATHLETE_DETAILS_REQUIRED: "Fill in your date of birth, sex, level and category.",
   PARTNER_REQUIRED: "Enter your partner's name and email.",
+  PARTNER_DETAILS_REQUIRED: "Choose your partner's gender and T-shirt size.",
+  SHIRT_SIZE_REQUIRED: "Choose your T-shirt size.",
+  TEAM_NAME_REQUIRED: "Enter a team name.",
   GYM_REQUIRED: "Enter the name of your gym or studio.",
   EMAIL_INVALID: "That email does not look right.",
   PARTNER_EMAIL_INVALID: "That partner email does not look right.",
@@ -80,11 +84,17 @@ export function SignupForm({
     sex: "" as "" | "m" | "f",
     division: "" as "" | "Rookie" | "Open" | "Pro",
     category: "" as "" | "Womens" | "Mens" | "Mixed",
+    shirtSize: "" as "" | ShirtSizeValue,
+    bftMember: false,
     hasPartner: null as boolean | null,
+    teamName: "",
     partnerName: "",
     partnerEmail: "",
     partnerPhone: "",
     partnerDateOfBirth: "",
+    partnerSex: "" as "" | "m" | "f",
+    partnerShirtSize: "" as "" | ShirtSizeValue,
+    partnerBftMember: false,
     gymName: "",
     city: "",
   });
@@ -116,11 +126,17 @@ export function SignupForm({
                 sex: form.sex || undefined,
                 division: form.division || undefined,
                 category: form.category || undefined,
+                shirtSize: form.shirtSize || undefined,
+                bftMember: form.bftMember,
                 hasPartner: Boolean(form.hasPartner),
+                teamName: form.teamName,
                 partnerName: form.partnerName,
                 partnerEmail: form.partnerEmail,
                 partnerPhone: form.partnerPhone,
                 partnerDateOfBirth: form.partnerDateOfBirth,
+                partnerSex: form.partnerSex || undefined,
+                partnerShirtSize: form.partnerShirtSize || undefined,
+                partnerBftMember: form.partnerBftMember,
               }
             : {}),
           ...(gym ? { gymName: form.gymName, city: form.city } : {}),
@@ -319,7 +335,7 @@ export function SignupForm({
           <div className="signup-row">
             {field(t("Date of birth"), <input className="input" type="date" value={form.dateOfBirth} onChange={(e) => set("dateOfBirth", e.target.value)} required />)}
             {field(
-              t("Sex"),
+              t("Gender"),
               <select className="input" value={form.sex} onChange={(e) => set("sex", e.target.value as typeof form.sex)} required>
                 <option value="">—</option>
                 <option value="f">{t("Female")}</option>
@@ -347,6 +363,23 @@ export function SignupForm({
               </select>
             )}
           </div>
+          <div className="signup-row">
+            {field(
+              t("T-shirt size"),
+              <select className="input" value={form.shirtSize} onChange={(e) => set("shirtSize", e.target.value as typeof form.shirtSize)} required>
+                <option value="">—</option>
+                {SHIRT_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <label className="checkline" style={{ marginTop: 10 }}>
+            <input type="checkbox" checked={form.bftMember} onChange={(e) => set("bftMember", e.target.checked)} />
+            <span>{t("I am a BFT member")}</span>
+          </label>
 
           <p className="auth-sub" style={{ marginTop: 14, marginBottom: 8 }}>
             {t("Do you have a partner?")}
@@ -361,6 +394,11 @@ export function SignupForm({
           </div>
           {form.hasPartner ? (
             <>
+              {field(
+                t("Team name"),
+                <input className="input" value={form.teamName} onChange={(e) => set("teamName", e.target.value)} required maxLength={120} />,
+                t("What the two of you compete as.")
+              )}
               {field(t("Partner's name"), <input className="input" value={form.partnerName} onChange={(e) => set("partnerName", e.target.value)} required maxLength={120} />)}
               {field(
                 t("Partner's email"),
@@ -371,6 +409,31 @@ export function SignupForm({
                 {field(t("Partner's phone"), <input className="input" type="tel" value={form.partnerPhone} onChange={(e) => set("partnerPhone", e.target.value)} maxLength={30} />)}
                 {field(t("Partner's date of birth"), <input className="input" type="date" value={form.partnerDateOfBirth} onChange={(e) => set("partnerDateOfBirth", e.target.value)} />)}
               </div>
+              <div className="signup-row">
+                {field(
+                  t("Partner's gender"),
+                  <select className="input" value={form.partnerSex} onChange={(e) => set("partnerSex", e.target.value as typeof form.partnerSex)} required>
+                    <option value="">—</option>
+                    <option value="f">{t("Female")}</option>
+                    <option value="m">{t("Male")}</option>
+                  </select>
+                )}
+                {field(
+                  t("Partner's T-shirt size"),
+                  <select className="input" value={form.partnerShirtSize} onChange={(e) => set("partnerShirtSize", e.target.value as typeof form.partnerShirtSize)} required>
+                    <option value="">—</option>
+                    {SHIRT_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <label className="checkline">
+                <input type="checkbox" checked={form.partnerBftMember} onChange={(e) => set("partnerBftMember", e.target.checked)} />
+                <span>{t("My partner is a BFT member")}</span>
+              </label>
             </>
           ) : form.hasPartner === false ? (
             <p className="signup-hint">{t("We match you with athletes at the same level and category. Your studio can pair you into a team.")}</p>

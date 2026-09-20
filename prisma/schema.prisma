@@ -179,14 +179,26 @@ model AthleteProfile {
   user   User   @relation("AthleteProfileOwner", fields: [userId], references: [id], onDelete: Cascade)
 
   dateOfBirth DateTime?
-  /// "m" | "f"
+  /// "m" | "f". The form calls this GENDER; the column keeps the older name
+  /// because LoadStandard is keyed on [division, sex] and renaming it would
+  /// move the prescribed-loads table for no gain.
   sex         String?
   /// The level they compete at (Rookie / Open / Pro).
   division    Division?
   /// The category they want to enter (Womens / Mens / Mixed).
   category    Category?
+  /// The shirt they asked for. Ordering them is the reason it is collected.
+  shirtSize   ShirtSize?
+  /// BFT studio membership as the athlete states it at sign-up — not the same
+  /// thing as the studio that owns their entry (that is `User.studioId`).
+  bftMember   Boolean   @default(false)
 
   lookingForPartner Boolean @default(false)
+
+  /// What the pair want to be called. Asked for only once a partner is named:
+  /// somebody still looking has nobody to be a team with yet, and the name is
+  /// settled when the studio pairs them.
+  teamName String?
 
   /// The partner, once both sides have an account and are linked.
   partnerUserId      String?
@@ -195,6 +207,10 @@ model AthleteProfile {
   partnerEmail       String?
   partnerPhone       String?
   partnerDateOfBirth DateTime?
+  /// The partner's own details, as given by whoever registered the pair.
+  partnerSex         String?
+  partnerShirtSize   ShirtSize?
+  partnerBftMember   Boolean    @default(false)
   partnerLinkedAt    DateTime?
 
   createdAt DateTime @default(now())
@@ -376,6 +392,18 @@ enum Division {
   Rookie
   Open
   Pro
+}
+
+/// The event shirt each competitor asked for. A fixed list rather than free
+/// text, because the whole point of collecting it is to count how many of
+/// each to order.
+enum ShirtSize {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
 }
 
 enum SeriesStatus {
@@ -798,6 +826,11 @@ model Competitor {
   phone       String?
   email       String?
   dateOfBirth DateTime?
+  /// The shirt to order for this person, and whether they said they are a BFT
+  /// member. Carried from the registration so a roster export can be ordered
+  /// from without chasing accounts that may not exist.
+  shirtSize   ShirtSize?
+  bftMember   Boolean    @default(false)
 
   /// BFT STUDIO MEMBERSHIP, and nothing to do with being registered. Null
   /// means this person is not a member of any studio — which is allowed, and

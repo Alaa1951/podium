@@ -7,6 +7,7 @@ import { sendAlreadyRegisteredEmail, sendOtpEmail } from "@/lib/email";
 import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
+import { SHIRT_SIZES } from "@/lib/shirt-sizes";
 import {
   checkPasswordStrength,
   getBaseUrl,
@@ -66,11 +67,17 @@ const schema = z
     sex: z.enum(["m", "f"]).optional(),
     division: z.enum(["Rookie", "Open", "Pro"]).optional(),
     category: z.enum(["Womens", "Mens", "Mixed"]).optional(),
+    shirtSize: z.enum(SHIRT_SIZES).optional(),
+    bftMember: z.boolean().optional(),
     hasPartner: z.boolean().optional(),
+    teamName: optionalText(120),
     partnerName: optionalText(120),
     partnerEmail: optionalText(200),
     partnerPhone: optionalText(30),
     partnerDateOfBirth: dateString,
+    partnerSex: z.enum(["m", "f"]).optional(),
+    partnerShirtSize: z.enum(SHIRT_SIZES).optional(),
+    partnerBftMember: z.boolean().optional(),
     // Gym / Studio
     gymName: optionalText(120),
     city: optionalText(80),
@@ -81,8 +88,17 @@ const schema = z
       if (!data.dateOfBirth || !data.sex || !data.division || !data.category) {
         ctx.addIssue({ code: "custom", message: "ATHLETE_DETAILS_REQUIRED" });
       }
-      if (data.hasPartner && (!data.partnerName || !data.partnerEmail)) {
-        ctx.addIssue({ code: "custom", message: "PARTNER_REQUIRED" });
+      if (!data.shirtSize) ctx.addIssue({ code: "custom", message: "SHIRT_SIZE_REQUIRED" });
+      if (data.hasPartner) {
+        if (!data.partnerName || !data.partnerEmail) {
+          ctx.addIssue({ code: "custom", message: "PARTNER_REQUIRED" });
+        }
+        // A pair competes under a name. Somebody still looking for a partner
+        // has nobody to be a team with yet, so they are not asked for one.
+        if (!data.teamName) ctx.addIssue({ code: "custom", message: "TEAM_NAME_REQUIRED" });
+        if (!data.partnerSex || !data.partnerShirtSize) {
+          ctx.addIssue({ code: "custom", message: "PARTNER_DETAILS_REQUIRED" });
+        }
       }
     }
     if (data.roleKey === "gym-studio" && !data.gymName) ctx.addIssue({ code: "custom", message: "GYM_REQUIRED" });
@@ -163,11 +179,19 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
         sex: data.sex ?? null,
         division: data.division ?? null,
         category: data.category ?? null,
+        shirtSize: data.shirtSize ?? null,
+        bftMember: data.bftMember ?? false,
         lookingForPartner: !data.hasPartner,
+        // Everything about the pair is cleared when there is no partner, so a
+        // change of mind cannot leave a half-registered second seat behind.
+        teamName: data.hasPartner ? data.teamName ?? null : null,
         partnerName: data.hasPartner ? data.partnerName ?? null : null,
         partnerEmail: data.hasPartner && data.partnerEmail ? normalizeEmail(data.partnerEmail) : null,
         partnerPhone: data.hasPartner ? data.partnerPhone ?? null : null,
         partnerDateOfBirth: data.hasPartner ? data.partnerDateOfBirth ?? null : null,
+        partnerSex: data.hasPartner ? data.partnerSex ?? null : null,
+        partnerShirtSize: data.hasPartner ? data.partnerShirtSize ?? null : null,
+        partnerBftMember: data.hasPartner ? data.partnerBftMember ?? false : false,
       }
     : null;
 

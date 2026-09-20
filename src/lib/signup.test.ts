@@ -33,6 +33,7 @@ vi.mock("@/lib/otp", () => ({ createOtpChallenge: mocks.otp, getOtpConfig: () =>
 vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendAlreadyRegisteredEmail: mocks.alreadyRegistered }));
 vi.mock("@/lib/rate-limit", () => ({ checkRate: mocks.rate, MINUTE_MS: 60_000 }));
 
+/** Somebody signing up alone, looking for a partner: the shortest valid form. */
 const athlete = {
   type: "athlete",
   name: "Sara Ali",
@@ -42,7 +43,19 @@ const athlete = {
   sex: "f",
   division: "Open",
   category: "Womens",
+  shirtSize: "M",
   hasPartner: false,
+};
+
+/** The same person, arriving with a partner — which asks for a good deal more. */
+const pair = {
+  ...athlete,
+  hasPartner: true,
+  teamName: "The Falcons",
+  partnerName: "Mona Adel",
+  partnerEmail: "mona@example.com",
+  partnerSex: "f",
+  partnerShirtSize: "L",
 };
 
 describe("startSignup", () => {
@@ -100,5 +113,60 @@ describe("startSignup", () => {
     mocks.rate.mockReturnValue({ ok: false });
     const { startSignup } = await import("@/lib/actions/signup");
     expect(await startSignup(athlete)).toEqual({ ok: false, error: "TOO_MANY" });
+  });
+
+  // ── The fields the CRM's own form asks for ────────────────────────────────
+
+  it("asks every athlete for a shirt size — the count is the reason to collect it", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    const noSize = { ...athlete, shirtSize: undefined };
+    expect(await startSignup(noSize)).toEqual({ ok: false, error: "SHIRT_SIZE_REQUIRED" });
+    expect(await startSignup({ ...athlete, shirtSize: "XXXL" })).toEqual({ ok: false, error: "INVALID_INPUT" });
+  });
+
+  it("asks for a team name only once a partner is named", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    // Looking for a partner: no team to name yet, and none is demanded.
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+    const noName = { ...pair, teamName: undefined };
+    expect(await startSignup(noName)).toEqual({ ok: false, error: "TEAM_NAME_REQUIRED" });
+    expect(await startSignup(pair)).toEqual({ ok: true });
+  });
+
+  it("asks for the partner's own gender and shirt size", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    const half = { ...pair, partnerShirtSize: undefined };
+    expect(await startSignup(half)).toEqual({ ok: false, error: "PARTNER_DETAILS_REQUIRED" });
+  });
+
+  it("stores the pair's details, and clears them when there is no partner", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+
+    expect(await startSignup(pair)).toEqual({ ok: true });
+    expect(mocks.upsertProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          shirtSize: "M",
+          teamName: "The Falcons",
+          partnerSex: "f",
+          partnerShirtSize: "L",
+          lookingForPartner: false,
+        }),
+      })
+    );
+
+    mocks.upsertProfile.mockClear();
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(mocks.upsertProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          shirtSize: "M",
+          teamName: null,
+          partnerSex: null,
+          partnerShirtSize: null,
+          lookingForPartner: true,
+        }),
+      })
+    );
   });
 });
