@@ -38,7 +38,7 @@ html .mobile-tabbar a, html .mobile-tabbar button { position: relative; display:
 html .mobile-tabbar span { font-size: 11px; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
 html .mobile-tabbar [data-active] { color: var(--bft-cyan-text); font-weight: 700; background: var(--bft-cyan-soft); border-radius: 10px; }
 html .mobile-tab-badge { position: absolute; top: 5px; inset-inline-end: 20%; padding: 1px 5px; border-radius: 20px; font-size: 10px; background: var(--danger); color: white; }
-html .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
+html .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h)); overflow-y: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
 html .console-nav[data-open] { display: flex; transform: none; }
 html .mobile-menu-close { display: inline-flex; align-self: flex-end; align-items: center; justify-content: center; min-height: 48px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--surface-sunken); cursor: pointer; }
 html .console-nav .console-link { min-height: 52px; padding: 12px 14px; font-size: 16px; }
@@ -99,7 +99,7 @@ html[data-native="true"] .mobile-tabbar a, html[data-native="true"] .mobile-tabb
 html[data-native="true"] .mobile-tabbar span { font-size: 11px; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
 html[data-native="true"] .mobile-tabbar [data-active] { color: var(--bft-cyan-text); font-weight: 700; background: var(--bft-cyan-soft); border-radius: 10px; }
 html[data-native="true"] .mobile-tab-badge { position: absolute; top: 5px; inset-inline-end: 20%; padding: 1px 5px; border-radius: 20px; font-size: 10px; background: var(--danger); color: white; }
-html[data-native="true"] .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
+html[data-native="true"] .console-nav { display: none; transform: none; position: fixed; inset: var(--mobile-header-h) 0 var(--mobile-nav-h); width: auto; height: calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h)); overflow-y: auto; border: 0; z-index: 80; padding: 16px max(16px, var(--safe-right)) 24px max(16px, var(--safe-left)); box-shadow: none; }
 html[data-native="true"] .console-nav[data-open] { display: flex; transform: none; }
 html[data-native="true"] .mobile-menu-close { display: inline-flex; align-self: flex-end; align-items: center; justify-content: center; min-height: 48px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--surface-sunken); cursor: pointer; }
 html[data-native="true"] .console-nav .console-link { min-height: 52px; padding: 12px 14px; font-size: 16px; }

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { BlueprintCard } from "@/components/app/page-shell";
 import { useT } from "@/components/i18n/locale-provider";
-import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import {
   ActivityTable,
   DeviceTable,
@@ -12,21 +11,11 @@ import {
   type SignInEvent,
 } from "@/components/account/security-tables";
 
-const PASSWORD_RULES =
-  "Use at least 10 characters, with an uppercase letter, a lowercase letter and a number.";
-
 const ERRORS: Record<string, string> = {
-  PASSWORDS_DO_NOT_MATCH: "Passwords do not match.",
-  CURRENT_PASSWORD_WRONG: "That is not your current password.",
-  PASSWORD_UNCHANGED: "That is the password you already have.",
   TOO_MANY_ATTEMPTS: "Too many attempts. Try again shortly.",
-  PASSWORD_TOO_SHORT: PASSWORD_RULES,
-  PASSWORD_NEEDS_NUMBER: PASSWORD_RULES,
-  PASSWORD_NEEDS_LOWER: PASSWORD_RULES,
-  PASSWORD_NEEDS_UPPER: PASSWORD_RULES,
 };
 
-export function SecurityPanel() {
+export function SecurityPanel({ email }: { email: string }) {
   const t = useT();
   const [devices, setDevices] = useState<Device[]>([]);
   const [events, setEvents] = useState<SignInEvent[]>([]);
@@ -34,8 +23,7 @@ export function SecurityPanel() {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [dirty,setDirty]=useState(false);
-  useUnsavedChanges(dirty);
+  const [sent, setSent] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -80,37 +68,24 @@ export function SecurityPanel() {
     });
   }
 
-  function changePassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
+  /**
+   * Changing a password is done by email, never in this form: the account
+   * holder proves the mailbox, not merely that a laptop was left unlocked.
+   * The link that arrives is the same one a forgotten password sends.
+   */
+  function requestPasswordReset() {
     setNotice("");
     setError("");
-
     startTransition(async () => {
       try {
-        const res = await fetch("/api/auth/change-password", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            currentPassword: String(data.get("currentPassword") || ""),
-            newPassword: String(data.get("newPassword") || ""),
-            confirmPassword: String(data.get("confirmPassword") || ""),
-          }),
-        });
+        const res = await fetch("/api/auth/request-password-reset", { method: "POST" });
         const result = (await res.json()) as { ok?: boolean; error?: string };
-
         if (!result.ok) {
           setError(t(ERRORS[result.error ?? ""] ?? "Something went wrong. Try again."));
           return;
         }
-        form.reset();
-        setDirty(false);
-        setNotice(
-          t("Password changed. Every device was signed out and will need a code next time.")
-        );
-        await load();
-      } catch { setError(t("Could not save. Check your connection and try again.")); }
+        setSent(true);
+      } catch { setError(t("Could not send. Check your connection and try again.")); }
     });
   }
 
@@ -129,54 +104,28 @@ export function SecurityPanel() {
 
       <h2 className="section-title">{t("Change password")}</h2>
       <BlueprintCard style={{ padding: "20px 22px", maxWidth: 520, gap: 10 }}>
-        <form onInput={()=>setDirty(true)} onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <label className="field-label" htmlFor="currentPassword">
-              {t("Current password")}
-            </label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="newPassword">
-              {t("New password")}
-            </label>
-            <input
-              id="newPassword"
-              name="newPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="confirmPassword">
-              {t("Confirm password")}
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              className="input"
-            />
-          </div>
-          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0 }}>
-            {t(PASSWORD_RULES)}
+        {sent ? (
+          <p style={{ margin: 0, fontSize: 14 }} role="status">
+            {t("A link is on its way to {email}. It is good for 30 minutes.", { email })}
           </p>
-          <button type="submit" className="btn btn-primary btn-block" disabled={pending}>
-            {pending ? <span className="spinner" /> : null}
-            {t("Change password")}
-          </button>
-        </form>
+        ) : (
+          <>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
+              {t(
+                "We email you a link to set a new one — there is no old password to remember. The link is good for 30 minutes, and using it signs every device out."
+              )}
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              onClick={requestPasswordReset}
+              disabled={pending}
+            >
+              {pending ? <span className="spinner" /> : null}
+              {t("Email me a link")}
+            </button>
+          </>
+        )}
       </BlueprintCard>
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>

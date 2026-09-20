@@ -238,6 +238,16 @@ test('account editing persists and password validation retains the draft',async(
   await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('Saved.',{exact:true})).toBeVisible();
   await page.reload();await expect(page.getByRole('textbox',{name:'Name',exact:true})).toHaveValue(user.name+' edited');
   await page.getByRole('textbox',{name:'Name',exact:true}).fill(user.name);await page.getByRole('button',{name:'Save changes',exact:true}).click();await expect(page.getByText('Saved.',{exact:true})).toBeVisible();
-  await page.goto('/account');await page.getByLabel('Current password',{exact:true}).fill('Local test only');await page.getByLabel('New password',{exact:true}).fill('LocalMobileDraft123');await page.getByLabel('Confirm password',{exact:true}).fill('DifferentMobileDraft123');
-  await page.getByRole('button',{name:'Change password',exact:true}).click();await expect(page.getByText('Passwords do not match.',{exact:true})).toBeVisible();await expect(page.getByLabel('New password',{exact:true})).toHaveValue('LocalMobileDraft123');
+  // Changing a password is an emailed link now, not a form with the old one
+  // in it, so there is no draft to retain — what has to be on this screen is
+  // the way to ask for the link and the way to close the account, both of
+  // which the app stores require to be reachable in the app itself.
+  await page.goto('/account');
+  await expect(page.getByLabel('Current password',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Email me a link',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Delete account',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Delete account',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Yes, delete my account',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Yes, delete my account',exact:true})).toHaveCount(0);
 });

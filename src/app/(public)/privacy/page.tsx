@@ -155,11 +155,26 @@ function English() {
       <section>
         <h2>Retention and deletion</h2>
         <p>
-          Account data is kept while the account is active. Competition
-          records belong to the organizer and the competitor&rsquo;s studio.
-          To access, correct, or delete your personal data, contact the
-          organizing team or write to us at the address above, and we will
-          action the request.
+          You can delete your account yourself, at any time, from{" "}
+          <strong>Account &rarr; Delete account</strong> inside the app. No
+          request and no approval: the account is closed immediately, you are
+          signed out on every device, every trusted browser is revoked, and you
+          can no longer sign in.
+        </p>
+        <p>
+          What a deletion does not erase is the record of competitions already
+          run. Scores, placings and the published results of an event you
+          competed in belong to that event and to everyone else who competed in
+          it, and are kept as part of its result. The same is true of the
+          administrative audit log, which exists so that decisions taken about
+          accounts remain answerable. These records are retained for as long as
+          the organizer keeps the competition on record.
+        </p>
+        <p>
+          Account data is otherwise kept while the account is active. To access
+          or correct your personal data, or to ask about anything retained
+          after a deletion, contact the organizing team or write to us at the
+          address above, and we will action the request.
         </p>
       </section>
 
@@ -298,10 +313,22 @@ function Arabic() {
       <section>
         <h2>الاحتفاظ بالبيانات وحذفها</h2>
         <p>
-          تُحفظ بيانات الحساب ما دام الحساب نشطًا. سجلات البطولات ملك للمنظّم
-          والصالة التي ينتمي إليها المتسابق. للوصول إلى بياناتك أو تصحيحها أو
-          حذفها، تواصل مع فريق التنظيم أو راسلنا على العنوان أعلاه وسنستجيب
-          للطلب.
+          يمكنك حذف حسابك بنفسك في أي وقت من{" "}
+          <strong>الحساب ← حذف الحساب</strong> داخل التطبيق. دون طلب ودون
+          موافقة: يُغلق الحساب فورًا، ويُسجَّل خروجك من كل الأجهزة، وتُلغى كل
+          المتصفحات الموثوقة، ولا يعود بإمكانك تسجيل الدخول.
+        </p>
+        <p>
+          ما لا يمحوه الحذف هو سجل البطولات التي جرت بالفعل. النتائج والترتيب
+          والنتائج المنشورة لبطولة شاركت فيها تخص تلك البطولة وتخص كل من شارك
+          فيها معك، وتُحفظ كجزء من نتيجتها. وكذلك سجل التدقيق الإداري، الموجود
+          كي تبقى القرارات المتخذة بشأن الحسابات قابلة للمساءلة. تُحفظ هذه
+          السجلات ما دام المنظّم محتفظًا بالبطولة في سجلاته.
+        </p>
+        <p>
+          وفيما عدا ذلك تُحفظ بيانات الحساب ما دام الحساب نشطًا. للوصول إلى
+          بياناتك أو تصحيحها، أو للسؤال عمّا يُحتفظ به بعد الحذف، تواصل مع فريق
+          التنظيم أو راسلنا على العنوان أعلاه وسنستجيب للطلب.
         </p>
       </section>
 

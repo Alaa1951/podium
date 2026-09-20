@@ -21,7 +21,7 @@ can then see or change is filtered on the server by their role and their studio.
 | Control | Where |
 | --- | --- |
 | Passwords hashed with bcrypt, cost 12 | [`security.ts`](../src/lib/security.ts) |
-| Minimum 10 chars, upper + lower + digit | `checkPasswordStrength` |
+| Minimum 6 chars, upper + lower + digit | `checkPasswordStrength`, length from [`password-rules.ts`](../src/lib/password-rules.ts) |
 | Email OTP on untrusted devices, with a server-side named staff exception | [`auth-password.ts`](../src/lib/auth-password.ts) |
 | Codes stored as HMAC-SHA256, never plaintext | [`otp.ts`](../src/lib/otp.ts) |
 | Codes expire in 10 minutes, 5 attempts, consumed on use | `otp.ts` |
@@ -61,8 +61,13 @@ one. Setting a password — from an invitation or a reset — revokes every trus
 device and forces a code on the next sign-in, because possession of a mailbox is
 not possession of a device.
 
-Changing a password from inside a session still requires the current one: a
-borrowed unlocked laptop must not be enough to take an account over.
+Changing a password from inside a session is done by the same emailed link, and
+never by typing the current one. The old rule asked for the current password so
+that a borrowed unlocked laptop was not enough to take an account over; the
+emailed link clears that bar and a higher one, because whoever holds the laptop
+must also hold the mailbox. `POST /api/auth/request-password-reset` takes no
+body — the address is the session's own, so a signed-in person cannot aim it at
+somebody else's inbox.
 
 ### Sign-up and approval
 

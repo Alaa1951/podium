@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ACCOUNT_TYPE_LABEL } from "@/components/accounts/account-types";
 import { PlainHeader } from "@/components/app/plain-header";
+import { DeleteAccountPanel } from "@/components/account/delete-account-panel";
 import { SecurityPanel } from "@/components/account/security-panel";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
@@ -50,7 +51,8 @@ export default async function AccountPage() {
           </p>
         </div>
 
-        <SecurityPanel />
+        <SecurityPanel email={user.email} />
+        {user.viewAs ? null : <DeleteAccountPanel />}
         <div className="mobile-only"><p>{roleLabel}</p><div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:24}}><LanguageSwitch /><ThemeToggle current={theme} /></div><div className="mobile-action-bar"><SignOutButton /></div></div>
       </div>
     </>

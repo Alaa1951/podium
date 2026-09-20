@@ -493,6 +493,13 @@ body {
   overscroll-behavior: contain;
 }
 
+/* Every child keeps its natural height. Without this a flex column SHRINKS
+   its items to fit instead of overflowing, so the scroll container never has
+   anything to scroll and whatever did not fit is clipped and unreachable —
+   which is exactly how Account and Sign out disappeared off the bottom of the
+   phone's "More" menu. */
+.console-nav > * { flex-shrink: 0; }
+
 .console-brand {
   display: inline-flex;
   align-items: center;

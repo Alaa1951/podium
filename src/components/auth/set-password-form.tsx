@@ -6,9 +6,9 @@ import { useState, type FormEvent } from "react";
 
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
+import { PASSWORD_RULES, PASSWORD_RULE_VALUES } from "@/lib/password-rules";
 
-const RULES_MESSAGE =
-  "Use at least 10 characters, with an uppercase letter, a lowercase letter and a number.";
+const RULES_MESSAGE = PASSWORD_RULES;
 
 /** Shared by the invitation flow (/activate) and the reset flow. */
 export function SetPasswordForm({
@@ -46,7 +46,7 @@ export function SetPasswordForm({
       const data = (await res.json()) as { ok?: boolean; error?: string };
 
       if (!res.ok || !data.ok) {
-        if (data.error?.startsWith("PASSWORD_")) setError(t(RULES_MESSAGE));
+        if (data.error?.startsWith("PASSWORD_")) setError(t(RULES_MESSAGE, PASSWORD_RULE_VALUES));
         else if (data.error === "PASSWORDS_DO_NOT_MATCH") setError(t("Passwords do not match."));
         else if (data.error === "INVALID_TOKEN") setError(t("That link is invalid or has expired."));
         else setError(t("Something went wrong. Try again."));
@@ -107,7 +107,7 @@ export function SetPasswordForm({
         />
       </div>
 
-      <p style={{ margin: 0, fontSize: 12, color: "var(--on-navy-muted)" }}>{t(RULES_MESSAGE)}</p>
+      <p style={{ margin: 0, fontSize: 12, color: "var(--on-navy-muted)" }}>{t(RULES_MESSAGE, PASSWORD_RULE_VALUES)}</p>
 
       {error ? (
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--danger-bright)" }}>

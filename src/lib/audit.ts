@@ -41,6 +41,7 @@ export const AUDIT = {
   teamRestored: "team.restored",
   userArchived: "user.archived",
   userRestored: "user.restored",
+  accountSelfDeleted: "user.self_deleted",
   seriesArchived: "series.archived",
   seriesRestored: "series.restored",
   waveAccessGranted: "wave.access_granted",
@@ -55,6 +56,7 @@ export const AUDIT = {
   signupRejected: "signup.rejected",
   devicesRevoked: "security.devices_revoked",
   passwordChanged: "security.password_changed",
+  passwordResetRequested: "security.password_reset_requested",
   announcementSent: "notification.sent",
 } as const;
 

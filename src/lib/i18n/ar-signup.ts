@@ -27,8 +27,8 @@ export const AR_SIGNUP: Phrases = {
   "Your gym or studio": "الجيم أو الاستوديو الخاص بك",
   None: "لا يوجد",
   "Your studio can approve you. Without one, BFT MENA does.": "يمكن للاستوديو الخاص بك الموافقة عليك. وبدونه توافق BFT MENA.",
-  "At least 10 characters, with an uppercase letter, a lowercase letter and a number.":
-    "10 أحرف على الأقل، منها حرف كبير وحرف صغير ورقم.",
+  "At least {n} characters, with an uppercase letter, a lowercase letter and a number.":
+    "{n} أحرف على الأقل، منها حرف كبير وحرف صغير ورقم.",
   Sex: "الجنس",
   Female: "أنثى",
   Male: "ذكر",
@@ -57,7 +57,7 @@ export const AR_SIGNUP: Phrases = {
   "Enter your partner's name and email.": "أدخل اسم شريكك وبريده الإلكتروني.",
   "Enter the name of your gym or studio.": "أدخل اسم الجيم أو الاستوديو.",
   "That partner email does not look right.": "بريد الشريك غير صحيح.",
-  "The password needs at least 10 characters.": "كلمة المرور تحتاج 10 أحرف على الأقل.",
+  "The password needs at least {n} characters.": "كلمة المرور تحتاج {n} أحرف على الأقل.",
   "The password needs a number.": "كلمة المرور تحتاج رقمًا.",
   "The password needs a lowercase letter.": "كلمة المرور تحتاج حرفًا صغيرًا.",
   "The password needs an uppercase letter.": "كلمة المرور تحتاج حرفًا كبيرًا.",

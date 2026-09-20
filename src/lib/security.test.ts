@@ -35,14 +35,18 @@ describe("email handling", () => {
 });
 
 describe("password strength", () => {
-  it("requires ten characters", () => {
-    expect(mod.checkPasswordStrength("Ab3xyzab")).toEqual({
+  it("requires six characters", () => {
+    expect(mod.checkPasswordStrength("Ab3xy")).toEqual({
       ok: false,
       reason: "PASSWORD_TOO_SHORT",
     });
   });
 
-  it("requires a digit, a lower-case and an upper-case letter", () => {
+  it("accepts exactly six — the minimum is a floor, not a target", () => {
+    expect(mod.checkPasswordStrength("Ab3xyz")).toEqual({ ok: true });
+  });
+
+  it("still requires a digit, a lower-case and an upper-case letter", () => {
     expect(mod.checkPasswordStrength("abcdefghijk")).toMatchObject({ ok: false });
     expect(mod.checkPasswordStrength("ABCDEFGHIJK")).toMatchObject({ ok: false });
     expect(mod.checkPasswordStrength("Abcdefghijk")).toEqual({

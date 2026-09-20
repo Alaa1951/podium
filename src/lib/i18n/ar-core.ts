@@ -50,8 +50,8 @@ export const AR_CORE: Phrases = {
   "That link is invalid or has expired.": "هذا الرابط غير صالح أو انتهت صلاحيته.",
   "Password set. You can sign in now.": "تم تعيين كلمة المرور. يمكنك تسجيل الدخول الآن.",
   "Passwords do not match.": "كلمتا المرور غير متطابقتين.",
-  "Use at least 10 characters, with an uppercase letter, a lowercase letter and a number.":
-    "استخدم ١٠ أحرف على الأقل تتضمن حرفًا كبيرًا وحرفًا صغيرًا ورقمًا.",
+  "Use at least {n} characters, with an uppercase letter, a lowercase letter and a number.":
+    "استخدم {n} أحرف على الأقل تتضمن حرفًا كبيرًا وحرفًا صغيرًا ورقمًا.",
 
   // ── Roles ─────────────────────────────────────────────────────────────────
   "BFT MENA": "BFT MENA",

@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 
 import bcrypt from "bcryptjs";
 
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-rules";
+
 // Every secret used here stays on the server. Nothing in this module may be
 // imported from a client component — `server-only` makes that a build error
 // rather than a leak.
@@ -68,7 +70,7 @@ export function getIpFromHeaders(headers: Headers) {
 export type PasswordCheck = { ok: true } | { ok: false; reason: string };
 
 export function checkPasswordStrength(password: string): PasswordCheck {
-  if (!password || password.length < 10) {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
     return { ok: false, reason: "PASSWORD_TOO_SHORT" };
   }
   if (!/\d/.test(password)) return { ok: false, reason: "PASSWORD_NEEDS_NUMBER" };

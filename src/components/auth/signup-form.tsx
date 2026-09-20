@@ -7,6 +7,11 @@ import { useState, useTransition, type ReactNode } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { resendSignupCode, startSignup } from "@/lib/actions/signup";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_RULES_SHORT,
+  PASSWORD_RULE_VALUES,
+} from "@/lib/password-rules";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIGNING UP.
@@ -37,7 +42,7 @@ const ERRORS: Record<string, string> = {
   EMAIL_INVALID: "That email does not look right.",
   PARTNER_EMAIL_INVALID: "That partner email does not look right.",
   TOO_MANY: "Too many requests. Wait a few minutes and try again.",
-  PASSWORD_TOO_SHORT: "The password needs at least 10 characters.",
+  PASSWORD_TOO_SHORT: "The password needs at least {n} characters.",
   PASSWORD_NEEDS_NUMBER: "The password needs a number.",
   PASSWORD_NEEDS_LOWER: "The password needs a lowercase letter.",
   PASSWORD_NEEDS_UPPER: "The password needs an uppercase letter.",
@@ -121,7 +126,7 @@ export function SignupForm({
           ...(gym ? { gymName: form.gymName, city: form.city } : {}),
         });
         if (!result.ok) {
-          setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
+          setError(t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
           return;
         }
         setStage("code");
@@ -153,7 +158,7 @@ export function SignupForm({
     setNote("");
     startTransition(async () => {
       const result = await resendSignupCode({ email: form.email });
-      if (!result.ok) setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
+      if (!result.ok) setError(t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
       else setNote(t("A new code is on its way."));
     });
   }
@@ -304,8 +309,8 @@ export function SignupForm({
       {!athlete
         ? field(
             t("Password"),
-            <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required minLength={10} maxLength={200} />,
-            t("At least 10 characters, with an uppercase letter, a lowercase letter and a number.")
+            <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={200} />,
+            t(PASSWORD_RULES_SHORT, PASSWORD_RULE_VALUES)
           )
         : null}
 
