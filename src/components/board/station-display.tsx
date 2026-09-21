@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { useBoardClock } from "@/components/board/use-board-clock";
 import type { BoardPayload } from "@/lib/board";
+import { DEFAULT_ATHLETE_PHOTO } from "@/lib/athlete-photo";
 import { remainingClock } from "@/lib/floor";
 import { stationView, zoneStations, type StationView } from "@/lib/stations";
 
@@ -127,9 +128,27 @@ function StationBody({ view }: { view: StationView }) {
 
   return (
     <div className="station-screen-body">
+      {/* The pair's faces, above their name — the framing the reference boards
+          use. `portraits` is resolved on the server and is index-aligned with
+          `competitors`, so the caption under a face belongs to that face. */}
+      <div className="station-portraits">
+        {view.team.competitors.map((name, index) => (
+          <figure className="station-portrait" key={`${name}-${index}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a wall
+                screen loads one of these and holds it for a whole wave; the
+                optimiser buys nothing and adds a request path to go wrong. */}
+            <img
+              src={view.team.portraits[index] ?? DEFAULT_ATHLETE_PHOTO}
+              alt=""
+              className="station-portrait-img"
+            />
+            <figcaption className="station-portrait-name">{name}</figcaption>
+          </figure>
+        ))}
+      </div>
+
       {/* The team name, as big as the box allows. Everything else is a caption. */}
       <h1 className="station-screen-team display">{view.team.name}</h1>
-      <p className="station-screen-people">{view.team.competitors.filter(Boolean).join(" & ")}</p>
       <div className="station-screen-meta">
         <span>
           {t("Wave")} {view.wave}

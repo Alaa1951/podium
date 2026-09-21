@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import type { BoardDisplay } from "@/lib/visibility";
 import { summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
+import { athletePhoto } from "@/lib/athlete-photo";
 import { isCompeting } from "@/lib/team-status";
 
 // One payload shape for the board, built once on the server and reused by the
@@ -22,6 +23,12 @@ export type BoardTeam = {
    *  screens are addressed by (zone x station), and this is the second half. */
   station: number | null;
   competitors: string[];
+  /**
+   * One portrait per competitor, in the SAME ORDER as `competitors`. Resolved
+   * on the server so a screen never decides what to load: every entry is a path
+   * this app serves, default included (athlete-photo.ts).
+   */
+  portraits: string[];
   studioName: string | null;
   submitted: boolean;
   /** Points per zone, in board order — as many as the series defines. The
@@ -129,6 +136,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
         wave: team.wave,
         station: team.station,
         competitors: team.competitors.map((a) => a.fullName),
+        portraits: team.competitors.map((a) => athletePhoto(a.photoPath)),
         studioName: team.studioName,
         submitted: team.submitted,
         zones: team.zones.map((zone) => ({

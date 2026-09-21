@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500" role="img" aria-label="Athlete portrait placeholder">
+  <!--
+    THE PORTRAIT EVERY SEAT SHOWS UNTIL IT HAS ONE OF ITS OWN.
+
+    A placeholder, and it reads as one on purpose: a wall screen full of
+    identical faces should look unfinished rather than look like a mistake in
+    the data. Drawn rather than photographed so it is a few hundred bytes, scales
+    to a whole rig screen without blurring, and needs no upload path to exist.
+
+    Colours are the two from docs/brand.md and nothing else. BFT Blue #00b5cc is
+    the functional colour and carries the figure; the ground is the board's own
+    dark. The logo is deliberately absent — brand.md says the mark is never
+    redrawn, and a portrait frame is not where it belongs.
+
+    Replace this file with a real image (same path, or point Competitor.photoPath
+    at another one) and every screen picks it up with no code change.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d0d4d"/>
+      <stop offset="100%" stop-color="#07073d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="500" fill="url(#ground)"/>
+
+  <!-- The figure: head and shoulders, the framing the reference boards use. -->
+  <g fill="none" stroke="#00b5cc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+    <circle cx="200" cy="185" r="72"/>
+    <path d="M78 432c0-67 55-121 122-121s122 54 122 121"/>
+  </g>
+
+  <!-- A single quiet rule under it, so the shape sits on something. -->
+  <rect x="78" y="452" width="244" height="4" fill="#00b5cc" opacity="0.3"/>
+</svg>

@@ -48,6 +48,8 @@ export type CompetitorRow = {
   studioId: string | null;
   studioName: string | null;
   userId: string | null;
+  /** Stored portrait path, or null for the shared default (athlete-photo.ts). */
+  photoPath: string | null;
 };
 
 /**
@@ -131,6 +133,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
       studioId: c.studioId,
       studioName: c.studio?.name ?? null,
       userId: c.userId,
+      photoPath: c.photoPath,
     })),
 
     paymentStatus: team.paymentStatus,

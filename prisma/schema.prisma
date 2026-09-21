@@ -915,6 +915,18 @@ model Competitor {
   shirtSize   ShirtSize?
   bftMember   Boolean    @default(false)
 
+  /// The portrait shown on the screens over the rigs, as a path THIS app
+  /// serves. NULL means the shared default is used, which is every seat today.
+  ///
+  /// On the SEAT, not on the account: a station screen shows the team standing
+  /// on it, and a seat exists whether or not that person ever signs in
+  /// (`userId` below is nullable).
+  ///
+  /// A PATH, never a URL to somewhere else. Nothing in this app fetches a
+  /// portrait from a third party, and a column that accepted a foreign URL is
+  /// how that would begin by accident.
+  photoPath   String?
+
   /// BFT STUDIO MEMBERSHIP, and nothing to do with being registered. Null
   /// means this person is not a member of any studio — which is allowed, and
   /// common, and is a figure the reports are asked for.
