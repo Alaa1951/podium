@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ApprovalBanner } from "@/components/app/approval-banner";
 import { PlainHeader } from "@/components/app/plain-header";
 import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
+import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -302,6 +303,10 @@ export default async function MyPage(editMode = false) {
       </div>
 
       {profileCard}
+
+      {/* The portraits for the screens over the rigs. Renders nothing at all
+          when the feature is switched off — the API it asks says 404. */}
+      <PortraitUpload />
 
       {/* Correcting who stands on the team — the clock decided above. */}
       <TeamEditor

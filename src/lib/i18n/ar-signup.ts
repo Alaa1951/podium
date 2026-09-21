@@ -266,6 +266,24 @@ export const AR_SIGNUP: Phrases = {
   "Registration has closed for this one. You can still sign up — you will join the waiting list, and we will email you if a place comes free.":
     "التسجيل أُغلق لهذه البطولة. يمكنك التسجيل مع ذلك — ستدخل قائمة الانتظار، وسنراسلك إن توفّر مكان.",
 
+  // ── Competition portraits ──────────────────────────────────────────────────
+  "Competition portraits": "صور البطولة",
+  "A portrait of each of you for the screens above the rigs.":
+    "صورة لكل واحد فيكما تظهر على الشاشات فوق المحطات.",
+  "I understand the photo is sent to an external AI service (OpenAI) to generate the portrait, and is deleted from PODIUM once the portrait is made.":
+    "أفهم أن الصورة تُرسل إلى خدمة ذكاء اصطناعي خارجية (OpenAI) لإنشاء البورتريه، وتُحذف من PODIUM بمجرد إنشائه.",
+  "Making the portrait — this can take a couple of minutes.":
+    "جارٍ إنشاء البورتريه — قد يستغرق دقيقتين.",
+  "That did not work. Try another photo.": "لم ينجح ذلك. جرّب صورة أخرى.",
+  "Tick the box first.": "اختر المربع أولًا.",
+  "Choose a photo.": "اختر صورة.",
+  "That photo is too big. Try another.": "هذه الصورة كبيرة جدًا. جرّب غيرها.",
+  "That file is not an image.": "هذا الملف ليس صورة.",
+  "This person has used all their tries.": "استنفد هذا الشخص كل محاولاته.",
+  "Too many portraits today. Try again tomorrow.": "عدد كبير من الصور اليوم. حاول غدًا.",
+  "Could not upload. Check your connection and try again.":
+    "تعذّر الرفع. راجع اتصالك وحاول مرة أخرى.",
+
   // ── Athlete wording ────────────────────────────────────────────────────────
   "Athlete 1": "الرياضي ١",
   "Athlete 2": "الرياضي ٢",

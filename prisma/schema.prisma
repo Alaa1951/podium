@@ -35,8 +35,8 @@
 // BFT MENA decides to hand them one.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
   // Explicit .ts specifiers so plain `node` (type stripping) can resolve the
   // generated files — the seed script runs outside the bundler.
   importFileExtension = "ts"
@@ -88,44 +88,44 @@ enum UserStatus {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  name          String?
-  role          Role       @default(competitor)
+  id                   String     @id @default(cuid())
+  email                String     @unique
+  name                 String?
+  role                 Role       @default(competitor)
   /// Per-person exceptions on top of the account's roles:
   /// `{ "grant": string[], "deny": string[] }`. A deny ("lock") always wins.
   permissionOverrides  Json?
   /// Bumped on every change to this person's roles or overrides. The editor
   /// sends back the value it loaded, and a stale save is refused.
   permissionsUpdatedAt DateTime?
-  status       UserStatus @default(invited)
+  status               UserStatus @default(invited)
 
   // ── Sign-up and approval ─────────────────────────────────────────────────
-  approvalStatus  ApprovalStatus @default(approved)
-  approvedAt      DateTime?
+  approvalStatus      ApprovalStatus @default(approved)
+  approvedAt          DateTime?
   /// Who decided — kept as an id (the audit log carries the rest).
-  approvedById    String?
-  rejectionReason String?
-  phone           String?
+  approvedById        String?
+  rejectionReason     String?
+  phone               String?
   /// Set for a self-service sign-up: "athlete" or "organiser".
-  signupType      String?
-  signupAt        DateTime?
+  signupType          String?
+  signupAt            DateTime?
   /// What they asked to be: athlete · organiser · judge · volunteer · coach · gym-studio.
   requestedRoleKey    String?
   /// The gym they chose at sign-up — it routes the request to that studio.
   requestedStudioId   String?
-  requestedStudio     Studio? @relation("RequestedStudio", fields: [requestedStudioId], references: [id], onDelete: SetNull)
+  requestedStudio     Studio?        @relation("RequestedStudio", fields: [requestedStudioId], references: [id], onDelete: SetNull)
   /// The competition they signed up for. An athlete belongs to one before they
   /// belong to a team — this is what puts them in front of the people whose
   /// job is to find them a partner.
   requestedSeriesId   String?
-  requestedSeries     Series? @relation("RequestedSeries", fields: [requestedSeriesId], references: [id], onDelete: SetNull)
+  requestedSeries     Series?        @relation("RequestedSeries", fields: [requestedSeriesId], references: [id], onDelete: SetNull)
   /// A Gym/Studio request: the gym to create or link on approval.
   requestedStudioName String?
   requestedCity       String?
-  passwordHash  String?
-  emailVerified DateTime?
-  locale        String     @default("en")
+  passwordHash        String?
+  emailVerified       DateTime?
+  locale              String         @default("en")
 
   // A studio user manages this studio; a competitor competes under it.
   studioId String?
@@ -141,34 +141,35 @@ model User {
   /// competitor links stay answerable.
   archivedAt DateTime?
 
-  createdById String?
-  createdBy   User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdUsers User[] @relation("UserCreatedBy")
+  createdById  String?
+  createdBy    User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]  @relation("UserCreatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  accounts       Account[]
-  otpChallenges  OtpChallenge[]
-  trustedDevices TrustedDevice[]
-  loginEvents    LoginEvent[]
-  authTokens     AuthToken[]
-  competitors    Competitor[]
-  submittedScores Score[]        @relation("ScoreSubmittedBy")
-  confirmedPayments Team[]       @relation("PaymentConfirmedBy")
-  scoreAudits    ScoreAudit[]
-  adminAudits    AdminAuditLog[] @relation("AuditActor")
-  zoneStaff      ZoneStaff[]      @relation("ZoneStaffMember")
-  zoneStaffAssigned ZoneStaff[]   @relation("ZoneStaffAssignedBy")
-  zoneScoresSubmitted ZoneScore[] @relation("ZoneScoreSubmittedBy")
-  accessRoles    UserAccessRole[] @relation("UserAccessRoles")
-  athleteProfile AthleteProfile?  @relation("AthleteProfileOwner")
-  partneredProfiles AthleteProfile[] @relation("AthletePartner")
-  partnerRequestsSent     PartnerRequest[] @relation("PartnerRequestFrom")
-  partnerRequestsReceived PartnerRequest[] @relation("PartnerRequestTo")
-  assignedAccessRoles UserAccessRole[] @relation("AccessRoleAssignedBy")
-  notificationsCreated Notification[] @relation("NotificationCreator")
-  notificationReads NotificationRead[]
+  accounts                Account[]
+  otpChallenges           OtpChallenge[]
+  trustedDevices          TrustedDevice[]
+  loginEvents             LoginEvent[]
+  authTokens              AuthToken[]
+  competitors             Competitor[]
+  submittedScores         Score[]            @relation("ScoreSubmittedBy")
+  confirmedPayments       Team[]             @relation("PaymentConfirmedBy")
+  scoreAudits             ScoreAudit[]
+  adminAudits             AdminAuditLog[]    @relation("AuditActor")
+  zoneStaff               ZoneStaff[]        @relation("ZoneStaffMember")
+  zoneStaffAssigned       ZoneStaff[]        @relation("ZoneStaffAssignedBy")
+  zoneScoresSubmitted     ZoneScore[]        @relation("ZoneScoreSubmittedBy")
+  accessRoles             UserAccessRole[]   @relation("UserAccessRoles")
+  athleteProfile          AthleteProfile?    @relation("AthleteProfileOwner")
+  partneredProfiles       AthleteProfile[]   @relation("AthletePartner")
+  partnerRequestsSent     PartnerRequest[]   @relation("PartnerRequestFrom")
+  partnerRequestsReceived PartnerRequest[]   @relation("PartnerRequestTo")
+  assignedAccessRoles     UserAccessRole[]   @relation("AccessRoleAssignedBy")
+  notificationsCreated    Notification[]     @relation("NotificationCreator")
+  notificationReads       NotificationRead[]
+  portraitUploads         PortraitJob[]      @relation("PortraitUploadedBy")
 
   @@index([studioId])
   @@index([role])
@@ -199,7 +200,7 @@ model AthleteProfile {
   shirtSize   ShirtSize?
   /// BFT studio membership as the athlete states it at sign-up — not the same
   /// thing as the studio that owns their entry (that is `User.studioId`).
-  bftMember   Boolean   @default(false)
+  bftMember   Boolean    @default(false)
 
   lookingForPartner Boolean @default(false)
 
@@ -210,7 +211,7 @@ model AthleteProfile {
 
   /// The partner, once both sides have an account and are linked.
   partnerUserId      String?
-  partner            User?     @relation("AthletePartner", fields: [partnerUserId], references: [id], onDelete: SetNull)
+  partner            User?      @relation("AthletePartner", fields: [partnerUserId], references: [id], onDelete: SetNull)
   partnerName        String?
   partnerEmail       String?
   partnerPhone       String?
@@ -318,12 +319,12 @@ model NotificationRead {
 // OAuth links (Google sign-in). Kept separate so a user may hold both a
 // password and a federated identity for the same invited email.
 model Account {
-  id                String  @id @default(cuid())
+  id                String @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -399,16 +400,16 @@ model TrustedDevice {
  * this carries the authority behind the change.
  */
 model AdminAuditLog {
-  id         String   @id @default(cuid())
-  actorId    String
-  actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
-  action     String // account.invite | account.disable | score.unlock | …
-  targetType String // user | team | event | studio
-  targetId   String
+  id          String   @id @default(cuid())
+  actorId     String
+  actor       User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+  action      String // account.invite | account.disable | score.unlock | …
+  targetType  String // user | team | event | studio
+  targetId    String
   targetLabel String?
-  detail     String?  @db.Text
-  ip         String?
-  createdAt  DateTime @default(now())
+  detail      String?  @db.Text
+  ip          String?
+  createdAt   DateTime @default(now())
 
   @@index([actorId, createdAt])
   @@index([targetType, targetId])
@@ -501,23 +502,23 @@ model Studio {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users       User[]         @relation("StudioUsers")
-  signupRequests User[]      @relation("RequestedStudio")
-  teams       Team[]
-  competitors Competitor[]
-  notifications Notification[]
+  users          User[]         @relation("StudioUsers")
+  signupRequests User[]         @relation("RequestedStudio")
+  teams          Team[]
+  competitors    Competitor[]
+  notifications  Notification[]
   /// The competitions this studio is taking part in.
-  series      SeriesStudio[]
+  series         SeriesStudio[]
 }
 
 /// THE COMPETITION. One row is one PODIUM: its date, its field, its running
 /// order, its scoring definition, its board.
 model Series {
-  id       String       @id @default(cuid())
+  id       String  @id @default(cuid())
   name     String
   /// Short, URL-safe, stable — so a link to a series survives a rename.
-  slug     String       @unique
-  isActive Boolean      @default(true)
+  slug     String  @unique
+  isActive Boolean @default(true)
 
   competitionDate DateTime
   venue           String       @default("All studios")
@@ -525,17 +526,17 @@ model Series {
 
   // Event-day configuration — held as data, never in code, so a different
   // finisher length or wave size does not require a release.
-  firstWaveTime      String    @default("09:00") // HH:mm
+  firstWaveTime    String    @default("09:00") // HH:mm
   /// The whole wave, derived: zones × work + (zones − 1) × break. Kept on the
   /// row (and stamped onto each wave) so every clock reads one number.
-  waveMinutes        Int       @default(20)
+  waveMinutes      Int       @default(20)
   /// At most nine — one team per station.
-  waveCapacity       Int       @default(9)
+  waveCapacity     Int       @default(9)
   /// Work time in each zone, and the changeover between zones (none after the
   /// last). One START press runs the whole rotation — see src/lib/floor.ts.
-  zoneWorkMinutes    Int       @default(15)
-  zoneBreakMinutes   Int       @default(5)
-  boardOpensAt       DateTime? // live board unlocks at this instant
+  zoneWorkMinutes  Int       @default(15)
+  zoneBreakMinutes Int       @default(5)
+  boardOpensAt     DateTime? // live board unlocks at this instant
 
   // ── What a studio may do here ────────────────────────────────────────────
   /// Whether studio accounts may ENTER scores for their own teams in this
@@ -580,12 +581,12 @@ model Series {
   // ── What the board shows ─────────────────────────────────────────────────
   /// BFT International's board lists the two competitors; MENA may prefer the
   /// registered team name, or both. Neither is hard-coded.
-  showTeamName       Boolean @default(true)
+  showTeamName        Boolean @default(true)
   showCompetitorNames Boolean @default(true)
-  showStudioColumn   Boolean @default(true)
+  showStudioColumn    Boolean @default(true)
   /// The sponsor rail on the wall board and published results. Off means the
   /// screens carry only the event's own branding — no rail, no placeholders.
-  sponsorsEnabled    Boolean @default(true)
+  sponsorsEnabled     Boolean @default(true)
 
   /// Soft delete for a competition that was created by mistake and never ran.
   /// Only a scheduled event can reach this state — a live or finished one is
@@ -597,17 +598,17 @@ model Series {
 
   /// How a score becomes points, here. Series 2 may test entirely different
   /// movements from Series 1 and is not required to have four zones.
-  zones    Zone[]
-  waves    Wave[]
-  zoneStaff ZoneStaff[]
-  teams    Team[]
-  sponsors Sponsor[]
+  zones          Zone[]
+  waves          Wave[]
+  zoneStaff      ZoneStaff[]
+  teams          Team[]
+  sponsors       Sponsor[]
   /// The studios taking part. A studio in the directory but not in this list
   /// is simply not in this competition.
-  studios  SeriesStudio[]
+  studios        SeriesStudio[]
   /// Athletes who chose this competition when they signed up, before anybody
   /// has entered them in a team.
-  signupRequests User[] @relation("RequestedSeries")
+  signupRequests User[]         @relation("RequestedSeries")
 
   @@index([status])
   @@index([competitionDate])
@@ -739,24 +740,23 @@ enum WaveStatus {
 
 /**
  * One wave on the floor.
- *
  * Its own capacity, its own length and its own clock, so the schedule is data
  * rather than arithmetic — and because each carries its own status, several
  * can be `running` at the same time. The board rotates through whichever are
  * running rather than assuming there is exactly one.
  */
 model Wave {
-  id      String @id @default(cuid())
+  id       String @id @default(cuid())
   seriesId String
   series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
-  number   Int
+  number          Int
   /// Scheduled start, as HH:mm on the event day.
-  startTime String @default("09:00")
+  startTime       String @default("09:00")
   /// How long this wave runs. Defaults from the event, overridable per wave.
-  durationMinutes Int @default(20)
+  durationMinutes Int    @default(20)
   /// How many teams belong on the floor for it.
-  capacity Int @default(9)
+  capacity        Int    @default(9)
 
   status    WaveStatus @default(pending)
   /// Set when an operator presses START; the clock counts from here.
@@ -811,7 +811,7 @@ model ZoneStaff {
 /// mean two records that have to be kept in step, and a question — "is this
 /// team registered?" — that could have two answers.
 model Team {
-  id      String @id @default(cuid())
+  id       String @id @default(cuid())
   seriesId String
   series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
@@ -868,11 +868,11 @@ model Team {
 
   /// Kept as a plain number so a team always has a wave, even before the
   /// schedule is built; `waveId` is the link once it is.
-  wave     Int      @default(1)
-  waveId   String?
-  waveRef  Wave?    @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  wave    Int     @default(1)
+  waveId  String?
+  waveRef Wave?   @relation(fields: [waveId], references: [id], onDelete: SetNull)
   /// The station (1–9) this team stands on in every zone of its wave.
-  station  Int?
+  station Int?
 
   // The studio that registered the team — the scope key for studio accounts.
   studioId String?
@@ -884,17 +884,23 @@ model Team {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  competitors Competitor[]
-  score       Score?
+  /// The composite portrait of the pair, as a path THIS app serves — the same
+  /// contract as `Competitor.photoPath`. Null until one is generated.
+  groupPortraitPath String?
+
+  competitors  Competitor[]
+  score        Score?
+  portraitJobs PortraitJob[]
+  portraits    TeamPortrait[]
 
   @@unique([seriesId, number])
   @@unique([seriesId, externalId])
+  @@unique([waveId, station])
   @@index([seriesId, category, division])
   @@index([seriesId, paymentStatus])
   @@index([seriesId, waitlistedAt])
   @@index([studioId])
   @@index([waveId])
-  @@unique([waveId, station])
 }
 
 /// One of the two people on a team — a person, with the details the
@@ -925,7 +931,7 @@ model Competitor {
   /// A PATH, never a URL to somewhere else. Nothing in this app fetches a
   /// portrait from a third party, and a column that accepted a foreign URL is
   /// how that would begin by accident.
-  photoPath   String?
+  photoPath String?
 
   /// BFT STUDIO MEMBERSHIP, and nothing to do with being registered. Null
   /// means this person is not a member of any studio — which is allowed, and
@@ -940,6 +946,9 @@ model Competitor {
   /// Normalised name (lowercase, punctuation stripped) so a search, or a new
   /// account, can be matched to an existing registration.
   normalizedName String
+
+  portraitJobs PortraitJob[]
+  portraits    CompetitorPortrait[]
 
   @@unique([teamId, position])
   @@index([normalizedName])
@@ -1015,9 +1024,9 @@ model ZoneScore {
 }
 
 model ScoreAudit {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   scoreId  String
-  score    Score  @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  score    Score   @relation(fields: [scoreId], references: [id], onDelete: Cascade)
   field    String
   oldValue String?
   newValue String?
@@ -1052,11 +1061,11 @@ model LoadStandard {
 /// their permissions add up. A person holding none gets the default role for
 /// their account type. BFT MENA Full access passes every check and needs no role.
 model AccessRole {
-  id      String @id @default(cuid())
+  id          String  @id @default(cuid())
   /// Stable slug, unique. Used in code and seeds ("organiser").
-  key     String @unique
-  name    String
-  nameAr  String?
+  key         String  @unique
+  name        String
+  nameAr      String?
   /// What the role is for, shown on the roles screen.
   description String?
 
@@ -1072,7 +1081,7 @@ model AccessRole {
   /// The account types this role is meant for (a JSON array of Role values);
   /// null means any.
   accountTypes Json?
-  sortOrder    Int  @default(0)
+  sortOrder    Int          @default(0)
 
   users UserAccessRole[]
 
@@ -1095,4 +1104,134 @@ model UserAccessRole {
   @@unique([userId, accessRoleId])
   @@index([accessRoleId])
   @@index([assignedById])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI PORTRAITS.
+//
+// An athlete uploads a photo of themselves or their partner; it is restyled by
+// an image API into a competition poster portrait, and the two finished
+// portraits are then combined into one team image. The result is what the
+// screens over the rigs show.
+//
+// ONE `PortraitJob` ROW IS ONE PAID CALL. The runner claims rows the same way
+// `waves.ts` starts a wave — an UPDATE guarded by the current status, never a
+// lock held in memory — so a second process, or a second tick, cannot pay for
+// the same job twice.
+//
+// THE UPLOADED ORIGINAL LIVES ONLY ON THE JOB, and only until that job ends,
+// whether it ended well or badly. The finished portrait is a separate and
+// permanent row, so clearing the original never blanks what is on screen. A
+// photograph of somebody's face is kept for exactly as long as the thing that
+// needed it, and not one step longer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PortraitTargetKind {
+  competitor
+  team
+}
+
+enum PortraitJobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+model PortraitJob {
+  id String @id @default(cuid())
+
+  targetKind   PortraitTargetKind
+  competitorId String?
+  competitor   Competitor?        @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  teamId       String?
+  team         Team?              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  status PortraitJobStatus @default(queued)
+
+  /// The photo as uploaded, after `sharp` has decoded it, stripped its
+  /// metadata (EXIF carries GPS) and re-encoded it. Cleared to NULL the moment
+  /// this job reaches `succeeded` or `failed`.
+  sourceB64  String? @db.MediumText
+  sourceMime String?
+
+  /// The disclosure was shown and accepted at this instant. Recorded from what
+  /// the upload sent, never inferred from the job existing — a job without it
+  /// is a bug, not a default.
+  consentAt    DateTime?
+  consentIp    String?
+  uploadedById String?
+  uploadedBy   User?     @relation("PortraitUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  /// COMPOSITE only: the two portraits this job combines, pinned when it is
+  /// created. Without pinning, re-rolling one face mid-flight would produce a
+  /// team image blending a new face with an old one.
+  inputPortraitIdA String?
+  inputPortraitIdB String?
+
+  /// Bumped when the runner reclaims a job — a row left `running` by a crash,
+  /// or a transient API failure. Bounded, so nothing retries for ever.
+  retryCount Int @default(0)
+
+  claimedAt    DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  /// Short and never sensitive: it is shown to the athlete and written to logs.
+  failedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  competitorPortrait CompetitorPortrait?
+  teamPortrait       TeamPortrait?
+
+  @@index([status, createdAt])
+  @@index([competitorId])
+  @@index([teamId])
+}
+
+/// A finished portrait. Old rows are kept: the serving URL carries this row's
+/// own id, so a cached image or an open tab can never flip to another face.
+model CompetitorPortrait {
+  id           String      @id @default(cuid())
+  competitorId String
+  competitor   Competitor  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  jobId        String      @unique
+  job          PortraitJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  imageB64 String @db.MediumText
+  mimeType String
+
+  createdAt DateTime @default(now())
+
+  @@index([competitorId, createdAt])
+}
+
+/// The pair, in one image.
+model TeamPortrait {
+  id     String      @id @default(cuid())
+  teamId String
+  team   Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  jobId  String      @unique
+  job    PortraitJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  imageB64 String @db.MediumText
+  mimeType String
+
+  createdAt DateTime @default(now())
+
+  @@index([teamId, createdAt])
+}
+
+/// THE SPEND CAP, one row per UTC day.
+///
+/// In the database rather than in `rate-limit.ts`, which is in memory and
+/// resets on every restart — fine for throttling a login, useless as a ceiling
+/// on a paid API. The claim is a guarded UPDATE, so many uploads landing in the
+/// same second cannot all read "under the cap" and all proceed.
+model PortraitSpendCounter {
+  /// "YYYY-MM-DD" in UTC, so the key needs no timezone arithmetic in a WHERE.
+  day       String   @id @db.VarChar(10)
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
