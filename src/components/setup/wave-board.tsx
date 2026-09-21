@@ -76,8 +76,17 @@ export function WaveBoard({
     .filter((number) => !scheduled.has(number))
     .sort((a, b) => a - b);
 
-  const highest = Math.max(0, ...waves.map((w) => w.number), ...teams.map((x) => x.wave));
-  const pickable = Array.from({ length: Math.max(16, highest + 1) }, (_, i) => i + 1);
+  // The next wave to CREATE is one past the highest wave that exists. Teams are
+  // deliberately not counted: `Team.wave` defaults to 1 on every registration
+  // long before a schedule is built, so a competition with teams and no waves
+  // would have its first "Add wave" create number 2 — and the whole day would
+  // start at Wave 2 while every team still pointed at a Wave 1 that was never
+  // made.
+  const highest = Math.max(0, ...waves.map((w) => w.number));
+  // The PICKER still has to reach any number a team already claims, or a team
+  // sitting on wave 7 could not be moved to a wave that does not exist yet.
+  const claimed = Math.max(highest, 0, ...teams.map((x) => x.wave));
+  const pickable = Array.from({ length: Math.max(16, claimed + 1) }, (_, i) => i + 1);
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
     if (result.ok) {

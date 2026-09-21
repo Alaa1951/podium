@@ -25,8 +25,22 @@ export type TeamStatus =
 export type TeamStatusFacts = {
   paymentStatus: PaymentStatus;
   submitted: boolean;
-  /** Set when the entry arrived after registration closed. */
-  waitlistedAt?: Date | null;
+  /**
+   * Set when the entry arrived after registration closed.
+   *
+   * REQUIRED, not optional, and that is the whole point. It was optional for
+   * one release "so existing callers keep working", and a caller promptly
+   * stopped passing it: the registrations table carried its own `waitlisted`
+   * boolean for the buttons and handed this function an object with no
+   * `waitlistedAt` at all. TypeScript had nothing to say, the value read as
+   * undefined, and a paid team on the waiting list was labelled REGISTERED on
+   * the one screen staff use to decide who is in — the exact lie the waiting
+   * list exists to prevent.
+   *
+   * Making it required turns that class of mistake into a compile error. A
+   * caller that genuinely has no such fact passes `null` and says so.
+   */
+  waitlistedAt: Date | null;
 };
 
 /**

@@ -172,6 +172,23 @@ async function report(previous) {
     } else if (challenge) {
       const left = Math.max(0, (challenge.expiresAt.getTime() - now) / 60_000);
       console.log(`  valid  yes — ${Math.floor(left)} min ${Math.floor((left % 1) * 60)} s left`);
+
+      // The code comes from the LOG; the challenge comes from the database.
+      // When the database holds a NEWER challenge than anything in the log,
+      // the code printed above is stale — it belongs to an earlier challenge
+      // that this one replaced. That happens whenever mail was really being
+      // sent for a while (EMAIL_SEND_IN_DEV=true), so nothing was logged.
+      // Without this line the tool prints an old code and calls it valid.
+      const loggedAt = latest.at ? Date.parse(latest.at) : NaN;
+      if (Number.isFinite(loggedAt) && challenge.createdAt.getTime() > loggedAt + 2000) {
+        console.log(
+          `\n  ⚠ The newest code for ${latest.to} was issued ` +
+            `${age((now - challenge.createdAt.getTime()) / 60_000)} and is NOT in\n` +
+            `  ${path.basename(logPath)} — the one above is an older one and will not verify.\n` +
+            "  That happens when mail is really being sent. Restart the server with\n" +
+            "  EMAIL_SEND_IN_DEV=false, press Resend code, then run this again."
+        );
+      }
     }
 
     if (!spent && !expired && !wanted && everyAddress.length > 1) {

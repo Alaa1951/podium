@@ -30,8 +30,16 @@ export type RegisteredRow = {
   division: string;
   wave: number | null;
   paymentStatus: "pending" | "paid" | "refunded";
-  /** On the waiting list: entered after registration closed, no place yet. */
-  waitlisted: boolean;
+  /**
+   * On the waiting list: entered after registration closed, no place yet.
+   *
+   * The DATE, not a boolean, because this object is handed straight to
+   * `teamStatus()` — which reads this field. It used to carry a
+   * `waitlisted: boolean` for the buttons instead, and the status badge on
+   * this very table then read undefined and called a paid waiting entry
+   * REGISTERED.
+   */
+  waitlistedAt: Date | null;
   amount: string;
   currency: string;
   billingNumber: string | null;

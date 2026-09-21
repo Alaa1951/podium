@@ -34,6 +34,11 @@ const eslintConfig = defineConfig([
     // Deployment package output (scripts/prepare-hostinger-package.mjs)
     "dist-hostinger/**",
     ".mobile-qa/**",
+    // Scratch from a local QA run: probe scripts and one-off seeds. Gitignored
+    // already, but eslint does not read .gitignore, so a tester's leftovers
+    // would otherwise turn `npm run verify` yellow on a clean tree.
+    ".tmp-qa/**",
+    ".tmp-*.mjs",
     "capacitor-web/capacitor.js",
     "android/app/src/main/assets/public/**",
     "ios/App/App/public/**",

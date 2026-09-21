@@ -82,6 +82,7 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
     waveEndsAt: waveEndsAt[team.wave] ?? null,
     waveEnded: waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
     paymentStatus: team.paymentStatus,
+    waitlistedAt: team.waitlistedAt,
     values: team.values,
     peerTotals: teams
       .filter(

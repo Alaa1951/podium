@@ -53,6 +53,7 @@ export default async function StudioResultsPage(props: SeriesScreenProps, detail
     submitted: team.submitted,
     scoreEdits: team.scoreEdits,
     paymentStatus: team.paymentStatus,
+    waitlistedAt: team.waitlistedAt,
     values: team.values,
     peerTotals: everyone
       .filter(

@@ -178,7 +178,7 @@ export function RowPair({
                     {/* Payment is no longer the whole answer: a waitlisted
                         entry can be fully paid and is still not competing. */}
                     <dd>
-                      {row.waitlisted
+                      {row.waitlistedAt
                         ? t("no — waiting list")
                         : paid
                           ? t("yes")
@@ -191,7 +191,7 @@ export function RowPair({
                     waiting list is the one thing people ask staff about. */}
                 {onWaitlist ? (
                   <div style={{ marginTop: 10 }}>
-                    {row.waitlisted ? (
+                    {row.waitlistedAt ? (
                       <>
                         <p className="reg-sub" style={{ margin: "0 0 6px" }}>
                           {t("On the waiting list since registration closed. Admitting them gives them a place; it does not confirm any payment.")}
@@ -246,7 +246,16 @@ export function RowPair({
             <strong>{row.name}</strong>
           </button>
           <div className="reg-sub">
-            {row.source === "ghl" ? t("CRM form") : row.source === "manual" ? t("By hand") : t("Demo")}
+            {/* Named in full rather than falling through to "Demo" — a pair
+                who signed themselves up is the opposite of demo data, and
+                staff reconciling entries read this column. */}
+            {row.source === "ghl"
+              ? t("CRM form")
+              : row.source === "manual"
+                ? t("By hand")
+                : row.source === "signup"
+                  ? t("Signed up")
+                  : t("Demo")}
             {" · "}
             {row.registeredAt}
           </div>

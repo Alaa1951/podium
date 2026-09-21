@@ -14,6 +14,8 @@ export type GridTeam = {
   submitted: boolean;
   scoreEdits: number;
   paymentStatus: PaymentStatus;
+  /** Set when the entry arrived after registration closed. Null = in the field. */
+  waitlistedAt: Date | null;
   values: EntryValues;
   /**
    * The totals of the other SUBMITTED teams in this team's own bracket, so the

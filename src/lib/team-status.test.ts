@@ -16,23 +16,23 @@ const WAITING = new Date("2026-09-21T10:00:00Z");
 
 describe("teamStatus — one word per team", () => {
   it("reads an unpaid team as awaiting payment, scored or not", () => {
-    expect(teamStatus({ paymentStatus: "pending", submitted: false })).toBe("awaiting_payment");
-    expect(teamStatus({ paymentStatus: "pending", submitted: true })).toBe("awaiting_payment");
+    expect(teamStatus({ paymentStatus: "pending", submitted: false, waitlistedAt: null })).toBe("awaiting_payment");
+    expect(teamStatus({ paymentStatus: "pending", submitted: true, waitlistedAt: null })).toBe("awaiting_payment");
   });
 
   it("reads a paid team with no score as registered", () => {
-    expect(teamStatus({ paymentStatus: "paid", submitted: false })).toBe("registered");
+    expect(teamStatus({ paymentStatus: "paid", submitted: false, waitlistedAt: null })).toBe("registered");
   });
 
   it("reads a paid team with a submitted score as submitted", () => {
-    expect(teamStatus({ paymentStatus: "paid", submitted: true })).toBe("submitted");
+    expect(teamStatus({ paymentStatus: "paid", submitted: true, waitlistedAt: null })).toBe("submitted");
   });
 
   it("lets a refund override a submitted score", () => {
     // A refunded team is out, whatever is recorded against it. Showing it as
     // SUBMITTED would put it on screen as a live entry.
-    expect(teamStatus({ paymentStatus: "refunded", submitted: true })).toBe("refunded");
-    expect(teamStatus({ paymentStatus: "refunded", submitted: false })).toBe("refunded");
+    expect(teamStatus({ paymentStatus: "refunded", submitted: true, waitlistedAt: null })).toBe("refunded");
+    expect(teamStatus({ paymentStatus: "refunded", submitted: false, waitlistedAt: null })).toBe("refunded");
   });
 
   // ── The waiting list ───────────────────────────────────────────────────────
@@ -97,7 +97,17 @@ describe("isCompeting — the one gate", () => {
     expect(isCompeting({ paymentStatus: "paid", waitlistedAt: WAITING })).toBe(false);
   });
 
-  it("treats a missing flag as not waiting, so old callers keep working", () => {
-    expect(isCompeting({ paymentStatus: "paid" })).toBe(true);
+  it("demands the fact rather than defaulting it", () => {
+    // Not a runtime assertion — a COMPILE-TIME one. `waitlistedAt` was optional
+    // for exactly one release, and in that release the registrations table
+    // stopped passing it and labelled a paid waiting entry REGISTERED. The
+    // suppression below fails the build the day anybody makes it optional
+    // again, because there would then be no error left for it to suppress.
+    const forgotTheFact = { paymentStatus: "paid" } as const;
+    // @ts-expect-error waitlistedAt is required on purpose
+    const wrong = isCompeting(forgotTheFact);
+    // Read it so the variable is not merely unused; the assertion above is the
+    // real subject of the test.
+    expect(typeof wrong).toBe("boolean");
   });
 });
