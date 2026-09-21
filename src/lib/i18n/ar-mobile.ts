@@ -91,6 +91,19 @@ export const AR_MOBILE: Phrases = {
   "Nobody has registered under a studio yet.": "لم يُسجّل أي فريق تحت استوديو بعد.",
   "no teams yet": "لا توجد فرق بعد", "not taking part": "غير مشارك", "in so far": "مسجّل حتى الآن", "everyone is set up": "الجميع جاهز",
   "paid": "مدفوع", "pending": "قيد الانتظار", "refunded": "مسترد", "submitted": "محفوظ", "no — unpaid": "لا — غير مدفوع",
+
+  // ── The waiting list ───────────────────────────────────────────────────────
+  "Waiting list": "قائمة الانتظار",
+  "no — waiting list": "لا — في قائمة الانتظار",
+  "Admit from the waiting list": "قبول من قائمة الانتظار",
+  "Move to the waiting list": "نقل إلى قائمة الانتظار",
+  "On the waiting list since registration closed. Admitting them gives them a place; it does not confirm any payment.":
+    "في قائمة الانتظار منذ إغلاق التسجيل. قبولهم يمنحهم مكانًا، ولا يُعدّ تأكيدًا لأي دفع.",
+  "You are on the waiting list.": "أنت في قائمة الانتظار.",
+  "You entered after registration closed for this competition. You keep your place in the queue, and we will email you if a place comes free.":
+    "تم تسجيلك بعد إغلاق التسجيل لهذه البطولة. مكانك في الطابور محفوظ، وسنراسلك إن توفّر مكان.",
+  "Your payment is recorded and will not be lost — but it does not hold a place.":
+    "دفعتك مسجّلة ولن تُفقد — لكنها لا تحجز مكانًا.",
   "cash at the door, card, transfer…": "نقدًا عند الحضور أو بطاقة أو تحويل…",
   "Confirming payment puts this team on the board. Record what was actually taken.": "تأكيد الدفع يُظهر الفريق على اللوحة. سجّل المبلغ المستلم فعلًا.",
   "Only a paid registration appears on the board. Everything else still counts it.": "تُظهر اللوحة التسجيلات المدفوعة فقط؛ ويظل التسجيل محسوبًا في الشاشات الأخرى.",

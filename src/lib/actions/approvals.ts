@@ -7,6 +7,7 @@ import { can, isBft, isStudio } from "@/lib/access";
 import { approvalScope } from "@/lib/approvals";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendSignupDecisionEmail } from "@/lib/email";
+import { enterPairIfReady, type EnterPairOutcome } from "@/lib/enter-pair";
 import { canAssignRole } from "@/lib/permissions/grant-policy";
 import { prisma } from "@/lib/prisma";
 import { getBaseUrl } from "@/lib/security";
@@ -152,6 +153,19 @@ export async function approveSignup(input: unknown): Promise<ApprovalResult> {
   });
   if (!decided) return { ok: false, error: "ALREADY_DECIDED" };
 
+  // Approving an athlete who already has a partner and a competition ENTERS
+  // them, here, rather than leaving them approved-but-in-nothing waiting for a
+  // second press somebody has to remember. Best-effort on purpose: the
+  // approval above has committed and must stand even if the entry cannot be
+  // made, and every reason it might not be is a condition, not a fault.
+  let entered: EnterPairOutcome = { entered: false, reason: "NOT_APPROVED" };
+  if (accountType === "competitor") {
+    entered = await enterPairIfReady(request.id).catch((error: unknown) => {
+      console.error("[APPROVALS:enter]", error);
+      return { entered: false, reason: "NOT_APPROVED" } as const;
+    });
+  }
+
   await recordAudit({
     actorId: actor.id,
     action: AUDIT.signupApproved,
@@ -162,6 +176,9 @@ export async function approveSignup(input: unknown): Promise<ApprovalResult> {
       `as ${accountType}`,
       roles.length ? `roles: ${roles.map((role) => role.name).join(", ")}` : null,
       newStudioName ? `new studio "${newStudioName}"` : null,
+      entered.entered
+        ? `entered as team ${entered.teamNumber}${entered.waitlisted ? " (waiting list)" : ""}`
+        : null,
     ]
       .filter(Boolean)
       .join("; "),

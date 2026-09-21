@@ -41,9 +41,13 @@ export default async function SignupPage(props: PageProps<"/signup">) {
     year: "numeric",
     timeZone: "Asia/Qatar",
   });
+  // Whether registration has closed is decided on the SERVER clock — a device
+  // with the wrong date must not be told it is still in time.
+  const now = new Date();
   const competitions = series.map((one) => ({
     id: one.id,
     label: `${one.name} · ${day.format(one.competitionDate)}`,
+    closed: Boolean(one.registrationClosesAt && now >= one.registrationClosesAt),
   }));
 
   return (

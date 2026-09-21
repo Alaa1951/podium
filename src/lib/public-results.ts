@@ -9,6 +9,7 @@ import {
   type TeamRow,
 } from "@/lib/queries";
 import type { Category, Division } from "@/generated/prisma/enums";
+import { isCompeting } from "@/lib/team-status";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THE PUBLIC MAY READ.
@@ -72,14 +73,14 @@ export async function publishedBoard(
   division: Division
 ): Promise<RankedTeam[]> {
   const teams = await getSeriesTeams(seriesId);
-  const onBoard = teams.filter((team) => team.paymentStatus === "paid");
+  const onBoard = teams.filter(isCompeting);
   return rankBracket(onBoard, category, division);
 }
 
 /** One team's published result, with the movements behind its total. */
 export async function publishedTeam(seriesId: string, teamId: string) {
   const teams = await getSeriesTeams(seriesId);
-  const onBoard = teams.filter((team) => team.paymentStatus === "paid" && team.submitted);
+  const onBoard = teams.filter((team) => isCompeting(team) && team.submitted);
 
   const found = onBoard.find((one) => one.id === teamId);
   if (!found) return null;

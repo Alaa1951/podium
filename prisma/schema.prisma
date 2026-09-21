@@ -481,6 +481,10 @@ enum RegistrationSource {
   ghl // the CRM registration form
   manual // typed in by BFT MENA — a walk-up, or a correction
   seed // demo data
+  /// The pair signed themselves up and were entered on approval. Not `manual`:
+  /// nobody at BFT MENA typed this in, and a reconciler reading the export
+  /// needs to be able to tell the two apart.
+  signup
 }
 
 enum ScoreStatus {
@@ -817,6 +821,18 @@ model Team {
   /// means a live registration.
   archivedAt DateTime?
 
+  /// On the waiting list: entered after registration closed, so it holds a
+  /// place only once somebody admits it. Null means a place in the field.
+  ///
+  /// A FACT, not a status — like `archivedAt` and `paidAt` beside it. The one
+  /// word a team is shown by stays derived (team-status.ts), so this cannot
+  /// drift out of step with what is on screen.
+  ///
+  /// Deliberately independent of payment. Money can arrive from somebody on
+  /// the waiting list at any time, and it must not buy them a place: every
+  /// gate that reads `paid` reads this too, through `isCompeting`.
+  waitlistedAt DateTime?
+
   number   Int
   /// Free text, editable at any time — by BFT MENA, by the studio, or by the
   /// registration integration. When a pair registers without choosing one,
@@ -875,6 +891,7 @@ model Team {
   @@unique([seriesId, externalId])
   @@index([seriesId, category, division])
   @@index([seriesId, paymentStatus])
+  @@index([seriesId, waitlistedAt])
   @@index([studioId])
   @@index([waveId])
   @@unique([waveId, station])

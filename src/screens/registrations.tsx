@@ -76,6 +76,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     division: team.division,
     wave: team.waveId ? team.wave : null,
     paymentStatus: team.paymentStatus,
+    waitlisted: Boolean(team.waitlistedAt),
     amount: team.amountMinor === null ? "—" : (team.amountMinor / 100).toFixed(2),
     currency: team.currency,
     billingNumber: team.billingNumber,
@@ -103,6 +104,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     division: team.division,
     wave: team.waveId ? team.wave : null,
     paymentStatus: team.paymentStatus,
+    waitlisted: Boolean(team.waitlistedAt),
     amount: team.amountMinor === null ? "—" : (team.amountMinor / 100).toFixed(2),
     currency: team.currency,
     billingNumber: team.billingNumber,
@@ -121,7 +123,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
-  if (detailId) return <div className="screen"><RegisteredTable readOnly={!can(user, "registrations.payment") || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><RegisteredTable readOnly={!can(user, "registrations.payment") || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -188,7 +190,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         rows={rows}
         archivedRows={archivedRows}
         seriesId={series.id}
-        canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")}
+        canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
         defaultAmount={(typicalMinor / 100).toFixed(2)}
         defaultCurrency={paymentReport.currency}
       />

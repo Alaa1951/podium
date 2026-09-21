@@ -23,6 +23,7 @@ export function RowPair({
   onReverse,
   onAttendance,
   onArchive,
+  onWaitlist,
   detailOnly = false,
   readOnly = false,
 }: {
@@ -39,6 +40,8 @@ export function RowPair({
   onAttendance: (row: RegisteredRow) => void;
   /** Offered only while the event is scheduled — a withdrawal, archived not deleted. */
   onArchive?: (row: RegisteredRow) => void;
+  /** Handing out a place, or taking one back. Needs registrations.waitlist. */
+  onWaitlist?: (row: RegisteredRow, waiting: boolean) => void;
 }) {
   const t = useT();
   const [amount, setAmount] = useState(defaultAmount);
@@ -172,9 +175,50 @@ export function RowPair({
                   </div>
                   <div>
                     <dt>{t("On the board")}</dt>
-                    <dd>{paid ? t("yes") : t("no — unpaid")}</dd>
+                    {/* Payment is no longer the whole answer: a waitlisted
+                        entry can be fully paid and is still not competing. */}
+                    <dd>
+                      {row.waitlisted
+                        ? t("no — waiting list")
+                        : paid
+                          ? t("yes")
+                          : t("no — unpaid")}
+                    </dd>
                   </div>
                 </dl>
+
+                {/* A place, given or taken back. Said in full, because a
+                    waiting list is the one thing people ask staff about. */}
+                {onWaitlist ? (
+                  <div style={{ marginTop: 10 }}>
+                    {row.waitlisted ? (
+                      <>
+                        <p className="reg-sub" style={{ margin: "0 0 6px" }}>
+                          {t("On the waiting list since registration closed. Admitting them gives them a place; it does not confirm any payment.")}
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={pending}
+                          onClick={() => onWaitlist(row, false)}
+                          style={{ height: 32, fontSize: 12 }}
+                        >
+                          {t("Admit from the waiting list")}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={pending || row.submitted}
+                        onClick={() => onWaitlist(row, true)}
+                        style={{ height: 32, fontSize: 12 }}
+                      >
+                        {t("Move to the waiting list")}
+                      </button>
+                    )}
+                  </div>
+                ) : null}
 
                 {onArchive ? (
                   <button

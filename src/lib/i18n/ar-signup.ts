@@ -263,6 +263,9 @@ export const AR_SIGNUP: Phrases = {
   "That email does not look right.": "هذا البريد الإلكتروني غير صحيح.",
   "You cannot change this.": "لا يمكنك تغيير هذا.",
 
+  "Registration has closed for this one. You can still sign up — you will join the waiting list, and we will email you if a place comes free.":
+    "التسجيل أُغلق لهذه البطولة. يمكنك التسجيل مع ذلك — ستدخل قائمة الانتظار، وسنراسلك إن توفّر مكان.",
+
   // ── Athlete wording ────────────────────────────────────────────────────────
   "Athlete 1": "الرياضي ١",
   "Athlete 2": "الرياضي ٢",

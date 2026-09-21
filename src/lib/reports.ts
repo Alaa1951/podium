@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { isCompeting } from "@/lib/team-status";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE FIGURES BFT MENA ACTUALLY ASKS FOR.
@@ -45,6 +46,7 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
       select: {
         id: true,
         paymentStatus: true,
+        waitlistedAt: true,
         attendedAt: true,
         amountMinor: true,
         currency: true,
@@ -61,7 +63,7 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
     prisma.studio.findMany({ select: { id: true, name: true } }),
   ]);
 
-  const paid = teams.filter((team) => team.paymentStatus === "paid");
+  const paid = teams.filter(isCompeting);
   const studioNames = new Map(studios.map((studio) => [studio.id, studio.name]));
 
   const teamsByStudio = new Map<string, number>();

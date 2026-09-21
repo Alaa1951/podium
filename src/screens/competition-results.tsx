@@ -7,6 +7,7 @@ import { getSeriesTeams, getSeriesZones, podiums, rankBracket } from "@/lib/quer
 import { requireSeries } from "@/lib/require-series";
 import { bracketLabel } from "@/lib/scoring";
 import { requireAccess } from "@/lib/session";
+import { isCompeting } from "@/lib/team-status";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function ResultsPage(props: SeriesScreenProps, detailId?: s
   ]);
 
   // Only a paid registration is on the board, here as everywhere else.
-  const onBoard = teams.filter((team) => team.paymentStatus === "paid");
+  const onBoard = teams.filter(isCompeting);
 
   const podiumBlocks: PodiumBlock[] = podiums(onBoard).map((block) => ({
     label: bracketLabel(block.category, block.division),

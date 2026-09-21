@@ -145,6 +145,35 @@ export function registrationOpen(params: {
   return { open: false, reason: "REGISTRATION_CLOSED" };
 }
 
+/**
+ * Whether somebody was in time for the field, or belongs on the waiting list.
+ *
+ * A SEPARATE question from `registrationOpen`, not a third state inside it.
+ * Three of that function's callers ask "may I edit or withdraw this entry?",
+ * where "you are on the waiting list" is not an answer at all — folding the
+ * two together would put a meaningless branch in front of every one of them,
+ * and the wrong branch is the one that eventually gets taken.
+ *
+ * It takes no `now` and no `role`, and that is the whole design. The moment
+ * that decides is the moment they SIGNED UP, which is already stored, so the
+ * answer cannot change because a studio was slow to approve them or because
+ * the question was asked again a day later. Somebody who made the deadline
+ * keeps their place even if the paperwork took a week.
+ */
+export type EntryPlace = "field" | "waiting_list";
+
+export function entryPlace(params: {
+  /** When this person asked to take part. Null for an entry staff typed in. */
+  signedUpAt: Date | null;
+  registrationClosesAt: Date | null;
+}): EntryPlace {
+  // No deadline set means the door never closed, so nobody is waiting.
+  if (!params.registrationClosesAt) return "field";
+  // Staff entering somebody by hand have decided; there is nothing to check.
+  if (!params.signedUpAt) return "field";
+  return params.signedUpAt < params.registrationClosesAt ? "field" : "waiting_list";
+}
+
 /** Whether a studio may still enter or change a score. */
 export function scoreEntryOpen(params: {
   role: Role;

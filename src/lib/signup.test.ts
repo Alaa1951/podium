@@ -62,7 +62,13 @@ const pair = {
   partnerShirtSize: "L",
 };
 
-describe("startSignup", () => {
+// A longer clock than the default 5s, for one honest reason: every test in
+// here runs a real bcrypt hash, and bcrypt is deliberately slow. Alone it is
+// well under a second; sharing the machine with the rest of the suite it has
+// been seen to pass 8s and fail on time rather than on behaviour. Mocking the
+// hash would be the other fix, and it would quietly stop proving that signing
+// up actually sets a password.
+describe("startSignup", { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.rate.mockReturnValue({ ok: true });

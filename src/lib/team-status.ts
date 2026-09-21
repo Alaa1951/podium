@@ -15,11 +15,18 @@ import type { PaymentStatus } from "@/generated/prisma/enums";
 // Pure and dependency-free, so it is tested exhaustively in team-status.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type TeamStatus = "refunded" | "awaiting_payment" | "registered" | "submitted";
+export type TeamStatus =
+  | "refunded"
+  | "waiting_list"
+  | "awaiting_payment"
+  | "registered"
+  | "submitted";
 
 export type TeamStatusFacts = {
   paymentStatus: PaymentStatus;
   submitted: boolean;
+  /** Set when the entry arrived after registration closed. */
+  waitlistedAt?: Date | null;
 };
 
 /**
@@ -29,11 +36,18 @@ export type TeamStatusFacts = {
  * so it is read first — a refunded team with a score on it is refunded, not
  * submitted, and must not be presented as a live entry.
  *
+ * THE WAITING LIST COMES NEXT, ahead of payment, and that ordering is the
+ * rule BFT MENA asked for: money does not buy a place. Somebody on the list
+ * who has paid must keep reading WAITING LIST — if payment were checked first
+ * they would see REGISTERED, believe they were in, and turn up to a
+ * competition that has no station for them.
+ *
  * Payment comes before the score because an unpaid team is not on the board at
  * all: showing SUBMITTED for one would say it is competing when it is not.
  */
 export function teamStatus(team: TeamStatusFacts): TeamStatus {
   if (team.paymentStatus === "refunded") return "refunded";
+  if (team.waitlistedAt) return "waiting_list";
   if (team.paymentStatus !== "paid") return "awaiting_payment";
   return team.submitted ? "submitted" : "registered";
 }
@@ -51,6 +65,9 @@ export function teamStatusTone(status: TeamStatus): string {
       return "badge-blue";
     case "awaiting_payment":
       return "badge-warn";
+    // Not a warning and not a failure — nothing has gone wrong, they queued.
+    case "waiting_list":
+      return "badge-neutral";
     case "refunded":
       return "badge-neutral";
   }
@@ -69,16 +86,25 @@ export function teamStatusLabel(status: TeamStatus): string {
       return "Registered";
     case "awaiting_payment":
       return "Awaiting payment";
+    case "waiting_list":
+      return "Waiting list";
     case "refunded":
       return "Refunded";
   }
 }
 
 /**
- * Whether this team counts as competing — paid, not refunded.
+ * Whether this team counts as competing — paid, and holding a place.
  *
- * The board already filters on submitted scores; this is the earlier question,
- * asked by the registration screens: is this a real entry yet?
+ * THE ONE GATE. Every screen, report and login check that used to write
+ * `paymentStatus === "paid"` inline now asks this instead, because the answer
+ * has stopped being about payment alone: a team on the waiting list can be
+ * fully paid and is still not competing. Four copies of that comparison
+ * would have meant four places to remember, and the one that was forgotten
+ * would have put somebody on the board who has no station.
+ *
+ * It is one expression on purpose — a rule written once is a rule that cannot
+ * be half-changed.
  */
-export const isCompeting = (team: TeamStatusFacts) =>
-  team.paymentStatus === "paid";
+export const isCompeting = (team: Pick<TeamStatusFacts, "paymentStatus" | "waitlistedAt">) =>
+  team.paymentStatus === "paid" && !team.waitlistedAt;

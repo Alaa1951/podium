@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import type { BoardDisplay } from "@/lib/visibility";
 import { summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
+import { isCompeting } from "@/lib/team-status";
 
 // One payload shape for the board, built once on the server and reused by the
 // page's first render and by the polling endpoint that keeps it fresh. Only
@@ -92,7 +93,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
   // Only a PAID registration reaches the board. An unpaid one is still a real
   // registration everywhere else — on the roster, in the reports, in a wave —
   // which is why it is a status on the row and not a missing row.
-  const onBoard = teams.filter((team) => team.paymentStatus === "paid");
+  const onBoard = teams.filter(isCompeting);
 
   return {
     seriesId: series.id,

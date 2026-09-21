@@ -6,7 +6,9 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendPartnerRequestEmail } from "@/lib/email";
 import { partnerCandidateExists } from "@/lib/partner-directory";
+import { enterPairIfReady } from "@/lib/enter-pair";
 import { linkPair } from "@/lib/partners";
+import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { prisma } from "@/lib/prisma";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
 import { getBaseUrl } from "@/lib/security";
@@ -231,8 +233,20 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
     return { ok: false, error: "FAILED" };
   }
 
+  // Becoming a pair may be the last thing that was missing. If both of them are
+  // approved and both chose the same competition, this is what enters them —
+  // the other end of the same bridge approval uses (enter-pair.ts).
+  //
+  // OUTSIDE the transaction, and best-effort: accepting a partner request has
+  // already succeeded and must not be undone because an entry could not be
+  // made. It is a no-op in every case but the complete one.
+  await enterPairIfReady(user.id).catch((error: unknown) => {
+    console.error("[PARTNER:accept:enter]", error);
+  });
+
   revalidate();
   revalidatePath("/studio/people");
+  revalidateCompetitionViews();
   return { ok: true };
 }
 

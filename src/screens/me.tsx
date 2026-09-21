@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/queries";
 import { fmt } from "@/lib/scoring";
 import { requireRole } from "@/lib/session";
-import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
+import { isCompeting, teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import { eventPhase, teamEditOpen } from "@/lib/visibility";
 import { summariseWaves } from "@/lib/waves";
 import { getSeriesWaves } from "@/lib/queries";
@@ -172,7 +172,7 @@ export default async function MyPage(editMode = false) {
   const ranked =
     phase === "results" || phase === "public"
       ? rankBracket(
-          everyone.filter((one) => one.paymentStatus === "paid"),
+          everyone.filter(isCompeting),
           team.category,
           team.division
         )
@@ -212,6 +212,21 @@ export default async function MyPage(editMode = false) {
           {t("My team")}
         </Link>
       </div>
+
+      {/* The waiting list, said in words rather than left to a badge.
+          Somebody who has paid needs to be told plainly that the money did not
+          buy a place, because the opposite is what everybody assumes. */}
+      {team.waitlistedAt ? (
+        <div className="notice" style={{ marginBottom: 18 }} role="status">
+          <strong>{t("You are on the waiting list.")}</strong>{" "}
+          {t(
+            "You entered after registration closed for this competition. You keep your place in the queue, and we will email you if a place comes free."
+          )}{" "}
+          {team.paymentStatus === "paid"
+            ? t("Your payment is recorded and will not be lost — but it does not hold a place.")
+            : null}
+        </div>
+      ) : null}
 
       {/* While the event is on the floor, the live board is one press away —
           the same screen hanging on the gym wall, from their pocket. */}

@@ -2,15 +2,13 @@
 
 import { z } from "zod";
 
-import type { Category, Division } from "@/generated/prisma/enums";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { lowestFreeStation, MAX_STATIONS } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
+import { CATEGORIES, DIVISIONS } from "@/lib/scoring";
 import { can, requireAccess, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
-import { resolveOwningStudio } from "@/lib/team-scope";
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message?: string } : { message?: string; data: T }))
@@ -23,58 +21,6 @@ export async function nextTeamNumber(seriesId: string) {
     select: { number: true },
   });
   return Math.max(100, highest?.number ?? 100) + 1;
-}
-
-const addTeamSchema = z.object({
-  seriesId: z.string().min(1),
-  name: z.string().trim().min(1).max(80),
-  athlete1: z.string().trim().max(80).optional(),
-  athlete2: z.string().trim().max(80).optional(),
-  category: z.enum(["Rookie", "Open", "Pro"]),
-  division: z.enum(["Men", "Women", "Mixed"]),
-  studioId: z.string().optional(),
-  athlete1StudioId: z.string().optional(),
-  athlete2StudioId: z.string().optional(),
-});
-
-export async function addTeam(input: unknown): Promise<ActionResult> {
-  const user = await requireAccess("registrations.create");
-  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
-
-  const parsed = addTeamSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "TEAM_NAME_REQUIRED" };
-
-  const data = parsed.data;
-  const owningStudio = resolveOwningStudio(user, data.studioId ?? null);
-  const number = await nextTeamNumber(data.seriesId);
-
-  const competitors = [
-    { fullName: data.athlete1?.trim() || "TBC", studioId: data.athlete1StudioId || null },
-    { fullName: data.athlete2?.trim() || "TBC", studioId: data.athlete2StudioId || null },
-  ];
-
-  await prisma.team.create({
-    data: {
-      seriesId: data.seriesId,
-      number,
-      name: data.name.toUpperCase(),
-      category: data.category as Category,
-      division: data.division as Division,
-      studioId: owningStudio,
-      competitors: {
-        create: competitors.map((a, index) => ({
-          fullName: a.fullName,
-          position: index + 1,
-          normalizedName: normalizeName(a.fullName),
-          // A studio may only vouch for membership of its own studio.
-          studioId: user.role === "studio" ? (a.studioId ? user.studioId : null) : a.studioId,
-        })),
-      },
-    },
-  });
-
-  revalidateCompetitionViews();
-  return { ok: true, message: `Added ${data.name.toUpperCase()} as team ${number}.` };
 }
 
 /**

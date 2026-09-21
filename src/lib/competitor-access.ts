@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { isCompeting } from "@/lib/team-status";
 import { createOtpChallenge } from "@/lib/otp";
 import { normalizeEmail } from "@/lib/security";
 
@@ -42,6 +43,7 @@ export async function findRegistrations(rawEmail: string) {
           id: true,
           name: true,
           paymentStatus: true,
+          waitlistedAt: true,
           series: { select: { id: true, name: true, slug: true, status: true } },
         },
       },
@@ -113,10 +115,15 @@ export type CodeRequest =
 export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest> {
   const registrations = await findRegistrations(rawEmail);
 
-  // Only a paid entry is a competitor. An unpaid registration has not been
-  // confirmed by anybody yet, and is not a way into the system — but an
-  // athlete who signed up has an account of their own, approved or waiting.
-  const paid = registrations.filter((one) => one.team.paymentStatus === "paid");
+  // Only a COMPETING entry is a competitor — paid, and holding a place. An
+  // unpaid registration has not been confirmed by anybody yet, and one on the
+  // waiting list has not been let in, however much money has arrived against
+  // it: paying is not how somebody joins a competition that is full.
+  //
+  // Either way an athlete who signed up has an account of their own, approved
+  // or waiting, so they are not locked out — they just do not come in through
+  // this door, which is the one that carries automatic approval with it.
+  const paid = registrations.filter((one) => isCompeting(one.team));
   if (paid.length === 0) return issueSignedUpAthleteCode(rawEmail);
 
   const account = await accountForCompetitor(rawEmail, paid[0].fullName);

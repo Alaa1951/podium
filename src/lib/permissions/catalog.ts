@@ -158,6 +158,11 @@ export const CATALOG = {
             "See athletes without a partner or a team",
             "عرض الرياضيين بلا شريك أو فريق"
           ),
+          // Letting somebody off the waiting list hands out a PLACE, which is
+          // the scarce thing here — the wave plan and the station count are
+          // built on it. `bftOnly`, like payment, because deciding how many
+          // people the floor can hold is not a studio's call.
+          waitlist: act("Admit entries from the waiting list", "قبول التسجيلات من قائمة الانتظار", "bftOnly"),
           payment: act("Confirm payment and attendance", "تأكيد الدفع والحضور", "bftOnly"),
           export: act("Export the roster", "تصدير القائمة"),
         },

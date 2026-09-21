@@ -63,7 +63,7 @@ export function SignupForm({
 }: {
   studios: { id: string; name: string }[];
   /** Only the competitions BFT MENA opened for sign-up. May be empty. */
-  competitions: { id: string; label: string }[];
+  competitions: { id: string; label: string; closed: boolean }[];
   initialType?: Kind;
   initialEmail?: string;
 }) {
@@ -107,6 +107,9 @@ export function SignupForm({
     setForm((current) => ({ ...current, [key]: value }));
 
   const athlete = kind === "athlete";
+  // The competition they picked, so the hint under the field can warn them
+  // BEFORE they commit rather than after.
+  const chosen = competitions.find((one) => one.id === form.seriesId);
   const gym = !athlete && roleKey === "gym-studio";
 
   function submit() {
@@ -341,7 +344,14 @@ export function SignupForm({
                 </option>
               ))}
             </select>,
-            t("The one you are signing up for.")
+            // Said BEFORE they commit, not discovered afterwards. Somebody who
+            // knows they are joining a queue can decide whether to bother;
+            // somebody who finds out after paying feels misled.
+            chosen?.closed
+              ? t(
+                  "Registration has closed for this one. You can still sign up — you will join the waiting list, and we will email you if a place comes free."
+                )
+              : t("The one you are signing up for.")
           )
         : null}
 

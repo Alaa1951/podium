@@ -6,12 +6,9 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { CATEGORIES, DIVISIONS, normalizeName } from "@/lib/scoring";
 import { isBft, requireAccess, teamScope } from "@/lib/session";
 import { deletionGuard } from "@/lib/series-guard";
 import { registrationOpen } from "@/lib/visibility";
-import { nextTeamNumber } from "@/lib/actions/teams";
-import { resolveOwningStudio } from "@/lib/team-scope";
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message?: string } : { message?: string; data: T }))
@@ -75,86 +72,6 @@ export async function addStudio(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/", "layout");
   return { ok: true, message: `${parsed.data.name} added to the studio list.` };
-}
-
-const importSchema = z.object({
-  seriesId: z.string().min(1),
-  text: z.string().max(200_000),
-});
-
-/**
- * Bulk import from the registration export, one team per line:
- *   Team name, Competitor 1, Competitor 2, Category, Division, Studio 1, Studio 2
- * A line with an unknown category or division is skipped and counted rather
- * than guessed at.
- */
-export async function importTeams(input: unknown): Promise<ActionResult> {
-  const user = await requireAccess("registrations.create");
-  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
-
-  const parsed = importSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-
-  const studios = await prisma.studio.findMany({ select: { id: true, name: true } });
-  const studioByName = new Map(studios.map((s) => [s.name.toLowerCase(), s.id]));
-
-  const lines = parsed.data.text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  let number = await nextTeamNumber(parsed.data.seriesId);
-  let added = 0;
-  let skipped = 0;
-
-  for (const line of lines) {
-    const cells = line.split(",").map((c) => c.trim());
-    const category = CATEGORIES.find((c) => c.toLowerCase() === (cells[3] || "").toLowerCase());
-    const division = DIVISIONS.find((d) => d.toLowerCase() === (cells[4] || "").toLowerCase());
-
-    if (!cells[0] || !category || !division) {
-      skipped++;
-      continue;
-    }
-
-    const studioFor = (value: string | undefined) =>
-      user.role === "studio"
-        ? value && value.toLowerCase() !== "non-member"
-          ? user.studioId
-          : null
-        : (studioByName.get((value || "").toLowerCase()) ?? null);
-
-    const competitorNames = [cells[1] || "TBC", cells[2] || "TBC"];
-    const competitorStudios = [studioFor(cells[5]), studioFor(cells[6])];
-
-    await prisma.team.create({
-      data: {
-        seriesId: parsed.data.seriesId,
-        number: number++,
-        name: cells[0].toUpperCase(),
-        category,
-        division,
-        studioId: resolveOwningStudio(user, competitorStudios[0] ?? competitorStudios[1] ?? null),
-        competitors: {
-          create: competitorNames.map((fullName, index) => ({
-            fullName,
-            position: index + 1,
-            normalizedName: normalizeName(fullName),
-            studioId: competitorStudios[index],
-          })),
-        },
-      },
-    });
-    added++;
-  }
-
-  revalidateCompetitionViews();
-  return {
-    ok: true,
-    message:
-      `${added} team(s) imported` +
-      (skipped ? `, ${skipped} line(s) skipped — check category and division spelling.` : "."),
-  };
 }
 
 /**

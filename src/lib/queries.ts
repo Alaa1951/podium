@@ -74,6 +74,8 @@ export type TeamRow = {
 
   // ── Registration and payment ──────────────────────────────────────────
   paymentStatus: PaymentStatus;
+  /** Set when the entry arrived after registration closed. Null = in the field. */
+  waitlistedAt: Date | null;
   source: RegistrationSource;
   registeredAt: Date;
   paidAt: Date | null;
@@ -132,6 +134,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
     })),
 
     paymentStatus: team.paymentStatus,
+    waitlistedAt: team.waitlistedAt,
     source: team.source,
     registeredAt: team.registeredAt,
     paidAt: team.paidAt,
@@ -244,7 +247,11 @@ export async function listOpenSignupSeries() {
     },
     orderBy: { competitionDate: "asc" },
     take: 12,
-    select: { id: true, name: true, competitionDate: true },
+    // `registrationClosesAt` is included deliberately: it is not a leak — it is
+    // the one fact somebody needs BEFORE they commit, so the form can tell them
+    // they would be joining a waiting list rather than letting them find out
+    // afterwards. Still no venue, no slug and no team count.
+    select: { id: true, name: true, competitionDate: true, registrationClosesAt: true },
   });
 }
 

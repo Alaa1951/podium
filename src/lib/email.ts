@@ -298,6 +298,40 @@ export async function sendPartnerUnlinkedEmail(params: {
   await sendMail({ to: params.email, subject, text, html });
 }
 
+/**
+ * In from the waiting list — or back onto it.
+ *
+ * The one thing somebody waiting wants is to be told, so this goes to BOTH
+ * people on the team rather than to whoever registered it. It says nothing
+ * about money on purpose: being let in and having paid are separate things, and
+ * implying otherwise here would undo the rule the feature exists for.
+ */
+export async function sendWaitlistDecisionEmail(params: {
+  email: string;
+  admitted: boolean;
+  competition: string;
+  teamName: string;
+  url: string;
+}) {
+  const team = escapeHtml(params.teamName);
+  const where = escapeHtml(params.competition);
+  const subject = params.admitted
+    ? `You are in: ${params.competition}`
+    : `${params.competition}: back on the waiting list`;
+  const text = params.admitted
+    ? `Good news — ${params.teamName} has a place in ${params.competition}.\n\nSee your entry here: ${params.url}`
+    : `${params.teamName} has been moved back to the waiting list for ${params.competition}.\n\nYou will be told if a place comes free: ${params.url}`;
+  const body = params.admitted
+    ? `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${team}</strong> has a place in ${where}.</p>
+       <div style="text-align:center;margin:24px 0">
+         <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">See my entry</a>
+       </div>`
+    : `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${team}</strong> is back on the waiting list for ${where}.</p>
+       <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">You will be told if a place comes free.</p>`;
+  const html = shell(params.admitted ? "You have a place" : "Back on the waiting list", body);
+  await sendMail({ to: params.email, subject, text, html });
+}
+
 /** A sign-up for an address that already has an account: point them at sign-in. */
 export async function sendAlreadyRegisteredEmail(params: { email: string; url: string }) {
   const subject = `You already have a ${BRAND} account`;

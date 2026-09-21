@@ -10,8 +10,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   boardAccess,
+  entryPlace,
   eventPhase,
   registrationOpen,
+  teamEditOpen,
   scoreEntryOpen,
   teamLabel,
   type EventTiming,
@@ -200,6 +202,80 @@ describe("deadlines", () => {
     expect(registrationOpen({ role: "studio", registrationClosesAt: null, now: NOW }).open).toBe(
       true
     );
+  });
+
+  // ── A member changing their own pair ──────────────────────────────────────
+
+  it("lets a member change their pair well before the competition", () => {
+    expect(
+      teamEditOpen({ competitionDate: open, teamEditCloseHours: 24, now: NOW })
+    ).toEqual({ open: true });
+  });
+
+  it("shuts the member door once the competition is inside the window", () => {
+    // NOW is one hour before the competition, the window is 24 — shut.
+    const soon = new Date(NOW.getTime() + 60 * 60 * 1000);
+    expect(
+      teamEditOpen({ competitionDate: soon, teamEditCloseHours: 24, now: NOW })
+    ).toEqual({ open: false, reason: "TEAM_EDIT_CLOSED" });
+  });
+
+  it("takes no role, so BFT MENA cannot be passed in to reopen it", () => {
+    // The deliberate difference from the two above. Staff have the wave guard
+    // instead; if this ever grew a role parameter, "admin" would walk straight
+    // through a door that is about what an ATHLETE may do to their pair.
+    const soon = new Date(NOW.getTime() + 60 * 60 * 1000);
+    const params = { competitionDate: soon, teamEditCloseHours: 24, now: NOW };
+    expect(teamEditOpen({ ...params, role: "admin" } as never).open).toBe(false);
+  });
+
+  it("treats a zero-hour window as open right up to the competition", () => {
+    const later = new Date(NOW.getTime() + 1000);
+    expect(teamEditOpen({ competitionDate: later, teamEditCloseHours: 0, now: NOW }).open).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE WAITING LIST.
+//
+// Deliberately NOT a third state inside registrationOpen: that function also
+// answers "may I edit or withdraw this entry?", where "you are on the waiting
+// list" is not an answer. The separation is the design, so it is tested as its
+// own question — and the question is settled by WHEN SOMEBODY SIGNED UP, not by
+// when anybody got round to processing them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("entryPlace", () => {
+  const closes = new Date("2026-10-01T00:00:00Z");
+
+  it("gives a place to somebody who signed up in time", () => {
+    expect(
+      entryPlace({ signedUpAt: new Date("2026-09-30T23:59:00Z"), registrationClosesAt: closes })
+    ).toBe("field");
+  });
+
+  it("puts somebody who signed up after the deadline on the list", () => {
+    expect(
+      entryPlace({ signedUpAt: new Date("2026-10-01T00:01:00Z"), registrationClosesAt: closes })
+    ).toBe("waiting_list");
+  });
+
+  it("keeps the place of somebody processed late — the whole reason it reads signupAt", () => {
+    // Signed up a month early; approved a week AFTER the deadline. A slow
+    // studio must not cost somebody the place they were in time for, so the
+    // answer does not depend on when the question is asked.
+    const signedUpAt = new Date("2026-09-01T00:00:00Z");
+    expect(entryPlace({ signedUpAt, registrationClosesAt: closes })).toBe("field");
+  });
+
+  it("gives a place when no deadline was ever set — the door never closed", () => {
+    expect(entryPlace({ signedUpAt: new Date("2030-01-01T00:00:00Z"), registrationClosesAt: null })).toBe(
+      "field"
+    );
+  });
+
+  it("gives a place to an entry staff typed in, which has no sign-up at all", () => {
+    expect(entryPlace({ signedUpAt: null, registrationClosesAt: closes })).toBe("field");
   });
 });
 

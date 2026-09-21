@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { setAttendance, setPayment } from "@/lib/actions/payments";
 import { archiveTeam, restoreTeam } from "@/lib/actions/team-people";
+import { setWaitlist } from "@/lib/actions/waitlist";
 import { RowPair } from "@/components/admin/registered-row";
 import { DetailLink } from "@/components/app/detail-link";
 import { useIsMobile } from "@/components/app/use-mobile";
@@ -29,6 +30,8 @@ export type RegisteredRow = {
   division: string;
   wave: number | null;
   paymentStatus: "pending" | "paid" | "refunded";
+  /** On the waiting list: entered after registration closed, no place yet. */
+  waitlisted: boolean;
   amount: string;
   currency: string;
   billingNumber: string | null;
@@ -50,6 +53,7 @@ export function RegisteredTable({
   archivedRows = [],
   seriesId,
   canArchive,
+  canWaitlist,
   defaultAmount,
   defaultCurrency,
   detailId,
@@ -61,6 +65,8 @@ export function RegisteredTable({
   seriesId: string;
   /** Archive actions exist only while the event is still scheduled. */
   canArchive: boolean;
+  /** May this viewer hand out a place, or take one back? */
+  canWaitlist: boolean;
   /** The event's usual entry fee, pre-filled when taking money at the door. */
   defaultAmount: string;
   defaultCurrency: string;
@@ -89,6 +95,17 @@ export function RegisteredTable({
           ? t("The event is finished — its registrations are part of the record.")
           : t("Something went wrong. Try again.")
     );
+  }
+
+  // Handing out a place, or taking one back. Separate from the payment
+  // actions beside it on purpose: money and a place are different things, and
+  // whoever confirms one is not thereby deciding the other.
+  function waitlist(row: RegisteredRow, waiting: boolean) {
+    setMessage("");
+    startTransition(async () => {
+      report(await setWaitlist({ teamId: row.id, waiting }));
+      router.refresh();
+    });
   }
 
   function archive(row: RegisteredRow) {
@@ -157,7 +174,7 @@ export function RegisteredTable({
       {message ? <div className="notice" role="status">{message}</div> : null}
       <p>{t(row.category)} · {t(row.division)}</p>
       {!readOnly ? <DetailLink href={`${path}/edit`} className="btn btn-secondary">{t("Edit")}</DetailLink> : null}
-      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} defaultAmount={defaultAmount} defaultCurrency={defaultCurrency} onToggle={() => {}} onConfirm={confirm} onReverse={reverse} onAttendance={attendance} onArchive={canArchive ? archive : undefined} />
+      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} defaultAmount={defaultAmount} defaultCurrency={defaultCurrency} onToggle={() => {}} onConfirm={confirm} onReverse={reverse} onAttendance={attendance} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
       <button type="button" className="btn btn-secondary mobile-action-bar" disabled={pending || readOnly} onClick={() => attendance(row)}>{row.attended ? t("Checked in") : t("Check in")}</button>
     </div>;
   }
@@ -197,7 +214,7 @@ export function RegisteredTable({
                 onConfirm={confirm}
                 onReverse={reverse}
                 onAttendance={attendance}
-                onArchive={canArchive ? archive : undefined}
+                onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined}
               />
             ))}
           </tbody>
