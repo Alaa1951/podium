@@ -16,6 +16,8 @@ import { createPortraitClient, PortraitApiError } from "@/lib/portraits/openai-c
 
 const KEY = "sk-test-SUPERSECRET-do-not-log";
 const photo = { imageB64: Buffer.from("not-really-a-jpeg").toString("base64"), mimeType: "image/jpeg" };
+/** One image, and no logo: the mark is composited after, not generated. */
+const solo = photo;
 
 beforeEach(() => {
   process.env.OPENAI_API_KEY = KEY;
@@ -37,12 +39,12 @@ function ok(b64 = "UE5H") {
 describe("a successful call", () => {
   it("returns the image the API sent back", async () => {
     const client = createPortraitClient(ok("QUJD").impl);
-    expect(await client.restylePortrait(photo)).toEqual({ imageB64: "QUJD", mimeType: "image/png" });
+    expect(await client.restylePortrait(solo)).toEqual({ imageB64: "QUJD", mimeType: "image/png" });
   });
 
   it("goes only to api.openai.com, with the key in a header and not a query", async () => {
     const fetchImpl = ok();
-    await createPortraitClient(fetchImpl.impl).restylePortrait(photo);
+    await createPortraitClient(fetchImpl.impl).restylePortrait(solo);
 
     const [url, init] = fetchImpl.calls[0];
     expect(url.origin).toBe("https://api.openai.com");
@@ -52,10 +54,20 @@ describe("a successful call", () => {
 
   it("refuses redirects and bounds the call", async () => {
     const fetchImpl = ok();
-    await createPortraitClient(fetchImpl.impl).restylePortrait(photo);
+    await createPortraitClient(fetchImpl.impl).restylePortrait(solo);
     const init = fetchImpl.calls[0][1];
     expect(init.redirect).toBe("error");
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("sends the photo ALONE — no artwork for the model to redraw", async () => {
+    // Four attempts established that a model shown lettering redraws it, so
+    // the request must carry none. The mark is stamped on afterwards.
+    const fetchImpl = ok();
+    await createPortraitClient(fetchImpl.impl).restylePortrait(solo);
+    const body = fetchImpl.calls[0][1].body as FormData;
+    expect(body.getAll("image[]")).toHaveLength(0);
+    expect(body.get("image")).toBeInstanceOf(Blob);
   });
 
   it("sends BOTH portraits for a team composite", async () => {
@@ -81,8 +93,8 @@ describe("nothing secret escapes in an error", () => {
   for (const [name, fetchImpl] of hostile) {
     it(`keeps the key out of the message — ${name}`, async () => {
       const client = createPortraitClient(fetchImpl as unknown as typeof fetch);
-      await expect(client.restylePortrait(photo)).rejects.toThrow(PortraitApiError);
-      const error = await client.restylePortrait(photo).catch((e: unknown) => e as Error);
+      await expect(client.restylePortrait(solo)).rejects.toThrow(PortraitApiError);
+      const error = await client.restylePortrait(solo).catch((e: unknown) => e as Error);
       const message = (error as Error).message;
       expect(message).not.toContain(KEY);
       expect(message).not.toContain("SUPERSECRET");
@@ -94,13 +106,13 @@ describe("nothing secret escapes in an error", () => {
     delete process.env.OPENAI_API_KEY;
     const fetchImpl = ok();
     const client = createPortraitClient(fetchImpl.impl);
-    await expect(client.restylePortrait(photo)).rejects.toThrow("OPENAI_API_KEY is not set.");
+    await expect(client.restylePortrait(solo)).rejects.toThrow("OPENAI_API_KEY is not set.");
     expect(fetchImpl.calls).toHaveLength(0);
   });
 
   it("refuses a response with no image rather than storing nothing", async () => {
     const empty = vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 }));
     const client = createPortraitClient(empty as unknown as typeof fetch);
-    await expect(client.restylePortrait(photo)).rejects.toThrow("carried no image");
+    await expect(client.restylePortrait(solo)).rejects.toThrow("carried no image");
   });
 });

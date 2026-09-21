@@ -31,8 +31,9 @@ const EDITS_URL = `${API_ORIGIN}/v1/images/edits`;
 /** Generous over the 60–90s these calls are expected to take. */
 const CALL_TIMEOUT_MS = 180_000;
 
-/** What the model is asked to produce. Square, so a rig screen can crop it. */
-const IMAGE_SIZE = "1024x1024";
+/** A person standing is a tall picture; a pair standing is a wide one. */
+const PORTRAIT_SIZE = "1024x1536";
+const TEAM_SIZE = "1536x1024";
 const MODEL = "gpt-image-1";
 
 export type PortraitImage = { imageB64: string; mimeType: string };
@@ -117,7 +118,9 @@ export function createPortraitClient(fetchImpl: typeof fetch = fetch): PortraitC
       const form = new FormData();
       form.append("model", MODEL);
       form.append("prompt", SOLO_PROMPT);
-      form.append("size", IMAGE_SIZE);
+      form.append("size", PORTRAIT_SIZE);
+      // One image, and no logo anywhere near it: the mark is composited on
+      // afterwards, because a model shown lettering redraws it.
       form.append("image", toBlob(input), fileName(input.mimeType));
       return call(form);
     },
@@ -126,9 +129,8 @@ export function createPortraitClient(fetchImpl: typeof fetch = fetch): PortraitC
       const form = new FormData();
       form.append("model", MODEL);
       form.append("prompt", COMPOSITE_PROMPT);
-      form.append("size", IMAGE_SIZE);
-      // Two images in one edit request: the field is repeated, which is how
-      // the API takes a set rather than a single source.
+      // Landscape: two people standing side by side is a wide picture.
+      form.append("size", TEAM_SIZE);
       form.append("image[]", toBlob(a), "a.png");
       form.append("image[]", toBlob(b), "b.png");
       return call(form);

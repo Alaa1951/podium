@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { createPortraitClient, type PortraitClient } from "@/lib/portraits/openai-client";
+import { applyChestMark, applyTeamMarks } from "@/lib/portraits/brand-mark";
 import { compressForStorage } from "@/lib/portraits/upload";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,9 +166,17 @@ export async function runOne(
         imageB64: job.sourceB64,
         mimeType: job.sourceMime,
       });
-      // A real call returns a ~1.4MB PNG; stored as-is that is ~1.9MB of
-      // base64 per face, in the database and in every backup.
-      const result = await compressForStorage(generated);
+      // The real mark, printed here rather than asked for: the model returns a
+      // blank white shirt and cannot mangle what it never saw.
+      const branded = {
+        imageB64: (
+          await applyChestMark(Buffer.from(generated.imageB64, "base64"))
+        ).toString("base64"),
+        mimeType: "image/jpeg",
+      };
+      // A real call returns a ~1.5MB PNG; stored as-is that is ~2MB of base64
+      // per face, in the database and in every nightly backup.
+      const result = await compressForStorage(branded);
       const portrait = await prisma.competitorPortrait.create({
         data: {
           competitorId: job.competitorId,
@@ -216,7 +225,14 @@ export async function runOne(
       a: { imageB64: a.imageB64, mimeType: a.mimeType },
       b: { imageB64: b.imageB64, mimeType: b.mimeType },
     });
-    const result = await compressForStorage(composed);
+    // Both chests get the real mark, for the same reason as above.
+    const stamped = {
+      imageB64: (
+        await applyTeamMarks(Buffer.from(composed.imageB64, "base64"))
+      ).toString("base64"),
+      mimeType: "image/jpeg",
+    };
+    const result = await compressForStorage(stamped);
     const teamPortrait = await prisma.teamPortrait.create({
       data: {
         teamId: job.teamId,
