@@ -10,14 +10,17 @@
  * `fetch` is injected, never mocked globally: the same convention as
  * `scripts/play-publish.test.mjs`.
  */
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createPortraitClient, PortraitApiError } from "@/lib/portraits/openai-client";
 
 const KEY = "sk-test-SUPERSECRET-do-not-log";
 const photo = { imageB64: Buffer.from("not-really-a-jpeg").toString("base64"), mimeType: "image/jpeg" };
-/** One image, and no logo: the mark is composited after, not generated. */
-const solo = photo;
+const logo = { imageB64: Buffer.from("not-really-a-png").toString("base64"), mimeType: "image/png" };
+/** A person AND the mark to print: the model is shown the artwork. */
+const solo = { photo, logo };
 
 beforeEach(() => {
   process.env.OPENAI_API_KEY = KEY;
@@ -60,14 +63,25 @@ describe("a successful call", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("sends the photo ALONE — no artwork for the model to redraw", async () => {
-    // Four attempts established that a model shown lettering redraws it, so
-    // the request must carry none. The mark is stamped on afterwards.
+  it("sends the photo AND the artwork, in that order", async () => {
+    // The prompt names them IMAGE 1 and IMAGE 2, so the order carries meaning:
+    // reversed, the model would print a face onto a logo.
     const fetchImpl = ok();
     await createPortraitClient(fetchImpl.impl).restylePortrait(solo);
     const body = fetchImpl.calls[0][1].body as FormData;
-    expect(body.getAll("image[]")).toHaveLength(0);
-    expect(body.get("image")).toBeInstanceOf(Blob);
+    const sent = body.getAll("image[]") as File[];
+    expect(sent).toHaveLength(2);
+    expect(sent[1].name).toBe("logo.png");
+  });
+
+  it("asks for the model that was measured, not the one first reached for", () => {
+    // gpt-image-1 could not reproduce the mark and drifted faces; 2.5 does
+    // neither. The id is pinned so a refactor cannot quietly walk it back.
+    const source = readFileSync(
+      new URL("./openai-client.ts", import.meta.url),
+      "utf8"
+    );
+    expect(source).toContain('const MODEL = "gpt-image-2.5');
   });
 
   it("sends BOTH portraits for a team composite", async () => {

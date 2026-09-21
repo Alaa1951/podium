@@ -1,107 +1,136 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THE IMAGE API IS ASKED FOR.
 //
-// TWO PROMPTS, both fixed. One turns a single uploaded photo into a portrait;
-// the other puts two finished portraits side by side. Nothing else is sent.
+// Two prompts, both fixed. One turns an uploaded photo into a portrait; the
+// other stands two finished portraits side by side.
 //
-// THE MODEL IS NEVER SHOWN THE LOGO AND NEVER ASKED FOR ONE. Four attempts
-// established why. Described, it drew a generic bold italic in the wrong blue.
-// Told in capitals to leave an existing mark alone, it wiped it and wrote
-// "PODIUM / GET REAL" — words that appear nowhere in this project. HANDED the
-// artwork as a second image, it got closest of all and still only imitated:
-// "PODIUM." with an invented full stop, and BFT with its "MENA" dropped.
+// THE MODEL MATTERED MORE THAN THE WORDING. These were first written against
+// `gpt-image-1`, which could not reproduce the brand mark, drifted faces when
+// combining two pictures, and once replaced the logo with invented words. Half
+// the prompt became defensive scaffolding and a whole module existed to
+// composite the mark on afterwards. None of that was a limit of the technique
+// — it was a limit of a model a year old. On `gpt-image-2.5` the mark is
+// copied from the artwork and faces survive the combine, so the scaffolding
+// is gone.
 //
-// A generative model redraws any lettering in its field of view. So the shirts
-// are generated BLANK and the real file is composited on afterwards
-// (brand-mark.ts). Asking here for "no text anywhere" is load-bearing.
+// WHAT IS NOT SCAFFOLDING, and stays whatever the model can do: the clothing
+// rules. Those are a product requirement.
 //
-// WHAT EVERY EARLIER VERSION GOT WRONG, kept so it is not rediscovered:
-//   • it dressed people — a long-sleeved top came back a t-shirt
-//   • it polished faces — real skin became an advertisement
-//   • it reshaped bodies — arms grew
-//   • "football squad portrait" made it invent a club crest, underneath a
-//     blanket instruction forbidding logos: naming a sport summons its badges
+// ONE THING TO WATCH WHEN EDITING: never tell the model the shirt is blank and
+// then ask it to print something on it. That contradiction was in here for one
+// run, and the model resolved it by printing nothing at all.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One athlete, alone, in a blank white garment on a blue backdrop.
+ * One athlete. IMAGE 1 is their photograph; IMAGE 2 is the PODIUM mark.
  *
- * The clothing rules are not a nicety. These are athletes in the Gulf, and a
- * model left to its own judgement will happily return somebody wearing less
- * than they arrived in. What a person wears — sleeves, a headscarf, how much
- * is covered — is theirs. The only permitted change is the colour.
+ * The clothing rules are load-bearing. These are athletes in the Gulf, and a
+ * model left to its own judgement returns people wearing less than they
+ * arrived in. What somebody wears — sleeves, a headscarf, how much is covered
+ * — is theirs. The only permitted change is the colour.
  */
 export const SOLO_PROMPT = [
-  "Edit this photograph into an official team roster portrait.",
-  "The result must look like a real photograph taken by a camera — not an",
-  "illustration, not a render, not a painting.",
+  "You are given two images. IMAGE 1 is a photograph of a person.",
+  "IMAGE 2 is the PODIUM logo.",
+  "Produce one photorealistic studio portrait of the person in IMAGE 1, of the",
+  "kind used on an official team roster.",
 
-  // ── The person ────────────────────────────────────────────────────────────
-  "KEEP THE PERSON EXACTLY AS THEY ARE. The same face, the same features, the",
-  "same bone structure, the same skin tone, the same expression, the same hair",
-  "and the same age. Keep their body and build exactly as it is — do not slim",
-  "them and do not make them more muscular. Keep their pose and their arms.",
-  "Keep natural skin with visible texture and pores. Do NOT smooth, retouch,",
-  "airbrush or beautify the skin. No beauty filter and no glamour retouching.",
+  // ── Identity ──────────────────────────────────────────────────────────────
+  "This is a RETOUCH of a real photograph, not a new picture of a similar",
+  "person. Preserve their identity exactly: the same face, bone structure, eye",
+  "shape and colour, nose, mouth, jaw, eyebrows, hairline, hair and age. Keep",
+  "their expression. Keep any freckles, lines, marks or asymmetry — those are",
+  "what make the face theirs.",
+  "Keep their build and posture exactly as photographed. Do not slim them, do",
+  "not broaden them and do not add muscle definition.",
+  "Skin must read as real skin: visible pores and texture, natural variation",
+  "in tone. Do NOT smooth, airbrush, beautify or apply any skin filter.",
 
-  // ── What they are wearing ─────────────────────────────────────────────────
-  "CLOTHING RULES, all of them mandatory:",
-  "1. Keep the SAME SLEEVE LENGTH they are wearing. Long sleeves stay long to",
-  "the wrist. Short sleeves stay short. Never swap one for the other.",
-  "2. If the person is wearing a headscarf or hijab, KEEP IT — the same style,",
-  "the same coverage, the same way it is worn. Only its colour becomes white.",
-  "Never remove it and never show hair that was covered.",
-  "3. If the person's hair is uncovered, keep their hair exactly as it is.",
+  // ── Clothing ──────────────────────────────────────────────────────────────
+  "CLOTHING — all four rules are mandatory:",
+  "1. Keep the SAME SLEEVE LENGTH as the original. Long sleeves stay long to",
+  "the wrist; short sleeves stay short. Never substitute one for the other.",
+  "2. If a headscarf or hijab is worn, keep it — the same wrap, the same",
+  "coverage, the same way it sits. Only its colour becomes white. Never remove",
+  "it and never reveal hair it covers.",
+  "3. If the hair is uncovered, keep the hair exactly as it is.",
   "4. Keep the same neckline and the same amount of the body covered. Never",
-  "expose any part of the body that is covered in the original photograph.",
-  "Change ONLY the colour of what they are wearing, to plain white.",
-  "The garment must otherwise be completely blank — no pattern, no stripe, no",
-  "crest, no badge, no club emblem, no number and no text of its own.",
+  "expose any skin that the original photograph covers.",
+  "Change ONLY the colour of the garment, to clean white. Keep its cut, fit",
+  "and fabric. It carries no pattern, stripe, number or badge of its own — the",
+  "one thing printed on it is the mark described next, and that mark must",
+  "appear.",
 
-  // ── The frame ─────────────────────────────────────────────────────────────
-  "Place them on a plain, solid, deep electric blue studio background, hex",
-  "#0000FF — one flat colour, no gradient, no texture and no vignette.",
-  "Even, soft studio lighting. Frame them from the waist up, centred and",
-  "squarely facing the camera, with the chest visible.",
-  "No other text, no watermark, no border and no graphics anywhere.",
+  // ── The mark ──────────────────────────────────────────────────────────────
+  "Print the logo from IMAGE 2 onto the garment, on the wearer's LEFT chest —",
+  "which appears on the RIGHT half of the frame as you look at it — centred",
+  "between the collarbone and the armpit.",
+  "It must be about 12 percent of the image width, and a faithful reproduction",
+  "of IMAGE 2: the same letterforms, the same slant and the same proportions.",
+  "REPRODUCE ITS COLOURS EXACTLY AS THEY APPEAR IN IMAGE 2. The mark is not one",
+  "colour: the PODIUM wordmark is pure blue (#0000FF), the BFT letters beneath",
+  "it are a lighter cyan (#00B5CC), and the word MENA under those is near-black.",
+  "Keep those three apart — do not unify them into a single colour, do not tint",
+  "one toward another and do not shift the blue lighter, darker or greener.",
+  "Include every element of IMAGE 2, MENA included; drop nothing and add",
+  "nothing. Do not re-letter or restyle it.",
+  "Print it as ink on cloth, following the drape and fold of the fabric and",
+  "catching the same light as the shirt.",
+
+  // ── The photograph ────────────────────────────────────────────────────────
+  "Seamless studio backdrop in solid electric blue, hex #0000FF, evenly lit,",
+  "with no gradient, texture or vignette.",
+  "Shot on an 85mm lens at eye level: a large soft key light slightly to one",
+  "side, gentle fill, a faint rim separating them from the backdrop. Natural",
+  "contrast, no heavy shadows, no colour cast on the skin.",
+  "Frame from the waist up, centred, squarely facing the camera, the chest",
+  "clear and unobstructed. Sharp focus on the eyes.",
+  "No other text, watermark, border or graphic anywhere — the PODIUM mark from",
+  "IMAGE 2 is the only thing printed, and it must be there.",
 ].join(" ");
 
 /**
- * The pair. Both images are finished portraits from the prompt above.
- *
- * They already share a backdrop, a light and a framing, so this asks for an
- * arrangement rather than an invention — which is the most that can be done to
- * carry two faces through a generative pass intact.
+ * The pair. Both inputs are finished portraits from the prompt above, so they
+ * already share a backdrop, a light and a framing — this is an arrangement,
+ * not an invention, which is what carries two faces through the pass intact.
  */
 export const COMPOSITE_PROMPT = [
-  "You are given TWO photographs of two teammates, each taken against the same",
-  "blue studio background.",
-  "Combine them into ONE team photograph in which the two people stand side by",
-  "side, as if photographed together in a single session.",
-  "THE RESULT MUST BE PHOTOREALISTIC — a real photograph taken by a camera.",
-  "Not an illustration, not a painting, not a 3D render, not a cartoon and not",
-  "a stylised poster. Real skin, real fabric, real studio light.",
+  "You are given two finished studio portraits of two teammates, photographed",
+  "against the same blue backdrop under the same light.",
+  "Produce ONE photorealistic team photograph of the two of them standing",
+  "together, as though taken in a single frame in that same session.",
 
-  "Place the person from IMAGE 1 on the LEFT and the person from IMAGE 2 on",
-  "the RIGHT, both facing the camera, standing upright shoulder to shoulder at",
-  "the same scale, the same height in frame and on the same ground line.",
+  "Place the person from IMAGE 1 on the left and the person from IMAGE 2 on",
+  "the right, shoulder to shoulder, both squarely facing the camera, at the",
+  "same scale, the same height in frame and on the same ground line.",
 
-  "DO NOT REDRAW EITHER PERSON. This is the most important instruction.",
-  "Each face must remain recognisably THAT person: the same eyes, the same",
-  "nose, the same mouth, the same jaw and cheekbones, the same eyebrows, the",
-  "same expression, the same skin tone and the same hair. Copy each face from",
-  "its source image rather than generating a new one that resembles it.",
-  "Keep the visible skin texture and pores. Do NOT smooth, retouch, airbrush",
-  "or beautify either face. Keep each person's build, pose and folded arms.",
+  // ── Identity, stated as the priority ──────────────────────────────────────
+  "COPY EACH FACE FROM ITS SOURCE IMAGE. Do not generate a new face that",
+  "resembles the original: every feature must match its portrait — eyes, nose,",
+  "mouth, jaw, eyebrows, hairline, hair, skin tone, skin texture, expression",
+  "and age. Keep the pores and the natural imperfections. Do not smooth,",
+  "airbrush or beautify either face. Keep each person's build and their folded",
+  "arms exactly as they are.",
 
-  "KEEP EACH GARMENT EXACTLY AS IT IS: the same white top, the same cut, the",
-  "same neckline and the same sleeve length for each of them — theirs differ",
-  "and must stay different. If either wears a headscarf, keep it exactly.",
+  "Keep each garment exactly as it appears in its own source: the same white",
+  "top, the same cut, the same neckline and the same sleeve length — theirs",
+  "differ and must stay different. If either wears a headscarf, keep it",
+  "exactly as it is.",
 
-  "Both shirts are plain white and must stay completely blank. Add no logo,",
-  "no badge, no crest, no number, no slogan and no text anywhere in the image.",
+  // Stated as a requirement, not a preservation: a preservation is the kind of
+  // instruction a model quietly drops.
+  "EACH SHIRT MUST CARRY THE PODIUM LOGO on the wearer's left chest, exactly",
+  "as it appears in that person's source image: the same letterforms, the same",
+  "size and the same position.",
+  "ITS COLOURS MUST MATCH THE SOURCE EXACTLY. The mark is three colours, not",
+  "one: the PODIUM wordmark pure blue (#0000FF), the BFT letters cyan",
+  "(#00B5CC), the word MENA near-black. Keep all three, keep them distinct, and",
+  "do not tint, unify or shift any of them.",
+  "Do not redraw or re-letter it, and do not omit it or any part of it.",
+  "Add no other text, badge or graphic anywhere.",
 
-  "Give the whole picture one continuous, solid, deep electric blue studio",
-  "background, hex #0000FF — one flat colour, no gradient, no texture, no",
-  "vignette and no visible seam between them. Light both people identically.",
+  "One continuous seamless backdrop in solid electric blue, hex #0000FF, with",
+  "no join, seam or difference in brightness between the two halves. Light",
+  "both people identically, as the single key light of one studio setup would.",
+  "Shot on an 85mm lens at eye level, waist up, sharp focus on both faces.",
 ].join(" ");

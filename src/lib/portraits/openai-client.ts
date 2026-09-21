@@ -34,12 +34,30 @@ const CALL_TIMEOUT_MS = 180_000;
 /** A person standing is a tall picture; a pair standing is a wide one. */
 const PORTRAIT_SIZE = "1024x1536";
 const TEAM_SIZE = "1536x1024";
-const MODEL = "gpt-image-1";
+/**
+ * THE MODEL, and a note on how it was chosen — because the first choice was
+ * wrong and cost a week of working around it.
+ *
+ * `gpt-image-1` was used first, not because it was compared against anything
+ * but because it was the one this code's author knew of. It could not
+ * reproduce the brand mark, drifted faces when combining two pictures, and on
+ * one pass replaced the logo with words nobody had written. A whole module was
+ * built to composite the mark on afterwards, routing around all of it.
+ *
+ * Asking the API which models the key actually carries returned ten, of which
+ * that was the oldest. On 2.5 the same prompts reproduce the mark from the
+ * artwork, carry faces through the combine intact, and run in half the time.
+ *
+ * ASK, DO NOT ASSUME. A model id recalled from memory is a guess with a date
+ * on it, and the date is not visible in the diff.
+ */
+const MODEL = "gpt-image-2.5-flare";
 
 export type PortraitImage = { imageB64: string; mimeType: string };
 
 export type PortraitClient = {
-  restylePortrait(input: PortraitImage): Promise<PortraitImage>;
+  /** The athlete's photo, and the artwork to print on the shirt. */
+  restylePortrait(input: { photo: PortraitImage; logo: PortraitImage }): Promise<PortraitImage>;
   compositeTeam(input: { a: PortraitImage; b: PortraitImage }): Promise<PortraitImage>;
 };
 
@@ -114,14 +132,15 @@ export function createPortraitClient(fetchImpl: typeof fetch = fetch): PortraitC
   }
 
   return {
-    async restylePortrait(input) {
+    async restylePortrait({ photo, logo }) {
       const form = new FormData();
       form.append("model", MODEL);
       form.append("prompt", SOLO_PROMPT);
       form.append("size", PORTRAIT_SIZE);
-      // One image, and no logo anywhere near it: the mark is composited on
-      // afterwards, because a model shown lettering redraws it.
-      form.append("image", toBlob(input), fileName(input.mimeType));
+      // The ORDER is load-bearing: the prompt calls them IMAGE 1 (the person)
+      // and IMAGE 2 (the mark).
+      form.append("image[]", toBlob(photo), fileName(photo.mimeType));
+      form.append("image[]", toBlob(logo), "logo.png");
       return call(form);
     },
 
