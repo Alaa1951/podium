@@ -219,6 +219,36 @@ export async function listArchivedSeries() {
 }
 
 /**
+ * The competitions offered on the PUBLIC sign-up form.
+ *
+ * This is read by an unauthenticated page, so it is deliberately the poster
+ * and nothing else: a name and a date. Not the venue, not the slug, not how
+ * many teams are in — those belong to people who are already inside.
+ *
+ * `signupOpen` is the whole gate, and it is off by default. A competition
+ * being `scheduled` is not the same as being ready to advertise, and the
+ * status alone would have put a competition called "test" in front of
+ * strangers.
+ *
+ * Note it does NOT apply `registrationClosesAt`. That deadline governs a
+ * studio entering a paid team; somebody asking for an ACCOUNT is a different
+ * act, and applying it would silently empty this list and block sign-up.
+ */
+export async function listOpenSignupSeries() {
+  return prisma.series.findMany({
+    where: {
+      signupOpen: true,
+      status: { in: ["scheduled", "live"] },
+      archivedAt: null,
+      isActive: true,
+    },
+    orderBy: { competitionDate: "asc" },
+    take: 12,
+    select: { id: true, name: true, competitionDate: true },
+  });
+}
+
+/**
  * Where somebody lands with no competition chosen: the one running now, else
  * the next one scheduled, else the most recent.
  */

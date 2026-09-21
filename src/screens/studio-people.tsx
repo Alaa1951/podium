@@ -88,6 +88,7 @@ export default async function StudioPeoplePage(detailId?: string, compose = fals
     status: account.status,
     studioId: account.studio?.id ?? null,
     studioName: account.studio?.name ?? null,
+    requestedSeriesId: null,
     roles: account.accessRoles.map(({ accessRole }) => accessRole),
     lastLoginAt: account.lastLoginAt ? account.lastLoginAt.toISOString().slice(0, 10) : null,
   }));

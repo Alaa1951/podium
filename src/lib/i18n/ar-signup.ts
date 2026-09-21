@@ -133,6 +133,26 @@ export const AR_SIGNUP: Phrases = {
   "Too many answers at once. Try again in a moment.": "ردود كثيرة دفعة واحدة. حاول بعد قليل.",
   "You cannot answer this.": "لا يمكنك الرد على هذا.",
 
+  // ── Partner watch (staff) ──────────────────────────────────────────────────
+  "Partner watch": "متابعة الشركاء",
+  "Athletes in this competition who still have nobody, or who have somebody but no entry. The lists overlap on purpose.": "رياضيو هذه المسابقة الذين لم يجدوا شريكًا بعد، أو وجدوه ولم يُسجَّل لهم فريق. القوائم متداخلة عن قصد.",
+  "Paired, not registered": "مرتبطون بلا تسجيل",
+  "Waiting on an answer": "في انتظار الرد",
+  "Signed up, no team yet": "مسجّلون بلا فريق",
+  "Nobody here yet.": "لا أحد هنا بعد.",
+  Bracket: "الفئة",
+  Pair: "الثنائي",
+  "Waiting on": "في انتظار",
+  Phone: "الهاتف",
+
+  // ── Choosing a competition at sign-up ─────────────────────────────────────
+  Competition: "المسابقة",
+  "The one you are signing up for.": "المسابقة التي تسجّل من أجلها.",
+  "Choose the competition you are signing up for.": "اختر المسابقة التي تسجّل من أجلها.",
+  "Open for sign-up": "مفتوحة للتسجيل",
+  "Offer this competition on the public sign-up form.": "اعرض هذه المسابقة في نموذج التسجيل العام.",
+  "Athletes can choose it when they sign up": "يمكن للرياضيين اختيارها عند التسجيل",
+
   // ── The studio's pairing panel ─────────────────────────────────────────────
   "Narrow the list": "تضييق القائمة",
   "Any level": "أي مستوى",

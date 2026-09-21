@@ -35,6 +35,7 @@ export async function listAccounts(user: CurrentUser) {
       archivedAt: true,
       lastLoginAt: true,
       createdAt: true,
+      requestedSeriesId: true,
       studio: { select: { id: true, name: true } },
     },
   });
@@ -58,6 +59,7 @@ export async function listArchivedAccounts(user: CurrentUser) {
       archivedAt: true,
       lastLoginAt: true,
       createdAt: true,
+      requestedSeriesId: true,
       studio: { select: { id: true, name: true } },
     },
   });

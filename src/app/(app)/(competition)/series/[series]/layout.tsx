@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { can, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
+import { countPairedNotRegistered } from "@/lib/partner-watch";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { getCurrentUser, homeForUser } from "@/lib/session";
@@ -38,9 +39,10 @@ export default async function CompetitionLayout({
   const { series, waveSummary, teamCount, phase } = await requireSeries(params);
   const at = (section = "") => seriesHref(series.slug, section);
 
-  const [awaitingPayment, unassigned] = await Promise.all([
+  const [awaitingPayment, unassigned, waitingPairs] = await Promise.all([
     prisma.team.count({ where: { seriesId: series.id, paymentStatus: "pending" } }),
     prisma.team.count({ where: { seriesId: series.id, waveId: null } }),
+    countPairedNotRegistered(series.id),
   ]);
 
   // The public results item mirrors what a stranger sees at /results: it only
@@ -74,6 +76,15 @@ export default async function CompetitionLayout({
           badge: awaitingPayment,
           alert: awaitingPayment > 0,
           key: "registrations.view",
+        },
+        {
+          href: at("partners"),
+          label: t("Partner watch"),
+          // Two people who agreed and were never entered is the one thing on
+          // this menu that quietly costs the competition an entry.
+          badge: waitingPairs,
+          alert: waitingPairs > 0,
+          key: "registrations.partners",
         },
         {
           href: at("waves"),

@@ -7,6 +7,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { buildAccessPanel } from "@/lib/permissions/access-panel";
 import { listAccounts, listStudios } from "@/lib/queries";
 import { listArchivedAccounts } from "@/lib/queries-people";
+import { prisma } from "@/lib/prisma";
 import { requireAccess, type CurrentUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ function toRow(account: Listed): AccountRow {
     status: account.status,
     studioId: account.studio?.id ?? null,
     studioName: account.studio?.name ?? null,
+    requestedSeriesId: account.requestedSeriesId ?? null,
     roles: account.accessRoles.map(({ accessRole }) => accessRole),
     lastLoginAt: account.lastLoginAt ? account.lastLoginAt.toISOString().slice(0, 10) : null,
   };
@@ -58,6 +60,15 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
   ]);
 
   const rows = accounts.map(toRow);
+  // Which competition an athlete signed up for is set here for anybody who
+  // signed up before the form asked, and whenever somebody moves.
+  const competitions = (
+    await prisma.series.findMany({
+      where: { status: { in: ["scheduled", "live"] }, archivedAt: null, isActive: true },
+      orderBy: { competitionDate: "asc" },
+      select: { id: true, name: true },
+    })
+  );
   const archivedRows = archived.map(toRow);
   const flags = abilities(user);
   const studioOptions = studios.map((studio) => ({ id: studio.id, name: studio.name }));
@@ -70,6 +81,7 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
       <div className="screen">
         <AccountsPanel
           accounts={rows}
+          competitions={competitions}
           studios={studioOptions}
           ownStudioName={null}
           ownUserId={user.id}
@@ -126,6 +138,7 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
       <AccountsPanel
         compose={compose}
         accounts={rows}
+          competitions={competitions}
         studios={studioOptions}
         ownStudioName={null}
         archivedAccounts={archivedRows}

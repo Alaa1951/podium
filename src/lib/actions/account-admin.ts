@@ -34,6 +34,9 @@ const editSchema = z.object({
   email: z.string().trim().max(200),
   role: z.enum(["admin", "staff", "studio", "competitor", "organiser"]),
   studioId: z.union([z.string(), z.null()]).optional(),
+  /// Which competition an athlete signed up for. Set here for anybody who
+  /// signed up before the form asked, and for anybody who changes their mind.
+  requestedSeriesId: z.union([z.string(), z.null()]).optional(),
 });
 
 /** Correct a person's name, email, account type or studio. */
@@ -53,7 +56,7 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
 
   const before = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true, studioId: true },
+    select: { id: true, email: true, name: true, role: true, studioId: true, requestedSeriesId: true },
   });
   if (!before) return { ok: false, error: "NOT_FOUND" };
 
@@ -81,6 +84,10 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
       email,
       role,
       studioId: role === "admin" || role === "staff" ? null : studioId,
+      // Only an athlete belongs to a competition this way.
+      ...(parsed.data.requestedSeriesId !== undefined
+        ? { requestedSeriesId: role === "competitor" ? parsed.data.requestedSeriesId || null : null }
+        : {}),
       permissionsUpdatedAt: before.role !== role ? new Date() : undefined,
     },
   });

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { sendAlreadyRegisteredEmail, sendOtpEmail } from "@/lib/email";
 import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
+import { listOpenSignupSeries } from "@/lib/queries";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
 import { SHIRT_SIZES } from "@/lib/shirt-sizes";
 import {
@@ -61,6 +62,7 @@ const schema = z
     email: z.string().trim().max(200),
     phone: z.string().trim().min(6).max(30),
     studioId: optionalText(191),
+    seriesId: optionalText(191),
     password: z.string().max(200),
     // Athlete
     dateOfBirth: dateString,
@@ -139,6 +141,28 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
     ? (await prisma.studio.findFirst({ where: { id: data.studioId, isActive: true }, select: { id: true } }))?.id ?? null
     : null;
 
+  // WHICH COMPETITION. Validated here rather than in the schema, because only
+  // the server knows whether any are on offer: with none open the field is
+  // not rendered and must not be demanded.
+  const athleteSignup = data.type === "athlete";
+  const seriesId = data.seriesId
+    ? (
+        await prisma.series.findFirst({
+          where: {
+            id: data.seriesId,
+            signupOpen: true,
+            status: { in: ["scheduled", "live"] },
+            archivedAt: null,
+            isActive: true,
+          },
+          select: { id: true },
+        })
+      )?.id ?? null
+    : null;
+  if (athleteSignup && !seriesId && (await listOpenSignupSeries()).length > 0) {
+    return { ok: false, error: "COMPETITION_REQUIRED" };
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email },
     select: { id: true, role: true, status: true, signupType: true, approvalStatus: true },
@@ -171,6 +195,7 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
     signupAt: new Date(),
     requestedRoleKey: athlete ? "athlete" : data.roleKey!,
     requestedStudioId: studioId,
+    requestedSeriesId: seriesId,
     requestedStudioName: data.roleKey === "gym-studio" ? data.gymName ?? null : null,
     requestedCity: data.roleKey === "gym-studio" ? data.city ?? null : null,
     passwordHash,

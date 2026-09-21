@@ -115,6 +115,11 @@ model User {
   /// The gym they chose at sign-up — it routes the request to that studio.
   requestedStudioId   String?
   requestedStudio     Studio? @relation("RequestedStudio", fields: [requestedStudioId], references: [id], onDelete: SetNull)
+  /// The competition they signed up for. An athlete belongs to one before they
+  /// belong to a team — this is what puts them in front of the people whose
+  /// job is to find them a partner.
+  requestedSeriesId   String?
+  requestedSeries     Series? @relation("RequestedSeries", fields: [requestedSeriesId], references: [id], onDelete: SetNull)
   /// A Gym/Studio request: the gym to create or link on approval.
   requestedStudioName String?
   requestedCity       String?
@@ -170,6 +175,7 @@ model User {
   @@index([createdById])
   @@index([approvalStatus])
   @@index([requestedStudioId])
+  @@index([requestedSeriesId])
 }
 
 /// An athlete's own details, captured at sign-up: who they are as a
@@ -544,6 +550,13 @@ model Series {
   /// itself; the default is the rule of thumb this launched with: one day.
   teamEditCloseHours Int @default(24)
 
+  /// Whether this competition is offered on the public sign-up form.
+  ///
+  /// Off by default, and deliberately: that form is open to the internet, so
+  /// nothing appears on it until somebody decides it should. A competition
+  /// being `scheduled` is not the same as being ready to advertise.
+  signupOpen Boolean @default(false)
+
   // ── Deadlines, from the Series 1 manual's key dates ───────────────────────
   /// After this, no team may be registered, edited or removed by a studio.
   registrationClosesAt DateTime?
@@ -588,6 +601,9 @@ model Series {
   /// The studios taking part. A studio in the directory but not in this list
   /// is simply not in this competition.
   studios  SeriesStudio[]
+  /// Athletes who chose this competition when they signed up, before anybody
+  /// has entered them in a team.
+  signupRequests User[] @relation("RequestedSeries")
 
   @@index([status])
   @@index([competitionDate])

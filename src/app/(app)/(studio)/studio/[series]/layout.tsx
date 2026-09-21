@@ -50,6 +50,9 @@ export default async function StudioSeriesLayout({
       title: "",
       items: [
         ...(can(user, "registrations.view") ? [{ href: at("teams"), label: t("Teams"), badge: teamCount }] : []),
+        ...(can(user, "registrations.partners")
+          ? [{ href: at("partners"), label: t("Partner watch") }]
+          : []),
         ...(can(user, "scores.view") ? [{ href: at("scores"), label: t("Scores") }] : []),
         ...(can(user, "waves.view") ? [{ href: at("waves"), label: t("Waves") }] : []),
         ...(can(user, "results.view") ? [{ href: at("results"), label: t("Results") }] : []),

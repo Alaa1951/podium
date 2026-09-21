@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => {
     upsertProfile: vi.fn(),
     deleteProfiles: vi.fn(),
     findStudio: vi.fn(),
+    findSeries: vi.fn(),
+    listSeries: vi.fn(),
     otp: vi.fn(),
     sendOtp: vi.fn(),
     alreadyRegistered: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
     user: { findUnique: mocks.findUser, create: mocks.createUser, update: mocks.updateUser },
     athleteProfile: { upsert: mocks.upsertProfile, deleteMany: mocks.deleteProfiles },
     studio: { findFirst: mocks.findStudio },
+    series: { findFirst: mocks.findSeries, findMany: mocks.listSeries },
   },
 }));
 vi.mock("@/lib/otp", () => ({ createOtpChallenge: mocks.otp, getOtpConfig: () => ({ ttlMinutes: 10 }) }));
@@ -66,6 +69,10 @@ describe("startSignup", () => {
     mocks.findUser.mockResolvedValue(null);
     mocks.createUser.mockResolvedValue({ id: "u1" });
     mocks.otp.mockResolvedValue({ code: "123456" });
+    // No competition is open for sign-up unless a test says otherwise, so the
+    // field is not demanded.
+    mocks.listSeries.mockResolvedValue([]);
+    mocks.findSeries.mockResolvedValue(null);
   });
 
   it("creates a waiting athlete looking for a partner, and emails a code", async () => {
@@ -127,6 +134,38 @@ describe("startSignup", () => {
       error: "PASSWORD_TOO_SHORT",
     });
     expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  // ── Which competition ─────────────────────────────────────────────────────
+
+  it("demands a competition only while one is open for sign-up", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+
+    // Nothing open: the field is not rendered, so it must not be demanded.
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+
+    mocks.listSeries.mockResolvedValue([{ id: "s1" }]);
+    expect(await startSignup(athlete)).toEqual({ ok: false, error: "COMPETITION_REQUIRED" });
+  });
+
+  it("only accepts a competition that is actually open for sign-up", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    mocks.listSeries.mockResolvedValue([{ id: "s1" }]);
+
+    // A competition that is not open reads as no answer at all.
+    mocks.findSeries.mockResolvedValue(null);
+    expect(await startSignup({ ...athlete, seriesId: "closed" })).toEqual({
+      ok: false,
+      error: "COMPETITION_REQUIRED",
+    });
+
+    mocks.findSeries.mockResolvedValue({ id: "s1" });
+    expect(await startSignup({ ...athlete, seriesId: "s1" })).toEqual({ ok: true });
+    expect(mocks.createUser.mock.calls[0][0].data.requestedSeriesId).toBe("s1");
+    expect(mocks.findSeries.mock.calls[0][0].where).toMatchObject({
+      signupOpen: true,
+      status: { in: ["scheduled", "live"] },
+    });
   });
 
   // ── The fields the CRM's own form asks for ────────────────────────────────

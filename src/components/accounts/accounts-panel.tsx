@@ -24,6 +24,7 @@ export type AccountRow = {
   status: "invited" | "active" | "disabled";
   studioId: string | null;
   studioName: string | null;
+  requestedSeriesId: string | null;
   roles: { id: string; name: string; nameAr: string | null }[];
   lastLoginAt: string | null;
 };
@@ -41,6 +42,7 @@ const ERRORS: Record<string, string> = {
 export function AccountsPanel({
   accounts,
   studios,
+  competitions = [],
   ownStudioName,
   archivedAccounts = [],
   ownUserId,
@@ -57,6 +59,8 @@ export function AccountsPanel({
 }: {
   accounts: AccountRow[];
   studios: { id: string; name: string }[];
+  /** Competitions an athlete can be attached to. */
+  competitions?: { id: string; name: string }[];
   ownStudioName: string | null;
   /** Removed accounts — listed in their own strip, restorable. */
   archivedAccounts?: AccountRow[];
@@ -214,6 +218,7 @@ export function AccountsPanel({
           <AccountEditor
             account={account}
             studios={studios}
+            competitions={competitions}
             canMakeFullAdmin={canViewAs}
             onDone={() => router.replace(`${basePath}/${account.id}`)}
           />
@@ -412,6 +417,7 @@ export function AccountsPanel({
                           <AccountEditor
                             account={account}
                             studios={studios}
+                            competitions={competitions}
                             canMakeFullAdmin={canViewAs}
                             onDone={() => setEditing(null)}
                           />

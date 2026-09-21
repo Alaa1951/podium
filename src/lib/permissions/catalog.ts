@@ -150,6 +150,14 @@ export const CATALOG = {
           edit: act("Edit teams and athletes", "تعديل الفرق والرياضيين"),
           archive: act("Withdraw and restore teams", "سحب الفرق واستعادتها"),
           pair: act("Pair two athletes into a team", "جمع رياضيين في فريق"),
+          // Not `view`: these are people who have NOT registered, so "the
+          // entry list" would be the wrong promise. Split out so a pairing
+          // coordinator can be given these four lists without the roster and
+          // the money column that come with `registrations.view`.
+          partners: act(
+            "See athletes without a partner or a team",
+            "عرض الرياضيين بلا شريك أو فريق"
+          ),
           payment: act("Confirm payment and attendance", "تأكيد الدفع والحضور", "bftOnly"),
           export: act("Export the roster", "تصدير القائمة"),
         },

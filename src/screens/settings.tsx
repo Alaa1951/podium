@@ -64,6 +64,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
     zoneWorkMinutes: series.zoneWorkMinutes,
     zoneBreakMinutes: series.zoneBreakMinutes,
     boardOpensAt: forInput(series.boardOpensAt),
+    signupOpen: series.signupOpen,
     registrationClosesAt: forInput(series.registrationClosesAt),
     registrationsFinalAt: forInput(series.registrationsFinalAt),
     scoreEntryClosesAt: forInput(series.scoreEntryClosesAt),

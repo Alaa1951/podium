@@ -41,6 +41,7 @@ const ERRORS: Record<string, string> = {
   PARTNER_REQUIRED: "Enter your partner's name and email.",
   PARTNER_DETAILS_REQUIRED: "Choose your partner's gender and T-shirt size.",
   SHIRT_SIZE_REQUIRED: "Choose your T-shirt size.",
+  COMPETITION_REQUIRED: "Choose the competition you are signing up for.",
   TEAM_NAME_REQUIRED: "Enter a team name.",
   GYM_REQUIRED: "Enter the name of your gym or studio.",
   EMAIL_INVALID: "That email does not look right.",
@@ -56,10 +57,13 @@ const ERRORS: Record<string, string> = {
 
 export function SignupForm({
   studios,
+  competitions,
   initialType,
   initialEmail,
 }: {
   studios: { id: string; name: string }[];
+  /** Only the competitions BFT MENA opened for sign-up. May be empty. */
+  competitions: { id: string; label: string }[];
   initialType?: Kind;
   initialEmail?: string;
 }) {
@@ -79,6 +83,7 @@ export function SignupForm({
     email: initialEmail ?? "",
     phone: "",
     studioId: "",
+    seriesId: competitions.length === 1 ? competitions[0].id : "",
     password: "",
     dateOfBirth: "",
     sex: "" as "" | "m" | "f",
@@ -126,6 +131,7 @@ export function SignupForm({
                 sex: form.sex || undefined,
                 division: form.division || undefined,
                 category: form.category || undefined,
+                seriesId: form.seriesId || undefined,
                 shirtSize: form.shirtSize || undefined,
                 bftMember: form.bftMember,
                 hasPartner: Boolean(form.hasPartner),
@@ -321,6 +327,23 @@ export function SignupForm({
           t("Your studio can approve you. Without one, BFT MENA does.")
         )
       )}
+
+      {/* Which competition. Only the ones opened for sign-up are offered, so
+          when nothing is open the field is not there to be answered. */}
+      {athlete && competitions.length > 0
+        ? field(
+            t("Competition"),
+            <select className="input" value={form.seriesId} onChange={(e) => set("seriesId", e.target.value)} required>
+              <option value="">—</option>
+              {competitions.map((one) => (
+                <option key={one.id} value={one.id}>
+                  {one.label}
+                </option>
+              ))}
+            </select>,
+            t("The one you are signing up for.")
+          )
+        : null}
 
       {/* Everybody sets one. A credential belongs with the identity fields,
           above the competing details, not after a T-shirt size. */}

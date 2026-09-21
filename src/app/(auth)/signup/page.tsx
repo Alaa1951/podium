@@ -4,6 +4,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { SignupForm } from "@/components/auth/signup-form";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
+import { listOpenSignupSeries } from "@/lib/queries";
 import { getCurrentUser, homeForUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -17,21 +18,42 @@ export default async function SignupPage(props: PageProps<"/signup">) {
   const user = await getCurrentUser();
   if (user) redirect(await homeForUser(user));
 
-  const { t } = await getTranslator();
+  const { t, locale } = await getTranslator();
   const query = await props.searchParams;
   const type = query.type === "athlete" || query.type === "organiser" ? query.type : undefined;
   const email = typeof query.email === "string" ? query.email.slice(0, 200) : undefined;
 
   // Studio names are public already — they are on every published result.
-  const studios = await prisma.studio.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
+  // A competition's name and date are what BFT MENA advertises, and only the
+  // ones deliberately opened for sign-up appear (listOpenSignupSeries).
+  const [studios, series] = await Promise.all([
+    prisma.studio.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    listOpenSignupSeries(),
+  ]);
+
+  const day = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Qatar",
   });
+  const competitions = series.map((one) => ({
+    id: one.id,
+    label: `${one.name} · ${day.format(one.competitionDate)}`,
+  }));
 
   return (
     <AuthShell title={t("Sign up")} blurb={t("Join PODIUM as an athlete, or as part of the team that runs it.")}>
-      <SignupForm studios={studios} initialType={type} initialEmail={email} />
+      <SignupForm
+        studios={studios}
+        competitions={competitions}
+        initialType={type}
+        initialEmail={email}
+      />
     </AuthShell>
   );
 }

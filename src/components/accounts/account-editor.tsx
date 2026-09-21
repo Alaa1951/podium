@@ -23,6 +23,7 @@ export type EditableAccount = {
   email: string;
   role: AccountType;
   studioId: string | null;
+  requestedSeriesId: string | null;
 };
 
 const ERRORS: Record<string, string> = {
@@ -39,11 +40,14 @@ const ERRORS: Record<string, string> = {
 export function AccountEditor({
   account,
   studios,
+  competitions,
   canMakeFullAdmin = false,
   onDone,
 }: {
   account: EditableAccount;
   studios: { id: string; name: string }[];
+  /** Competitions an athlete can be attached to. Empty hides the field. */
+  competitions: { id: string; name: string }[];
   /** Only BFT MENA Full access makes (or unmakes) BFT MENA Full access. */
   canMakeFullAdmin?: boolean;
   onDone: () => void;
@@ -56,11 +60,12 @@ export function AccountEditor({
   const [email, setEmail] = useState(account.email);
   const [role, setRole] = useState(account.role);
   const [studioId, setStudioId] = useState(account.studioId ?? "");
+  const [seriesId, setSeriesId] = useState(account.requestedSeriesId ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savedDraft, setSavedDraft] = useState("");
-  const fingerprint = JSON.stringify([name, email, role, studioId]);
-  const original = JSON.stringify([account.name ?? "", account.email, account.role, account.studioId ?? ""]);
+  const fingerprint = JSON.stringify([name, email, role, studioId, seriesId]);
+  const original = JSON.stringify([account.name ?? "", account.email, account.role, account.studioId ?? "", account.requestedSeriesId ?? ""]);
   useUnsavedChanges(fingerprint !== (savedDraft || original));
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
@@ -85,6 +90,7 @@ export function AccountEditor({
             email,
             role,
             studioId: role === "admin" || role === "staff" ? null : studioId || null,
+            requestedSeriesId: role === "competitor" ? seriesId || null : null,
           });
         if (result.ok) setSavedDraft(fingerprint);
         report(result);
@@ -157,6 +163,22 @@ export function AccountEditor({
               {studios.map((studio) => (
                 <option key={studio.id} value={studio.id}>
                   {studio.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {/* Which competition an athlete signed up for. Set by hand for anybody
+            who signed up before the form asked, and whenever somebody moves. */}
+        {role === "competitor" && competitions.length > 0 ? (
+          <label style={{ flex: "1 1 200px" }}>
+            <span className="field-label">{t("Competition")}</span>
+            <select className="input" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
+              <option value="">{t("Not assigned")}</option>
+              {competitions.map((one) => (
+                <option key={one.id} value={one.id}>
+                  {one.name}
                 </option>
               ))}
             </select>

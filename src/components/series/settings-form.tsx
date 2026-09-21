@@ -35,6 +35,7 @@ export type SeriesSettings = {
   zoneWorkMinutes: number;
   zoneBreakMinutes: number;
   boardOpensAt: string;
+  signupOpen: boolean;
   registrationClosesAt: string;
   registrationsFinalAt: string;
   scoreEntryClosesAt: string;
@@ -243,6 +244,19 @@ export function SettingsForm({
               value={form.boardOpensAt}
               onChange={(e) => set("boardOpensAt", e.target.value)}
             />
+          </Field>
+          <Field
+            label={t("Open for sign-up")}
+            hint={t("Offer this competition on the public sign-up form.")}
+          >
+            <label className="checkline">
+              <input
+                type="checkbox"
+                checked={form.signupOpen}
+                onChange={(e) => set("signupOpen", e.target.checked)}
+              />
+              <span>{t("Athletes can choose it when they sign up")}</span>
+            </label>
           </Field>
           <Field label={t("Registration closes")}>
             <input
