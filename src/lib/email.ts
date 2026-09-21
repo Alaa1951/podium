@@ -272,6 +272,32 @@ export async function sendPartnerRequestEmail(params: {
   await sendMail({ to: params.email, subject, text, html });
 }
 
+/**
+ * Your partner has unpaired from you.
+ *
+ * Nobody should learn this by opening the app and finding the other name gone.
+ * It says who, because they know each other already, and says the one useful
+ * thing: you are looking for a partner again, and here is where to look.
+ */
+export async function sendPartnerUnlinkedEmail(params: {
+  email: string;
+  byName: string;
+  url: string;
+}) {
+  const who = params.byName || "Your partner";
+  const subject = `You are looking for a ${BRAND} partner again`;
+  const text = `${who} is no longer your ${BRAND} partner.\n\nYou are back on the list of athletes looking for a partner, and you can find a new one here: ${params.url}`;
+  const html = shell(
+    "Looking for a partner again",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${escapeHtml(who)}</strong> is no longer your partner.</p>
+     <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">You are back on the list of athletes looking for one.</p>
+     <div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">Find a partner</a>
+     </div>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
 /** A sign-up for an address that already has an account: point them at sign-in. */
 export async function sendAlreadyRegisteredEmail(params: { email: string; url: string }) {
   const subject = `You already have a ${BRAND} account`;

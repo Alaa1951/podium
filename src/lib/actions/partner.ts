@@ -4,10 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { can } from "@/lib/access";
-import { onAthleteVerified } from "@/lib/partners";
+import { AUDIT, recordAudit } from "@/lib/audit";
+import { sendPartnerUnlinkedEmail } from "@/lib/email";
+import { onAthleteVerified, unlinkPair } from "@/lib/partners";
 import { prisma } from "@/lib/prisma";
-import { isValidEmail, normalizeEmail } from "@/lib/security";
+import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
+import { getBaseUrl, isValidEmail, normalizeEmail } from "@/lib/security";
 import { requireRole } from "@/lib/session";
+import { teamEditOpen } from "@/lib/visibility";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AN ATHLETE'S PARTNER — named by the athlete, or "looking for a partner".
@@ -97,5 +101,115 @@ export async function savePartner(input: unknown): Promise<PartnerResult> {
   revalidatePath("/me");
   revalidatePath("/me/partner");
   revalidatePath("/me/partner/requests");
+  return { ok: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANGING WHO YOUR PARTNER IS.
+//
+// Unlinking, then the ordinary flow — two deliberate steps rather than one.
+// Making `savePartner` unlink implicitly would mean a mis-tapped form save
+// dissolves somebody's pair.
+//
+// The door closes on the competition's own clock (teamEditCloseHours), and it
+// is shut entirely once a team has been entered: swapping somebody on a
+// registered team is staff's to do, because it touches a wave, a station and
+// possibly a payment.
+//
+// ONE CONSEQUENCE, so the next reader does not take it for a bug: the
+// `accepted` PartnerRequest row survives, so each of them stays out of the
+// other's finder for good. That is right — "we tried that" — and they can
+// still name each other by email here if they change their minds.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function unlinkPartner(): Promise<PartnerResult> {
+  const user = await requireRole("competitor");
+  if (user.viewAs || !can(user, "partner.edit")) return { ok: false, error: "FORBIDDEN" };
+
+  // Unlinking emails somebody else, so it gets the same treatment as asking.
+  if (!checkRate(`partner-unlink:${user.id}`, 5, 15 * MINUTE_MS).ok) {
+    return { ok: false, error: "TRY_LATER" };
+  }
+
+  const mine = await prisma.athleteProfile.findUnique({
+    where: { userId: user.id },
+    select: { partnerUserId: true },
+  });
+  const partnerId = mine?.partnerUserId;
+  if (!partnerId) return { ok: false, error: "NOT_LINKED" };
+
+  // Already entered in a competition? Then this is staff's to change.
+  const entered = await prisma.competitor.findFirst({
+    where: {
+      userId: { in: [user.id, partnerId] },
+      team: { archivedAt: null, series: { status: { not: "final" } } },
+    },
+    select: { id: true },
+  });
+  if (entered) return { ok: false, error: "TEAM_REGISTERED" };
+
+  // The deadline belongs to the competition they signed up for. Without one
+  // there is nothing to count back from, and the door stays open.
+  const chosen = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      requestedSeries: { select: { competitionDate: true, teamEditCloseHours: true } },
+    },
+  });
+  if (chosen?.requestedSeries) {
+    const door = teamEditOpen({
+      competitionDate: chosen.requestedSeries.competitionDate,
+      teamEditCloseHours: chosen.requestedSeries.teamEditCloseHours,
+      now: new Date(),
+    });
+    if (!door.open) return { ok: false, error: "TEAM_EDIT_CLOSED" };
+  }
+
+  const partner = await prisma.user.findUnique({
+    where: { id: partnerId },
+    select: { email: true },
+  });
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Conditional, so two unlinks at the same instant cannot half-run.
+      const claimed = await tx.athleteProfile.updateMany({
+        where: { userId: user.id, partnerUserId: partnerId },
+        data: { partnerUserId: null },
+      });
+      if (claimed.count === 0) throw new Error("NOT_LINKED");
+      await unlinkPair(user.id, partnerId, tx);
+    });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if (code === "NOT_LINKED") return { ok: false, error: code };
+    console.error("[PARTNER:unlink]", code || error);
+    return { ok: false, error: "FAILED" };
+  }
+
+  if (partner?.email) {
+    try {
+      await sendPartnerUnlinkedEmail({
+        email: partner.email,
+        byName: user.name ?? "",
+        url: `${getBaseUrl()}/me/partner`,
+      });
+    } catch {
+      // The change stands whether or not the email went out.
+    }
+  }
+
+  await recordAudit({
+    actorId: user.id,
+    action: AUDIT.partnerUnlinked,
+    targetType: "user",
+    targetId: partnerId,
+    targetLabel: partner?.email ?? "",
+  });
+
+  revalidatePath("/me");
+  revalidatePath("/me/partner");
+  revalidatePath("/me/partner/requests");
+  revalidatePath("/studio/people");
   return { ok: true };
 }

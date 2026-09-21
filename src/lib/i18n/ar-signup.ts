@@ -217,6 +217,52 @@ export const AR_SIGNUP: Phrases = {
   "Enter as a team": "تسجيل كفريق",
   "These two are at different levels.": "هذان الرياضيان في مستويين مختلفين.",
 
+  // ── Changing a partner ─────────────────────────────────────────────────────
+  "Change partner": "تغيير الشريك",
+  "Change your partner?": "تغيير شريكك؟",
+  "You will both go back to looking for a partner, and {name} will be emailed about it. You can then name somebody else or find one from the list.":
+    "ستعودان كلاكما إلى البحث عن شريك، وسيصل إلى {name} بريد إلكتروني بذلك. بعدها يمكنك تسمية شخص آخر أو إيجاد شريك من القائمة.",
+  "Yes, change my partner": "نعم، غيّر شريكي",
+  "Keep my partner": "أبقِ شريكي",
+  "You do not have a partner to change.": "ليس لديك شريك لتغييره.",
+  "Your pair is already entered in a competition. Ask your studio or BFT MENA to change it.":
+    "فريقكما مسجّل في بطولة بالفعل. اطلب من الاستوديو أو من BFT MENA تغييره.",
+  "It is too close to the competition to change your partner. Ask your studio.":
+    "لم يبقَ وقت كافٍ قبل البطولة لتغيير شريكك. اطلب ذلك من الاستوديو.",
+  "Too many changes just now. Try again in a few minutes.":
+    "تغييرات كثيرة في وقت قصير. أعد المحاولة بعد دقائق.",
+
+  // ── Swapping somebody on a team (staff) ────────────────────────────────────
+  "Swap this person out": "استبدال هذا الشخص",
+  Swap: "استبدال",
+  "Swap them in": "أدخِله بدلاً منه",
+  "Somebody else takes {name}'s place on this team. The team keeps its number, wave and station.":
+    "يأخذ شخص آخر مكان {name} في هذا الفريق. يحتفظ الفريق برقمه وموجته ومحطته.",
+  "Swapped. The team keeps its number, wave and station.":
+    "تم الاستبدال. الفريق محتفظ برقمه وموجته ومحطته.",
+  "An athlete with an account": "رياضي لديه حساب",
+  "Type in a substitute": "اكتب بيانات البديل",
+  "Who takes their place": "من يأخذ مكانه",
+  "Choose an athlete": "اختر رياضيًا",
+  "No athlete with an account is free to take this place. Type the substitute in instead.":
+    "لا يوجد رياضي لديه حساب متاح لأخذ هذا المكان. اكتب بيانات البديل بدلاً من ذلك.",
+  "Email (optional)": "البريد الإلكتروني (اختياري)",
+  "Phone (optional)": "الهاتف (اختياري)",
+  "This competition is finished. Its field is the record now.":
+    "هذه البطولة انتهت، وقائمة فرقها أصبحت هي السجل.",
+  "This team has a score. Nobody can be swapped out of a scored team.":
+    "هذا الفريق له نتيجة مسجّلة، ولا يمكن استبدال أحد في فريق تم تقييمه.",
+  "This team's wave has started. Nobody can be swapped once they are on the floor.":
+    "موجة هذا الفريق بدأت، ولا يمكن استبدال أحد بعد نزوله إلى الأرض.",
+  "Choose an athlete or type the substitute's name.": "اختر رياضيًا أو اكتب اسم البديل.",
+  "That team member could not be found.": "لم يتم العثور على هذا العضو.",
+  "That athlete could not be used. They may already be entered.":
+    "لا يمكن استخدام هذا الرياضي، فقد يكون مسجّلًا بالفعل.",
+  "That athlete is already entered in this competition.": "هذا الرياضي مسجّل في هذه البطولة بالفعل.",
+  "That is the other person on this team.": "هذا هو الشخص الآخر في الفريق نفسه.",
+  "That email does not look right.": "هذا البريد الإلكتروني غير صحيح.",
+  "You cannot change this.": "لا يمكنك تغيير هذا.",
+
   // ── Athlete wording ────────────────────────────────────────────────────────
   "Athlete 1": "الرياضي ١",
   "Athlete 2": "الرياضي ٢",

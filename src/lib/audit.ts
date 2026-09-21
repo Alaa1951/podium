@@ -61,6 +61,8 @@ export const AUDIT = {
   partnerRequestAccepted: "partner.request_accepted",
   partnerRequestDeclined: "partner.request_declined",
   partnerRequestWithdrawn: "partner.request_withdrawn",
+  partnerUnlinked: "partner.unlinked",
+  teamMemberSwapped: "team.member_swapped",
   announcementSent: "notification.sent",
 } as const;
 

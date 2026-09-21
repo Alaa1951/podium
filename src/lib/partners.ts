@@ -81,6 +81,46 @@ export async function linkPair(a: string, b: string, db: Db = prisma) {
 }
 
 /**
+ * Undo it, both ways.
+ *
+ * Every column `linkPair` writes is cleared, and the pair goes back to looking
+ * — which is the state they were in before, not a third one. `teamName` goes
+ * too: it is what the PAIR wanted to be called, and `signup.ts` already nulls
+ * it whenever there is no partner, so leaving it would make this the only
+ * place a team name outlives its team.
+ *
+ * Reads nothing, so unlike `linkPair` it cannot fail on an account that has
+ * since been closed.
+ */
+export async function unlinkPair(a: string, b: string, db: Db = prisma) {
+  const cleared = {
+    partnerUserId: null,
+    partnerLinkedAt: null,
+    lookingForPartner: true,
+    teamName: null,
+    partnerName: null,
+    partnerEmail: null,
+    partnerPhone: null,
+    partnerDateOfBirth: null,
+    partnerSex: null,
+    partnerShirtSize: null,
+    partnerBftMember: false,
+  };
+  const writes = [
+    { where: { userId: a }, data: cleared },
+    { where: { userId: b }, data: cleared },
+  ];
+
+  // Half an unlink is as bad as half a link: one side would still point at
+  // somebody who is no longer pointing back.
+  if (db === prisma) {
+    await prisma.$transaction(writes.map((write) => prisma.athleteProfile.update(write)));
+    return;
+  }
+  for (const write of writes) await db.athleteProfile.update(write);
+}
+
+/**
  * Link this athlete to their partner if both sides agree, or tell the partner.
  * Called when an athlete's address is first verified, and whenever they
  * change who their partner is. `rawEmail` must be the athlete's own, proven.

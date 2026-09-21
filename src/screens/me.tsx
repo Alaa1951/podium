@@ -11,7 +11,7 @@ import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/qu
 import { fmt } from "@/lib/scoring";
 import { requireRole } from "@/lib/session";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
-import { eventPhase } from "@/lib/visibility";
+import { eventPhase, teamEditOpen } from "@/lib/visibility";
 import { summariseWaves } from "@/lib/waves";
 import { getSeriesWaves } from "@/lib/queries";
 
@@ -161,8 +161,11 @@ export default async function MyPage(editMode = false) {
 
   // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
-  const teamEditOpen =
-    new Date() < new Date(series.competitionDate.getTime() - series.teamEditCloseHours * 3_600_000);
+  const canEditTeam = teamEditOpen({
+    competitionDate: series.competitionDate,
+    teamEditCloseHours: series.teamEditCloseHours,
+    now: new Date(),
+  }).open;
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.
@@ -176,7 +179,7 @@ export default async function MyPage(editMode = false) {
       : [];
   const mine = ranked.find((one) => one.id === team.id) ?? null;
 
-  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email}))} open={teamEditOpen} editMode /></div>;
+  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email}))} open={canEditTeam} editMode /></div>;
 
   return (
     <div className="screen">
@@ -287,7 +290,7 @@ export default async function MyPage(editMode = false) {
           fullName: person.fullName,
           email: person.email,
         }))}
-        open={teamEditOpen}
+        open={canEditTeam}
       />
 
       {team.submitted ? (

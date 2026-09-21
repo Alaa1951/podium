@@ -124,7 +124,9 @@ export function boardAccess(role: Role | "anonymous", phase: EventPhase): BoardA
 
 export type DeadlineState =
   | { open: true }
-  | { open: false; reason: "REGISTRATION_CLOSED" | "SCORE_ENTRY_CLOSED" };
+  | { open: false; reason: "REGISTRATION_CLOSED" | "SCORE_ENTRY_CLOSED" | "TEAM_EDIT_CLOSED" };
+
+const HOUR_MS = 3_600_000;
 
 /**
  * Whether a studio may still register, edit or remove teams.
@@ -153,6 +155,31 @@ export function scoreEntryOpen(params: {
   if (!params.scoreEntryClosesAt) return { open: true };
   if (params.now < params.scoreEntryClosesAt) return { open: true };
   return { open: false, reason: "SCORE_ENTRY_CLOSED" };
+}
+
+/**
+ * Whether a MEMBER may still change their own pair — the roster on their team,
+ * or who their partner is.
+ *
+ * Counted back from the competition, in hours, so BFT MENA sets one number
+ * rather than a date per competition.
+ *
+ * It takes no `role`, unlike the two above, and that is deliberate. Those
+ * exempt BFT MENA because the manual's own process is that late changes go to
+ * HQ through those paths. This one answers a different question — what an
+ * ATHLETE may do to their own pair — and staff never route through it: they
+ * have the wave guard instead, which is stricter and about the floor. A
+ * `role` parameter here would be an invitation to pass "admin" and quietly
+ * reopen the athlete's door.
+ */
+export function teamEditOpen(params: {
+  competitionDate: Date;
+  teamEditCloseHours: number;
+  now: Date;
+}): DeadlineState {
+  const cutoff = params.competitionDate.getTime() - params.teamEditCloseHours * HOUR_MS;
+  if (params.now.getTime() < cutoff) return { open: true };
+  return { open: false, reason: "TEAM_EDIT_CLOSED" };
 }
 
 // ── Board presentation ───────────────────────────────────────────────────────
