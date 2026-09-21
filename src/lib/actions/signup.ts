@@ -61,7 +61,7 @@ const schema = z
     email: z.string().trim().max(200),
     phone: z.string().trim().min(6).max(30),
     studioId: optionalText(191),
-    password: z.string().max(200).optional(),
+    password: z.string().max(200),
     // Athlete
     dateOfBirth: dateString,
     sex: z.enum(["m", "f"]).optional(),
@@ -125,13 +125,15 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   const perIp = checkRate(`signup:ip:${ip ?? "unknown"}`, 40, 15 * MINUTE_MS);
   if (!perEmail.ok || !perIp.ok) return { ok: false, error: "TOO_MANY" };
 
-  // Organisers sign in with a password as well; athletes use a code each time.
-  let passwordHash: string | null = null;
-  if (data.type === "organiser") {
-    const strength = checkPasswordStrength(data.password ?? "");
-    if (!strength.ok) return { ok: false, error: strength.reason };
-    passwordHash = await hashPassword(data.password!);
-  }
+  // EVERYBODY sets a password, athletes included.
+  //
+  // A code-only account works, but almost nobody believes it: people look for
+  // the password field, do not find one, and assume they have not finished
+  // signing up. So both doors are real from the start — the emailed code
+  // stays, and it is still what proves the address the first time.
+  const strength = checkPasswordStrength(data.password ?? "");
+  if (!strength.ok) return { ok: false, error: strength.reason };
+  const passwordHash = await hashPassword(data.password!);
 
   const studioId = data.studioId
     ? (await prisma.studio.findFirst({ where: { id: data.studioId, isActive: true }, select: { id: true } }))?.id ?? null

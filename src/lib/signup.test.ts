@@ -44,6 +44,7 @@ const athlete = {
   division: "Open",
   category: "Womens",
   shirtSize: "M",
+  password: "Ab3xyz",
   hasPartner: false,
 };
 
@@ -78,8 +79,10 @@ describe("startSignup", () => {
       approvalStatus: "pending",
       signupType: "athlete",
       requestedRoleKey: "athlete",
-      passwordHash: null,
     });
+    // Everybody sets a password now, athletes included — the emailed code is
+    // still what proves the address the first time.
+    expect(data.passwordHash).toEqual(expect.any(String));
     expect(mocks.upsertProfile.mock.calls[0][0].create).toMatchObject({ lookingForPartner: true, partnerEmail: null });
     expect(mocks.sendOtp).toHaveBeenCalledWith(expect.objectContaining({ email: "sara@example.com", code: "123456" }));
   });
@@ -93,7 +96,7 @@ describe("startSignup", () => {
 
   it("requires an organiser to pick a role and a strong password", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
-    const organiser = { type: "organiser", name: "Omar", email: "omar@example.com", phone: "+97455500000" };
+    const organiser = { type: "organiser", name: "Omar", email: "omar@example.com", phone: "+97455500000", password: "Ab3xyz" };
     expect(await startSignup(organiser)).toEqual({ ok: false, error: "ROLE_REQUIRED" });
     expect(await startSignup({ ...organiser, roleKey: "judge", password: "short" })).toEqual({ ok: false, error: "PASSWORD_TOO_SHORT" });
     expect(await startSignup({ ...organiser, roleKey: "gym-studio", password: "Str0ngPassword" })).toEqual({ ok: false, error: "GYM_REQUIRED" });
@@ -113,6 +116,17 @@ describe("startSignup", () => {
     mocks.rate.mockReturnValue({ ok: false });
     const { startSignup } = await import("@/lib/actions/signup");
     expect(await startSignup(athlete)).toEqual({ ok: false, error: "TOO_MANY" });
+  });
+
+  it("asks an athlete for a password too — a code-only account nobody believes in", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    const noPassword = { ...athlete, password: undefined };
+    expect(await startSignup(noPassword)).toEqual({ ok: false, error: "INVALID_INPUT" });
+    expect(await startSignup({ ...athlete, password: "abc" })).toEqual({
+      ok: false,
+      error: "PASSWORD_TOO_SHORT",
+    });
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
   // ── The fields the CRM's own form asks for ────────────────────────────────

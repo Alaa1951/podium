@@ -69,7 +69,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       if (authError.includes("ACCOUNT_NOT_ACTIVATED")) {
         setError(
           t(
-            "This account has not been activated yet. Use the link in your invitation email to set a password."
+            "This account is not active yet. Use the code or the link in the email we sent you, then your password will work."
           )
         );
         return;

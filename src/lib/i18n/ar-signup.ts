@@ -30,6 +30,7 @@ export const AR_SIGNUP: Phrases = {
   "At least {n} characters, with an uppercase letter, a lowercase letter and a number.":
     "{n} أحرف على الأقل، منها حرف كبير وحرف صغير ورقم.",
   Gender: "الجنس",
+  "You can sign in with this or with an emailed code — whichever you prefer.": "يمكنك الدخول بها أو برمز يصلك على البريد — كما تفضّل.",
   "T-shirt size": "مقاس التيشرت",
   "I am a BFT member": "أنا عضو في BFT",
   "My partner is a BFT member": "شريكي عضو في BFT",

@@ -22,7 +22,7 @@ export default async function AthleteLoginPage() {
   return (
     <AuthShell
       title={t("Athlete sign-in")}
-      blurb={t("Registered for PODIUM? Sign in with the email you entered with — no password needed.")}
+      blurb={t("Registered for PODIUM? Sign in with the email you entered with — we send you a code.")}
       footer={
         <p className="auth-note" style={{ textAlign: "center" }}>
           {t("New here?")}{" "}

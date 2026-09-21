@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PoweredBy, PublicBrand } from "@/components/board/board-brand";
 import { NotificationBell } from "@/components/app/notification-bell";
 import { PersonalMobileNavigation } from "@/components/app/mobile-navigation";
+import { PersonalDesktopNavigation } from "@/components/app/personal-nav";
 import { homeForUser, getCurrentUser } from "@/lib/session";
 
 /**
@@ -50,7 +51,12 @@ export async function PublicShell({
           PRIVACY · الخصوصية
         </Link>
       </footer>
-      {user ? <PersonalMobileNavigation role={user.role} homeHref={await homeForUser(user)} /> : null}
+      {user ? (
+        <>
+          <PersonalMobileNavigation role={user.role} homeHref={await homeForUser(user)} />
+          <PersonalDesktopNavigation role={user.role} homeHref={await homeForUser(user)} />
+        </>
+      ) : null}
     </div>
   );
 }

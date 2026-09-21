@@ -16,7 +16,7 @@ export const AR_MOBILE: Phrases = {
   "Sign in with your email": "ادخل ببريدك الإلكتروني", "Send me a code": "أرسل رمز الدخول",
   "Use a different email": "استخدم بريدًا آخر", "Too many requests. Wait a few minutes and try again.": "طلبات كثيرة. انتظر بضع دقائق وحاول مرة أخرى.",
   "Use the email you registered with. We will send you a six-digit code.": "استخدم البريد الذي سجلت به. سنرسل لك رمزًا من ستة أرقام.",
-  "Registered for PODIUM? Sign in with the email you entered with — no password needed.": "مسجّل في PODIUM؟ ادخل بالبريد الذي سجلت به دون الحاجة لكلمة مرور.",
+  "Registered for PODIUM? Sign in with the email you entered with — we send you a code.": "مسجّل في PODIUM؟ ادخل بالبريد الذي سجلت به — نرسل لك رمزًا.",
   "If {email} registered for PODIUM, a six-digit code is on its way.": "إذا كان {email} مسجّلًا في PODIUM، فسيصله رمز من ستة أرقام.",
   "You will stay signed in for 24 hours.": "ستبقى مسجّل الدخول لمدة 24 ساعة.",
   "Your password, the browsers this account trusts, and every recent sign-in attempt against it.": "كلمة المرور والأجهزة الموثوقة ومحاولات الدخول الأخيرة إلى حسابك.",

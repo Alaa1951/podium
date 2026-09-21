@@ -24,7 +24,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
     <AuthShell
       title={t("Sign in")}
       blurb={t(
-        "Accounts are issued, never self-created. BFT MENA adds each studio; a studio adds its own competitors."
+        "Sign in with your email and password. Athletes who signed up here can use this door too."
       )}
     >
       <LoginForm callbackUrl={callbackUrl} />

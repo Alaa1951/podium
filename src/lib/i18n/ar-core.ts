@@ -22,8 +22,8 @@ export const AR_CORE: Phrases = {
   Search: "بحث",
 
   // ── Sign-in copy ──────────────────────────────────────────────────────────
-  "Accounts are issued, never self-created. BFT MENA adds each studio; a studio adds its own competitors.":
-    "الحسابات تُصدر ولا تُنشأ ذاتيًا. BFT MENA تضيف كل استوديو، والاستوديو يضيف متسابقيه.",
+  "Sign in with your email and password. Athletes who signed up here can use this door too.":
+    "ادخل ببريدك الإلكتروني وكلمة المرور. والرياضيون الذين سجّلوا هنا يمكنهم الدخول من هذا الباب أيضًا.",
   "Verification required": "مطلوب التحقق",
   "We sent a six-digit code to": "أرسلنا رمزًا من ستة أرقام إلى",
   "Verification code": "رمز التحقق",
@@ -35,8 +35,8 @@ export const AR_CORE: Phrases = {
   "Incorrect email or password.": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
   "This account has been disabled. Contact BFT MENA.":
     "تم تعطيل هذا الحساب. تواصل مع BFT MENA.",
-  "This account has not been activated yet. Use the link in your invitation email to set a password.":
-    "لم يتم تفعيل هذا الحساب بعد. استخدم الرابط في رسالة الدعوة لتعيين كلمة مرور.",
+  "This account is not active yet. Use the code or the link in the email we sent you, then your password will work.":
+    "لم يُفعَّل هذا الحساب بعد. استخدم الرمز أو الرابط في الرسالة التي أرسلناها لك، وبعدها تعمل كلمة المرور.",
   "Too many attempts. Try again shortly.": "محاولات كثيرة. حاول مرة أخرى بعد قليل.",
   "Something went wrong. Try again.": "حدث خطأ ما. حاول مرة أخرى.",
 

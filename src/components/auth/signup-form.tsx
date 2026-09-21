@@ -119,7 +119,7 @@ export function SignupForm({
           email: form.email,
           phone: form.phone,
           studioId: gym ? undefined : form.studioId || undefined,
-          password: athlete ? undefined : form.password,
+          password: form.password,
           ...(athlete
             ? {
                 dateOfBirth: form.dateOfBirth,
@@ -322,13 +322,15 @@ export function SignupForm({
         )
       )}
 
-      {!athlete
-        ? field(
-            t("Password"),
-            <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={200} />,
-            t(PASSWORD_RULES_SHORT, PASSWORD_RULE_VALUES)
-          )
-        : null}
+      {/* Everybody sets one. A credential belongs with the identity fields,
+          above the competing details, not after a T-shirt size. */}
+      {field(
+        t("Password"),
+        <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={200} />,
+        athlete
+          ? t("You can sign in with this or with an emailed code — whichever you prefer.")
+          : t(PASSWORD_RULES_SHORT, PASSWORD_RULE_VALUES)
+      )}
 
       {athlete ? (
         <>

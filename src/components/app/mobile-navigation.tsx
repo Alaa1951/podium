@@ -4,6 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useT } from "@/components/i18n/locale-provider";
 import { hasContextNavigation, matchesRoute, safeAppPath } from "@/lib/mobile-navigation";
+import {
+  personalNavActivePath,
+  personalNavCommonScreen,
+  personalNavItems,
+} from "@/lib/personal-navigation";
 import { approveHistoryBack, confirmUnsaved, readNavigationTrail } from "@/components/app/mobile-runtime";
 import { NavigationProgress } from "@/components/app/navigation-progress";
 
@@ -44,15 +49,9 @@ export function PersonalMobileNavigation({ role, homeHref, insideBoard = false }
   const path = usePathname();
   const t = useT();
   if (!insideBoard && hasContextNavigation(path)) return null;
-  const items = role === "competitor"
-    ? [{ href: "/me", label: "My team" }, { href: "/my-wave", label: "My wave" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }]
-    : homeHref === "/my-wave" ? [{href:"/my-wave",label:"My wave"},{href:"/results",label:"Results"},{href:"/account",label:"Account"}] : role === "studio"
-      ? [{ href: "/studio", label: "Competitions" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }]
-      : role === "admin" || homeHref === "/"
-        ? [{ href: "/", label: "Dashboard" }, { href: "/series", label: "Competitions" }, { href: "/users", label: "Users" }, { href: "/?menu=more", label: "More" }]
-        : [{ href: "/home", label: "Home" }, { href: "/results", label: "Results" }, { href: "/account", label: "Account" }];
-  const commonScreen = matchesRoute(path, "/account") || matchesRoute(path, "/notifications");
-  const activePath = commonScreen ? "/account" : /^\/series\/[^/]+\/board$/.test(path) ? "/results" : path;
+  const items = personalNavItems(role, homeHref);
+  const commonScreen = personalNavCommonScreen(path, matchesRoute);
+  const activePath = personalNavActivePath(path, commonScreen);
   return <nav className="mobile-tabbar personal-tabbar" aria-label={t("Sections")}>{items.map((item) => {
     const active = item.label === "More" ? commonScreen : matchesRoute(activePath, item.href);
     return <Link key={item.href} href={item.href} prefetch={active ? false : true} data-active={active || undefined} aria-current={active ? "page" : undefined}><MobileIcon href={item.label === "More" ? "/more" : item.href} /><span>{t(item.label)}</span><NavigationProgress /></Link>;

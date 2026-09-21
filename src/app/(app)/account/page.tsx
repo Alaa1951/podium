@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { ACCOUNT_TYPE_LABEL } from "@/components/accounts/account-types";
 import { PlainHeader } from "@/components/app/plain-header";
 import { DeleteAccountPanel } from "@/components/account/delete-account-panel";
@@ -37,10 +35,6 @@ export default async function AccountPage() {
       <PlainHeader roleLabel={t("Account")} homeHref={homeHref} />
 
       <div className="page-shell" style={{ maxWidth: 900, margin: "0 auto", padding: "34px 28px 70px" }}>
-        <Link href={homeHref} className="btn btn-ghost desktop-only" style={{ marginBottom: 16 }}>
-          ← {t("Back")}
-        </Link>
-
         <div className="page-head">
           <div className="page-eyebrow">{user.email}</div>
           <h1 className="page-title">{t("Account security")}</h1>

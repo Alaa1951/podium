@@ -1721,6 +1721,59 @@ tr[data-unscored] td { color: var(--text-muted); }
 }
 .me-links .btn { min-width: 120px; }
 
+/* ── A competitor's navigation on a wide screen ────────────────────────────
+   Everybody else gets the console sidebar; a competitor never does, and the
+   phone's tab bar is display:none above 900px — which left them with no way
+   out of whatever page they were on. `desktop-only` already hides this in
+   both mobile contexts, so no media query is needed here. */
+.personal-rail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px max(16px, var(--safe-right)) 8px max(16px, var(--safe-left));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+.personal-rail a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 13px;
+  position: relative;
+}
+
+.personal-rail a:hover { background: var(--surface-hover); color: var(--text); }
+
+.personal-rail a[data-active] {
+  color: var(--bft-cyan-text);
+  font-weight: 700;
+  background: var(--bft-cyan-soft);
+}
+
+.personal-rail-end { margin-inline-start: auto; }
+
+/* The wide-screen half of the plain header: a way back, and what this screen
+   is called. Its mobile twin is `.mobile-heading`, which is hidden here. */
+.plain-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.plain-header-title strong {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
 /* Privacy policy link under the public footer — both stores require the
    policy to be reachable from inside the app. */
 .public-privacy {
