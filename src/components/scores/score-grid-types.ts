@@ -16,6 +16,8 @@ export type GridTeam = {
   paymentStatus: PaymentStatus;
   /** Set when the entry arrived after registration closed. Null = in the field. */
   waitlistedAt: Date | null;
+  /** The pair's own photograph, shown on the open score sheet. */
+  groupPortraitPath: string | null;
   values: EntryValues;
   /**
    * The totals of the other SUBMITTED teams in this team's own bracket, so the

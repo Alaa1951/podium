@@ -123,6 +123,17 @@ export function ScoreTeamEntry({
       ) : null}
 
       <div className="team-entry-head">
+        {/* The pair, so whoever is entering a score can see they have the right
+            team in front of them without reading two names off a sheet. */}
+        {team.groupPortraitPath ? (
+          // A fixed-size thumbnail of a path we already serve.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={team.groupPortraitPath}
+            alt=""
+            className="team-entry-photo"
+          />
+        ) : null}
         <span className="pd-num team-entry-num">{team.number}</span>
         <span className="team-entry-id">
           <span className="team-entry-name">{team.name}</span>

@@ -7,6 +7,7 @@ import { useT } from "@/components/i18n/locale-provider";
 import { setAttendance, setPayment } from "@/lib/actions/payments";
 import { archiveTeam, restoreTeam } from "@/lib/actions/team-people";
 import { setWaitlist } from "@/lib/actions/waitlist";
+import { AthleteAvatar } from "@/components/app/athlete-avatar";
 import { RowPair } from "@/components/admin/registered-row";
 import { DetailLink } from "@/components/app/detail-link";
 import { useIsMobile } from "@/components/app/use-mobile";
@@ -53,6 +54,8 @@ export type RegisteredRow = {
     phone: string | null;
     email: string | null;
     studioName: string | null;
+    /** Their portrait, or null for the shared default (athlete-photo.ts). */
+    photoPath: string | null;
   }[];
 };
 
@@ -266,6 +269,7 @@ export function RegisteredTable({
                       <td>
                         {row.people.map((person) => (
                           <div key={person.fullName} className="reg-person">
+                            <AthleteAvatar photoPath={person.photoPath} name={person.fullName} />
                             <span>{person.fullName}</span>
                           </div>
                         ))}

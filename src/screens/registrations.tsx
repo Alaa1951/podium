@@ -94,6 +94,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       phone: person.phone,
       email: person.email,
       studioName: person.studioName,
+      photoPath: person.photoPath,
     })),
   }));
 
@@ -122,6 +123,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       phone: person.phone,
       email: person.email,
       studioName: person.studioName,
+      photoPath: person.photoPath,
     })),
   }));
 

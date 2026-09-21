@@ -76,4 +76,4 @@ debug.log
 # Scratch left by local QA runs — evidence scripts and one-off probes. Kept on
 # the machine that made them, never committed.
 .tmp-qa/
-.tmp-*.mjs
+.tmp-*

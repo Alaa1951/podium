@@ -29,6 +29,8 @@ export type BoardTeam = {
    * this app serves, default included (athlete-photo.ts).
    */
   portraits: string[];
+  /** The pair in one picture — what a rig screen shows above the name. */
+  groupPortrait: string | null;
   studioName: string | null;
   submitted: boolean;
   /** Points per zone, in board order — as many as the series defines. The
@@ -137,6 +139,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
         station: team.station,
         competitors: team.competitors.map((a) => a.fullName),
         portraits: team.competitors.map((a) => athletePhoto(a.photoPath)),
+        groupPortrait: team.groupPortraitPath ? athletePhoto(team.groupPortraitPath) : null,
         studioName: team.studioName,
         submitted: team.submitted,
         zones: team.zones.map((zone) => ({

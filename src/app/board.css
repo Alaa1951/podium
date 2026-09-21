@@ -594,3 +594,25 @@
   max-width: clamp(88px, min(20vw, 26vh), 300px);
   overflow-wrap: anywhere;
 }
+
+/* The team photograph on a rig screen. Wider than a portrait and the first
+   thing read from across the floor, so it takes the height the name leaves. */
+.station-group {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 1vh, 12px);
+  min-width: 0;
+}
+
+.station-group-img {
+  width: 100%;
+  max-width: min(100%, 92vh);
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: #07073d;
+  display: block;
+}

@@ -128,24 +128,35 @@ function StationBody({ view }: { view: StationView }) {
 
   return (
     <div className="station-screen-body">
-      {/* The pair's faces, above their name — the framing the reference boards
-          use. `portraits` is resolved on the server and is index-aligned with
-          `competitors`, so the caption under a face belongs to that face. */}
-      <div className="station-portraits">
-        {view.team.competitors.map((name, index) => (
-          <figure className="station-portrait" key={`${name}-${index}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- a wall
-                screen loads one of these and holds it for a whole wave; the
-                optimiser buys nothing and adds a request path to go wrong. */}
-            <img
-              src={view.team.portraits[index] ?? DEFAULT_ATHLETE_PHOTO}
-              alt=""
-              className="station-portrait-img"
-            />
-            <figcaption className="station-portrait-name">{name}</figcaption>
-          </figure>
-        ))}
-      </div>
+{/* THE PAIR, IN ONE PICTURE, when they have one — the team photograph is
+          made for exactly this screen, and two separate crops beside each other
+          is what it replaced. Falls back to the individual portraits for a team
+          whose composite has not been generated yet, so a rig is never blank. */}
+      {view.team.groupPortrait ? (
+        <figure className="station-group">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a wall screen
+              loads this once and holds it for a whole wave; the optimiser buys
+              nothing and adds a request path to go wrong. */}
+          <img src={view.team.groupPortrait} alt="" className="station-group-img" />
+          <figcaption className="station-portrait-name">
+            {view.team.competitors.filter(Boolean).join(" & ")}
+          </figcaption>
+        </figure>
+      ) : (
+        <div className="station-portraits">
+          {view.team.competitors.map((name, index) => (
+            <figure className="station-portrait" key={`${name}-${index}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- as above. */}
+              <img
+                src={view.team.portraits[index] ?? DEFAULT_ATHLETE_PHOTO}
+                alt=""
+                className="station-portrait-img"
+              />
+              <figcaption className="station-portrait-name">{name}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
 
       {/* The team name, as big as the box allows. Everything else is a caption. */}
       <h1 className="station-screen-team display">{view.team.name}</h1>

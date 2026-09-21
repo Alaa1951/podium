@@ -38,7 +38,7 @@ const eslintConfig = defineConfig([
     // already, but eslint does not read .gitignore, so a tester's leftovers
     // would otherwise turn `npm run verify` yellow on a clean tree.
     ".tmp-qa/**",
-    ".tmp-*.mjs",
+    ".tmp-*",
     "capacitor-web/capacitor.js",
     "android/app/src/main/assets/public/**",
     "ios/App/App/public/**",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { AthleteAvatar } from "@/components/app/athlete-avatar";
 import { useT } from "@/components/i18n/locale-provider";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import type { RegisteredRow } from "@/components/admin/registered-table";
@@ -59,7 +60,8 @@ export function RowPair({
               <div>
                 <div className="console-group-title">{t("Contact")}</div>
                 {row.people.map((person, index) => (
-                  <div key={person.fullName} style={{ marginTop: 8 }}>
+                  <div key={person.fullName} style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
+                    <AthleteAvatar photoPath={person.photoPath} name={person.fullName} size={44} />
                     <div style={{ fontWeight: 600 }}>
                       {detailOnly && person.id ? <DetailLink href={`${path}/people/${person.id}`} className="linkish">{index + 1}. {person.fullName}</DetailLink> : <>{index + 1}. {person.fullName}</>}
                     </div>
@@ -264,6 +266,7 @@ export function RowPair({
         <td>
           {row.people.map((person) => (
             <div key={person.fullName} className="reg-person">
+              <AthleteAvatar photoPath={person.photoPath} name={person.fullName} />
               <span>{person.fullName}</span>
               <span className={person.studioName ? "badge badge-cyan" : "badge badge-neutral"}>
                 {person.studioName ?? t("Non-member")}

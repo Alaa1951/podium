@@ -78,6 +78,8 @@ export type TeamRow = {
   paymentStatus: PaymentStatus;
   /** Set when the entry arrived after registration closed. Null = in the field. */
   waitlistedAt: Date | null;
+  /** The pair's own photograph, or null before one is made. */
+  groupPortraitPath: string | null;
   source: RegistrationSource;
   registeredAt: Date;
   paidAt: Date | null;
@@ -138,6 +140,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
 
     paymentStatus: team.paymentStatus,
     waitlistedAt: team.waitlistedAt,
+    groupPortraitPath: team.groupPortraitPath,
     source: team.source,
     registeredAt: team.registeredAt,
     paidAt: team.paidAt,

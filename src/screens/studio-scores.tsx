@@ -51,6 +51,7 @@ export default async function StudioScoresPage(props: SeriesScreenProps, detailI
     scoreEdits: team.scoreEdits,
     paymentStatus: team.paymentStatus,
     waitlistedAt: team.waitlistedAt,
+    groupPortraitPath: team.groupPortraitPath,
     values: team.values,
     peerTotals: teams
       .filter(

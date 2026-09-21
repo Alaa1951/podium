@@ -51,6 +51,7 @@ function team(number: number, waveNumber: number, station: number | null): Board
     station,
     competitors: ["A", "B"],
     portraits: ["/brand/athlete-default.svg", "/brand/athlete-default.svg"],
+    groupPortrait: null,
     studioName: "Studio A",
     submitted: false,
     zones: [],

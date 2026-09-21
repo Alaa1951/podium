@@ -1079,3 +1079,29 @@ select.input { cursor: pointer; }
 .signup-field { display: block; margin-top: 12px; }
 .signup-hint { display: block; margin-top: 4px; font-size: 12px; color: var(--on-navy-secondary); }
 .signup-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 12px; }
+
+/* A face at thumbnail size — the crop is the point, not the frame.
+   Round, like every address book, so it reads as a person and not a photo. */
+.athlete-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface-2, #ececf5);
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* The pair's photograph on an open score sheet — confirmation that the right
+   team is in front of whoever is typing, not decoration. */
+.team-entry-photo {
+  width: 96px;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  display: block;
+}
+@media (max-width: 560px) {
+  .team-entry-photo { width: 64px; }
+}
