@@ -84,8 +84,22 @@ npm run build
 node server.js
 ```
 
-Delete any `.env` that ends up inside `.next/standalone` — `next build` copies
-the developer's one in, and it must not shadow the host's environment.
+`npm run build` now finishes the standalone bundle itself (`postbuild` →
+`scripts/finish-standalone.mjs`): it copies `.next/static` and `public/` into
+`.next/standalone`. Running that copy again in a deploy script is harmless.
+
+It was a manual step, and it fails silently when forgotten: the server starts
+and renders pages while every JavaScript chunk 404s. Nothing hydrates, and a
+sign-in form falls back to a native GET that puts the password in the query
+string. (The auth forms now carry `method="post"` so that last part cannot
+happen, but the page is still dead.)
+
+**The `.env` deletion below is still by hand, and deliberately so.** Delete the
+`.env` inside `.next/standalone` only when the bundle was built on a LAPTOP and
+is being shipped to a host — that one is the developer's and would shadow the
+host's environment. When the build runs ON the host, the `.env` copied in is
+the host's own and deleting it takes the database away from the server. No
+script can tell the two apart, so neither does this one.
 
 ### Production — Hostinger VPS
 

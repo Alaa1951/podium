@@ -219,8 +219,13 @@ export default async function MyPage(editMode = false) {
       {team.waitlistedAt ? (
         <div className="notice" style={{ marginBottom: 18 }} role="status">
           <strong>{t("You are on the waiting list.")}</strong>{" "}
+          {/* Deliberately does not say WHY. Most people here signed up after
+              the deadline — but staff can move an entry onto the list too, and
+              telling somebody they "entered after registration closed" when
+              they did not is a small lie they would have to argue with. What
+              they need is their position and what happens next. */}
           {t(
-            "You entered after registration closed for this competition. You keep your place in the queue, and we will email you if a place comes free."
+            "You do not have a place in this competition yet. You keep your place in the queue, and we will email you if one comes free."
           )}{" "}
           {team.paidAt
             ? t("Your payment is recorded and will not be lost — but it does not hold a place.")

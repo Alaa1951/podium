@@ -241,6 +241,7 @@ export function SignupForm({
   if (stage === "code") {
     return (
       <form
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           void verify();
@@ -293,6 +294,7 @@ export function SignupForm({
 
   return (
     <form
+      method="post"
       onSubmit={(e) => {
         e.preventDefault();
         submit();

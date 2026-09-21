@@ -70,6 +70,7 @@ export function CompetitorLoginForm() {
   if (stage === "email") {
     return (
       <form
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           ask();
@@ -113,6 +114,7 @@ export function CompetitorLoginForm() {
 
   return (
     <form
+      method="post"
       onSubmit={(e) => {
         e.preventDefault();
         void verify();

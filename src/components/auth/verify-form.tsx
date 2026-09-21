@@ -90,7 +90,7 @@ export function VerifyForm({
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <form method="post" onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <p style={{ fontSize: 13, color: "var(--on-navy-secondary)", textAlign: "center", margin: 0 }}>
         {t("We sent a six-digit code to")} <strong style={{ color: "var(--on-navy)" }}>{email}</strong>
       </p>

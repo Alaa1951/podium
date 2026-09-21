@@ -93,7 +93,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <form method="post" onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <label className="field-label-dark" htmlFor="email">
           {t("Email")}

@@ -32,7 +32,8 @@
     "mobile:ios": "npx cap open ios",
     "mobile:fixtures": "node scripts/mobile-fixtures.mjs",
     "test:mobile": "playwright test",
-    "test:mobile:quick": "playwright test --project=chromium-390-en-dark --project=webkit-390-en-dark"
+    "test:mobile:quick": "playwright test --project=chromium-390-en-dark --project=webkit-390-en-dark",
+    "postbuild": "node scripts/finish-standalone.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

@@ -94,6 +94,7 @@ export const AR_MOBILE: Phrases = {
 
   // ── The waiting list ───────────────────────────────────────────────────────
   "Waiting list": "قائمة الانتظار",
+  "Signed up": "تسجيل ذاتي",
   Place: "المكان",
   "Field and waiting list": "الميدان وقائمة الانتظار",
   "In the field": "في الميدان",
@@ -104,8 +105,8 @@ export const AR_MOBILE: Phrases = {
   "On the waiting list since registration closed. Admitting them gives them a place; it does not confirm any payment.":
     "في قائمة الانتظار منذ إغلاق التسجيل. قبولهم يمنحهم مكانًا، ولا يُعدّ تأكيدًا لأي دفع.",
   "You are on the waiting list.": "أنت في قائمة الانتظار.",
-  "You entered after registration closed for this competition. You keep your place in the queue, and we will email you if a place comes free.":
-    "تم تسجيلك بعد إغلاق التسجيل لهذه البطولة. مكانك في الطابور محفوظ، وسنراسلك إن توفّر مكان.",
+  "You do not have a place in this competition yet. You keep your place in the queue, and we will email you if one comes free.":
+    "ليس لديك مكان في هذه البطولة بعد. ترتيبك في الطابور محفوظ، وسنراسلك إن توفّر مكان.",
   "Your payment is recorded and will not be lost — but it does not hold a place.":
     "دفعتك مسجّلة ولن تُفقد — لكنها لا تحجز مكانًا.",
   "cash at the door, card, transfer…": "نقدًا عند الحضور أو بطاقة أو تحويل…",

@@ -104,6 +104,9 @@ export const AR_FLOOR: Phrases = {
   "Screens for the floor": "شاشات أرض البطولة",
   "Open one on the screen above each rig. It follows the wave in that zone by itself.":
     "افتح واحدة على الشاشة فوق كل محطة، وستتابع الموجة في تلك المنطقة تلقائيًا.",
+  Unscheduled: "خارج الجدول",
+  "These teams point at Wave {n}, which is not in the running order. Add that wave, or move them.":
+    "هذه الفرق مرتبطة بالموجة {n} وهي غير موجودة في الجدول. أضف تلك الموجة أو انقل الفرق.",
   Changeover: "فترة التبديل",
   "No wave in this zone right now.": "لا توجد موجة في هذه المنطقة الآن.",
   "This rig is not in use for this wave.": "هذه المحطة غير مستخدمة في هذه الموجة.",

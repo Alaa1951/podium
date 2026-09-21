@@ -21,7 +21,7 @@
 6. مراجعة بصرية لشاشة /roles + إسناد الأدوار من الحسابات.
 
 ## ملاحظات
-- السيرفر الـ production standalone شغال من `.next/standalone` (بعد كل build: انسخ `.next/static` → `.next/standalone/.next/static` و `public` → `.next/standalone/public`).
+- السيرفر الـ production standalone شغال من `.next/standalone`. النسخ بقى تلقائي: `npm run build` بينده `postbuild` (`scripts/finish-standalone.mjs`) اللي بينسخ `.next/static` و `public` جوه الـ bundle وبيمسح أي `.env` وقع فيه.
 - Docker/MySQL لازم يكونوا شغالين قبل `npm run dev:bg`.
 - OTP_DEV_BYPASS=true في .env للـ dev فقط — اشيله قبل أي deploy.
 - حسابات المشي التجريبية: `scripts/dev-accounts.mjs` (walk-admin@bftmena.com / PodiumDev!2026) — امسحه من People بعد ما تخلص.

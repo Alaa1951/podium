@@ -164,12 +164,17 @@ export function OrphanCard({
   return (
     <BlueprintCard style={{ padding: "14px 16px" }}>
       <div className="wave-card-head">
-        <div className="wave-card-number">
-          {t("Wave")} {number}
-        </div>
+        {/* NOT "Wave {n}". This bucket is not a wave — it is the teams that
+            point at one which does not exist. Headed with the number, it reads
+            as a real wave sitting among the real ones, and on a screen that
+            already lists Wave 1, Wave 2, Wave 3 that is a trap for the eye. */}
+        <div className="wave-card-number">{t("Unscheduled")}</div>
         <span className="badge badge-warn">{t("Not in the running order")}</span>
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          {t("These teams have no wave to be started in. Add the wave, or move them.")}
+          {t(
+            "These teams point at Wave {n}, which is not in the running order. Add that wave, or move them.",
+            { n: number }
+          )}
         </div>
       </div>
 

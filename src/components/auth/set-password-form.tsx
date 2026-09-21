@@ -74,7 +74,7 @@ export function SetPasswordForm({
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <form method="post" onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
         <label className="field-label-dark" htmlFor="password">
           {t("New password")}
