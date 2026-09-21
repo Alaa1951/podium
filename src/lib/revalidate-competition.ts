@@ -20,6 +20,12 @@ export function revalidateCompetitionViews() {
   for (const path of [
     "/(app)/(studio)/studio",
     "/(app)/(board)/series/[series]/board",
+    // The screens over the rigs. They poll for themselves every ten seconds,
+    // but their FIRST render is the server's — and a screen switched on mid-
+    // competition would otherwise open on a cached floor from before the
+    // change, and sit on it until the first poll.
+    "/(app)/(board)/series/[series]/station/[zone]/[station]",
+    "/(app)/(board)/series/[series]/zone/[zone]/stations",
     "/(app)/(me)/me",
     "/(app)/(me)/me/edit",
     // Pairing a team clears "looking for a partner" on both sides, so the

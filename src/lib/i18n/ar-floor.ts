@@ -99,4 +99,12 @@ export const AR_FLOOR: Phrases = {
   "Another studio's team is on that station.": "يوجد فريق لاستوديو آخر على هذه المحطة.",
   "The floor holds nine teams at once, one per station, so the field is dealt into waves. Each team keeps its station in every zone. Timing comes from the competition settings; each wave carries its own estimated start.":
     "أرض البطولة تتسع لتسعة فرق في نفس الوقت، فريق لكل محطة، لذلك تُوزع الفرق على موجات. كل فريق يحتفظ بمحطته في كل المناطق. التوقيت من إعدادات البطولة، ولكل موجة موعد بداية تقديري خاص بها.",
+
+  // ── The screens over the rigs ──────────────────────────────────────────────
+  "Screens for the floor": "شاشات أرض البطولة",
+  "Open one on the screen above each rig. It follows the wave in that zone by itself.":
+    "افتح واحدة على الشاشة فوق كل محطة، وستتابع الموجة في تلك المنطقة تلقائيًا.",
+  Changeover: "فترة التبديل",
+  "No wave in this zone right now.": "لا توجد موجة في هذه المنطقة الآن.",
+  "This rig is not in use for this wave.": "هذه المحطة غير مستخدمة في هذه الموجة.",
 };

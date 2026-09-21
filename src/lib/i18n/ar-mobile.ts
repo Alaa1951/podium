@@ -94,6 +94,10 @@ export const AR_MOBILE: Phrases = {
 
   // ── The waiting list ───────────────────────────────────────────────────────
   "Waiting list": "قائمة الانتظار",
+  Place: "المكان",
+  "Field and waiting list": "الميدان وقائمة الانتظار",
+  "In the field": "في الميدان",
+  Waiting: "في الانتظار",
   "no — waiting list": "لا — في قائمة الانتظار",
   "Admit from the waiting list": "قبول من قائمة الانتظار",
   "Move to the waiting list": "نقل إلى قائمة الانتظار",

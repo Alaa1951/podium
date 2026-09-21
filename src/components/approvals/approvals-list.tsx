@@ -114,6 +114,15 @@ function RequestCard({
             <dd>{request.requestedStudioLabel}</dd>
           </>
         ) : null}
+        {/* Which competition they asked for. Shown because approving them may
+            ENTER them in it (enter-pair.ts) — the approver should not have to
+            find that out afterwards. */}
+        {request.requestedSeriesName ? (
+          <>
+            <dt>{t("Competition")}</dt>
+            <dd>{request.requestedSeriesName}</dd>
+          </>
+        ) : null}
         {gym ? (
           <>
             <dt>{t("New gym")}</dt>

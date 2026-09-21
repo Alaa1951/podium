@@ -222,7 +222,7 @@ export default async function MyPage(editMode = false) {
           {t(
             "You entered after registration closed for this competition. You keep your place in the queue, and we will email you if a place comes free."
           )}{" "}
-          {team.paymentStatus === "paid"
+          {team.paidAt
             ? t("Your payment is recorded and will not be lost — but it does not hold a place.")
             : null}
         </div>

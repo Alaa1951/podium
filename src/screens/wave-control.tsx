@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { SeriesScreenProps } from "@/screens/types";
 
 import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
@@ -5,7 +7,7 @@ import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
-import { requireSeries } from "@/lib/require-series";
+import { requireSeries, seriesHref } from "@/lib/require-series";
 import { requireAccess } from "@/lib/session";
 import { judgeCandidates, listZoneStaff } from "@/lib/zone-staff";
 
@@ -71,6 +73,32 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
         <div className="notice" style={{ marginBottom: 16 }}>
           {t("Waves can only be started while the competition is running. Set it to Running in Settings first.")}
         </div>
+      ) : null}
+
+      {/* The screens that hang over the floor. Addressed by zone, because a
+          team keeps its station number through every zone of its wave — so a
+          link per zone is the thing somebody actually opens on a wall screen.
+          Without these the routes exist and nobody can find them. */}
+      {zones.length ? (
+        <>
+          <div className="console-group-title" style={{ marginTop: 22 }}>
+            {t("Screens for the floor")}
+          </div>
+          <p className="reg-sub" style={{ marginTop: 4 }}>
+            {t("Open one on the screen above each rig. It follows the wave in that zone by itself.")}
+          </p>
+          <div className="me-links" style={{ marginTop: 8 }}>
+            {zones.map((zone) => (
+              <Link
+                key={zone.id}
+                href={`${seriesHref(series.slug)}/zone/${zone.number}/stations`}
+                className="btn btn-secondary"
+              >
+                {t("Zone")} {zone.number}
+              </Link>
+            ))}
+          </div>
+        </>
       ) : null}
 
       <WaveFloor

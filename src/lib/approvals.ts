@@ -46,6 +46,8 @@ export type PendingSignup = {
   requestedStudioName: string | null;
   requestedStudioLabel: string | null;
   requestedCity: string | null;
+  /** The competition they chose at sign-up, if any — approving may enter them. */
+  requestedSeriesName: string | null;
   signupAt: string | null;
   athlete: {
     division: string | null;
@@ -81,6 +83,7 @@ export async function listPendingSignups(user: CurrentUser): Promise<PendingSign
       requestedStudioName: true,
       requestedCity: true,
       requestedStudio: { select: { name: true } },
+      requestedSeries: { select: { name: true } },
       athleteProfile: {
         select: {
           division: true,
@@ -106,6 +109,7 @@ export async function listPendingSignups(user: CurrentUser): Promise<PendingSign
     requestedStudioName: row.requestedStudioName,
     requestedStudioLabel: row.requestedStudio?.name ?? null,
     requestedCity: row.requestedCity,
+    requestedSeriesName: row.requestedSeries?.name ?? null,
     signupAt: day(row.signupAt),
     athlete: row.athleteProfile
       ? {

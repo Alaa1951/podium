@@ -18,6 +18,9 @@ export type BoardTeam = {
   category: Category;
   division: Division;
   wave: number;
+  /** The rig (1–9) this team stands on in every zone of its wave. The station
+   *  screens are addressed by (zone x station), and this is the second half. */
+  station: number | null;
   competitors: string[];
   studioName: string | null;
   submitted: boolean;
@@ -124,6 +127,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
         category: team.category,
         division: team.division,
         wave: team.wave,
+        station: team.station,
         competitors: team.competitors.map((a) => a.fullName),
         studioName: team.studioName,
         submitted: team.submitted,

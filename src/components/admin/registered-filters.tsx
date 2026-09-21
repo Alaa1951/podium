@@ -7,7 +7,7 @@ import { useT } from "@/components/i18n/locale-provider";
 import { FilterSheet } from "@/components/app/filter-sheet";
 
 /**
- * One search box and three filters, all of them in the URL.
+ * One search box and four filters, all of them in the URL.
  *
  * In the URL rather than in component state, so a filtered list can be sent to
  * somebody, reloaded, or arrived at from the dashboard's figures — clicking
@@ -16,6 +16,7 @@ import { FilterSheet } from "@/components/app/filter-sheet";
 export function RegisteredFilters({
   query,
   payment,
+  place,
   membership,
   wave,
   showing,
@@ -23,6 +24,8 @@ export function RegisteredFilters({
 }: {
   query: string;
   payment: string;
+  /** A place in the field, or the waiting list. NOT a payment state. */
+  place: string;
   membership: string;
   wave: string;
   showing: number;
@@ -61,7 +64,7 @@ export function RegisteredFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
-  const clear = query || payment !== "all" || membership !== "all" || wave !== "all";
+  const clear = query || payment !== "all" || place !== "all" || membership !== "all" || wave !== "all";
 
   return (
     <div className="reg-filters">
@@ -84,6 +87,21 @@ export function RegisteredFilters({
           { value: "paid", label: t("Paid") },
           { value: "pending", label: t("Awaiting payment") },
           { value: "refunded", label: t("Refunded") },
+        ]}
+      />
+
+      {/* Its own filter, beside Payment and never inside it. A place and a
+          payment are different facts, and an entry can be paid and still be
+          waiting — which is the whole rule. Staff also need a way to FIND the
+          queue in order to admit anybody from it. */}
+      <Select
+        label={t("Place")}
+        value={place}
+        onChange={(value) => apply({ place: value })}
+        options={[
+          { value: "all", label: t("Field and waiting list") },
+          { value: "field", label: t("In the field") },
+          { value: "waiting", label: t("Waiting list") },
         ]}
       />
 
@@ -120,7 +138,7 @@ export function RegisteredFilters({
             disabled={pending}
             onClick={() => {
               setText("");
-              apply({ q: "", payment: "all", membership: "all", wave: "all" });
+              apply({ q: "", payment: "all", place: "all", membership: "all", wave: "all" });
             }}
             style={{ marginInlineStart: 8 }}
           >

@@ -423,3 +423,135 @@
   .sponsor-rail,
   .sponsor-slot { transition: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE SCREENS OVER THE RIGS.
+
+   Read from ten metres by somebody out of breath, so the team name is sized
+   against the VIEWPORT rather than a type scale — one line, as large as the box
+   allows, and everything else a caption under it.
+
+   Distinct from `.station-cell` in ui.css, which is the operator's compact
+   strip on a laptop. Same word, opposite problem.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.station-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: clamp(16px, 3vw, 40px);
+  gap: clamp(12px, 2vh, 28px);
+}
+
+.station-screen-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.station-screen-kicker {
+  font-size: clamp(14px, 2vw, 26px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bft-cyan-text);
+}
+
+/* The rig number: the one thing that identifies WHICH screen this is, so it
+   stays legible even when the zone holds no wave. */
+.station-screen-rig {
+  font-size: clamp(40px, 8vw, 120px);
+  line-height: 1;
+  color: var(--bft-cyan-text);
+}
+
+.station-screen-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(8px, 1.5vh, 20px);
+  min-width: 0;
+}
+
+.station-screen-team {
+  margin: 0;
+  font-size: clamp(36px, 11vw, 190px);
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+}
+
+.station-screen-people {
+  margin: 0;
+  font-size: clamp(16px, 3vw, 46px);
+  color: #c6c6ff;
+  overflow-wrap: anywhere;
+}
+
+.station-screen-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(10px, 2vw, 32px);
+  font-size: clamp(13px, 1.8vw, 28px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9a9aff;
+}
+
+/* The changeover, called out: during it the pair is still on the rig and the
+   judge is still writing their sheet. */
+.station-screen-meta [data-phase="break"] { color: var(--bft-cyan-text); }
+
+.station-screen-idle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(18px, 3.5vw, 52px);
+  color: #9a9aff;
+}
+
+.station-screen-wave {
+  text-align: center;
+  font-size: clamp(14px, 2vw, 30px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a9aff;
+}
+
+/* One screen for a whole zone, when there are fewer screens than rigs. */
+.station-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(140px, 22vw, 280px), 1fr));
+  gap: clamp(8px, 1.5vw, 20px);
+  align-content: center;
+}
+
+.station-card {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.5vw, 20px);
+  padding: clamp(10px, 1.6vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  min-width: 0;
+}
+
+.station-card[data-empty] { opacity: 0.4; }
+
+.station-card-rig {
+  font-size: clamp(24px, 4vw, 64px);
+  line-height: 1;
+  color: var(--bft-cyan-text);
+  flex-shrink: 0;
+}
+
+.station-card-team {
+  font-size: clamp(14px, 2.2vw, 34px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
