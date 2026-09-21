@@ -6,7 +6,10 @@ import { prisma as defaultPrisma } from "@/lib/prisma";
 import { checkCaps, releaseDailySlot } from "@/lib/portraits/spend-cap";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAKING A PHOTO IN.
+// IMAGE BYTES, IN AND OUT.
+//
+// Both directions live here so that `sharp` is imported in exactly one place
+// and "what happens to an image" has one file to read.
 //
 // Plain functions rather than the route handler itself, so the rules that
 // matter — who may upload against which seat, whether consent was given, and
@@ -76,6 +79,31 @@ export async function normalisePhoto(
     return { b64: out.toString("base64"), mime: "image/jpeg" };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Shrink what the image API returned, before it is stored.
+ *
+ * MEASURED, not guessed: a real call came back as a 1024x1024 PNG of 1.4MB,
+ * which is ~1.9MB once base64'd. Two portraits and a composite is ~5.7MB per
+ * team — in the database, and in every nightly mysqldump, for ever. The same
+ * picture as JPEG is a fraction of that and no worse on a rig screen at four
+ * metres.
+ *
+ * PNG in, JPEG out. If the encode fails the original is kept rather than the
+ * portrait being lost over a size optimisation.
+ */
+export async function compressForStorage(
+  image: { imageB64: string; mimeType: string }
+): Promise<{ imageB64: string; mimeType: string }> {
+  try {
+    const out = await sharp(Buffer.from(image.imageB64, "base64"))
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+    return { imageB64: out.toString("base64"), mimeType: "image/jpeg" };
+  } catch {
+    return image;
   }
 }
 

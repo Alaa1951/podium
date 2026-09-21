@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { createPortraitClient, type PortraitClient } from "@/lib/portraits/openai-client";
+import { compressForStorage } from "@/lib/portraits/upload";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE WORKER.
@@ -160,10 +161,13 @@ export async function runOne(
         await finishFailed(prisma, job, now, "Nothing to work from", maxRetries);
         return;
       }
-      const result = await client.restylePortrait({
+      const generated = await client.restylePortrait({
         imageB64: job.sourceB64,
         mimeType: job.sourceMime,
       });
+      // A real call returns a ~1.4MB PNG; stored as-is that is ~1.9MB of
+      // base64 per face, in the database and in every backup.
+      const result = await compressForStorage(generated);
       const portrait = await prisma.competitorPortrait.create({
         data: {
           competitorId: job.competitorId,
@@ -208,10 +212,11 @@ export async function runOne(
     const a = sources.find((one) => one.id === job.inputPortraitIdA)!;
     const b = sources.find((one) => one.id === job.inputPortraitIdB)!;
 
-    const result = await client.compositeTeam({
+    const composed = await client.compositeTeam({
       a: { imageB64: a.imageB64, mimeType: a.mimeType },
       b: { imageB64: b.imageB64, mimeType: b.mimeType },
     });
+    const result = await compressForStorage(composed);
     const teamPortrait = await prisma.teamPortrait.create({
       data: {
         teamId: job.teamId,

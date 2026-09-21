@@ -17,9 +17,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("server-only", () => ({}));
-vi.mock("sharp", () => ({ default: () => ({}) }));
+// A stand-in that behaves like sharp's chainable API for the one thing these
+// tests need: `compressForStorage` producing smaller bytes than it was given.
+vi.mock("sharp", () => ({
+  default: () => {
+    const chain = {
+      rotate: () => chain,
+      resize: () => chain,
+      jpeg: () => chain,
+      toBuffer: async () => Buffer.from("small"),
+    };
+    return chain;
+  },
+}));
 
-import { MAX_UPLOAD_BYTES, queuePortrait } from "@/lib/portraits/upload";
+import { compressForStorage, MAX_UPLOAD_BYTES, queuePortrait } from "@/lib/portraits/upload";
 
 const NOW = new Date("2026-09-21T13:00:00.000Z");
 const bytes = Buffer.from("pretend-this-is-a-jpeg");
@@ -167,5 +179,18 @@ describe("the budget", () => {
     await queuePortrait(input(), db as unknown as Db, normalise);
     expect(db.days.get("2026-09-21")).toBe(1);
     expect(db.created).toHaveLength(1);
+  });
+});
+
+describe("what is stored after generation", () => {
+  it("re-encodes the API's PNG, because the raw one is enormous", async () => {
+    // Measured against a real call: 1024x1024 came back as a 1.4MB PNG, which
+    // is ~1.9MB of base64 per face — in the database and in every nightly
+    // mysqldump. Storing the JPEG instead is the difference between half a
+    // gigabyte and twenty megabytes at a hundred teams.
+    const huge = { imageB64: Buffer.alloc(200_000).toString("base64"), mimeType: "image/png" };
+    const stored = await compressForStorage(huge);
+    expect(stored.mimeType).toBe("image/jpeg");
+    expect(stored.imageB64.length).toBeLessThan(huge.imageB64.length);
   });
 });
