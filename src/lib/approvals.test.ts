@@ -24,6 +24,13 @@ vi.mock("@/lib/audit", () => ({ AUDIT: { signupApproved: "signup.approved", sign
 vi.mock("@/lib/email", () => ({ sendSignupDecisionEmail: mocks.email }));
 vi.mock("@/lib/security", () => ({ getBaseUrl: () => "https://podium.test" }));
 vi.mock("@/lib/session", () => ({ requireAccess: async () => mocks.actor }));
+// Approving an athlete may ENTER them in a competition, but that bridge has
+// its own tests (enter-pair.test.ts) and running it here made this file the
+// slowest in the suite — slow enough to time out under parallel load and fail
+// on the clock rather than on behaviour. This file is about the DECISION.
+vi.mock("@/lib/enter-pair", () => ({
+  enterPairIfReady: async () => ({ entered: false, reason: "NO_COMPETITION" }),
+}));
 vi.mock("@/lib/prisma", () => {
   const tx = {
     user: { updateMany: mocks.updateMany },
