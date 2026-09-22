@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 // module in place means re-adding that call makes these tests fail, which is
 // the only way the mistake announces itself.
 
-const { claimSync, releaseSync, runSync, crmSyncEnabled } = await import("@/lib/crm/sync");
+const { claimSync, releaseSync, runSync, startCrmPoller, crmSyncEnabled } = await import("@/lib/crm/sync");
 
 /**
  * A stand-in for the one `CrmSyncState` row whose `updateMany` honours its
@@ -424,6 +424,105 @@ describe("runSync", () => {
     expect(db.crmIntake.deleteMany).toHaveBeenCalledWith({
       where: { seriesId: "series-1", externalId: { notIn: [] } },
     });
+  });
+
+  // A REHEARSAL MUST NOT SOUND LIKE A WRITE. The dry run reports the counts a
+  // real poll WOULD produce — that is what makes it useful — so the poller's
+  // completion line once read "[CRM:poll] created 56" while nothing had been
+  // written. It frightened the person watching the log, and worse: it meant
+  // the real line afterwards proved nothing, because a rehearsal could say
+  // the same words. Found by a human reading a live journal, not by a test.
+  // It drives the POLLER, not `runSync` — the offending line lives in the
+  // interval's completion callback, and a test that called `runSync` here
+  // passed happily with the bug still in place.
+  it("says nothing on the poll line during a dry run", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.useFakeTimers();
+    let stop = () => {};
+    try {
+      // A dry run over a CRM with something in it. An EMPTY one plans zero
+      // creates, and the offending line was guarded on the count being
+      // non-zero — so an empty fixture never reached the bug and the first
+      // version of this test passed with it still in place.
+      const client = {
+        ...emptyClient(),
+        listPipelines: vi.fn(async () => [
+          { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+        ]),
+        listContacts: vi.fn(async () => [
+          {
+            id: "c1",
+            contactName: "Sample Person",
+            customFields: [
+              { id: FIELD.category, value: ["MEN"] },
+              { id: FIELD.division, value: ["OPEN"] },
+            ],
+          },
+        ]),
+        listOpportunities: vi.fn(async () => [
+          { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+        ]),
+      };
+
+      stop = startCrmPoller({
+        prisma: fakeDb() as never,
+        client: client as never,
+        dryRun: true,
+        pollMs: 1000,
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const lines = info.mock.calls.map((call) => String(call[0]));
+      expect(lines).toContain("[CRM:dry-run]");
+      expect(lines).not.toContain("[CRM:poll]");
+    } finally {
+      stop();
+      vi.useRealTimers();
+      info.mockRestore();
+    }
+  });
+
+  // And the other half of the same property: a REAL poll that wrote something
+  // must say so, or part C of a switch-on has no evidence at all.
+  it("announces a real poll that created something", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.useFakeTimers();
+    let stop = () => {};
+    try {
+      const client = {
+        ...emptyClient(),
+        listPipelines: vi.fn(async () => [
+          { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+        ]),
+        listContacts: vi.fn(async () => [
+          {
+            id: "c1",
+            contactName: "Sample Person",
+            customFields: [
+              { id: FIELD.category, value: ["MEN"] },
+              { id: FIELD.division, value: ["OPEN"] },
+            ],
+          },
+        ]),
+        listOpportunities: vi.fn(async () => [
+          { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+        ]),
+      };
+
+      stop = startCrmPoller({ prisma: fakeDb() as never, client: client as never, pollMs: 1000 });
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const said = info.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(said).toContain("[CRM:poll]");
+      expect(said).toContain("created 1");
+      expect(said).not.toContain("[CRM:dry-run]");
+    } finally {
+      stop();
+      vi.useRealTimers();
+      info.mockRestore();
+    }
   });
 
   // A field deleted or rebuilt in the CRM form reads as empty everywhere, and

@@ -385,6 +385,14 @@ export function startCrmPoller(options: SyncOptions & { pollMs?: number } = {}) 
     void runSync(options)
       .then((result) => {
         if (result.busy) return;
+        // A DRY RUN HAS ALREADY SAID ITS PIECE, on its own [CRM:dry-run] line
+        // and in the plain words of a plan. It must not also appear here:
+        // `created` on a dry run is what a real poll WOULD create, so this
+        // line would read "[CRM:poll] created 56" while nothing was written —
+        // which is both a fright to read during a rehearsal and, worse, makes
+        // the real line afterwards prove nothing, because a rehearsal can
+        // produce the same words.
+        if (result.dryRun) return;
         if (!result.ok) console.error("[CRM:poll]", result.error);
         else if (result.created || result.updated) {
           console.info("[CRM:poll]", `created ${result.created}, updated ${result.updated}`);
