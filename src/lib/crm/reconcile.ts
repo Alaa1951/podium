@@ -71,9 +71,34 @@ export type TeamDraft = {
   seats: SeatDraft[];
 };
 
+/**
+ * A registration the CRM has not finished, kept where it can be seen.
+ *
+ * Everything here is for a human to act on: who they are, how to reach them,
+ * and what is stopping them becoming a team. It deliberately carries no
+ * category or division — not having those is the entire reason it exists.
+ */
+export type IntakeDraft = {
+  externalId: string;
+  contactName: string;
+  email: string | null;
+  phone: string | null;
+  partnerName: string | null;
+  teamName: string | null;
+  stageName: string | null;
+  missing: string;
+};
+
 export type Action =
   | { kind: "create"; externalId: string; draft: TeamDraft }
   | { kind: "update"; externalId: string; teamId: string; changes: MoneyChanges }
+  /**
+   * Not a team yet, and NOT thrown away. An unfinished registration is still
+   * a person who paid and expects to compete; skipping it silently is how
+   * thirty-two of eighty-seven people become invisible to the people whose
+   * job is to chase them.
+   */
+  | { kind: "intake"; externalId: string; intake: IntakeDraft }
   | { kind: "skip"; externalId: string; reason: string };
 
 export type Snapshot = {
@@ -191,6 +216,26 @@ export function draftFrom(
  * Deterministic and side-effect free — the caller decides whether to carry
  * any of it out, and the dry run carries out none of it.
  */
+/** What to hold for a contact that cannot become a team yet. */
+function intakeFrom(
+  contact: CrmContact,
+  stageName: string | null,
+  missing: string
+): IntakeDraft {
+  return {
+    externalId: contact.id,
+    // Never blank: the row is useless if it cannot be spoken about. A contact
+    // with no name at all is listed by the only handle it has.
+    contactName: contactFullName(contact) ?? readField(contact, FIELD.nameTwo) ?? contact.id,
+    email: contact.email?.trim().toLowerCase() || null,
+    phone: contact.phone?.trim() || readField(contact, FIELD.phoneTwo),
+    partnerName: partnerFullName(contact),
+    teamName: readField(contact, FIELD.teamName),
+    stageName,
+    missing,
+  };
+}
+
 export function reconcile(snapshot: Snapshot): Action[] {
   const stageById = new Map<string, { stage: string; pipeline: string }>();
   for (const pipeline of snapshot.pipelines) {
@@ -216,23 +261,33 @@ export function reconcile(snapshot: Snapshot): Action[] {
 
   for (const contact of snapshot.contacts) {
     const opportunity = opportunityByContact.get(contact.id);
+    const named = opportunity ? stageById.get(opportunity.pipelineStageId) : undefined;
+    const payment = named ? paymentFromStage(named.pipeline, named.stage) : null;
+    const stageName = named?.stage ?? null;
+
+    // A contact whose state cannot be read is still a person who registered.
+    // It goes on the list with the reason showing, rather than vanishing.
     if (!opportunity) {
-      actions.push({ kind: "skip", externalId: contact.id, reason: "no opportunity" });
+      actions.push({
+        kind: "intake",
+        externalId: contact.id,
+        intake: intakeFrom(contact, null, "not in the pipeline"),
+      });
       continue;
     }
-
-    const named = stageById.get(opportunity.pipelineStageId);
     if (!named) {
-      actions.push({ kind: "skip", externalId: contact.id, reason: "stage not in any pipeline" });
+      actions.push({
+        kind: "intake",
+        externalId: contact.id,
+        intake: intakeFrom(contact, null, "stage not in any pipeline"),
+      });
       continue;
     }
-
-    const payment = paymentFromStage(named.pipeline, named.stage);
     if (!payment) {
       actions.push({
-        kind: "skip",
+        kind: "intake",
         externalId: contact.id,
-        reason: `stage "${named.stage}" says nothing about payment`,
+        intake: intakeFrom(contact, stageName, `stage "${named.stage}" does not say if it is paid`),
       });
       continue;
     }
@@ -264,7 +319,11 @@ export function reconcile(snapshot: Snapshot): Action[] {
 
     const draft = draftFrom(contact, payment, snapshot.studioNames);
     if (!draft.ok) {
-      actions.push({ kind: "skip", externalId: contact.id, reason: draft.reason });
+      actions.push({
+        kind: "intake",
+        externalId: contact.id,
+        intake: intakeFrom(contact, stageName, draft.reason),
+      });
       continue;
     }
     actions.push({ kind: "create", externalId: contact.id, draft: draft.draft });
@@ -277,11 +336,13 @@ export function reconcile(snapshot: Snapshot): Action[] {
 export function summarise(actions: readonly Action[]) {
   const reasons: Record<string, number> = {};
   for (const action of actions) {
-    if (action.kind === "skip") reasons[action.reason] = (reasons[action.reason] ?? 0) + 1;
+    const reason = action.kind === "intake" ? action.intake.missing : action.kind === "skip" ? action.reason : null;
+    if (reason) reasons[reason] = (reasons[reason] ?? 0) + 1;
   }
   return {
     create: actions.filter((action) => action.kind === "create").length,
     update: actions.filter((action) => action.kind === "update").length,
+    intake: actions.filter((action) => action.kind === "intake").length,
     skip: actions.filter((action) => action.kind === "skip").length,
     reasons,
   };

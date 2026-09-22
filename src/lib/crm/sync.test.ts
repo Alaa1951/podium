@@ -55,6 +55,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
       }),
     },
     series: { findUnique: vi.fn(async () => ({ id: "series-1" })) },
+    crmIntake: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 0 })) },
     studio: { findMany: vi.fn(async () => []) },
     team: {
       findMany: vi.fn(async () => []),
@@ -136,12 +137,13 @@ describe("the claim", () => {
       ok: true,
       created: 54,
       updated: 2,
-      skipped: 31,
+      waiting: 31,
+      skipped: 0,
       reasons: {},
     });
     expect(db.state.running).toBe(false);
     expect(db.state.claimedAt).toBeNull();
-    expect(db.state).toMatchObject({ lastCreated: 54, lastUpdated: 2, lastSkipped: 31, lastError: null });
+    expect(db.state).toMatchObject({ lastCreated: 54, lastUpdated: 2, lastWaiting: 31, lastError: null });
   });
 });
 
@@ -233,6 +235,104 @@ describe("runSync", () => {
     expect(db.state.running).toBe(false);
     expect(db.state.lastError).toBeNull();
     expect(db.state.lastCreated).toBe(1);
+  });
+
+  // An unfinished registration is still somebody who paid and expects to
+  // compete. It is held where staff can see and chase it, not dropped.
+  it("holds an unfinished registration instead of dropping it", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Not Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [
+        {
+          id: "c1",
+          contactName: "Unfinished Person",
+          email: "chase@example.com",
+          // No category and no division: the shape thirty-two real records
+          // are in, and the shape that cannot become a team.
+          customFields: [{ id: FIELD.teamName, value: "Half A Team" }],
+        },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    const result = await runSync({ prisma: db as never, client: client as never });
+
+    expect(result).toMatchObject({ ok: true, created: 0, waiting: 1 });
+    expect(db.team.create).not.toHaveBeenCalled();
+    const upsert = db.crmIntake.upsert.mock.calls[0] as unknown as [{ create: object }];
+    expect(upsert[0].create).toMatchObject({
+      externalId: "c1",
+      contactName: "Unfinished Person",
+      email: "chase@example.com",
+      teamName: "Half A Team",
+      missing: "no category and no division",
+    });
+  });
+
+  // THE WHOLE POINT OF HOLDING THEM. A held row is not a dead end: the moment
+  // the CRM form gains its category and division, the next poll turns it into
+  // a real team and the row goes. Nobody re-types anything.
+  it("promotes a held registration as soon as the CRM finishes it", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+
+    const base = {
+      listCustomFieldIds: vi.fn(async () => Object.values(FIELD)),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+    const unfinished = {
+      ...base,
+      listContacts: vi.fn(async () => [{ id: "c1", contactName: "Sample Person", customFields: [] }]),
+    };
+    const finished = {
+      ...base,
+      listContacts: vi.fn(async () => [
+        {
+          id: "c1",
+          contactName: "Sample Person",
+          customFields: [
+            { id: FIELD.category, value: ["MEN"] },
+            { id: FIELD.division, value: ["OPEN"] },
+          ],
+        },
+      ]),
+    };
+
+    const before = await runSync({ prisma: db as never, client: unfinished as never });
+    expect(before).toMatchObject({ created: 0, waiting: 1 });
+    expect(db.team.create).not.toHaveBeenCalled();
+
+    const after = await runSync({ prisma: db as never, client: finished as never });
+    expect(after).toMatchObject({ created: 1, waiting: 0 });
+    expect(db.team.create).toHaveBeenCalledTimes(1);
+    // And it stopped waiting: both the create's own cleanup and the mirror
+    // sweep would remove it, and it must not survive either.
+    expect(db.crmIntake.deleteMany).toHaveBeenCalledWith({
+      where: { seriesId: "series-1", externalId: "c1" },
+    });
+  });
+
+  // The table mirrors the CRM. Without this, a contact deleted there — or
+  // finished by some path this poll did not see — sits on the chase list
+  // forever and somebody rings a person who sorted themselves out weeks ago.
+  it("clears held rows the CRM no longer has", async () => {
+    const db = fakeDb();
+    await runSync({ prisma: db as never, client: emptyClient() as never });
+    expect(db.crmIntake.deleteMany).toHaveBeenCalledWith({
+      where: { seriesId: "series-1", externalId: { notIn: [] } },
+    });
   });
 
   // A field deleted or rebuilt in the CRM form reads as empty everywhere, and

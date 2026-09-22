@@ -609,6 +609,7 @@ model Series {
   /// Athletes who chose this competition when they signed up, before anybody
   /// has entered them in a team.
   signupRequests User[]         @relation("RequestedSeries")
+  crmIntakes     CrmIntake[]
 
   @@index([status])
   @@index([competitionDate])
@@ -1261,10 +1262,60 @@ model CrmSyncState {
   /// What the last finished poll did, for the screen and the log.
   lastCreated Int @default(0)
   lastUpdated Int @default(0)
+  /// Registrations the CRM has not finished — held, not discarded.
+  lastWaiting Int @default(0)
   lastSkipped Int @default(0)
 
   /// Redacted already by the client: a status and a short code, never a body.
   lastError String? @db.VarChar(191)
 
   updatedAt DateTime @updatedAt
+}
+
+/// A CRM registration that is not a team yet, and why.
+///
+/// WHY THIS IS NOT JUST A `Team` WITH BLANKS. `Team.category` and
+/// `Team.division` are required, and fifty-three files read them: they decide
+/// the bracket, the results, and — through `LoadStandard`, keyed on
+/// [division, sex] — the weights a pair actually lifts on the floor. A team
+/// row holding "unknown" would leak that unknown into every one of those, and
+/// the leak would look like an ordinary team until somebody was handed the
+/// wrong bar.
+///
+/// So a registration the CRM has not finished lives here instead: visible,
+/// chase-able, counted, and unable to reach a bracket. The sync promotes it
+/// to a real `Team` the moment the missing fields arrive, and deletes the row.
+///
+/// It MIRRORS the CRM rather than accumulating. A contact that stops matching
+/// — because it was finished, or removed — loses its row on the next poll.
+model CrmIntake {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  /// The GHL contact id. One row per contact per competition, which is the
+  /// same rule `Team.externalId` carries — and for the same reason.
+  externalId String @db.VarChar(191)
+
+  /// Enough to chase somebody, because chasing them is the entire point.
+  contactName String  @db.VarChar(191)
+  email       String? @db.VarChar(191)
+  phone       String? @db.VarChar(191)
+  partnerName String? @db.VarChar(191)
+  teamName    String? @db.VarChar(191)
+
+  /// What the CRM's pipeline says right now, in its own words.
+  stageName String? @db.VarChar(191)
+  /// What is stopping it becoming a team — "no category and no division".
+  missing   String  @db.VarChar(191)
+
+  /// The contact exactly as it arrived, so a dispute can be read back.
+  rawPayload Json?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@unique([seriesId, externalId])
+  @@index([seriesId, missing])
 }

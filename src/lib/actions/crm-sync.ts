@@ -48,13 +48,40 @@ export async function syncCrmNow(): Promise<ActionResult> {
     targetType: "event",
     targetId: SYNC_STATE_ID,
     targetLabel: "CRM sync",
-    detail: `created ${result.created}, updated ${result.updated}, skipped ${result.skipped}`,
+    detail: `created ${result.created}, updated ${result.updated}, waiting ${result.waiting}, skipped ${result.skipped}`,
   });
 
   return {
     ok: true,
-    message: `Created ${result.created}, updated ${result.updated}, skipped ${result.skipped}.`,
+    message: `Created ${result.created}, updated ${result.updated}, ${result.waiting} not teams yet.`,
   };
+}
+
+/**
+ * The registrations the CRM has not finished, for the work list.
+ *
+ * Oldest first: the useful order is who has been waiting longest, not who
+ * arrived last. Returns nothing when the sync is off, so the screen is
+ * exactly as it was for anyone not using the CRM.
+ */
+export async function crmIntakeFor(seriesId: string) {
+  if (!crmSyncEnabled()) return [];
+  return prisma.crmIntake.findMany({
+    where: { seriesId },
+    orderBy: { firstSeenAt: "asc" },
+    select: {
+      id: true,
+      externalId: true,
+      contactName: true,
+      email: true,
+      phone: true,
+      partnerName: true,
+      teamName: true,
+      stageName: true,
+      missing: true,
+      firstSeenAt: true,
+    },
+  });
 }
 
 /** What the last poll did, for the line above the registration list. */
@@ -67,6 +94,7 @@ export async function lastCrmSync() {
       lastSuccessAt: true,
       lastCreated: true,
       lastUpdated: true,
+      lastWaiting: true,
       lastSkipped: true,
       lastError: true,
     },

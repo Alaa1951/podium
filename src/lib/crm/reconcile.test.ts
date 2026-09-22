@@ -177,7 +177,7 @@ describe("draftFrom", () => {
 });
 
 describe("reconcile", () => {
-  it("creates a team for a complete contact and skips an incomplete one", () => {
+  it("creates a team for a complete contact and HOLDS an incomplete one", () => {
     const complete = contact("complete");
     const incomplete = contact("incomplete");
     incomplete.customFields = incomplete.customFields.filter(
@@ -194,9 +194,22 @@ describe("reconcile", () => {
       })
     );
 
-    expect(summarise(actions)).toMatchObject({ create: 1, update: 0, skip: 1 });
+    expect(summarise(actions)).toMatchObject({ create: 1, update: 0, intake: 1, skip: 0 });
     expect(actions[0]).toMatchObject({ kind: "create", externalId: "complete" });
-    expect(actions[1]).toMatchObject({ kind: "skip", reason: "no category and no division" });
+    // NOT discarded. An unfinished registration is still somebody who paid and
+    // expects to compete, and it is carried with enough to chase them.
+    expect(actions[1]).toMatchObject({
+      kind: "intake",
+      externalId: "incomplete",
+      intake: {
+        contactName: "Sample Person",
+        email: "one@example.com",
+        partnerName: "Second Person",
+        teamName: "Iron Clause",
+        stageName: "Paid – Not Registered",
+        missing: "no category and no division",
+      },
+    });
   });
 
   // The shape of the real data on the day this was written: eighty-five
@@ -217,11 +230,18 @@ describe("reconcile", () => {
       opportunities.push(opportunity(`thin-${index}`, STAGE.paidNotRegistered));
     }
 
-    expect(summarise(reconcile(snapshot({ contacts, opportunities })))).toMatchObject({
+    const actions = reconcile(snapshot({ contacts, opportunities }));
+    expect(summarise(actions)).toMatchObject({
       create: 54,
-      skip: 31,
+      intake: 31,
+      skip: 0,
       reasons: { "no category and no division": 31 },
     });
+    // EVERY contact is accounted for. Eighty-five in, eighty-five out — the
+    // count is the property, because a record that falls out of this loop
+    // falls out of the system with nothing anywhere to say it existed.
+    expect(actions).toHaveLength(85);
+    expect(new Set(actions.map((action) => action.externalId)).size).toBe(85);
   });
 
   // THE SAFETY RULE. A team entered through self sign-up or by a studio has no
@@ -324,12 +344,15 @@ describe("reconcile", () => {
     expect(actions[0]).toMatchObject({ kind: "skip", reason: "already in step" });
   });
 
-  it("skips a contact with no opportunity rather than guessing its state", () => {
+  it("holds a contact with no opportunity rather than guessing its state", () => {
     const actions = reconcile(snapshot({ contacts: [contact("c1")], opportunities: [] }));
-    expect(actions[0]).toMatchObject({ kind: "skip", reason: "no opportunity" });
+    expect(actions[0]).toMatchObject({
+      kind: "intake",
+      intake: { missing: "not in the pipeline", stageName: null },
+    });
   });
 
-  it("skips a stage it cannot classify instead of assuming payment", () => {
+  it("holds a stage it cannot classify instead of assuming payment", () => {
     const actions = reconcile(
       snapshot({
         contacts: [contact("c1")],
@@ -339,7 +362,7 @@ describe("reconcile", () => {
         ],
       })
     );
-    expect(actions[0]).toMatchObject({ kind: "skip" });
-    expect((actions[0] as { reason: string }).reason).toContain("Waiting list");
+    expect(actions[0]).toMatchObject({ kind: "intake" });
+    expect((actions[0] as { intake: { missing: string } }).intake.missing).toContain("Waiting list");
   });
 });

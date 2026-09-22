@@ -126,8 +126,24 @@ export const AR_CONSOLE: Phrases = {
   "No sync has finished yet.": "لم تكتمل أي مزامنة بعد.",
   "Last sync brought in {created} and updated {updated}.":
     "آخر مزامنة أضافت {created} وحدّثت {updated}.",
-  "{n} were left out — usually a registration form that is not finished.":
-    "{n} لم يدخلوا — غالبًا فورم تسجيل غير مكتمل.",
+  "{n} are not teams yet — they are listed below.": "{n} لم يصبحوا فرقًا بعد — مذكورون بالأسفل.",
+
+  // ── Registrations the CRM has not finished ───────────────────────────────
+  "Not a team yet": "لم يصبح فريقًا بعد",
+  "{n} registrations in the CRM cannot be entered yet. Each one joins the list above by itself once its CRM form is finished.":
+    "{n} تسجيلات في الـ CRM لا يمكن إدخالها بعد. كل واحد منها ينضم للقائمة بالأعلى وحده بمجرد اكتمال فورم الـ CRM الخاص به.",
+  "In the CRM": "في الـ CRM",
+  "Still needed": "الناقص",
+  Waiting: "منتظر منذ",
+  "{n} days": "{n} يوم",
+  today: "اليوم",
+  "no partner named": "لم يُذكر شريك",
+  "not in the pipeline": "غير موجود في الـ pipeline",
+  "no category and no division": "لا فئة ولا مستوى",
+  "no category": "لا فئة",
+  "no division": "لا مستوى",
+  "no name on the contact": "لا اسم على جهة الاتصال",
+  "stage not in any pipeline": "المرحلة ليست ضمن أي pipeline",
   "A sync is already running. Give it a moment.": "هناك مزامنة جارية بالفعل. انتظر لحظة.",
   "The CRM sync is switched off.": "مزامنة الـ CRM متوقفة.",
   "Payment is recorded in the CRM and arrives here on the next sync.":

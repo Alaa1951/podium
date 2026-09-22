@@ -53,6 +53,8 @@ export type SyncResult = {
   ok: boolean;
   created: number;
   updated: number;
+  /** Registrations the CRM has not finished, held where they can be chased. */
+  waiting: number;
   skipped: number;
   reasons: Record<string, number>;
   error?: string;
@@ -85,6 +87,7 @@ export async function releaseSync(db: Db, now: Date, result: SyncResult): Promis
       lastSuccessAt: result.ok ? now : undefined,
       lastCreated: result.created,
       lastUpdated: result.updated,
+      lastWaiting: result.waiting,
       lastSkipped: result.skipped,
       // Already redacted by the client — a status and a short code, no body.
       lastError: result.error ? result.error.slice(0, 180) : null,
@@ -134,8 +137,21 @@ async function apply(
   seriesId: string,
   studioIdByName: Map<string, string>,
   now: Date
-): Promise<"created" | "updated" | "skipped"> {
+): Promise<"created" | "updated" | "intake" | "skipped"> {
   if (action.kind === "skip") return "skipped";
+
+  if (action.kind === "intake") {
+    // Upsert, because the same unfinished registration turns up on every poll
+    // and `firstSeenAt` is the useful number: how long somebody has been
+    // sitting there unchased.
+    const { externalId, ...fields } = action.intake;
+    await db.crmIntake.upsert({
+      where: { seriesId_externalId: { seriesId, externalId } },
+      create: { seriesId, externalId, ...fields, lastSeenAt: now },
+      update: { ...fields, lastSeenAt: now },
+    });
+    return "intake";
+  }
 
   if (action.kind === "update") {
     const { paymentStatus } = action.changes;
@@ -185,7 +201,14 @@ async function apply(
 
   // ALREADY_ENTERED is not a failure. It is the unique index doing its job
   // when two polls overlap, and the right response is to count it and move on.
-  return created.ok ? "created" : "skipped";
+  if (!created.ok) return "skipped";
+
+  // It is a team now, so it is no longer waiting to be one. Deleting rather
+  // than flagging keeps one answer to "is this a team yet": the team itself.
+  await db.crmIntake
+    .deleteMany({ where: { seriesId, externalId: draft.externalId } })
+    .catch(() => undefined);
+  return "created";
 }
 
 export type SyncOptions = {
@@ -214,7 +237,7 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
   const dryRun = options.dryRun ?? crmSyncDryRun();
   const slug = options.seriesSlug ?? process.env.CRM_SYNC_SERIES;
 
-  const empty: SyncResult = { ok: false, created: 0, updated: 0, skipped: 0, reasons: {} };
+  const empty: SyncResult = { ok: false, created: 0, updated: 0, waiting: 0, skipped: 0, reasons: {} };
 
   if (!slug) return { ...empty, error: "CRM_SYNC_SERIES is not set." };
 
@@ -243,6 +266,7 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
         dryRun: true,
         created: planned.create,
         updated: planned.update,
+        waiting: planned.intake,
         skipped: planned.skip,
         reasons: planned.reasons,
       };
@@ -255,14 +279,16 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
 
     let created = 0;
     let updated = 0;
+    let waiting = 0;
     let skipped = 0;
     for (const action of actions) {
       // ONE RECORD AT A TIME, and one bad record does not stop the rest:
-      // eighty-five people should not wait on the one whose row is odd.
+      // eighty-seven people should not wait on the one whose row is odd.
       try {
         const outcome = await apply(db, action, series.id, studioIdByName, now());
         if (outcome === "created") created += 1;
         else if (outcome === "updated") updated += 1;
+        else if (outcome === "intake") waiting += 1;
         else skipped += 1;
       } catch (error) {
         skipped += 1;
@@ -274,7 +300,18 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
       }
     }
 
-    result = { ok: true, created, updated, skipped, reasons: planned.reasons };
+    // THE TABLE MIRRORS THE CRM, so what the CRM no longer has, it loses.
+    // Without this, a contact deleted there — or finished by some path this
+    // poll did not see — sits on the chase list forever and somebody rings
+    // a person who sorted themselves out weeks ago.
+    const stillWaiting = actions
+      .filter((action) => action.kind === "intake")
+      .map((action) => action.externalId);
+    await db.crmIntake.deleteMany({
+      where: { seriesId: series.id, externalId: { notIn: stillWaiting } },
+    });
+
+    result = { ok: true, created, updated, waiting, skipped, reasons: planned.reasons };
   } catch (error) {
     result = {
       ...empty,

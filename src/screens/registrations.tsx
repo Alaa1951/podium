@@ -11,8 +11,9 @@ import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
 import { can, isBft } from "@/lib/access";
 import { getSeriesReport, money } from "@/lib/reports";
-import { lastCrmSync } from "@/lib/actions/crm-sync";
+import { crmIntakeFor, lastCrmSync } from "@/lib/actions/crm-sync";
 import { CrmSyncBar } from "@/components/admin/crm-sync-bar";
+import { CrmIntakeList } from "@/components/admin/crm-intake-list";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { normalizeName } from "@/lib/scoring";
 import { requireAccess } from "@/lib/session";
@@ -36,12 +37,13 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   const { series } = await requireSeries(props.params);
   const needsFullReport = !detailId && isBft(user);
-  const [teams, archivedTeams, report, crmStatus] = await Promise.all([
+  const [teams, archivedTeams, report, crmStatus, crmWaiting] = await Promise.all([
     getScopedRoster(series.id, user, detailId),
     !detailId && can(user, "registrations.archive") ? getArchivedRoster(series.id, user) : Promise.resolve([]),
     needsFullReport ? getSeriesReport(series.id) : Promise.resolve(null),
     // Null when the sync is off, and then nothing about it is rendered.
     isBft(user) && !detailId ? lastCrmSync() : Promise.resolve(null),
+    isBft(user) && !detailId ? crmIntakeFor(series.id) : Promise.resolve([]),
   ]);
 
   const query = typeof searchParams.q === "string" ? searchParams.q.trim() : "";
@@ -139,7 +141,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
           <h1>{t("Competitors")}</h1>
           <p>
             {t(
-              "Pairs who entered this competition. They arrive already paid through the registration form; a payment taken at the door is recorded here by hand."
+              "Pairs who entered this competition. They arrive from the CRM, which is also where payment is recorded."
             )}
           </p>
         </div>
@@ -201,6 +203,14 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         archivedRows={archivedRows}
         seriesId={series.id}
         canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
+      />
+
+      {/* Below the field, not hidden from it: these people registered too. */}
+      <CrmIntakeList
+        rows={crmWaiting.map((row) => ({
+          ...row,
+          waitingDays: Math.floor((Date.now() - row.firstSeenAt.getTime()) / 86_400_000),
+        }))}
       />
     </div>
   );

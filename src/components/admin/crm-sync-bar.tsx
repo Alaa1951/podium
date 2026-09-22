@@ -28,6 +28,7 @@ export type CrmSyncStatus = {
   lastSuccessAt: Date | null;
   lastCreated: number;
   lastUpdated: number;
+  lastWaiting: number;
   lastSkipped: number;
   lastError: string | null;
 };
@@ -67,8 +68,8 @@ export function CrmSyncBar({ status }: { status: CrmSyncStatus }) {
                 updated: status.lastUpdated,
               })
             : t("No sync has finished yet.")}
-          {status.lastSkipped > 0
-            ? ` ${t("{n} were left out — usually a registration form that is not finished.", { n: status.lastSkipped })}`
+          {status.lastWaiting > 0
+            ? ` ${t("{n} are not teams yet — they are listed below.", { n: status.lastWaiting })}`
             : ""}
         </span>
         {status.lastError ? (
