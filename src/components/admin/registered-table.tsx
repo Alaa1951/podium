@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
-import { setAttendance, setPayment } from "@/lib/actions/payments";
+import { setAttendance } from "@/lib/actions/payments";
 import { archiveTeam, restoreTeam } from "@/lib/actions/team-people";
 import { setWaitlist } from "@/lib/actions/waitlist";
 import { AthleteAvatar } from "@/components/app/athlete-avatar";
@@ -18,9 +18,10 @@ import { useIsMobile } from "@/components/app/use-mobile";
 // Everyone who entered this round: who they are, how to reach them, whether
 // their money landed, whether they turned up, and which wave they are in.
 //
-// Payment is confirmed from here — by the integration, or by hand when someone
-// pays at the door — because only a paid registration reaches the board, and
-// the person who takes the money is the person standing at this screen.
+// PAYMENT IS SHOWN HERE, NEVER CHANGED HERE. The CRM owns the money, and the
+// sync writes what it says: a button on this screen would be a second place to
+// change a figure that has an owner elsewhere, and the next poll would quietly
+// undo whoever pressed it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RegisteredRow = {
@@ -65,8 +66,6 @@ export function RegisteredTable({
   seriesId,
   canArchive,
   canWaitlist,
-  defaultAmount,
-  defaultCurrency,
   detailId,
   readOnly = false,
 }: {
@@ -78,9 +77,6 @@ export function RegisteredTable({
   canArchive: boolean;
   /** May this viewer hand out a place, or take one back? */
   canWaitlist: boolean;
-  /** The event's usual entry fee, pre-filled when taking money at the door. */
-  defaultAmount: string;
-  defaultCurrency: string;
   detailId?: string;
   readOnly?: boolean;
 }) {
@@ -129,37 +125,6 @@ export function RegisteredTable({
     startTransition(async () => report(await restoreTeam(seriesId, rowId)));
   }
 
-  function confirm(row: RegisteredRow, amount: string, billingNumber: string, note: string) {
-    if (readOnly) return;
-    setMessage("");
-    startTransition(async () => {
-      const result = await setPayment({
-        teamId: row.id,
-        status: "paid",
-        amount,
-        currency: defaultCurrency,
-        billingNumber,
-        note,
-      });
-      if (!result.ok) {
-        setMessage(t("Something went wrong. Try again."));
-        return;
-      }
-      setExpanded(null);
-      router.refresh();
-    });
-  }
-
-  function reverse(row: RegisteredRow, status: "pending" | "refunded") {
-    if (readOnly) return;
-    setMessage("");
-    startTransition(async () => {
-      const result = await setPayment({ teamId: row.id, status });
-      if (!result.ok) setMessage(t("Something went wrong. Try again."));
-      else router.refresh();
-    });
-  }
-
   function attendance(row: RegisteredRow) {
     if (readOnly) return;
     startTransition(async () => {
@@ -185,7 +150,7 @@ export function RegisteredTable({
       {message ? <div className="notice" role="status">{message}</div> : null}
       <p>{t(row.category)} · {t(row.division)}</p>
       {!readOnly ? <DetailLink href={`${path}/edit`} className="btn btn-secondary">{t("Edit")}</DetailLink> : null}
-      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} defaultAmount={defaultAmount} defaultCurrency={defaultCurrency} onToggle={() => {}} onConfirm={confirm} onReverse={reverse} onAttendance={attendance} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
+      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} onToggle={() => {}} onAttendance={attendance} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
       <button type="button" className="btn btn-secondary mobile-action-bar" disabled={pending || readOnly} onClick={() => attendance(row)}>{row.attended ? t("Checked in") : t("Check in")}</button>
     </div>;
   }
@@ -219,11 +184,7 @@ export function RegisteredTable({
                 row={row}
                 open={expanded === row.id}
                 pending={pending}
-                defaultAmount={defaultAmount}
-                defaultCurrency={defaultCurrency}
                 onToggle={() => setExpanded(expanded === row.id ? null : row.id)}
-                onConfirm={confirm}
-                onReverse={reverse}
                 onAttendance={attendance}
                 onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined}
               />

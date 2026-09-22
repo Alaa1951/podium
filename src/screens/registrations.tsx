@@ -10,7 +10,9 @@ import { RegisteredTable, type RegisteredRow } from "@/components/admin/register
 import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
 import { can, isBft } from "@/lib/access";
-import { getSeriesPaymentDefaults, getSeriesReport, money } from "@/lib/reports";
+import { getSeriesReport, money } from "@/lib/reports";
+import { lastCrmSync } from "@/lib/actions/crm-sync";
+import { CrmSyncBar } from "@/components/admin/crm-sync-bar";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { normalizeName } from "@/lib/scoring";
 import { requireAccess } from "@/lib/session";
@@ -34,11 +36,12 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   const { series } = await requireSeries(props.params);
   const needsFullReport = !detailId && isBft(user);
-  const [teams, archivedTeams, report, paymentDefaults] = await Promise.all([
+  const [teams, archivedTeams, report, crmStatus] = await Promise.all([
     getScopedRoster(series.id, user, detailId),
     !detailId && can(user, "registrations.archive") ? getArchivedRoster(series.id, user) : Promise.resolve([]),
     needsFullReport ? getSeriesReport(series.id) : Promise.resolve(null),
-    needsFullReport ? Promise.resolve(null) : getSeriesPaymentDefaults(series.id),
+    // Null when the sync is off, and then nothing about it is rendered.
+    isBft(user) && !detailId ? lastCrmSync() : Promise.resolve(null),
   ]);
 
   const query = typeof searchParams.q === "string" ? searchParams.q.trim() : "";
@@ -98,8 +101,6 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     })),
   }));
 
-  const paymentReport = report ?? paymentDefaults!;
-  const typicalMinor = paymentReport.paid > 0 ? Math.round(paymentReport.takingsMinor / paymentReport.paid) : 25000;
 
   const archivedRows: RegisteredRow[] = archivedTeams.map((team) => ({
     id: team.id,
@@ -129,7 +130,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
-  if (detailId) return <div className="screen"><RegisteredTable readOnly={!can(user, "registrations.payment") || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")} defaultAmount={(typicalMinor / 100).toFixed(2)} defaultCurrency={paymentReport.currency} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><RegisteredTable readOnly={!can(user, "registrations.payment") || !!user.viewAs} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -151,6 +152,8 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
           </a>
         </div>
       </div>
+
+      {crmStatus ? <CrmSyncBar status={crmStatus} /> : null}
 
       {isBft(user) && report ? <div className="stat-grid">
         <div className="stat-card">
@@ -198,8 +201,6 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         archivedRows={archivedRows}
         seriesId={series.id}
         canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
-        defaultAmount={(typicalMinor / 100).toFixed(2)}
-        defaultCurrency={paymentReport.currency}
       />
     </div>
   );

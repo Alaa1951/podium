@@ -12,4 +12,10 @@ export async function register() {
   // switch, which is absent in production while the store review runs.
   const { portraitsEnabled, startPortraitRunner } = await import("./lib/portraits/runner");
   if (portraitsEnabled()) startPortraitRunner();
+
+  // The CRM poll, on the same terms: its own switch, absent in production
+  // until somebody turns it on, and runnable locally so it can be tried
+  // against a real CRM before it is ever pointed at a real competition.
+  const { crmSyncEnabled, startCrmPoller } = await import("./lib/crm/sync");
+  if (crmSyncEnabled()) startCrmPoller();
 }

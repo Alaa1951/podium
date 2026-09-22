@@ -25,6 +25,8 @@ export const AUDIT = {
   wavesAssigned: "event.waves_assigned",
   waveControlled: "event.wave_controlled",
   registrationCreated: "registration.created",
+  /** A CRM poll somebody asked for by hand; the timer's polls are not audited. */
+  crmSyncRun: "crm.sync_run",
   registrationUpdated: "registration.updated",
   paymentChanged: "registration.payment_changed",
   attendanceChanged: "registration.attendance_changed",

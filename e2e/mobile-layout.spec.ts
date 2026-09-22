@@ -120,8 +120,14 @@ test('direct details have a parent; dirty forms and bottom filters behave',async
   await expect(page).toHaveURL(/payment=pending/);await reviewFrame(page,info,'filters');await page.getByRole('button',{name:'Done',exact:true}).click();
   await expect(page.locator('dialog.filter-sheet')).not.toBeVisible();await page.locator('.mobile-list-card').first().click();
   await page.locator('html').evaluate(el=>el.setAttribute('data-keyboard','true'));await expect(page.locator('.mobile-tabbar:visible')).toHaveCount(0);
-  await page.getByRole('button',{name:'Confirm payment',exact:true}).scrollIntoViewIfNeeded();
-  const box=await page.getByRole('button',{name:'Confirm payment',exact:true}).boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(844);
+  // Payment moved to the CRM, so the action that has to fit here is check-in.
+  // The button this used to measure no longer exists, and asserting that is
+  // part of the point: a payment control reappearing on this screen would be
+  // a second owner for a figure the CRM owns.
+  await expect(page.getByRole('button',{name:'Confirm payment',exact:true})).toHaveCount(0);
+  const action=page.getByRole('button',{name:/^Check(ed)? in$/});
+  await action.scrollIntoViewIfNeeded();
+  const box=await action.boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(844);
 });
 
 test('tablet app layout stays mobile above the browser breakpoint',async({page,context},info)=>{
@@ -176,9 +182,13 @@ test('local payment, attendance, scores and notification receipts confirm after 
   test.skip(!fixtures || info.project.name!=='chromium-390-en-dark','Write scenarios use dedicated fixtures once to avoid concurrent changes.');
   await setup(context,info,'admin');const scheduled=fixtures!.series.find(item=>item.status==='scheduled')!;
   await page.goto(`/series/${scheduled.slug}/registrations/${scheduled.teams[1]}`);await expect(page.locator('html')).toHaveAttribute('data-mobile-ready','true');
-  const confirm=page.getByRole('button',{name:'Confirm payment',exact:true});
-  if(await confirm.count()){await confirm.click();await expect(page.getByRole('button',{name:'Mark unpaid',exact:true})).toBeVisible();await page.reload();await expect(page.getByRole('button',{name:'Mark unpaid',exact:true})).toBeVisible();}
-  await page.getByRole('button',{name:'Mark unpaid',exact:true}).click();await expect(page.getByRole('button',{name:'Confirm payment',exact:true})).toBeVisible();
+  // PAYMENT IS NOT WRITTEN FROM HERE ANY MORE. The CRM owns it and the sync
+  // brings it in, so this screen shows the figure and offers nothing to press.
+  // Asserting the absence is the test: a button coming back would mean two
+  // places can set one number, and the next poll would undo whichever lost.
+  await expect(page.getByRole('button',{name:'Confirm payment',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Mark unpaid',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Refund',exact:true})).toHaveCount(0);
   const check=page.getByRole('button',{name:'Check in',exact:true});if(await check.count()){await check.click();await expect(page.getByRole('button',{name:'Checked in',exact:true})).toBeVisible();}
   await page.getByRole('button',{name:'Checked in',exact:true}).click();await expect(check).toBeVisible();
   await page.goto(`/series/${live!.slug}/scores/${live!.teams[0]}`);await expect(page.locator('html')).toHaveAttribute('data-mobile-ready','true');

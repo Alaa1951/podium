@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { lowestFreeStation, MAX_STATIONS } from "@/lib/floor";
+import { nextTeamNumber as sharedNextTeamNumber } from "@/lib/team-create";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { CATEGORIES, DIVISIONS } from "@/lib/scoring";
@@ -14,13 +15,13 @@ export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message?: string } : { message?: string; data: T }))
   | { ok: false; error: string };
 
+/**
+ * Kept as a named export for the callers that read better with it, but the
+ * arithmetic itself lives in one place now: there used to be a second, subtly
+ * different copy in `registrations.ts` without the floor at 100.
+ */
 export async function nextTeamNumber(seriesId: string) {
-  const highest = await prisma.team.findFirst({
-    where: { seriesId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  return Math.max(100, highest?.number ?? 100) + 1;
+  return sharedNextTeamNumber(prisma, seriesId);
 }
 
 /**

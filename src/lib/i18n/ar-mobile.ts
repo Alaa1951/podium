@@ -110,7 +110,6 @@ export const AR_MOBILE: Phrases = {
   "Your payment is recorded and will not be lost — but it does not hold a place.":
     "دفعتك مسجّلة ولن تُفقد — لكنها لا تحجز مكانًا.",
   "cash at the door, card, transfer…": "نقدًا عند الحضور أو بطاقة أو تحويل…",
-  "Confirming payment puts this team on the board. Record what was actually taken.": "تأكيد الدفع يُظهر الفريق على اللوحة. سجّل المبلغ المستلم فعلًا.",
   "Only a paid registration appears on the board. Everything else still counts it.": "تُظهر اللوحة التسجيلات المدفوعة فقط؛ ويظل التسجيل محسوبًا في الشاشات الأخرى.",
   "{n} registration(s) are not paid, so they are not on the board.": "{n} تسجيل غير مدفوع لا يظهر على اللوحة.",
   "Review payments": "مراجعة المدفوعات", "Build the running order": "تجهيز جدول الموجات",

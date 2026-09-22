@@ -1,27 +1,20 @@
 "use client";
 
-import { useState } from "react";
-
 import { AthleteAvatar } from "@/components/app/athlete-avatar";
 import { useT } from "@/components/i18n/locale-provider";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import type { RegisteredRow } from "@/components/admin/registered-table";
 import { usePathname } from "next/navigation";
 import { DetailLink } from "@/components/app/detail-link";
-import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 
 // One registration: the row, and the panel that opens under it with the
-// contact details and the payment action.
+// contact details and what the CRM says about the money.
 
 export function RowPair({
   row,
   open,
   pending,
-  defaultAmount,
-  defaultCurrency,
   onToggle,
-  onConfirm,
-  onReverse,
   onAttendance,
   onArchive,
   onWaitlist,
@@ -33,11 +26,7 @@ export function RowPair({
   row: RegisteredRow;
   open: boolean;
   pending: boolean;
-  defaultAmount: string;
-  defaultCurrency: string;
   onToggle: () => void;
-  onConfirm: (row: RegisteredRow, amount: string, billing: string, note: string) => void;
-  onReverse: (row: RegisteredRow, status: "pending" | "refunded") => void;
   onAttendance: (row: RegisteredRow) => void;
   /** Offered only while the event is scheduled — a withdrawal, archived not deleted. */
   onArchive?: (row: RegisteredRow) => void;
@@ -45,14 +34,10 @@ export function RowPair({
   onWaitlist?: (row: RegisteredRow, waiting: boolean) => void;
 }) {
   const t = useT();
-  const [amount, setAmount] = useState(defaultAmount);
-  const [billing, setBilling] = useState(row.billingNumber ?? "");
-  const [note, setNote] = useState("");
 
   const paid = row.paymentStatus === "paid";
   const status = teamStatus(row);
   const path = usePathname();
-  useUnsavedChanges(!readOnly && !paid && (amount !== defaultAmount || billing !== (row.billingNumber ?? "") || note !== ""));
 
   const details = (
 <div className="reg-detail-grid">
@@ -80,6 +65,13 @@ export function RowPair({
               <div>
                 <div className="console-group-title">{t("Payment")}</div>
 
+                {/* PAYMENT IS READ-ONLY HERE, and that is the design.
+                    The CRM owns the money: it is where registrations arrive
+                    and where payment is taken, and the sync writes what it
+                    says. A button here would be a second place to change a
+                    figure that has an owner elsewhere — and the next poll
+                    would quietly undo whoever pressed it, on the morning of
+                    a competition, with nothing on screen to explain why. */}
                 {paid ? (
                   <div style={{ marginTop: 8 }}>
                     <div className="pd-num" style={{ fontSize: 20, fontWeight: 600 }}>
@@ -90,73 +82,13 @@ export function RowPair({
                         ? `${t("Invoice")} ${row.billingNumber}`
                         : t("No billing number recorded")}
                     </div>
-                    <div hidden={readOnly} style={{ display: readOnly ? "none" : "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={pending || readOnly}
-                        onClick={() => onReverse(row, "pending")}
-                        style={{ height: 32, fontSize: 12 }}
-                      >
-                        {t("Mark unpaid")}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={pending || readOnly}
-                        onClick={() => onReverse(row, "refunded")}
-                        style={{ height: 32, fontSize: 12 }}
-                      >
-                        {t("Refund")}
-                      </button>
-                    </div>
                   </div>
                 ) : (
-                  readOnly ? <p>{t("Awaiting payment")}</p> : <div style={{ marginTop: 8, display: "grid", gap: 8, maxWidth: 320 }}>
-                    <p className="reg-sub" style={{ margin: 0 }}>
-                      {t(
-                        "Confirming payment puts this team on the board. Record what was actually taken."
-                      )}
-                    </p>
-                    <label>
-                      <span className="field-label">
-                        {t("Amount")} ({defaultCurrency})
-                      </span>
-                      <input
-                        className="input pd-num"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        inputMode="decimal"
-                      />
-                    </label>
-                    <label>
-                      <span className="field-label">{t("Invoice number")}</span>
-                      <input
-                        className="input"
-                        value={billing}
-                        onChange={(e) => setBilling(e.target.value)}
-                        placeholder={t("optional")}
-                      />
-                    </label>
-                    <label>
-                      <span className="field-label">{t("Note")}</span>
-                      <input
-                        className="input"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        placeholder={t("cash at the door, card, transfer…")}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={pending || readOnly}
-                      onClick={() => onConfirm(row, amount, billing, note)}
-                    >
-                      {t("Confirm payment")}
-                    </button>
-                  </div>
+                  <p style={{ marginTop: 8 }}>{t("Awaiting payment")}</p>
                 )}
+                <p className="reg-sub" style={{ marginTop: 10 }}>
+                  {t("Payment is recorded in the CRM and arrives here on the next sync.")}
+                </p>
               </div>
 
               {/* ── Where they are in the day ──────────────────────────── */}

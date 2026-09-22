@@ -6,6 +6,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
+import { createTeam } from "@/lib/team-create";
 import { isBft, requireAccess, teamScope } from "@/lib/session";
 import { registrationOpen } from "@/lib/visibility";
 import {
@@ -49,15 +50,6 @@ const registrationSchema = z.object({
   externalId: optionalText,
 });
 
-async function nextTeamNumber(seriesId: string) {
-  const highest = await prisma.team.findFirst({
-    where: { seriesId },
-    orderBy: { number: "desc" },
-    select: { number: true },
-  });
-  return (highest?.number ?? 100) + 1;
-}
-
 /**
  * Take a registration in.
  *
@@ -79,39 +71,43 @@ export async function createRegistration(input: unknown): Promise<ActionResult<{
   const name = (data.teamName ?? data.one.fullName).toUpperCase();
   const paid = data.paymentStatus === "paid";
 
-  const team = await prisma.team.create({
-    data: {
-      seriesId: data.seriesId,
-      number: await nextTeamNumber(data.seriesId),
-      name,
-      category: data.category,
-      division: data.division,
-      // The registering competitor's studio also owns the team, which is what
-      // scopes it for that studio's account.
-      studioId: data.one.studioId,
-      paymentStatus: data.paymentStatus,
-      source: "manual",
-      paidAt: paid ? new Date() : null,
-      amountMinor: toMinor(data.amount),
-      currency: data.currency,
-      billingNumber: data.billingNumber,
-      paymentNote: data.paymentNote,
-      confirmedById: paid ? actor.id : null,
-      externalId: data.externalId,
-      competitors: {
-        create: [data.one, data.two].map((person, index) => ({
-          position: index + 1,
-          fullName: person.fullName,
-          normalizedName: normalizeName(person.fullName),
-          phone: person.phone,
-          email: person.email?.toLowerCase() ?? null,
-          dateOfBirth: toDate(person.dateOfBirth),
-          studioId: person.studioId,
-        })),
-      },
-    },
-    select: { id: true, number: true, name: true },
+  // The row itself is written by `createTeam`, which the CRM sync uses too.
+  // One path, so the two cannot drift: this one used to omit `shirtSize` and
+  // `bftMember` while the columns sat there waiting for it.
+  const created = await createTeam(prisma, {
+    seriesId: data.seriesId,
+    name,
+    category: data.category,
+    division: data.division,
+    // The registering competitor's studio also owns the team, which is what
+    // scopes it for that studio's account.
+    studioId: data.one.studioId,
+    paymentStatus: data.paymentStatus,
+    source: "manual",
+    paidAt: paid ? new Date() : null,
+    amountMinor: toMinor(data.amount),
+    currency: data.currency,
+    billingNumber: data.billingNumber,
+    paymentNote: data.paymentNote,
+    confirmedById: paid ? actor.id : null,
+    externalId: data.externalId,
+    seats: [data.one, data.two].map((person, index) => ({
+      position: index + 1,
+      fullName: person.fullName,
+      phone: person.phone,
+      email: person.email,
+      dateOfBirth: toDate(person.dateOfBirth),
+      studioId: person.studioId,
+    })),
   });
+
+  if (!created.ok) {
+    return {
+      ok: false,
+      error: created.error === "ALREADY_ENTERED" ? "ALREADY_ENTERED" : "NUMBER_RACE",
+    };
+  }
+  const team = created;
 
   await recordAudit({
     actorId: actor.id,

@@ -1,0 +1,249 @@
+/**
+ * One poll of the CRM.
+ *
+ * The claim is what these tests are really about. A fifteen-minute timer and a
+ * Sync now button that a person presses during an event will eventually fire
+ * at the same instant, and two polls working the same eighty-five records at
+ * once is how a team gets created twice or a payment written twice. The guard
+ * is a conditional UPDATE — the same idiom that starts a wave once — and the
+ * concurrency test below is the only thing that proves it still works.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+
+// `@/lib/revalidate-competition` is DELIBERATELY NOT MOCKED. `revalidatePath`
+// throws outside a request, which is where a timer lives — and when `runSync`
+// called it, the throw landed inside its try and turned a poll that had
+// already written fifty-five teams into a reported failure. Leaving the real
+// module in place means re-adding that call makes these tests fail, which is
+// the only way the mistake announces itself.
+
+const { claimSync, releaseSync, runSync, crmSyncEnabled } = await import("@/lib/crm/sync");
+
+/**
+ * A stand-in for the one `CrmSyncState` row whose `updateMany` honours its
+ * WHERE — which is the whole point, since the claim IS the where clause.
+ */
+function fakeDb(overrides: Record<string, unknown> = {}) {
+  const state = {
+    id: "singleton",
+    running: false,
+    claimedAt: null as Date | null,
+    lastCreated: 0,
+    lastUpdated: 0,
+    lastSkipped: 0,
+    lastError: null as string | null,
+    lastSuccessAt: null as Date | null,
+  };
+
+  return {
+    state,
+    crmSyncState: {
+      updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        if (where.id !== state.id) return { count: 0 };
+        if (Array.isArray(where.OR)) {
+          const cutoff = (where.OR[1] as { claimedAt?: { lt: Date } })?.claimedAt?.lt;
+          const free = state.running === false;
+          const stale = Boolean(cutoff && state.claimedAt && state.claimedAt < cutoff);
+          if (!free && !stale) return { count: 0 };
+        }
+        for (const [key, value] of Object.entries(data)) {
+          if (value !== undefined) (state as Record<string, unknown>)[key] = value;
+        }
+        return { count: 1 };
+      }),
+    },
+    series: { findUnique: vi.fn(async () => ({ id: "series-1" })) },
+    studio: { findMany: vi.fn(async () => []) },
+    team: {
+      findMany: vi.fn(async () => []),
+      // `nextTeamNumber` reads the highest number through this one.
+      findFirst: vi.fn(async () => null),
+      update: vi.fn(async () => ({})),
+      create: vi.fn(async () => ({ id: "t", number: 101, name: "X" })),
+    },
+    ...overrides,
+  };
+}
+
+/** A CRM with nothing in it — enough to let a poll run to the end. */
+function emptyClient() {
+  return {
+    listCustomFieldIds: vi.fn(async () => Object.values((await import("@/lib/crm/field-map")).FIELD)),
+    listPipelines: vi.fn(async () => []),
+    listContacts: vi.fn(async () => []),
+    listOpportunities: vi.fn(async () => []),
+  };
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  process.env.CRM_SYNC_SERIES = "podium-bft-series-1";
+  delete process.env.CRM_SYNC_ENABLED;
+  delete process.env.CRM_SYNC_DRY_RUN;
+});
+
+describe("the switch", () => {
+  // Absent means OFF, exactly like PORTRAITS_ENABLED. "true", "yes" and "1 "
+  // are all somebody being approximate about turning on a live integration.
+  it("is off unless it is exactly \"1\"", () => {
+    expect(crmSyncEnabled()).toBe(false);
+    process.env.CRM_SYNC_ENABLED = "true";
+    expect(crmSyncEnabled()).toBe(false);
+    process.env.CRM_SYNC_ENABLED = "1";
+    expect(crmSyncEnabled()).toBe(true);
+  });
+});
+
+describe("the claim", () => {
+  it("is taken when nothing holds it", async () => {
+    const db = fakeDb();
+    await expect(claimSync(db as never, new Date())).resolves.toBe(true);
+    expect(db.state.running).toBe(true);
+  });
+
+  // THE ONE THAT MATTERS. The timer and the button, at the same instant.
+  it("is taken by exactly one of two overlapping polls", async () => {
+    const db = fakeDb();
+    const now = new Date();
+    const results = await Promise.all([
+      claimSync(db as never, now),
+      claimSync(db as never, now),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  // A process killed mid-poll would otherwise hold the claim for good and
+  // lock the sync out permanently, with nothing to say why.
+  it("is taken from a poll that died holding it", async () => {
+    const db = fakeDb();
+    const start = new Date("2026-09-22T10:00:00Z");
+    await claimSync(db as never, start);
+    expect(db.state.running).toBe(true);
+
+    const soon = new Date("2026-09-22T10:05:00Z");
+    await expect(claimSync(db as never, soon)).resolves.toBe(false);
+
+    const muchLater = new Date("2026-09-22T11:00:00Z");
+    await expect(claimSync(db as never, muchLater)).resolves.toBe(true);
+  });
+
+  it("is given back with what the poll did", async () => {
+    const db = fakeDb();
+    await claimSync(db as never, new Date());
+    await releaseSync(db as never, new Date(), {
+      ok: true,
+      created: 54,
+      updated: 2,
+      skipped: 31,
+      reasons: {},
+    });
+    expect(db.state.running).toBe(false);
+    expect(db.state.claimedAt).toBeNull();
+    expect(db.state).toMatchObject({ lastCreated: 54, lastUpdated: 2, lastSkipped: 31, lastError: null });
+  });
+});
+
+describe("runSync", () => {
+  it("refuses without a target competition rather than guessing one", async () => {
+    delete process.env.CRM_SYNC_SERIES;
+    const result = await runSync({ prisma: fakeDb() as never, client: emptyClient() as never });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("CRM_SYNC_SERIES");
+  });
+
+  it("refuses when the named competition does not exist", async () => {
+    const db = fakeDb({ series: { findUnique: vi.fn(async () => null) } });
+    const result = await runSync({ prisma: db as never, client: emptyClient() as never });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("podium-bft-series-1");
+  });
+
+  // Busy is not a failure — it is the guard working. Reporting it as an error
+  // would fill the log with alarms every time somebody pressed the button.
+  it("reports busy, not failure, when another poll holds the claim", async () => {
+    const db = fakeDb();
+    await claimSync(db as never, new Date());
+    const result = await runSync({ prisma: db as never, client: emptyClient() as never });
+    expect(result).toMatchObject({ ok: true, busy: true, created: 0, updated: 0 });
+  });
+
+  it("gives the claim back even when the CRM call fails", async () => {
+    const db = fakeDb();
+    const angry = {
+      ...emptyClient(),
+      listContacts: vi.fn(async () => {
+        throw new Error("CRM request failed: HTTP 503.");
+      }),
+    };
+    const result = await runSync({ prisma: db as never, client: angry as never });
+    expect(result.ok).toBe(false);
+    // Released, or the next poll and every poll after it would find it busy.
+    expect(db.state.running).toBe(false);
+    expect(db.state.lastError).toContain("503");
+  });
+
+  // A dry run must be safe to point at production, which means it takes no
+  // claim at all — it cannot collide with anything because it changes nothing.
+  it("takes no claim and writes nothing in a dry run", async () => {
+    const db = fakeDb();
+    const result = await runSync({
+      prisma: db as never,
+      client: emptyClient() as never,
+      dryRun: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(db.state.running).toBe(false);
+    expect(db.crmSyncState.updateMany).not.toHaveBeenCalled();
+    expect(db.team.create).not.toHaveBeenCalled();
+  });
+
+  // THE REGRESSION. A poll that does real work has to REPORT that it worked.
+  // The first version wrote every team and then reported failure, because it
+  // refreshed the page cache from a timer that has no request to refresh.
+  it("reports success after a poll that actually created something", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [
+        {
+          id: "c1",
+          contactName: "Sample Person",
+          customFields: [
+            { id: FIELD.category, value: ["MEN"] },
+            { id: FIELD.division, value: ["OPEN"] },
+          ],
+        },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    const result = await runSync({ prisma: db as never, client: client as never });
+
+    expect(result).toMatchObject({ ok: true, created: 1 });
+    expect(db.team.create).toHaveBeenCalled();
+    // And the claim came back, with the success recorded against it.
+    expect(db.state.running).toBe(false);
+    expect(db.state.lastError).toBeNull();
+    expect(db.state.lastCreated).toBe(1);
+  });
+
+  // A field deleted or rebuilt in the CRM form reads as empty everywhere, and
+  // the sync would go on writing that emptiness one poll at a time.
+  it("stops before deciding anything when the field map no longer fits", async () => {
+    const db = fakeDb();
+    const renamed = { ...emptyClient(), listCustomFieldIds: vi.fn(async () => ["something-else"]) };
+    const result = await runSync({ prisma: db as never, client: renamed as never });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/missing or renamed/);
+    expect(db.team.create).not.toHaveBeenCalled();
+    expect(db.state.running).toBe(false);
+  });
+});

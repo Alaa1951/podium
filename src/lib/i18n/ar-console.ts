@@ -114,13 +114,24 @@ export const AR_CONSOLE: Phrases = {
   Refunded: "مُسترد",
   "Any payment": "أي حالة دفع",
   "Payment confirmed": "تم تأكيد الدفع",
-  "Confirm payment": "تأكيد الدفع",
-  "Mark unpaid": "وضع كغير مدفوع",
-  Refund: "استرداد",
   Amount: "المبلغ",
   "Glofox billing number": "رقم فاتورة Glofox",
   "Glofox billing": "فاتورة Glofox",
   "No billing number recorded": "لا يوجد رقم فاتورة مسجّل",
+
+  // ── The CRM sync ─────────────────────────────────────────────────────────
+  "Registrations come from the CRM": "التسجيلات تأتي من الـ CRM",
+  "Sync now": "زامن الآن",
+  "Syncing…": "جارٍ المزامنة…",
+  "No sync has finished yet.": "لم تكتمل أي مزامنة بعد.",
+  "Last sync brought in {created} and updated {updated}.":
+    "آخر مزامنة أضافت {created} وحدّثت {updated}.",
+  "{n} were left out — usually a registration form that is not finished.":
+    "{n} لم يدخلوا — غالبًا فورم تسجيل غير مكتمل.",
+  "A sync is already running. Give it a moment.": "هناك مزامنة جارية بالفعل. انتظر لحظة.",
+  "The CRM sync is switched off.": "مزامنة الـ CRM متوقفة.",
+  "Payment is recorded in the CRM and arrives here on the next sync.":
+    "الدفع يُسجَّل في الـ CRM ويصل هنا مع المزامنة التالية.",
   Note: "ملاحظة",
   "Confirmed takings": "المحصّل المؤكد",
   "not on the board": "لا يظهر على الـ board",

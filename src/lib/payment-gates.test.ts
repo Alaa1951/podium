@@ -41,6 +41,10 @@ const ALLOWED = new Set([
   "screens/registrations.tsx",
   // The row shows the money panel; it asks `row.waitlisted` separately.
   "components/admin/registered-row.tsx",
+  // The CRM sync writes the money the CRM reports, and stamps `paidAt` from
+  // it exactly as `payments.ts` does. It decides nothing about competing —
+  // `isCompeting` still stands between a paid team and the board.
+  "lib/crm/sync.ts",
 ]);
 
 /** Every .ts/.tsx under src, excluding tests and the generated client. */
