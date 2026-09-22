@@ -130,6 +130,44 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
   };
 }
 
+/**
+ * The studio a seat belongs to, founding it if this is the first time anybody
+ * from there has registered.
+ *
+ * BFT MENA opens studios, and a pair from a new one should not lose their
+ * membership because PODIUM had not heard of it yet — that membership is a
+ * figure the reports are asked for, and a silent null is the wrong answer to
+ * "which studio are they from". `approveSignup` already does exactly this for
+ * a self-registered athlete naming a studio we do not have
+ * (`actions/approvals.ts`), so this is the established rule, not a new one.
+ *
+ * `Studio.name` is unique, which is both the de-duplication and the race
+ * guard: two seats from the same new studio in one poll cannot found it
+ * twice, because the second create loses and re-reads.
+ */
+async function studioIdFor(
+  db: Db,
+  name: string,
+  cache: Map<string, string>
+): Promise<{ id: string; created: boolean }> {
+  const known = cache.get(name.toLowerCase());
+  if (known) return { id: known, created: false };
+
+  try {
+    const made = await db.studio.create({ data: { name }, select: { id: true } });
+    cache.set(name.toLowerCase(), made.id);
+    return { id: made.id, created: true };
+  } catch {
+    // Somebody else founded it between the read and the write — or it existed
+    // under a spelling the cache missed. Either way the name is taken, and
+    // the row behind it is the one we want.
+    const found = await db.studio.findUnique({ where: { name }, select: { id: true } });
+    if (!found) throw new Error(`Could not find or create the studio "${name}".`);
+    cache.set(name.toLowerCase(), found.id);
+    return { id: found.id, created: false };
+  }
+}
+
 /** Carry out one action. Returns what happened, never throws for a bad record. */
 async function apply(
   db: Db,
@@ -144,11 +182,12 @@ async function apply(
     // Upsert, because the same unfinished registration turns up on every poll
     // and `firstSeenAt` is the useful number: how long somebody has been
     // sitting there unchased.
-    const { externalId, ...fields } = action.intake;
+    const { externalId, raw, ...fields } = action.intake;
+    const payload = raw as unknown as never;
     await db.crmIntake.upsert({
       where: { seriesId_externalId: { seriesId, externalId } },
-      create: { seriesId, externalId, ...fields, lastSeenAt: now },
-      update: { ...fields, lastSeenAt: now },
+      create: { seriesId, externalId, ...fields, rawPayload: payload, lastSeenAt: now },
+      update: { ...fields, rawPayload: payload, lastSeenAt: now },
     });
     return "intake";
   }
@@ -171,16 +210,23 @@ async function apply(
   }
 
   const { draft } = action;
-  const seats = draft.seats.map((seat) => ({
-    position: seat.position,
-    fullName: seat.fullName,
-    email: seat.email,
-    phone: seat.phone,
-    dateOfBirth: seat.dateOfBirth,
-    shirtSize: seat.shirtSize,
-    bftMember: seat.bftMember,
-    studioId: seat.studioName ? (studioIdByName.get(seat.studioName) ?? null) : null,
-  }));
+  const seats = [];
+  for (const seat of draft.seats) {
+    // Sequential, not Promise.all: two seats of one pair are usually from the
+    // same studio, and racing them would have both try to found it.
+    const studio = seat.studioName ? await studioIdFor(db, seat.studioName, studioIdByName) : null;
+    if (studio?.created) console.info("[CRM:studio]", `created "${seat.studioName}"`);
+    seats.push({
+      position: seat.position,
+      fullName: seat.fullName,
+      email: seat.email,
+      phone: seat.phone,
+      dateOfBirth: seat.dateOfBirth,
+      shirtSize: seat.shirtSize,
+      bftMember: seat.bftMember,
+      studioId: studio?.id ?? null,
+    });
+  }
 
   const created = await createTeam(db, {
     seriesId,
@@ -196,6 +242,8 @@ async function apply(
     amountMinor: draft.amountMinor,
     billingNumber: draft.billingNumber,
     externalId: draft.externalId,
+    // Every field the CRM sent, mapped or not — see TeamDraft.raw.
+    rawPayload: draft.raw,
     seats,
   });
 
@@ -274,7 +322,10 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
 
     const studioIdByName = new Map<string, string>();
     for (const studio of await db.studio.findMany({ select: { id: true, name: true } })) {
-      studioIdByName.set(studio.name, studio.id);
+      // Keyed lowercase, the way `studioIdFor` looks it up — keying by the
+      // exact name would miss every existing studio and make the sync try to
+      // found each one again on every seat.
+      studioIdByName.set(studio.name.toLowerCase(), studio.id);
     }
 
     let created = 0;

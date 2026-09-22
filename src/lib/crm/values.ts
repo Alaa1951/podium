@@ -54,22 +54,29 @@ export function toShirtSize(raw: string | null): ShirtSize | null {
 }
 
 /**
- * The studio a competitor belongs to, as PODIUM names it.
+ * The studio a competitor belongs to, as PODIUM would name it.
  *
  * The CRM's options carry a "BFT " prefix and sometimes a gendered suffix —
  * "BFT West Walk  Female" and "BFT West Walk  Male" are the same studio with
  * two doors. Both must land on "West Walk".
  *
- * Returns null when nothing matches, and null is a real answer here: a
- * competitor who belongs to no studio is allowed, common, and a figure the
- * reports are asked for. Inventing a studio would corrupt that number.
+ * IT RETURNS THE NAME WHETHER OR NOT PODIUM KNOWS IT. Matching an existing
+ * studio and creating a missing one are the caller's decision, not this
+ * function's: a pure function here cannot create a row, and returning null
+ * for an unknown studio is how a real membership used to be thrown away.
+ * `known` only fixes the SPELLING, so "the pearl" becomes "The Pearl" rather
+ * than founding a second studio beside it.
+ *
+ * Null still means one thing, and it is a real answer: the CRM field was
+ * empty. A competitor who belongs to no studio is allowed, common, and a
+ * figure the reports are asked for.
  */
 export function toStudioName(raw: string | null, known: readonly string[]): string | null {
   if (!raw) return null;
   const cleaned = raw.replace(/^BFT\s+/i, "").replace(/\s+(male|female)$/i, "").replace(/\s+/g, " ").trim();
   if (!cleaned) return null;
   const hit = known.find((name) => name.toLowerCase() === cleaned.toLowerCase());
-  return hit ?? null;
+  return hit ?? cleaned;
 }
 
 /**

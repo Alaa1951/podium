@@ -56,7 +56,11 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     },
     series: { findUnique: vi.fn(async () => ({ id: "series-1" })) },
     crmIntake: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 0 })) },
-    studio: { findMany: vi.fn(async () => []) },
+    studio: {
+      findMany: vi.fn(async (): Promise<{ id: string; name: string }[]> => []),
+      create: vi.fn(async (): Promise<{ id: string }> => ({ id: "st-new" })),
+      findUnique: vi.fn(async (): Promise<{ id: string } | null> => null),
+    },
     team: {
       findMany: vi.fn(async () => []),
       // `nextTeamNumber` reads the highest number through this one.
@@ -237,6 +241,88 @@ describe("runSync", () => {
     expect(db.state.lastCreated).toBe(1);
   });
 
+  // A pair from a studio PODIUM has not heard of must not lose their
+  // membership. `approveSignup` already founds a studio the same way for a
+  // self-registered athlete, so this is the established rule, not a new one.
+  it("founds a studio it has never heard of, and reuses one it has", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    db.studio.findMany.mockResolvedValue([{ id: "st-pearl", name: "The Pearl" }]);
+
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [
+        {
+          id: "c1",
+          contactName: "Sample Person",
+          customFields: [
+            { id: FIELD.category, value: ["MEN"] },
+            { id: FIELD.division, value: ["OPEN"] },
+            { id: FIELD.nameTwo, value: "Second Person" },
+            // One from a studio we know, one from a studio we do not.
+            { id: FIELD.studioOne, value: ["BFT The Pearl"] },
+            { id: FIELD.studioTwo, value: ["BFT Lusail"] },
+          ],
+        },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    const result = await runSync({ prisma: db as never, client: client as never });
+    expect(result).toMatchObject({ ok: true, created: 1 });
+
+    // The known one was reused — founding it again would be a duplicate under
+    // a different id, and the unique index is the only thing that would say so.
+    expect(db.studio.create).toHaveBeenCalledTimes(1);
+    expect(db.studio.create).toHaveBeenCalledWith({
+      data: { name: "Lusail" },
+      select: { id: true },
+    });
+
+    const seats = (db.team.create.mock.calls[0] as unknown as [{ data: { competitors: { create: { studioId: string | null }[] } } }])[0].data.competitors.create;
+    expect(seats[0].studioId).toBe("st-pearl");
+    expect(seats[1].studioId).toBe("st-new");
+  });
+
+  // EVERY custom field survives, not just the sixteen this code reads. Two
+  // are unmapped today and BFT MENA adds to that form; without the snapshot
+  // they would be read, ignored, and gone.
+  it("keeps the whole CRM contact, including the fields it does not read", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    const contact = {
+      id: "c1",
+      contactName: "Sample Person",
+      customFields: [
+        { id: FIELD.category, value: ["MEN"] },
+        { id: FIELD.division, value: ["OPEN"] },
+        // Neither of these is mapped to a column anywhere.
+        { id: FIELD.genderOne, value: "Male" },
+        { id: FIELD.havePartner, value: "Yes" },
+      ],
+    };
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [contact]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "c1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    await runSync({ prisma: db as never, client: client as never });
+
+    const written = (db.team.create.mock.calls[0] as unknown as [{ data: { rawPayload: unknown } }])[0].data.rawPayload;
+    expect(written).toEqual(contact);
+  });
+
   // An unfinished registration is still somebody who paid and expects to
   // compete. It is held where staff can see and chase it, not dropped.
   it("holds an unfinished registration instead of dropping it", async () => {
@@ -273,6 +359,11 @@ describe("runSync", () => {
       email: "chase@example.com",
       teamName: "Half A Team",
       missing: "no category and no division",
+    });
+    // The snapshot is kept on a held row too: somebody who never finishes
+    // their form is exactly the registration a dispute gets read back from.
+    expect((upsert[0].create as { rawPayload: { id: string } }).rawPayload).toMatchObject({
+      id: "c1",
     });
   });
 

@@ -165,13 +165,35 @@ describe("draftFrom", () => {
     expect(result.ok && result.draft.seats[1].studioName).toBe("West Walk");
   });
 
-  // Null is a real answer: a competitor who belongs to no studio is allowed,
-  // common, and a figure the reports are asked for. Inventing one corrupts it.
-  it("leaves the studio null when nothing matches", () => {
+  // A studio PODIUM has not heard of is still that person's studio. Returning
+  // null here is how a real membership used to be thrown away — the caller
+  // founds the studio instead, the way approveSignup already does.
+  it("keeps a studio it does not recognise, cleaned rather than dropped", () => {
     const unknown = contact("c7", {
       customFields: [{ id: FIELD.studioOne, value: ["BFT Somewhere Else"] }],
     });
     const result = draftFrom(unknown, "paid", STUDIOS);
+    expect(result.ok && result.draft.seats[0].studioName).toBe("Somewhere Else");
+  });
+
+  // `known` fixes the SPELLING and nothing else: a studio written in a
+  // different case must land on the existing row, not found a second one
+  // beside it with the same name in different letters.
+  it("corrects the spelling of a studio it does recognise", () => {
+    const shouted = contact("c8", {
+      customFields: [{ id: FIELD.studioOne, value: ["BFT  the  pearl "] }],
+    });
+    const result = draftFrom(shouted, "paid", STUDIOS);
+    expect(result.ok && result.draft.seats[0].studioName).toBe("The Pearl");
+  });
+
+  // Null still means exactly one thing: the CRM field was empty. A competitor
+  // who belongs to no studio is allowed, common, and a figure the reports are
+  // asked for — so an empty field must never become an invented studio.
+  it("leaves the studio null when the CRM said nothing", () => {
+    const none = contact("c9");
+    none.customFields = none.customFields.filter((field) => field.id !== FIELD.studioOne);
+    const result = draftFrom(none, "paid", STUDIOS);
     expect(result.ok && result.draft.seats[0].studioName).toBeNull();
   });
 });

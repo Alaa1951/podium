@@ -24,12 +24,15 @@ import type { CrmOpportunity, CrmPipeline } from "@/lib/crm/client";
 // twice during a single afternoon of exploring it.
 //
 // THE ONE RULE THAT MATTERS: a record this code cannot read correctly is
-// SKIPPED with a reason, never imported with a stand-in value. Thirty-one of
-// the eighty-five contacts have no Category and no Division, and both are
-// required enums in PODIUM. Division decides the prescribed loads a pair
-// lifts (LoadStandard is keyed on [division, sex]) — so a filled-in guess is
-// a team handed the wrong weights, discovered on the floor on the morning.
-// Those records arrive on their own the moment somebody completes the form.
+// never imported with a stand-in value. A third of the contacts have no
+// Category and no Division, and both are required enums in PODIUM. Division
+// decides the prescribed loads a pair lifts (LoadStandard is keyed on
+// [division, sex]) — so a filled-in guess is a team handed the wrong weights,
+// discovered on the floor on the morning.
+//
+// It is not discarded either: it becomes an `intake` action, held where staff
+// can see and chase it, and promoted to a real team by the first poll after
+// somebody finishes the form. Every contact produces exactly one action.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type PaymentStatus = "pending" | "paid" | "refunded";
@@ -62,6 +65,16 @@ export type SeatDraft = {
 
 export type TeamDraft = {
   externalId: string;
+  /**
+   * The CRM contact exactly as it arrived.
+   *
+   * THIS IS WHAT MAKES THE UNMAPPED FIELDS SURVIVE. Eighteen custom fields
+   * exist and this code reads sixteen of them; without the snapshot the other
+   * two — and anything BFT MENA adds to the form next month — would be read,
+   * ignored, and gone. It is also the only way a disputed registration can be
+   * read back as it was submitted rather than as we interpreted it.
+   */
+  raw: CrmContact;
   name: string;
   category: Category;
   division: Division;
@@ -80,6 +93,8 @@ export type TeamDraft = {
  */
 export type IntakeDraft = {
   externalId: string;
+  /** The contact as it arrived — see the note on TeamDraft.raw. */
+  raw: CrmContact;
   contactName: string;
   email: string | null;
   phone: string | null;
@@ -199,6 +214,7 @@ export function draftFrom(
     ok: true,
     draft: {
       externalId: contact.id,
+      raw: contact,
       name: teamName,
       category,
       division,
@@ -224,6 +240,7 @@ function intakeFrom(
 ): IntakeDraft {
   return {
     externalId: contact.id,
+    raw: contact,
     // Never blank: the row is useless if it cannot be spoken about. A contact
     // with no name at all is listed by the only handle it has.
     contactName: contactFullName(contact) ?? readField(contact, FIELD.nameTwo) ?? contact.id,
