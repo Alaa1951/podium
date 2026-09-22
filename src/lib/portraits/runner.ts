@@ -153,13 +153,19 @@ export async function runOne(
   prisma: Db,
   client: PortraitClient,
   job: Job,
-  now: Date,
+  /**
+   * The CLOCK, not a moment. A generation takes half a minute or more, and
+   * passing in a single Date stamped `finishedAt` with the time the job was
+   * claimed — so every row looked milliseconds old and a duration read off
+   * this table was a lie.
+   */
+  now: () => Date,
   maxRetries: number
 ) {
   try {
     if (job.targetKind === "competitor") {
       if (!job.competitorId || !job.sourceB64 || !job.sourceMime) {
-        await finishFailed(prisma, job, now, "Nothing to work from", maxRetries);
+        await finishFailed(prisma, job, now(), "Nothing to work from", maxRetries);
         return;
       }
       // The artwork goes WITH the photo: the model is shown the mark rather
@@ -188,20 +194,20 @@ export async function runOne(
       });
       await prisma.portraitJob.update({
         where: { id: job.id },
-        data: { status: "succeeded", finishedAt: now, sourceB64: null, sourceMime: null },
+        data: { status: "succeeded", finishedAt: now(), sourceB64: null, sourceMime: null },
       });
 
       const seat = await prisma.competitor.findUnique({
         where: { id: portrait.competitorId },
         select: { teamId: true },
       });
-      if (seat) await queueCompositeIfReady(prisma, seat.teamId, now);
+      if (seat) await queueCompositeIfReady(prisma, seat.teamId, now());
       return;
     }
 
     // ── The team composite ────────────────────────────────────────────────
     if (!job.teamId || !job.inputPortraitIdA || !job.inputPortraitIdB) {
-      await finishFailed(prisma, job, now, "Nothing to work from", maxRetries);
+      await finishFailed(prisma, job, now(), "Nothing to work from", maxRetries);
       return;
     }
     const sources = await prisma.competitorPortrait.findMany({
@@ -209,7 +215,7 @@ export async function runOne(
       select: { id: true, imageB64: true, mimeType: true },
     });
     if (sources.length !== 2) {
-      await finishFailed(prisma, job, now, "A source portrait is gone", maxRetries);
+      await finishFailed(prisma, job, now(), "A source portrait is gone", maxRetries);
       return;
     }
     // Back into the order they were pinned in, so seat 1 stays on the left.
@@ -236,12 +242,12 @@ export async function runOne(
     });
     await prisma.portraitJob.update({
       where: { id: job.id },
-      data: { status: "succeeded", finishedAt: now },
+      data: { status: "succeeded", finishedAt: now() },
     });
   } catch (error) {
     // The message is already redacted by the client; nothing here adds to it.
     const reason = error instanceof Error ? error.message.slice(0, 180) : "Failed";
-    await finishFailed(prisma, job, now, reason, maxRetries).catch(() => undefined);
+    await finishFailed(prisma, job, now(), reason, maxRetries).catch(() => undefined);
   }
 }
 
@@ -264,7 +270,7 @@ export async function tick(settings: TickSettings) {
     const job = await claimNext(prisma, now());
     if (!job) break;
     inFlight.count += 1;
-    void runOne(prisma, client, job, now(), maxRetries).finally(() => {
+    void runOne(prisma, client, job, now, maxRetries).finally(() => {
       inFlight.count -= 1;
     });
   }

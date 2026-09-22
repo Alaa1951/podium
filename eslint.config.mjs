@@ -39,6 +39,7 @@ const eslintConfig = defineConfig([
     // would otherwise turn `npm run verify` yellow on a clean tree.
     ".tmp-qa/**",
     ".tmp-*",
+    "tmp-portrait-test/**",
     "capacitor-web/capacitor.js",
     "android/app/src/main/assets/public/**",
     "ios/App/App/public/**",

@@ -103,10 +103,21 @@ export function PortraitUpload() {
     setError("");
     setBusy(seat.competitorId);
     try {
+      // Decoding happens here, before anything is sent. A file that is not an
+      // image fails at this line, and blaming the connection for it — which is
+      // what the catch below used to do — sends somebody to check their wifi.
+      let shrunk: Blob;
+      try {
+        shrunk = await shrink(file);
+      } catch {
+        setError(t(ERRORS.NOT_AN_IMAGE));
+        return;
+      }
+
       const body = new FormData();
       body.append("competitorId", seat.competitorId);
       body.append("consent", "true");
-      body.append("photo", await shrink(file), "photo.jpg");
+      body.append("photo", shrunk, "photo.jpg");
 
       const response = await fetch("/api/me/portraits", { method: "POST", body });
       if (!response.ok) {

@@ -250,3 +250,17 @@ html[data-mobile="true"] { scroll-padding-top: calc(var(--mobile-header-h) + 12p
 .navigation-progress[data-navigation-pending="true"] { opacity: 1; animation: navigation-pulse .8s ease-in-out infinite alternate; }
 @keyframes navigation-pulse { to { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .navigation-progress[data-navigation-pending="true"] { animation: none; } }
+
+/* Faces in the phone list. The row is a link with a fixed grid, so the pair
+   sits as one cluster between the number and the text rather than pushing
+   the name off the edge. */
+.mobile-list-faces {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+/* Overlapped, the way a group chat shows its members: two 28px circles cost
+   the width of one and a half. */
+.mobile-list-faces .athlete-avatar + .athlete-avatar {
+  margin-inline-start: -10px;
+}

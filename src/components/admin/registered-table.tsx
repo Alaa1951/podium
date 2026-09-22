@@ -198,7 +198,7 @@ export function RegisteredTable({
         </div>
       ) : null}
 
-      {mobile ? <div className="mobile-list">{rows.map((row) => <DetailLink key={row.id} href={`${path}/${row.id}`}><span className="pd-num">#{row.number}</span><div><strong>{row.name}</strong><small>{row.people.map((person) => person.fullName).join(" · ")}</small><small>{t(row.category)} · {t(row.division)} · {t("Wave")} {row.wave ?? "—"}</small></div><span className="badge">{t(row.paymentStatus)}</span><span aria-hidden="true">›</span></DetailLink>)}</div> : <div className="table-scroll" style={{ marginTop: 12 }}>
+      {mobile ? <div className="mobile-list">{rows.map((row) => <DetailLink key={row.id} href={`${path}/${row.id}`}><span className="pd-num">#{row.number}</span><span className="mobile-list-faces">{row.people.map((person) => <AthleteAvatar key={person.fullName} photoPath={person.photoPath} name={person.fullName} size={28} />)}</span><div><strong>{row.name}</strong><small>{row.people.map((person) => person.fullName).join(" · ")}</small><small>{t(row.category)} · {t(row.division)} · {t("Wave")} {row.wave ?? "—"}</small></div><span className="badge">{t(row.paymentStatus)}</span><span aria-hidden="true">›</span></DetailLink>)}</div> : <div className="table-scroll" style={{ marginTop: 12 }}>
         <table className="table reg-table">
           <thead>
             <tr>

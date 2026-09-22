@@ -77,3 +77,4 @@ debug.log
 # the machine that made them, never committed.
 .tmp-qa/
 .tmp-*
+tmp-portrait-test/

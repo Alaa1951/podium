@@ -180,7 +180,7 @@ describe("recovering from a crash", () => {
 describe("running one job", () => {
   it("stores the portrait, points the seat at it, and clears the upload", async () => {
     const db = fakeDb({ jobs: [soloJob({ status: "running" })], seats: [{ id: "c1", teamId: "t1" }] });
-    await runOne(db as unknown as Db, client(), db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, client(), db.jobs[0] as never, () => NOW, 2);
 
     expect(db.portraits[0]).toMatchObject({ competitorId: "c1", imageB64: "UE5H" });
     // Same-origin and rooted, so the existing athletePhoto() guard accepts it.
@@ -193,7 +193,7 @@ describe("running one job", () => {
     // stops being true.
     const db = fakeDb({ jobs: [soloJob({ status: "running", retryCount: 2 })] });
     const failing = { ...client(), restylePortrait: vi.fn(async () => { throw new Error("nope"); }) };
-    await runOne(db as unknown as Db, failing, db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, failing, db.jobs[0] as never, () => NOW, 2);
 
     expect(db.jobs[0]).toMatchObject({ status: "failed", sourceB64: null, sourceMime: null });
   });
@@ -201,10 +201,29 @@ describe("running one job", () => {
   it("retries before giving up, keeping the photo for the next attempt", async () => {
     const db = fakeDb({ jobs: [soloJob({ status: "running", retryCount: 0 })] });
     const failing = { ...client(), restylePortrait: vi.fn(async () => { throw new Error("nope"); }) };
-    await runOne(db as unknown as Db, failing, db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, failing, db.jobs[0] as never, () => NOW, 2);
 
     expect(db.jobs[0]).toMatchObject({ status: "queued", retryCount: 1 });
     expect(db.jobs[0].sourceB64).toBe("AAAA");
+  });
+
+  it("stamps finishedAt when it FINISHES, not when it was claimed", async () => {
+    // A generation takes half a minute or more. Passing one Date in made every
+    // row look milliseconds old, so any duration read off this table was a lie.
+    const db = fakeDb({ jobs: [soloJob({ status: "running" })], seats: [{ id: "c1", teamId: "t1" }] });
+    // Time passes DURING the call, which is the whole point — so the fake
+    // client advances the clock the way a real 41-second generation would.
+    const done = new Date(NOW.getTime() + 41_000);
+    let current = NOW;
+    const slow = {
+      ...client(),
+      restylePortrait: vi.fn(async () => {
+        current = done;
+        return { imageB64: "UE5H", mimeType: "image/png" };
+      }),
+    };
+    await runOne(db as unknown as Db, slow, db.jobs[0] as never, () => current, 2);
+    expect(db.jobs[0].finishedAt).toEqual(done);
   });
 
   it("never throws, so one bad job cannot stop the worker", async () => {
@@ -214,7 +233,7 @@ describe("running one job", () => {
       restylePortrait: vi.fn(async () => { throw new Error("boom"); }),
     };
     await expect(
-      runOne(db as unknown as Db, exploding, db.jobs[0] as never, NOW, 2)
+      runOne(db as unknown as Db, exploding, db.jobs[0] as never, () => NOW, 2)
     ).resolves.toBeUndefined();
   });
 });
@@ -228,7 +247,7 @@ describe("the team composite", () => {
         { id: "c2", teamId: "t1", position: 2, portraits: [{ id: "p2" }] },
       ],
     });
-    await runOne(db as unknown as Db, client(), db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, client(), db.jobs[0] as never, () => NOW, 2);
 
     const composite = db.jobs.find((job) => job.targetKind === "team");
     expect(composite).toBeTruthy();
@@ -247,7 +266,7 @@ describe("the team composite", () => {
         { id: "c2", teamId: "t1", position: 2, portraits: [{ id: "p2" }] },
       ],
     });
-    await runOne(db as unknown as Db, client(), db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, client(), db.jobs[0] as never, () => NOW, 2);
 
     expect(stale).toMatchObject({ status: "failed", failedReason: "Superseded" });
     expect(db.jobs.filter((job) => job.targetKind === "team" && job.status === "queued")).toHaveLength(1);
@@ -261,7 +280,7 @@ describe("the team composite", () => {
         { id: "c2", teamId: "t1", position: 2, portraits: [] },
       ],
     });
-    await runOne(db as unknown as Db, client(), db.jobs[0] as never, NOW, 2);
+    await runOne(db as unknown as Db, client(), db.jobs[0] as never, () => NOW, 2);
     expect(db.jobs.some((job) => job.targetKind === "team")).toBe(false);
   });
 });
