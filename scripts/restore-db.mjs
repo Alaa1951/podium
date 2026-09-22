@@ -11,6 +11,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { clientCommand, readDbCredentials, requirePassword } from "./db-credentials.mjs";
+
 process.loadEnvFile?.(path.join(process.cwd(), ".env"));
 
 const args = process.argv.slice(2);
@@ -29,30 +31,34 @@ if (!fs.existsSync(dumpPath)) {
   process.exit(1);
 }
 
-const database = process.env.MYSQL_DATABASE || "pudem";
-const user = process.env.MYSQL_USER || "pudem";
-const password = process.env.MYSQL_PASSWORD || "";
-const container = process.env.MYSQL_CONTAINER || "pudem-mysql";
-const port = process.env.MYSQL_PORT || "3306";
+let credentials;
+try {
+  credentials = requirePassword(readDbCredentials());
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
+const { database, host, port, container } = credentials;
 
 if (!confirmed) {
   const sizeKb = Math.round(fs.statSync(dumpPath).size / 1024);
+  // The HOST is named, not just the database. The expensive version of this
+  // mistake is not restoring the wrong dump — it is restoring the right dump
+  // onto the wrong machine, and until now this line could not tell them apart.
+  const target = useHost ? `${host}:${port}` : `container ${container}`;
   console.error(
-    `About to REPLACE the "${database}" database with ${path.basename(dumpPath)} (${sizeKb} KB).\n` +
+    `About to REPLACE the "${database}" database on ${target} ` +
+      `with ${path.basename(dumpPath)} (${sizeKb} KB).\n` +
       "Re-run with --yes if that is what you want."
   );
   process.exit(1);
 }
 
 const sql = fs.readFileSync(dumpPath);
-const mysqlArgs = [`--user=${user}`, `--password=${password}`, "--default-character-set=utf8mb4", database];
+const { command, args: mysqlArgs, env } = clientCommand("mysql", credentials, { useHost });
 
 try {
-  if (useHost) {
-    execFileSync("mysql", [`--host=127.0.0.1`, `--port=${port}`, ...mysqlArgs], { input: sql });
-  } else {
-    execFileSync("docker", ["exec", "-i", container, "mysql", ...mysqlArgs], { input: sql });
-  }
+  execFileSync(command, mysqlArgs, { env, input: sql });
   console.log(`[restore] ${database} restored from ${path.basename(dumpPath)}`);
 } catch (error) {
   console.error("[restore] failed:", error instanceof Error ? error.message : error);
