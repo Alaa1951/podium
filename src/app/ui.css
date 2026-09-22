@@ -1038,6 +1038,12 @@ select.input { cursor: pointer; }
 .station-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-top: 10px; }
 .station-cell { display: flex; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 8px; min-width: 0; }
 .station-cell[data-empty] { opacity: 0.55; }
+/* A station past the wave's capacity: a rig that is not on the floor. Shown,
+   never hidden — a team standing here has to be visible to be moved. Same
+   --danger as .wave-card-fill[data-over], so "over capacity" reads as one
+   thing wherever it appears. */
+.station-cell[data-beyond] { border-color: var(--danger); border-style: dashed; }
+.station-cell[data-beyond] .station-number { color: var(--danger); font-weight: 700; }
 .station-number {
   flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: var(--surface-sunken); font-weight: 700; font-size: 12px;

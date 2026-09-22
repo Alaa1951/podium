@@ -146,7 +146,12 @@ export async function setTeamStation(input: unknown): Promise<ActionResult> {
   });
   if (!team?.waveId || !team.waveRef) return { ok: false, error: "NOT_FOUND" };
   if (team.waveRef.status !== "pending") return { ok: false, error: "WAVE_STARTED" };
-  if (parsed.data.station > team.waveRef.capacity) return { ok: false, error: "INVALID_INPUT" };
+  // A station the wave does not have is a rig that is not on the floor. Its
+  // own error code, not INVALID_INPUT: the screen can then say WHY, and
+  // "something went wrong" is what sends somebody to re-type the same number.
+  if (parsed.data.station > team.waveRef.capacity) {
+    return { ok: false, error: "BEYOND_CAPACITY" };
+  }
   if (team.station === parsed.data.station) return { ok: true };
 
   const occupant = await prisma.team.findFirst({

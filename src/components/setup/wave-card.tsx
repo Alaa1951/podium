@@ -18,6 +18,8 @@ import { waveWindowLabel, type WaveState } from "@/lib/waves";
 
 type TeamGridProps = {
   teams: SetupTeam[];
+  /** The wave's capacity — how many stations its team rows may offer. */
+  stations: number;
   pickable: number[];
   pending: boolean;
   studioName: (studioId: string | null) => string;
@@ -33,6 +35,7 @@ function TeamGrid(props: TeamGridProps) {
         <TeamRow
           key={team.id}
           team={team}
+          stations={props.stations}
           pickable={props.pickable}
           pending={props.pending}
           studioName={props.studioName}
@@ -64,7 +67,7 @@ export function WaveCard({
   onToggleSettings: () => void;
   onRemove: () => void;
   onSaveSettings: (wave: WaveState, form: FormData) => void;
-  grid: Omit<TeamGridProps, "teams">;
+  grid: Omit<TeamGridProps, "teams" | "stations">;
 }) {
   const t = useT();
 
@@ -145,7 +148,7 @@ export function WaveCard({
         </div>
       ) : null}
 
-      <TeamGrid {...grid} teams={inWave} />
+      <TeamGrid {...grid} teams={inWave} stations={wave.capacity} />
     </BlueprintCard>
   );
 }
@@ -153,11 +156,18 @@ export function WaveCard({
 export function OrphanCard({
   number,
   inWave,
+  stations,
   grid,
 }: {
   number: number;
   inWave: SetupTeam[];
-  grid: Omit<TeamGridProps, "teams">;
+  /**
+   * The COMPETITION's capacity. These teams point at a wave that does not
+   * exist, so there is no wave capacity to read — and the wave somebody
+   * eventually creates for them will be built with this number.
+   */
+  stations: number;
+  grid: Omit<TeamGridProps, "teams" | "stations">;
 }) {
   const t = useT();
 
@@ -178,7 +188,7 @@ export function OrphanCard({
         </div>
       </div>
 
-      <TeamGrid {...grid} teams={inWave} />
+      <TeamGrid {...grid} teams={inWave} stations={stations} />
     </BlueprintCard>
   );
 }

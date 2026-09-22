@@ -126,6 +126,7 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
           }))}
           candidates={candidates.map((person) => ({ id: person.id, label: person.name ? `${person.name} · ${person.email}` : person.email }))}
           canAssign={canAssign}
+          stations={series.waveCapacity}
         />
       ) : null}
     </div>

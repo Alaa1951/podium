@@ -33,7 +33,7 @@ function clock(ms: number | null) {
  * finished. It re-reads itself every few seconds, so the next wave appears on
  * its own.
  *
- * A zone LEADER sees all nine stations of their zone, and places the judges
+ * A zone LEADER sees every station of their zone, and places the judges
  * and reserves on stations. An athlete with no post sees their own wave.
  */
 export default async function MyWavePage(detailId?: string) {
@@ -280,6 +280,7 @@ export default async function MyWavePage(detailId?: string) {
               candidates={[]}
               canAssign={false}
               canPlace={!user.viewAs}
+              stations={post.series.waveCapacity}
             />
           ) : null}
         </section>

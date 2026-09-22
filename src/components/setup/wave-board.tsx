@@ -102,8 +102,10 @@ export function WaveBoard({
           : result.error === "WAVE_NUMBER_TAKEN"
             ? t("There is already a wave with that number.")
             : result.error === "WAVE_FULL"
-              ? t("That wave is full — nine teams, one per station.")
-              : result.error === "STATION_TAKEN"
+              ? t("That wave is full — {n} teams, one per station.", { n: waveCapacity })
+              : result.error === "BEYOND_CAPACITY"
+                ? t("This wave runs {n} stations — pick one of those, or raise Teams per wave in Settings.", { n: waveCapacity })
+                : result.error === "STATION_TAKEN"
                 ? t("Another studio's team is on that station.")
                 : t("Something went wrong. Try again.")
     );
@@ -267,6 +269,7 @@ export function WaveBoard({
             key={`orphan-${number}`}
             number={number}
             inWave={teams.filter((team) => team.wave === number)}
+            stations={waveCapacity}
             grid={grid}
           />
         ))}

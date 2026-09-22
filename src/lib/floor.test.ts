@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasReachedZone,
   lowestFreeStation,
+  stationSlots,
   remainingClock,
   waveInZone,
   waveLengthMinutes,
@@ -122,6 +123,29 @@ describe("stations", () => {
   it("never goes past nine, whatever the capacity says", () => {
     expect(lowestFreeStation([1, 2, 3, 4, 5, 6, 7, 8, 9], 12)).toBeNull();
     expect(lowestFreeStation([1, 2], 2)).toBeNull();
+  });
+
+  // A wave set to seven teams should not draw nine rigs with two of them
+  // permanently empty — the screens read this, not MAX_STATIONS.
+  it("draws as many slots as the wave's capacity", () => {
+    expect(stationSlots(7, [])).toBe(7);
+    expect(stationSlots(7, [1, 2, 3])).toBe(7);
+    expect(stationSlots(1, [])).toBe(1);
+  });
+
+  // THE ONE THAT MATTERS. Lowering the capacity under a wave whose teams are
+  // already placed must not hide the ones standing off the end: a team nobody
+  // can see is a team nobody moves, and it is found on the morning.
+  it("never hides a team standing past the capacity", () => {
+    expect(stationSlots(7, [1, 2, 9])).toBe(9);
+    expect(stationSlots(3, [5])).toBe(5);
+    expect(stationSlots(7, [null, 8, null])).toBe(8);
+  });
+
+  it("still stops at nine, and never returns nothing to draw", () => {
+    expect(stationSlots(12, [])).toBe(9);
+    expect(stationSlots(0, [])).toBe(1);
+    expect(stationSlots(-3, [null])).toBe(1);
   });
 });
 

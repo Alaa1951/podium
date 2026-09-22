@@ -29,8 +29,8 @@ export const AR_FLOOR: Phrases = {
   Reset: "إعادة ضبط",
   "No waves yet. Build the running order on the Waves screen.": "لا توجد موجات بعد. جهّز ترتيب الموجات من شاشة الموجات.",
   "This wave has no teams yet.": "لا توجد فرق في هذه الموجة بعد.",
-  "Every team in the wave needs a station (1–9) before it can start.":
-    "كل فريق في الموجة يحتاج محطة (من 1 إلى 9) قبل أن تبدأ.",
+  "Every team in the wave needs a station before it can start.":
+    "كل فريق في الموجة يحتاج محطة قبل أن تبدأ.",
   "This competition has no zones yet — add them in Settings.": "لا توجد مناطق في هذه البطولة بعد — أضفها من الإعدادات.",
   "Set the competition to Running before starting a wave.": "اجعل حالة البطولة «جارية» قبل بدء أي موجة.",
   "This wave has already started.": "هذه الموجة بدأت بالفعل.",
@@ -41,8 +41,8 @@ export const AR_FLOOR: Phrases = {
   "Your zone team": "فريق منطقتك",
   "Zone leader": "قائد المنطقة",
   Reserve: "احتياطي",
-  "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on stations 1–9. A judge scores only the team on their station, in whichever wave is in their zone.":
-    "الصلاحية على مستوى المنطقة، طوال البطولة. لكل منطقة قائد واحد يوزع الحكام والاحتياطيين على المحطات من 1 إلى 9. الحكم يسجل درجات الفريق الموجود على محطته فقط، في أي موجة موجودة في منطقته.",
+  "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone.":
+    "الصلاحية على مستوى المنطقة، طوال البطولة. لكل منطقة قائد واحد يوزع الحكام والاحتياطيين على المحطات. الحكم يسجل درجات الفريق الموجود على محطته فقط، في أي موجة موجودة في منطقته.",
   "No zone leader yet": "لا يوجد قائد للمنطقة بعد",
   "Nobody on this zone yet.": "لا يوجد أحد في هذه المنطقة بعد.",
   Station: "المحطة",
@@ -95,7 +95,10 @@ export const AR_FLOOR: Phrases = {
   "Changeover between zones (minutes)": "الانتقال بين المناطق (بالدقائق)",
   "one per station, nine at most": "فريق لكل محطة، تسعة كحد أقصى",
   "Each wave runs {minutes} minutes across {zones} zones.": "كل موجة تستمر {minutes} دقيقة عبر {zones} مناطق.",
-  "That wave is full — nine teams, one per station.": "هذه الموجة ممتلئة — تسعة فرق، فريق لكل محطة.",
+  "That wave is full — {n} teams, one per station.": "هذه الموجة ممتلئة — {n} فرق، فريق لكل محطة.",
+  "This wave runs {n} stations — pick one of those, or raise Teams per wave in Settings.":
+    "هذه الموجة تعمل بـ {n} محطات — اختر واحدة منها، أو ارفع «الفرق في الموجة» من الإعدادات.",
+  "Past station {capacity}: {teams}": "بعد المحطة {capacity}: {teams}",
   "Another studio's team is on that station.": "يوجد فريق لاستوديو آخر على هذه المحطة.",
   "The floor holds nine teams at once, one per station, so the field is dealt into waves. Each team keeps its station in every zone. Timing comes from the competition settings; each wave carries its own estimated start.":
     "أرض البطولة تتسع لتسعة فرق في نفس الوقت، فريق لكل محطة، لذلك تُوزع الفرق على موجات. كل فريق يحتفظ بمحطته في كل المناطق. التوقيت من إعدادات البطولة، ولكل موجة موعد بداية تقديري خاص بها.",

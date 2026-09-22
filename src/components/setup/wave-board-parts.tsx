@@ -1,6 +1,7 @@
 "use client";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { stationSlots } from "@/lib/floor";
 
 /** A team in the running order, and one field of a wave's settings. */
 export type SetupTeam = {
@@ -53,6 +54,7 @@ export function TeamRow({
   pickable,
   pending,
   studioName,
+  stations,
   onMove,
   onCycle,
   onStation,
@@ -61,6 +63,12 @@ export function TeamRow({
   pickable: number[];
   pending: boolean;
   studioName: (id: string | null) => string;
+  /**
+   * How many stations this team's wave has — its capacity, NOT the floor's
+   * nine. Offering a station the wave does not have is offering a rig that is
+   * not there, and the server rejects it anyway (BEYOND_CAPACITY).
+   */
+  stations: number;
   onMove: (teamId: string, wave: number) => void;
   onCycle: (competitorId: string, current: string | null) => void;
   /** Move the team to another station of its wave (swaps with whoever is there). */
@@ -94,9 +102,13 @@ export function TeamRow({
             style={{ width: 46, padding: "2px 4px", fontSize: 12 }}
           >
             {team.station === null ? <option value="">—</option> : null}
-            {Array.from({ length: 9 }, (_, index) => (
+            {/* Never fewer options than the station this team already stands
+                on: a capacity lowered underneath it must leave the team
+                selectable so somebody can move it back in. */}
+            {Array.from({ length: stationSlots(stations, [team.station]) }, (_, index) => (
               <option key={index + 1} value={index + 1}>
                 {index + 1}
+                {index + 1 > stations ? " ⚠" : ""}
               </option>
             ))}
           </select>

@@ -67,7 +67,7 @@ export async function judgePostsFor(userId: string) {
       position: true,
       station: true,
       seriesId: true,
-      series: { select: { id: true, name: true, slug: true, status: true } },
+      series: { select: { id: true, name: true, slug: true, status: true, waveCapacity: true } },
       zone: { select: { id: true, number: true, name: true } },
     },
   });

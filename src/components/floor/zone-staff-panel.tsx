@@ -5,7 +5,6 @@ import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { addZoneStaff, removeZoneStaff, setZoneStaffStation } from "@/lib/actions/zone-staff";
-import { MAX_STATIONS } from "@/lib/floor";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ZONE TEAMS — who works each zone for the whole competition.
@@ -38,10 +37,17 @@ export function ZoneStaffPanel({
   candidates,
   canAssign,
   canPlace = false,
+  stations,
   title,
 }: {
   zones: { id: string; number: number; name: string; staff: ZoneStaffRow[] }[];
   candidates: { id: string; label: string }[];
+  /**
+   * How many stations the floor actually runs — the competition's capacity,
+   * not MAX_STATIONS. A judge cannot stand at a rig that is not set up, and
+   * offering the number invites somebody to pick it.
+   */
+  stations: number;
   /** zoneStaff.assign: add, remove, pick the leader, place anyone. */
   canAssign: boolean;
   /** A zone leader: place the judges and reserves of these zones on stations. */
@@ -75,7 +81,7 @@ export function ZoneStaffPanel({
       <h2 className="section-title">{title ?? t("Zone teams")}</h2>
       <p className="reg-sub" style={{ maxWidth: "70ch" }}>
         {t(
-          "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on stations 1–9. A judge scores only the team on their station, in whichever wave is in their zone."
+          "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone."
         )}
       </p>
       {error ? (
@@ -122,7 +128,10 @@ export function ZoneStaffPanel({
                         }
                       >
                         <option value="">—</option>
-                        {Array.from({ length: MAX_STATIONS }, (_, index) => (
+                        {/* Never fewer than the station this person already
+                            holds, or lowering the capacity would blank their
+                            row and hide where they are standing. */}
+                        {Array.from({ length: Math.max(stations, row.station ?? 0) }, (_, index) => (
                           <option key={index + 1} value={index + 1}>
                             {index + 1}
                           </option>

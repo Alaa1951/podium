@@ -161,6 +161,23 @@ export function lowestFreeStation(taken: (number | null)[], capacity = MAX_STATI
   return null;
 }
 
+/**
+ * How many station slots a screen should draw for a wave.
+ *
+ * The wave's own capacity, normally: a wave set to seven teams should not draw
+ * nine rigs with two of them permanently empty. `MAX_STATIONS` is the floor's
+ * hard limit — nine rigs exist — not the number to show.
+ *
+ * But NEVER fewer than the highest station actually occupied. Lowering the
+ * capacity under a wave whose teams are already placed has to show the ones
+ * standing off the end, not hide them: a team nobody can see is a team nobody
+ * moves, and it is found on the morning of the competition.
+ */
+export function stationSlots(capacity: number, occupied: (number | null)[]): number {
+  const highest = occupied.reduce<number>((max, station) => Math.max(max, station ?? 0), 0);
+  return Math.min(MAX_STATIONS, Math.max(1, capacity, highest));
+}
+
 /** Minutes and seconds of a remaining time — the finisher record. */
 export function remainingClock(ms: number): { minutes: number; seconds: number } {
   const clamped = Math.max(0, ms);

@@ -6,7 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { controlWave } from "@/lib/actions/waves";
 import {
-  MAX_STATIONS,
+  stationSlots,
   waveLengthMinutes,
   wavePosition,
   zoneOneFreeAt,
@@ -19,7 +19,8 @@ import type { WaveState } from "@/lib/waves";
 // THE FLOOR, FOR THE SUPERVISOR.
 //
 // Top: which wave is in which zone right now. Below: one card per wave with
-// its nine stations, where it is in its rotation, and the three buttons —
+// its stations — as many as that wave's capacity, not the floor's nine —
+// where it is in its rotation, and the three buttons —
 // Start (only once Zone 1 is free), End now (emergencies), Reset. Everything
 // time-related is worked out here from when each wave started, with the same
 // arithmetic the server uses (src/lib/floor.ts), and the page re-reads the
@@ -30,7 +31,7 @@ export type FloorTeam = { id: string; number: number; name: string; station: num
 
 const ERRORS: Record<string, string> = {
   NO_TEAMS: "This wave has no teams yet.",
-  STATIONS_MISSING: "Every team in the wave needs a station (1–9) before it can start.",
+  STATIONS_MISSING: "Every team in the wave needs a station before it can start.",
   NO_ZONES: "This competition has no zones yet — add them in Settings.",
   SERIES_NOT_LIVE: "Set the competition to Running before starting a wave.",
   ALREADY_STARTED: "This wave has already started.",
@@ -169,10 +170,15 @@ export function WaveFloor({
             ? wavePosition({ startedAt: started(wave), completed: wave.status !== "running" }, timing, at)
             : null;
           const teams = teamsByWave[wave.id] ?? [];
-          const stations = Array.from({ length: MAX_STATIONS }, (_, index) =>
+          // The strip is the WAVE's capacity, not the floor's nine — and never
+          // shorter than the highest station in use, so a capacity lowered
+          // under a placed wave shows the teams standing off the end.
+          const slots = stationSlots(wave.capacity, teams.map((team) => team.station));
+          const stations = Array.from({ length: slots }, (_, index) =>
             teams.find((team) => team.station === index + 1)
           );
           const unplaced = teams.filter((team) => team.station === null);
+          const beyond = teams.filter((team) => team.station !== null && team.station > wave.capacity);
           const badge =
             wave.status === "running"
               ? { tone: "badge-live", label: t("On the floor") }
@@ -191,7 +197,7 @@ export function WaveFloor({
                 </strong>
                 <span className={`badge ${badge.tone}`}>{badge.label}</span>
                 <span className="reg-sub pd-num">
-                  {wave.startTime} · {teams.length}/{MAX_STATIONS}
+                  {wave.startTime} · {teams.length}/{wave.capacity}
                 </span>
                 {wave.status === "running" && position ? (
                   <span className="pd-num floor-wave-now">
@@ -223,12 +229,26 @@ export function WaveFloor({
 
               <div className="station-strip">
                 {stations.map((team, index) => (
-                  <div key={index} className="station-cell" data-empty={!team || undefined}>
+                  <div
+                    key={index}
+                    className="station-cell"
+                    data-empty={!team || undefined}
+                    data-beyond={index + 1 > wave.capacity || undefined}
+                  >
                     <span className="station-number">{index + 1}</span>
                     <span className="station-team">{team ? `${team.number} · ${team.name}` : "—"}</span>
                   </div>
                 ))}
               </div>
+              {beyond.length ? (
+                <p className="notice-error" style={{ marginTop: 8 }}>
+                  {t("Over capacity by {n}.", { n: beyond.length })}{" "}
+                  {t("Past station {capacity}: {teams}", {
+                    capacity: wave.capacity,
+                    teams: beyond.map((team) => team.number).join(", "),
+                  })}
+                </p>
+              ) : null}
               {unplaced.length ? (
                 <p className="notice-error" style={{ marginTop: 8 }}>
                   {t("Without a station: {teams}", { teams: unplaced.map((team) => team.number).join(", ") })}
