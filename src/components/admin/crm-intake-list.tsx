@@ -76,6 +76,8 @@ export function CrmIntakeList({
 }) {
   const t = useT();
   const [open, setOpen] = useState<string | null>(null);
+  /** What the last completion did. Lives here so it outlives the closing form. */
+  const [done, setDone] = useState("");
   if (rows.length === 0) return null;
   const completable = canComplete && !!seriesId;
 
@@ -89,6 +91,12 @@ export function CrmIntakeList({
             { n: rows.length }
           )}
       </p>
+
+      {done ? (
+        <div className="notice" role="status" style={{ marginTop: 10 }}>
+          {done}
+        </div>
+      ) : null}
 
       <div className="table-scroll" style={{ marginTop: 10 }}>
         <table className="table reg-table">
@@ -149,7 +157,10 @@ export function CrmIntakeList({
                       partnerName={row.partnerName}
                       teamName={row.teamName}
                       studioNames={studioNames}
-                      onDone={() => setOpen(null)}
+                      onDone={(message) => {
+                        setOpen(null);
+                        if (message) setDone(message);
+                      }}
                     />
                   </td>
                 </tr>
