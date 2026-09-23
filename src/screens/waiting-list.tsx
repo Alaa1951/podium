@@ -6,6 +6,7 @@ import { can, isAdmin, isBft } from "@/lib/access";
 import { crmIntakeFor } from "@/lib/actions/crm-sync";
 import { getTranslator } from "@/lib/i18n/server";
 import { getWaitingRoster } from "@/lib/queries";
+import { listStudios } from "@/lib/queries-people";
 import { toRegisteredRow } from "@/lib/registered-rows";
 import { requireSeries } from "@/lib/require-series";
 import { requireAccess } from "@/lib/session";
@@ -28,18 +29,29 @@ export const dynamic = "force-dynamic";
  * The admit and return buttons are the ones from the registrations screen,
  * not a second pair. `setWaitlist` handing out a place is the scarcest action
  * in the system, and it keeps exactly one call site.
+ *
+ * ONE HALF OF THAT IS NO LONGER TRUE, and it is the better half: a CRM row can
+ * now be finished from here. "Theirs" assumed the person would go back to the
+ * form, and thirty people on the live CRM have not — they paid, left, and have
+ * no account to come back to. So staff fill in the missing answers and PODIUM
+ * writes them TO THE CRM; the row still clears by the ordinary route, on the
+ * next poll, as a team. Nothing about who owns the record changes.
  */
 export default async function WaitingListScreen(props: SeriesScreenProps) {
   const user = await requireAccess("registrations.view");
   const { series } = await requireSeries(props.params);
   const { t } = await getTranslator();
 
-  const [waiting, intake] = await Promise.all([
+  const [waiting, intake, studios] = await Promise.all([
     getWaitingRoster(series.id, user),
     // The CRM half is BFT MENA's alone: it carries contact details for people
     // who have not finished registering. A studio sees its own waiting teams
     // and nothing else — and the menu badge counts the same way.
     isBft(user) ? crmIntakeFor(series.id) : Promise.resolve([]),
+    // ALL studios, not this competition's. A second athlete's BFT membership is
+    // a fact about them, and the CRM's studio list is its own — a studio absent
+    // from this competition still exists and people still belong to it.
+    isBft(user) ? listStudios() : Promise.resolve([]),
   ]);
 
   const rows = waiting.map(toRegisteredRow);
@@ -87,6 +99,13 @@ export default async function WaitingListScreen(props: SeriesScreenProps) {
 
       <CrmIntakeList
         rows={intake}
+        seriesId={series.id}
+        studioNames={studios.map((studio) => studio.name)}
+        // Same key as "Sync now" and the by-hand registration form: this
+        // finishes a registration, and a NEW permission key would ship the
+        // button invisible to everyone but an admin unless a migration wrote it
+        // into every role. That has happened twice here.
+        canComplete={!user.viewAs && can(user, "registrations.create")}
         intro={t(
           "{n} registrations in the CRM cannot be entered yet. Each one becomes a team by itself once its CRM form is finished.",
           { n: intake.length }

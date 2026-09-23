@@ -1,5 +1,8 @@
 "use client";
 
+import { Fragment, useState } from "react";
+
+import { CrmIntakeComplete } from "@/components/admin/crm-intake-complete";
 import { useT } from "@/components/i18n/locale-provider";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,6 +17,12 @@ import { useT } from "@/components/i18n/locale-provider";
 // So the list is a WORK LIST, and it carries the two things that make it one:
 // what is missing, and how to reach them. It disappears by itself — each row
 // goes the moment the CRM form is finished and the sync turns it into a team.
+//
+// AND NOW IT CAN BE FINISHED FROM HERE. Ringing somebody is not always enough:
+// thirty people paid and then left the form, and they have no way back into it.
+// "Complete" opens the missing answers under the row and writes them TO THE CRM
+// — so the record stays in one place, and the row still clears itself by the
+// ordinary route, on the next poll, as a team.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CrmIntakeRow = {
@@ -39,8 +48,22 @@ export type CrmIntakeRow = {
 export function CrmIntakeList({
   rows,
   intro,
+  seriesId,
+  studioNames = [],
+  canComplete = false,
 }: {
   rows: CrmIntakeRow[];
+  /** Needed only to complete a row; the list itself reads nothing from it. */
+  seriesId?: string;
+  /** Studios as PODIUM spells them, for the second athlete's membership. */
+  studioNames?: string[];
+  /**
+   * May this viewer finish a registration?
+   *
+   * Off by default, so the list stays exactly the read-only work list it was
+   * anywhere it is rendered without being told otherwise.
+   */
+  canComplete?: boolean;
   /**
    * The sentence under the heading.
    *
@@ -52,7 +75,9 @@ export function CrmIntakeList({
   intro?: string;
 }) {
   const t = useT();
+  const [open, setOpen] = useState<string | null>(null);
   if (rows.length === 0) return null;
+  const completable = canComplete && !!seriesId;
 
   return (
     <section style={{ marginTop: 20 }}>
@@ -74,11 +99,13 @@ export function CrmIntakeList({
               <th style={{ width: 170 }}>{t("In the CRM")}</th>
               <th style={{ width: 210 }}>{t("Still needed")}</th>
               <th style={{ width: 90 }}>{t("Waiting")}</th>
+              {completable ? <th style={{ width: 110 }} /> : null}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id}>
+              <Fragment key={row.id}>
+              <tr>
                   <td>
                     <strong>{row.teamName ?? row.contactName}</strong>
                     <div className="reg-sub">
@@ -100,7 +127,34 @@ export function CrmIntakeList({
                   <td className="pd-num reg-sub">
                     {row.waitingDays >= 1 ? t("{n} days", { n: row.waitingDays }) : t("today")}
                   </td>
+                  {completable ? (
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => setOpen(open === row.id ? null : row.id)}
+                        aria-expanded={open === row.id}
+                      >
+                        {open === row.id ? t("Close") : t("Fill in what is missing")}
+                      </button>
+                    </td>
+                  ) : null}
               </tr>
+              {completable && open === row.id ? (
+                <tr className="reg-detail">
+                  <td colSpan={6}>
+                    <CrmIntakeComplete
+                      intakeId={row.id}
+                      seriesId={seriesId!}
+                      partnerName={row.partnerName}
+                      teamName={row.teamName}
+                      studioNames={studioNames}
+                      onDone={() => setOpen(null)}
+                    />
+                  </td>
+                </tr>
+              ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>

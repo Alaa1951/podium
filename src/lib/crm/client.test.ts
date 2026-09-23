@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCrmClient, CrmApiError } from "@/lib/crm/client";
+import { UNWRITABLE_FIELD_IDS } from "@/lib/crm/field-map";
 
 const TOKEN = "pit-secret-token-value";
 const LOCATION = "loc-123";
@@ -172,5 +173,113 @@ describe("reading a whole list", () => {
   it("returns an empty list rather than throwing when there is nothing", async () => {
     await expect(createCrmClient(respond(200, {})).listContacts()).resolves.toEqual([]);
     await expect(createCrmClient(respond(200, {})).listCustomFieldIds()).resolves.toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WRITING.
+//
+// For most of its life this client only sent GETs. These tests cover the two
+// methods that changed that — and mainly the guard, which is the reason the
+// money-field list lives in code rather than in a comment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A recorder, so a write's method, URL, headers and body can all be read. */
+function recorder(status = 200) {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const impl = vi.fn(async (url: URL | string, init: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ succeded: true }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  return { calls, impl };
+}
+
+describe("writing", () => {
+  it("PUTs a contact's custom fields, and nothing else about the contact", async () => {
+    const { calls, impl } = recorder();
+    await createCrmClient(impl).updateContactFields("contact-7", [
+      { id: "field-a", value: ["MEN"] },
+      { id: "field-b", value: "Yes" },
+    ]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe("https://services.leadconnectorhq.com/contacts/contact-7");
+    expect(calls[0].init.method).toBe("PUT");
+    const body = JSON.parse(String(calls[0].init.body));
+    // Only customFields. A contact's name, email and phone are the
+    // registrant's own answers and this write has no business touching them.
+    expect(Object.keys(body)).toEqual(["customFields"]);
+    expect(body.customFields).toEqual([
+      { id: "field-a", value: ["MEN"] },
+      { id: "field-b", value: "Yes" },
+    ]);
+  });
+
+  it("sends the version and content type GHL requires", async () => {
+    const { calls, impl } = recorder();
+    await createCrmClient(impl).updateContactFields("c1", [{ id: "f", value: "v" }]);
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers.Version).toBe("2021-07-28");
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  // 🔴 THE GUARD. Every payment decision in PODIUM — the board, a competitor's
+  // account, the takings — is read from these two fields. A write to either is
+  // this app confirming its own payment, and the next poll would read it back
+  // as though a human had. It must be impossible, not merely unintended.
+  it("refuses to write the CRM's payment fields, and sends nothing at all", async () => {
+    const { calls, impl } = recorder();
+    const client = createCrmClient(impl);
+    for (const id of UNWRITABLE_FIELD_IDS) {
+      const error = await failureOf(
+        client.updateContactFields("c1", [{ id: "harmless", value: "x" }, { id, value: "9999" }])
+      );
+      expect(error).toBeInstanceOf(CrmApiError);
+      expect(error.message).toMatch(/payment fields/);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("does not call at all when there is nothing to say", async () => {
+    const { calls, impl } = recorder();
+    await createCrmClient(impl).updateContactFields("c1", []);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("PUTs an opportunity's stage, naming the pipeline so a cross-pipeline move fails there", async () => {
+    const { calls, impl } = recorder();
+    await createCrmClient(impl).moveOpportunityStage("opp-3", "pipe-1", "stage-2");
+    expect(calls[0].url).toBe("https://services.leadconnectorhq.com/opportunities/opp-3");
+    expect(calls[0].init.method).toBe("PUT");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({
+      pipelineId: "pipe-1",
+      pipelineStageId: "stage-2",
+    });
+  });
+
+  it("refuses a blank id rather than PUTting to a collection", async () => {
+    const { calls, impl } = recorder();
+    const client = createCrmClient(impl);
+    await expect(client.updateContactFields("  ", [{ id: "f", value: "v" }])).rejects.toThrow(CrmApiError);
+    await expect(client.moveOpportunityStage("o", "", "s")).rejects.toThrow(CrmApiError);
+    expect(calls).toHaveLength(0);
+  });
+
+  // The same redaction the read path has, because a rejected WRITE echoes the
+  // body — and the body of a write is somebody's name, email and phone number.
+  it("keeps the request body out of a failed write's message", async () => {
+    const leaky = vi.fn(async () =>
+      new Response(JSON.stringify(LEAKY_BODY), { status: 422, headers: { "Content-Type": "application/json" } })
+    ) as unknown as typeof fetch;
+    const error = await failureOf(
+      createCrmClient(leaky).updateContactFields("c1", [{ id: "f", value: "someone@example.com" }])
+    );
+    expect(error.message).not.toMatch(/someone@example.com/);
+    expect(error.message).not.toMatch(TOKEN);
+    expect(error.message).toMatch(/HTTP 422/);
   });
 });

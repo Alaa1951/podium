@@ -27,6 +27,7 @@ export const AUDIT = {
   registrationCreated: "registration.created",
   /** A CRM poll somebody asked for by hand; the timer's polls are not audited. */
   crmSyncRun: "crm.sync_run",
+  crmRegistrationCompleted: "crm.registration_completed",
   registrationUpdated: "registration.updated",
   paymentChanged: "registration.payment_changed",
   attendanceChanged: "registration.attendance_changed",

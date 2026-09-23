@@ -81,6 +81,21 @@ export const FIELD = {
 } as const;
 
 /**
+ * THE FIELDS PODIUM MUST NEVER WRITE.
+ *
+ * The CRM owns the money. Every payment decision in this app — who is on the
+ * board, whose account opens, what the takings say — is read from these two
+ * fields. A write to either would be PODIUM deciding the very thing it asks
+ * the CRM to decide, and the next poll would read its own answer back as
+ * though a human had confirmed it.
+ *
+ * This is a list and not a comment because `updateContactFields` refuses it
+ * structurally: a money field in a write is a thrown error, not a review
+ * somebody has to remember to do.
+ */
+export const UNWRITABLE_FIELD_IDS: readonly string[] = [FIELD.paidAmount, FIELD.invoice];
+
+/**
  * The fields a contact CANNOT become a team without.
  *
  * Kept separate from FIELD because the rest are allowed to be missing — half

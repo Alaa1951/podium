@@ -148,6 +148,32 @@ export const AR_CONSOLE: Phrases = {
   today: "اليوم",
   "no partner named": "لم يُذكر شريك",
   "not in the pipeline": "غير موجود في الـ pipeline",
+
+  // ── Finishing a held registration ────────────────────────────────────────
+  // Written FROM PODIUM TO THE CRM, which is why every one of these says the
+  // CRM out loud: whoever presses the button is editing the record, not a copy
+  // of it, and the wait before the pair appears is the poll, not a delay.
+  // NOT the key "Complete": ar-core already uses that for a finished status,
+  // and one English phrase cannot mean two things — the later dictionary wins
+  // silently, which is how a button ends up labelled "مكتملة".
+  "Fill in what is missing": "أكمِل الناقص",
+  Close: "إغلاق",
+  "Second athlete": "الرياضي الثاني",
+  "BFT studio": "استوديو BFT",
+  "They are a BFT member": "هو عضو في BFT",
+  "Leave as it is": "اتركه كما هو",
+  "Save to the CRM": "احفظ في الـ CRM",
+  "Writing to the CRM…": "جارٍ الكتابة في الـ CRM…",
+  "This is written to the CRM, not just to PODIUM. Anything left blank is left alone — it is not erased.":
+    "هذا يُكتب في الـ CRM، لا في PODIUM فقط. وأي خانة تُترك فارغة تُترك كما هي — لا تُمحى.",
+  "Fill in at least one answer first.": "املأ إجابة واحدة على الأقل أولًا.",
+  "The CRM sync is switched off, so nothing would come back. Turn it on first.":
+    "مزامنة الـ CRM متوقفة، فلن يعود شيء. شغّلها أولًا.",
+  "The CRM accepted the change but did not store it. Nothing has been written — check the CRM form and try again.":
+    "الـ CRM قبل التعديل ولم يحفظه. لم يُكتب شيء — راجع فورم الـ CRM وحاول مرة أخرى.",
+  "That registration is no longer on this list.": "هذا التسجيل لم يعد في هذه القائمة.",
+  "You cannot complete registrations.": "لا تستطيع إكمال التسجيلات.",
+  "The CRM could not be reached. Nothing was changed.": "تعذّر الوصول إلى الـ CRM. لم يتغيّر شيء.",
   "no category and no division": "لا فئة ولا مستوى",
   "no category": "لا فئة",
   "no division": "لا مستوى",
