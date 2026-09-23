@@ -85,7 +85,12 @@ export function RegistrationForm({
           setError(
             result.error === "INVALID_INPUT"
               ? t("Check the form — both competitors need a name, and any email must be valid.")
-              : t("Something went wrong. Try again.")
+              // Its own message, not "something went wrong": the guard refuses
+              // because one of these two is ALREADY in the competition, and a
+              // generic failure sends whoever is at the door to type it again.
+              : result.error === "ALREADY_ENTERED"
+                ? t("That athlete is already entered in this competition.")
+                : t("Something went wrong. Try again.")
           );
           return;
         }
