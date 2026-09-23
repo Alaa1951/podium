@@ -199,7 +199,7 @@ export function RunningBoard({
         seriesName={data.seriesName}
         scored={rows.length}
         focusNumber={focusNumber}
-        waveTotal={summary.total}
+        lastWaveNumber={summary.lastNumber}
         waveState={waveState}
         waveClock={waveClock}
         running={summary.running}

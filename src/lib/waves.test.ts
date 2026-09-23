@@ -49,7 +49,35 @@ describe("summariseWaves", () => {
       complete: 1,
       runningNumbers: [2, 4],
       reached: 4,
+      lastNumber: 4,
     });
+  });
+
+  // 🔴 THE ONE THE BOARD GOT WRONG. A day whose waves are numbered 3 to 16 —
+  // because two were deleted — has FOURTEEN waves and a last number of
+  // SIXTEEN. The wall screen put the wave in focus over the count and read
+  // "WAVE 16 / 14", which is not a thing that can be true.
+  it("tells the highest wave number apart from how many waves there are", () => {
+    const numbered = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((n) =>
+      wave(n, "complete")
+    );
+    const summary = summariseWaves(numbered);
+
+    expect(summary.total).toBe(14);
+    expect(summary.lastNumber).toBe(16);
+    // And the thing the header actually needs: the wave in focus can never be
+    // past the end of the line.
+    expect(summary.reached).toBeLessThanOrEqual(summary.lastNumber);
+  });
+
+  it("counts a wave nobody has started into the line, but not into what was reached", () => {
+    const summary = summariseWaves([wave(1, "complete"), wave(9, "pending")]);
+    expect(summary.lastNumber).toBe(9);
+    expect(summary.reached).toBe(1);
+  });
+
+  it("answers zero for a day with no waves at all, rather than -Infinity", () => {
+    expect(summariseWaves([]).lastNumber).toBe(0);
   });
 
   it("reads an empty schedule as nothing rather than as wave 1", () => {

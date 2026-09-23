@@ -173,6 +173,16 @@
   .board-filters { grid-template-columns: 1fr; }
 }
 
+/* The running board's scope chips — all teams, on the floor, each bracket.
+   A BLOCK, and that is the entire point of it existing. It used to reuse
+   `.board-filters` above, whose two columns are right for a search box beside
+   a studio picker and wrong for a single wrapping chip row: one child lands in
+   column one, which is capped at 240px, so the chips stacked into a tower down
+   the left of a 1920px wall screen and pushed the leaderboard off the fold.
+   On a phone the same grid collapses to one column, which is why it looked
+   perfectly fine there. */
+.board-scope { display: block; }
+
 .board-foot {
   margin-top: auto;
   border-top: 1px solid var(--board-border);

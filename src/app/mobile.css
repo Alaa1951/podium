@@ -205,7 +205,7 @@ html[data-mobile="true"] .board-frame-bar { display: none; }
 /* Board cards retain a compact rank/name/total header rather than stacking it. */
 html[data-mobile="true"] .board-frame .zone-head { grid-template-columns: 36px minmax(0,1fr) 60px !important; }
 html[data-mobile="true"] .board-frame .zone-head .zone-col { display: none; }
-html[data-mobile="true"] .board-filters { padding: 12px max(16px,var(--safe-left)) 0 max(16px,var(--safe-right)); }
+html[data-mobile="true"] .board-filters, html[data-mobile="true"] .board-scope { padding: 12px max(16px,var(--safe-left)) 0 max(16px,var(--safe-right)); }
 html[dir="rtl"] .mobile-list-card > span[aria-hidden="true"] { transform: rotate(180deg); }
 
 /* The native document owns the safe area, including pages without an app

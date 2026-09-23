@@ -56,6 +56,15 @@ export type WaveSummary = {
    * missing a score, it simply has not competed.
    */
   reached: number;
+  /**
+   * The highest wave NUMBER in the day, which is not the same as `total`.
+   *
+   * The board puts the wave in focus over this, and it used to put it over
+   * `total` — so a competition whose waves are numbered 3 to 16, because two
+   * were deleted, read "WAVE 16 / 14" on a wall screen. A number line needs
+   * the end of the line, not how many stops are on it.
+   */
+  lastNumber: number;
 };
 
 export function summariseWaves(waves: WaveState[]): WaveSummary {
@@ -69,6 +78,7 @@ export function summariseWaves(waves: WaveState[]): WaveSummary {
     complete: waves.filter((w) => w.status === "complete").length,
     runningNumbers: running.map((w) => w.number).sort((a, b) => a - b),
     reached: started.reduce((max, w) => Math.max(max, w.number), 0),
+    lastNumber: waves.reduce((max, w) => Math.max(max, w.number), 0),
   };
 }
 

@@ -22,7 +22,7 @@ export function BoardHeader({
   seriesName,
   scored,
   focusNumber,
-  waveTotal,
+  lastWaveNumber,
   waveState,
   waveClock,
   running,
@@ -32,7 +32,8 @@ export function BoardHeader({
   seriesName: string;
   scored: number;
   focusNumber: number;
-  waveTotal: number;
+  /** The last wave number of the day — the end of the number line. */
+  lastWaveNumber: number;
   waveState: string;
   waveClock: string;
   running: number;
@@ -58,7 +59,7 @@ export function BoardHeader({
         <Stat label={t("Teams scored")} value={String(scored)} />
         <div className="board-head-clock" data-idle={running === 0 || undefined}>
           <div style={statLabel}>
-            {t("Wave")} {focusNumber || "—"} / {waveTotal} · {waveState}
+            {t("Wave")} {focusNumber || "—"} / {lastWaveNumber} · {waveState}
           </div>
           <div className="display num">{waveClock}</div>
         </div>
@@ -164,7 +165,11 @@ export function BracketChips({
   const allActive = !floorView && marks.length === 0;
 
   return (
-    <div className="board-filters"><FilterSheet>
+    // NOT `board-filters`: that is the public results' two-column grid
+    // (search + studio), and this has ONE child, which therefore landed in a
+    // 240px-wide column — the chip row stacked into a narrow tower on every
+    // desktop, and looked right on a phone, where the grid is one column.
+    <div className="board-scope"><FilterSheet>
       <div
         style={{
           display: "flex",
