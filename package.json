@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "db:backup": "node scripts/backup-db.mjs",
     "db:restore": "node scripts/restore-db.mjs",
+    "db:reset-series": "node scripts/reset-series.mjs",
     "dev:bg": "node scripts/dev-bg.mjs",
     "otp": "node scripts/show-otp.mjs",
     "db:scenarios": "node prisma/seed-scenarios.ts",

@@ -193,6 +193,42 @@ in Users, drop its email from `OTP_EXEMPT_EMAILS` and restart.
 
 ---
 
+## Resetting a competition for a fresh start
+
+Wipes every team in a competition — competitors, scores, zone entries, audit
+lines, portraits, the waiting list, the waves, and anything the CRM intake was
+holding — then re-dates the competition so sign-up opens and the board unlocks
+for a new event day. The competition itself survives: its slug and every link
+into it, its zones and scoring formulas, its staff assignments, its studios
+and sponsors. Every user account survives. Team numbering restarts at 101 on
+its own, because the next number is derived from the highest one left.
+
+`scripts/reset-series.mjs` names the target — HOST and database, and every
+number it is about to delete — and refuses to run without `--yes`. On the
+server, backup first (the nightly 03:00 dump, or take a fresh one):
+
+```bash
+cd /opt/podium
+node scripts/backup-db.mjs --host      # event-day insurance, always first
+grep -E '^CRM_SYNC' .env               # must be off, or dry-run — see below
+node scripts/reset-series.mjs --yes    # defaults: today, status live
+```
+
+Then check the site: sign-up open on the competition page, an empty field, and
+today as the competition date.
+
+- With more than one active competition the script refuses to guess — name one
+  with `--series <slug>`. `--date 2026-12-01` re-dates to another day, and
+  `--status scheduled` keeps the countdown up instead of going live.
+- If `CRM_SYNC_ENABLED=1` on the server, the 15-minute poller re-creates teams
+  from GoHighLevel the moment the wipe lands. The script refuses to run in
+  that state: turn the sync off or onto `CRM_SYNC_DRY_RUN=1` first, or pass
+  `--allow-crm` to accept the re-pull.
+- The way back is the backup: `npm run db:restore db-backups/<file>.sql --yes`
+  brings the old competition back whole.
+
+---
+
 ## Event day
 
 ### Before
