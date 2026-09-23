@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { clientCommand, readDbCredentials, requirePassword } from "./db-credentials.mjs";
+import {
+  chooseTransport,
+  clientCommand,
+  readDbCredentials,
+  redactSecrets,
+  requirePassword,
+} from "./db-credentials.mjs";
 
 // The production shape: DATABASE_URL and nothing else. This is the case that
 // used to exit with "MYSQL_PASSWORD is not set" on the server the backup
@@ -140,5 +146,83 @@ describe("clientCommand", () => {
     expect(clientCommand("mysqldump", credentials, { useHost: true }).args).toContain(
       "--single-transaction"
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TWO DEFECTS FOUND DURING A PRODUCTION DEPLOY, and the tests that hold them
+// shut. Both were in the part of the script nobody exercises until the day it
+// is needed, which is the worst place for a backup tool to keep a bug.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("chooseTransport", () => {
+  // THE DEFECT. The default was the Docker container, so on the production
+  // server — which has none — `node scripts/backup-db.mjs` failed and wrote no
+  // file, and the operator had to already know to pass --host. Insurance that
+  // needs a remembered flag is not there on the day somebody else takes it.
+  it("uses this machine's client when there is one, container or no container", () => {
+    expect(chooseTransport({ clientOnPath: true }).transport).toBe("direct");
+  });
+
+  it("falls back to Docker only when no client is installed here", () => {
+    expect(chooseTransport({ clientOnPath: false }).transport).toBe("container");
+  });
+
+  it("obeys a flag over anything it detected", () => {
+    expect(chooseTransport({ useHost: true, clientOnPath: false }).transport).toBe("direct");
+    expect(chooseTransport({ useContainer: true, clientOnPath: true }).transport).toBe("container");
+  });
+
+  // Rather than silently honouring one of them and dumping from a machine the
+  // operator did not mean.
+  it("refuses two contradictory flags instead of picking one", () => {
+    expect(() => chooseTransport({ useHost: true, useContainer: true })).toThrow(/contradict/);
+  });
+
+  it("says why, so the script can print which one it chose", () => {
+    expect(chooseTransport({ clientOnPath: true }).why).toMatch(/installed/);
+  });
+});
+
+describe("redactSecrets", () => {
+  // Its own, because the block above keeps its credentials to itself.
+  const credentials = readDbCredentials(PRODUCTION);
+
+  // 🔴 THE DEFECT THAT MATTERS. `execFileSync` puts the whole command line into
+  // the error it throws, and the container path passes `--password=…` on that
+  // line — so printing the failure printed the database password. It reached a
+  // terminal during a real deploy.
+  it("takes the password out of the message execFileSync throws", () => {
+    const { args } = clientCommand("mysqldump", credentials, { transport: "container" });
+    const thrown = `Command failed: docker exec pudem-mysql mysqldump ${args.join(" ")}`;
+    expect(thrown).toContain("s3cret"); // the message really does carry it
+    const safe = redactSecrets(thrown, credentials);
+    expect(safe).not.toContain("s3cret");
+    expect(safe).toContain("--password=********");
+  });
+
+  // The rest of the message is the only clue to why a backup failed, so it is
+  // redacted rather than swallowed.
+  it("keeps everything else, so a failure can still be diagnosed", () => {
+    const safe = redactSecrets("Command failed: mysqldump: Got error 2002 (s3cret)", credentials);
+    expect(safe).toMatch(/error 2002/);
+  });
+
+  // A password is allowed to contain the characters a replacement pattern eats,
+  // which is why the real code splits and joins rather than using a regex.
+  it("handles a password made of regex metacharacters", () => {
+    const awkward = { password: "$&\p*a+s?s" };
+    expect(redactSecrets("secret is $&\p*a+s?s here", awkward)).toBe("secret is ******** here");
+  });
+
+  // Belt and braces: a password-shaped argument goes even when it is not the
+  // one we hold, because the value may have come from somewhere else.
+  it("strips a password argument it was never given", () => {
+    expect(redactSecrets("--password=someoneElses", { password: "" })).toBe("--password=********");
+  });
+
+  it("survives a thrown value that is not a string, and one with no password", () => {
+    expect(redactSecrets(undefined, credentials)).toBe("");
+    expect(redactSecrets("plain failure", {})).toBe("plain failure");
   });
 });

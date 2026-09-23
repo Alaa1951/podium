@@ -19,6 +19,12 @@
  *
  * Explicit `MYSQL_*` variables still win, field by field, so an existing local
  * setup keeps working exactly as it did.
+ *
+ * IT ALSO DECIDES WHICH CLIENT TO RUN, and redacts the password out of any
+ * message either script prints. Both of those were found the hard way during a
+ * production deploy: the default path tried a developer's Docker container on a
+ * server that has none, and the failure it printed carried the database
+ * password in the command line it echoed.
  */
 
 /** Pull what a URL carries. Returns an empty object when there is no URL. */
@@ -98,15 +104,18 @@ export function requirePassword(credentials) {
  * in a comment: see db-credentials.test.mjs.
  *
  * @param client "mysqldump" to read, "mysql" to write.
+ * @param transport "direct" or "container", from chooseTransport.
  */
-export function clientCommand(client, credentials, { useHost }) {
+export function clientCommand(client, credentials, { useHost, transport }) {
   const { user, password, database, host, port, container } = credentials;
   const tail =
     client === "mysqldump"
       ? ["--single-transaction", "--quick", "--default-character-set=utf8mb4", database]
       : ["--default-character-set=utf8mb4", database];
 
-  if (useHost) {
+  // `useHost` is still accepted so the existing callers and tests read the
+  // same; `transport` is what the scripts now pass.
+  if (transport === "direct" || (transport === undefined && useHost)) {
     return {
       command: client,
       args: [`--host=${host}`, `--port=${port}`, `--user=${user}`, ...tail],
@@ -127,4 +136,56 @@ export function clientCommand(client, credentials, { useHost }) {
     ],
     env: process.env,
   };
+}
+
+/**
+ * WHICH CLIENT TO RUN: the one on this machine, not the one on the last one.
+ *
+ * THE BUG THIS FIXES. The default used to be the Docker container, so on the
+ * production server — which has no container — `node scripts/backup-db.mjs`
+ * failed and wrote no file at all, and the operator had to already know to pass
+ * `--host`. "Event-day insurance" that needs a flag the runbook remembers is
+ * insurance that is not there on the day somebody else takes the backup.
+ *
+ * So it is DETECTED, with both answers still forceable. Pure, because the
+ * choice is the part worth testing; the caller does the looking.
+ *
+ * @param clientOnPath did a real `mysqldump`/`mysql` answer on this machine?
+ */
+export function chooseTransport({ useHost, useContainer, clientOnPath }) {
+  // An explicit flag is an instruction, and beats anything detected — including
+  // on a machine where the detection would have been right.
+  if (useHost && useContainer) {
+    throw new Error("--host and --container contradict each other; pass one");
+  }
+  if (useHost) return { transport: "direct", why: "asked for with --host" };
+  if (useContainer) return { transport: "container", why: "asked for with --container" };
+
+  return clientOnPath
+    ? { transport: "direct", why: "the client is installed here" }
+    : { transport: "container", why: "no client here, trying Docker" };
+}
+
+/**
+ * The same text with the password taken out of it, wherever it appears.
+ *
+ * WHY THIS EXISTS. `execFileSync` puts the whole command line into the error it
+ * throws, and the Docker path passes `--password=…` on that line — so printing
+ * the error printed the database password. It reached a terminal during a
+ * production deploy. Nothing this module builds may be printed raw again.
+ *
+ * It replaces the password rather than dropping the whole message, because the
+ * rest of the message is the only clue to why a backup failed.
+ */
+export function redactSecrets(text, credentials) {
+  let out = String(text ?? "");
+  const password = credentials?.password;
+  if (password) {
+    // Split-and-join, not a regex: a password is allowed to contain $, \ and
+    // every other character a replacement pattern would eat.
+    out = out.split(password).join("********");
+  }
+  // And a belt for the braces: an argument SHAPED like a password goes too,
+  // even if it is not the one we hold — the value may have come from elsewhere.
+  return out.replace(/(--password=)\S+/g, "$1********");
 }

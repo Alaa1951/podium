@@ -1,16 +1,18 @@
 /**
  * Event-day insurance: a full dump of the database into ./db-backups.
  *
- * Run it between waves. It shells out to `mysqldump` inside the Docker
- * container by default, so nothing has to be installed on the operator's
- * machine; pass --host to dump from a MySQL reachable directly instead — which
- * is the form to use on the production server, where there is no container.
+ * Run it between waves. It works out for itself whether to run `mysqldump`
+ * here or inside the Docker container, and SAYS WHICH IT CHOSE — it used to
+ * default to the container, so on the production server, which has none, it
+ * failed and wrote no file unless the operator knew to pass --host. Force
+ * either with --host or --container.
  *
  * Credentials come from DATABASE_URL, or from MYSQL_* if those are set. See
  * scripts/db-credentials.mjs for why, and for the bug that taught us.
  *
  *   node scripts/backup-db.mjs
- *   node scripts/backup-db.mjs --host
+ *   node scripts/backup-db.mjs --host        (this machine's mysqldump)
+ *   node scripts/backup-db.mjs --container   (the dev Docker container)
  *   node scripts/backup-db.mjs --keep 20
  *
  * Restore with:  node scripts/restore-db.mjs db-backups/<file>.sql
@@ -19,12 +21,19 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { clientCommand, readDbCredentials, requirePassword } from "./db-credentials.mjs";
+import {
+  chooseTransport,
+  clientCommand,
+  readDbCredentials,
+  redactSecrets,
+  requirePassword,
+} from "./db-credentials.mjs";
 
 process.loadEnvFile?.(path.join(process.cwd(), ".env"));
 
 const args = process.argv.slice(2);
 const useHost = args.includes("--host");
+const useContainer = args.includes("--container");
 const keepIndex = args.indexOf("--keep");
 const keep = keepIndex >= 0 ? Number(args[keepIndex + 1]) || 14 : 14;
 
@@ -37,6 +46,16 @@ try {
 }
 
 
+/** Is this client actually here? Asked, not assumed — see chooseTransport. */
+function canRun(client) {
+  try {
+    execFileSync(client, ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const outDir = path.join(process.cwd(), "db-backups");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -47,7 +66,23 @@ const outFile = path.join(outDir, `podium_${stamp}.sql`);
 // so a backup mid-wave does not stall score entry. How the password reaches
 // the client — and why it differs between the two paths — is in
 // db-credentials.mjs, next to the test that holds it.
-const { command, args: dumpArgs, env } = clientCommand("mysqldump", credentials, { useHost });
+// Which client, decided by what is actually on this machine — and said out
+// loud, because a backup taken from somewhere other than you think is worse
+// than no backup at all.
+let transport;
+try {
+  ({ transport } = chooseTransport({ useHost, useContainer, clientOnPath: canRun("mysqldump") }));
+} catch (error) {
+  console.error(`[backup] ${error.message}`);
+  process.exit(1);
+}
+console.log(
+  transport === "direct"
+    ? `[backup] ${credentials.database} on ${credentials.host}:${credentials.port}`
+    : `[backup] ${credentials.database} in container ${credentials.container}`
+);
+
+const { command, args: dumpArgs, env } = clientCommand("mysqldump", credentials, { transport });
 
 try {
   const stdout = execFileSync(command, dumpArgs, { env, maxBuffer: 1024 * 1024 * 512 });
@@ -56,7 +91,7 @@ try {
   const sizeKb = Math.round(fs.statSync(outFile).size / 1024);
   console.log(`[backup] ${path.relative(process.cwd(), outFile)} — ${sizeKb} KB`);
 } catch (error) {
-  console.error("[backup] failed:", error instanceof Error ? error.message : error);
+  console.error("[backup] failed:", redactSecrets(error instanceof Error ? error.message : error, credentials));
   process.exit(1);
 }
 

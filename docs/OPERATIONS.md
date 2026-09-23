@@ -205,11 +205,17 @@ its own, because the next number is derived from the highest one left.
 
 `scripts/reset-series.mjs` names the target — HOST and database, and every
 number it is about to delete — and refuses to run without `--yes`. On the
-server, backup first (the nightly 03:00 dump, or take a fresh one):
+server, backup first (the nightly 03:00 dump, or take a fresh one).
+
+> `--host` is no longer needed: `backup-db.mjs` works out whether to use this
+> machine's `mysqldump` or the dev Docker container, and prints which it chose.
+> It used to default to the container, so on the server — which has none — it
+> failed and wrote nothing unless the operator remembered the flag. The flag
+> still works, and `--container` forces the other way.
 
 ```bash
 cd /opt/podium
-node scripts/backup-db.mjs --host      # event-day insurance, always first
+node scripts/backup-db.mjs             # event-day insurance, always first
 grep -E '^CRM_SYNC' .env               # must be off, or dry-run — see below
 node scripts/reset-series.mjs --yes    # defaults: today, status live
 ```

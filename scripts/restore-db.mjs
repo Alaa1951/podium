@@ -11,7 +11,13 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { clientCommand, readDbCredentials, requirePassword } from "./db-credentials.mjs";
+import {
+  chooseTransport,
+  clientCommand,
+  readDbCredentials,
+  redactSecrets,
+  requirePassword,
+} from "./db-credentials.mjs";
 
 process.loadEnvFile?.(path.join(process.cwd(), ".env"));
 
@@ -19,6 +25,7 @@ const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith("--"));
 const confirmed = args.includes("--yes");
 const useHost = args.includes("--host");
+const useContainer = args.includes("--container");
 
 if (!file) {
   console.error("Usage: node scripts/restore-db.mjs <dump.sql> --yes");
@@ -40,12 +47,36 @@ try {
 }
 const { database, host, port, container } = credentials;
 
+// The same detection the backup script does, for the same reason: on the
+// production server the container does not exist, and defaulting to it made the
+// tool fail on the one machine it matters on. Here it matters MORE — the
+// confirmation line below names the target, and a line that names a container
+// while the command is about to run against a host would be the most expensive
+// sentence in this repo.
+let transport;
+try {
+  ({ transport } = chooseTransport({ useHost, useContainer, clientOnPath: canRun("mysql") }));
+} catch (error) {
+  console.error(`[restore] ${error.message}`);
+  process.exit(1);
+}
+
+/** Is this client actually here? Asked, not assumed. */
+function canRun(client) {
+  try {
+    execFileSync(client, ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 if (!confirmed) {
   const sizeKb = Math.round(fs.statSync(dumpPath).size / 1024);
   // The HOST is named, not just the database. The expensive version of this
   // mistake is not restoring the wrong dump — it is restoring the right dump
   // onto the wrong machine, and until now this line could not tell them apart.
-  const target = useHost ? `${host}:${port}` : `container ${container}`;
+  const target = transport === "direct" ? `${host}:${port}` : `container ${container}`;
   console.error(
     `About to REPLACE the "${database}" database on ${target} ` +
       `with ${path.basename(dumpPath)} (${sizeKb} KB).\n` +
@@ -55,12 +86,12 @@ if (!confirmed) {
 }
 
 const sql = fs.readFileSync(dumpPath);
-const { command, args: mysqlArgs, env } = clientCommand("mysql", credentials, { useHost });
+const { command, args: mysqlArgs, env } = clientCommand("mysql", credentials, { transport });
 
 try {
   execFileSync(command, mysqlArgs, { env, input: sql });
   console.log(`[restore] ${database} restored from ${path.basename(dumpPath)}`);
 } catch (error) {
-  console.error("[restore] failed:", error instanceof Error ? error.message : error);
+  console.error("[restore] failed:", redactSecrets(error instanceof Error ? error.message : error, credentials));
   process.exit(1);
 }
