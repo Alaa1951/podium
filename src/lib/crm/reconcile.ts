@@ -14,6 +14,7 @@ import {
   type ShirtSize,
 } from "@/lib/crm/values";
 import type { CrmOpportunity, CrmPipeline } from "@/lib/crm/client";
+import { entryPlace } from "@/lib/visibility";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THE SYNC SHOULD DO, worked out with no network and no database.
@@ -81,6 +82,15 @@ export type TeamDraft = {
   paymentStatus: PaymentStatus;
   amountMinor: number | null;
   billingNumber: string | null;
+  /**
+   * Entered after registration closed, so it holds no place yet.
+   *
+   * Decided from the CRM's own `dateAdded` — the moment that competition
+   * heard of them, which is the honest analogue of a self sign-up's
+   * `signupAt`. Until this existed the deadline simply did not apply to CRM
+   * registrations, which is the route most entries come through.
+   */
+  waitlisted: boolean;
   seats: SeatDraft[];
 };
 
@@ -124,6 +134,12 @@ export type Snapshot = {
   studioNames: string[];
   /** Teams already in the target competition. */
   teams: ExistingTeam[];
+  /**
+   * After this, an entry waits for a place. Null means the door never closed
+   * — and then nobody waits, which is the state of a competition nobody has
+   * set a deadline on.
+   */
+  registrationClosesAt: Date | null;
 };
 
 /**
@@ -195,7 +211,8 @@ function seatsOf(contact: CrmContact, studioNames: readonly string[]): SeatDraft
 export function draftFrom(
   contact: CrmContact,
   payment: PaymentStatus,
-  studioNames: readonly string[]
+  studioNames: readonly string[],
+  registrationClosesAt: Date | null = null
 ): { ok: true; draft: TeamDraft } | { ok: false; reason: string } {
   const category = toCategory(readField(contact, FIELD.category));
   const division = toDivision(readField(contact, FIELD.division));
@@ -221,6 +238,11 @@ export function draftFrom(
       paymentStatus: payment,
       amountMinor: toMinorUnits(readField(contact, FIELD.paidAmount)),
       billingNumber: readField(contact, FIELD.invoice),
+      waitlisted:
+        entryPlace({
+          signedUpAt: toDate(contact.dateAdded ?? null),
+          registrationClosesAt,
+        }) === "waiting_list",
       seats,
     },
   };
@@ -315,7 +337,7 @@ export function reconcile(snapshot: Snapshot): Action[] {
       // once a team exists: those decide brackets and prescribed loads, and a
       // silent rewrite on the morning of a competition is how a pair ends up
       // in the wrong bracket with nobody having touched anything.
-      const draft = draftFrom(contact, payment, snapshot.studioNames);
+      const draft = draftFrom(contact, payment, snapshot.studioNames, snapshot.registrationClosesAt);
       const changes: MoneyChanges = {};
       if (existing.paymentStatus !== payment) changes.paymentStatus = payment;
       if (draft.ok) {
@@ -334,7 +356,7 @@ export function reconcile(snapshot: Snapshot): Action[] {
       continue;
     }
 
-    const draft = draftFrom(contact, payment, snapshot.studioNames);
+    const draft = draftFrom(contact, payment, snapshot.studioNames, snapshot.registrationClosesAt);
     if (!draft.ok) {
       actions.push({
         kind: "intake",

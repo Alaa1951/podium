@@ -68,7 +68,15 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
   // at once do not both report success for the same change.
   const moved = await prisma.team.updateMany({
     where: { id: team.id, waitlistedAt: waiting ? null : { not: null } },
-    data: { waitlistedAt: waiting ? new Date() : null },
+    data: {
+      waitlistedAt: waiting ? new Date() : null,
+      // GOING BACK GIVES THE PLACE BACK. A team on the waiting list holds no
+      // place, so it must hold no rig either — and the station it was
+      // standing on has to become free for whoever is admitted next.
+      // Without this the pair stayed on the running order, on a station, not
+      // competing, and the floor screens still drew them over a rig.
+      ...(waiting ? { waveId: null, station: null, wave: 1 } : {}),
+    },
   });
   if (moved.count === 0) {
     return { ok: false, error: waiting ? "ALREADY_WAITING" : "ALREADY_ADMITTED" };

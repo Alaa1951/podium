@@ -157,6 +157,12 @@ export const AR_CONSOLE: Phrases = {
   "The CRM sync is switched off.": "مزامنة الـ CRM متوقفة.",
   "Payment is recorded in the CRM and arrives here on the next sync.":
     "الدفع يُسجَّل في الـ CRM ويصل هنا مع المزامنة التالية.",
+  "Override: mark paid": "تجاوز: تسجيل كمدفوع",
+  "Override: mark unpaid": "تجاوز: تسجيل كغير مدفوع",
+  "For the door only. The next sync writes whatever the CRM says.":
+    "للباب فقط. المزامنة التالية تكتب ما يقوله الـ CRM.",
+  "Recorded here. The CRM is still the record — update it too.":
+    "سُجّل هنا. الـ CRM ما زال هو السجل — حدّثه أيضًا.",
   Note: "ملاحظة",
   "Confirmed takings": "المحصّل المؤكد",
   "not on the board": "لا يظهر على الـ board",

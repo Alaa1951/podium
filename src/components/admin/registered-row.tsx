@@ -16,6 +16,8 @@ export function RowPair({
   pending,
   onToggle,
   onAttendance,
+  canOverridePayment = false,
+  onOverridePayment,
   onArchive,
   onWaitlist,
   detailOnly = false,
@@ -28,6 +30,12 @@ export function RowPair({
   pending: boolean;
   onToggle: () => void;
   onAttendance: (row: RegisteredRow) => void;
+  /**
+   * The door override, for a full admin only. Absent for everybody else, so
+   * there is exactly one place money is normally set: the CRM.
+   */
+  canOverridePayment?: boolean;
+  onOverridePayment?: (row: RegisteredRow, status: "pending" | "paid") => void;
   /** Offered only while the event is scheduled — a withdrawal, archived not deleted. */
   onArchive?: (row: RegisteredRow) => void;
   /** Handing out a place, or taking one back. Needs registrations.waitlist. */
@@ -65,13 +73,15 @@ export function RowPair({
               <div>
                 <div className="console-group-title">{t("Payment")}</div>
 
-                {/* PAYMENT IS READ-ONLY HERE, and that is the design.
-                    The CRM owns the money: it is where registrations arrive
+                {/* THE CRM OWNS THE MONEY. It is where registrations arrive
                     and where payment is taken, and the sync writes what it
-                    says. A button here would be a second place to change a
-                    figure that has an owner elsewhere — and the next poll
-                    would quietly undo whoever pressed it, on the morning of
-                    a competition, with nothing on screen to explain why. */}
+                    says — so this panel reads rather than writes.
+
+                    The override below is for one situation: somebody standing
+                    at the door on the morning, and the CRM not to hand. It is
+                    the full admin's alone, and it says out loud that the next
+                    poll can undo it, because it can: if the CRM still says
+                    unpaid, the sync will say unpaid again. */}
                 {paid ? (
                   <div style={{ marginTop: 8 }}>
                     <div className="pd-num" style={{ fontSize: 20, fontWeight: 600 }}>
@@ -89,6 +99,23 @@ export function RowPair({
                 <p className="reg-sub" style={{ marginTop: 10 }}>
                   {t("Payment is recorded in the CRM and arrives here on the next sync.")}
                 </p>
+
+                {canOverridePayment ? (
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      disabled={pending}
+                      onClick={() => onOverridePayment?.(row, paid ? "pending" : "paid")}
+                      style={{ height: 32, fontSize: 12 }}
+                    >
+                      {paid ? t("Override: mark unpaid") : t("Override: mark paid")}
+                    </button>
+                    <div className="reg-sub" style={{ marginTop: 4 }}>
+                      {t("For the door only. The next sync writes whatever the CRM says.")}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {/* ── Where they are in the day ──────────────────────────── */}

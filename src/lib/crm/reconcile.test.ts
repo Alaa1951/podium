@@ -83,6 +83,7 @@ function snapshot(partial: Partial<Snapshot>): Snapshot {
     pipelines: PIPELINES,
     studioNames: STUDIOS,
     teams: [],
+    registrationClosesAt: null,
     ...partial,
   };
 }

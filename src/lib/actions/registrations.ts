@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
+import { alreadyEntered } from "@/lib/one-entry";
 import { normalizeName } from "@/lib/scoring";
 import { createTeam } from "@/lib/team-create";
 import { isBft, requireAccess, teamScope } from "@/lib/session";
@@ -65,6 +66,16 @@ export async function createRegistration(input: unknown): Promise<ActionResult<{
   const parsed = registrationSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const data = parsed.data;
+
+  // NOBODY ENTERS THE SAME COMPETITION TWICE, which this path did not check
+  // at all. It relied on `@@unique([seriesId, externalId])`, and the form
+  // leaves `externalId` blank — so it would happily make a second team for a
+  // pair who had already signed themselves up or come through the CRM.
+  const twice = await alreadyEntered({
+    seriesId: data.seriesId,
+    emails: [data.one.email, data.two.email],
+  });
+  if (twice) return { ok: false, error: "ALREADY_ENTERED" };
 
   // A pair without a chosen team name competes under the first competitor's
   // name. A team is never nameless — the board has to call them something.

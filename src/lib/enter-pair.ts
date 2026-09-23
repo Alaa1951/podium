@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { alreadyEntered } from "@/lib/one-entry";
 import { normalizeName } from "@/lib/scoring";
 import { entryPlace } from "@/lib/visibility";
 
@@ -150,15 +151,10 @@ export async function enterPairIfReady(userId: string): Promise<EnterPairOutcome
 
   // Nobody enters the same competition twice — including through a studio that
   // already entered them by hand.
-  const already = await prisma.competitor.findFirst({
-    where: {
-      team: { seriesId: series.id, archivedAt: null },
-      OR: [
-        { userId: { in: [me.id, partner.id] } },
-        { email: { in: [me.email.toLowerCase(), partner.email.toLowerCase()] } },
-      ],
-    },
-    select: { id: true },
+  const already = await alreadyEntered({
+    seriesId: series.id,
+    userIds: [me.id, partner.id],
+    emails: [me.email, partner.email],
   });
   if (already) return { entered: false, reason: "ALREADY_ENTERED" };
 

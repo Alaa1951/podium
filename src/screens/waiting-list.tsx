@@ -2,7 +2,7 @@ import type { SeriesScreenProps } from "@/screens/types";
 
 import { CrmIntakeList } from "@/components/admin/crm-intake-list";
 import { RegisteredTable } from "@/components/admin/registered-table";
-import { can, isBft } from "@/lib/access";
+import { can, isAdmin, isBft } from "@/lib/access";
 import { crmIntakeFor } from "@/lib/actions/crm-sync";
 import { getTranslator } from "@/lib/i18n/server";
 import { getWaitingRoster } from "@/lib/queries";
@@ -78,6 +78,7 @@ export default async function WaitingListScreen(props: SeriesScreenProps) {
                 series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")
               }
               canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
+              canOverridePayment={!user.viewAs && isAdmin(user)}
               readOnly={!can(user, "registrations.payment") || !!user.viewAs}
             />
           </>

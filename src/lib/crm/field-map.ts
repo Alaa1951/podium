@@ -42,6 +42,8 @@ export type CrmContact = {
   email?: string | null;
   phone?: string | null;
   dateOfBirth?: string | null;
+  /** When the CRM first saw this registration — its `signupAt`. */
+  dateAdded?: string | null;
   tags?: string[];
   customFields?: CrmCustomField[];
 };

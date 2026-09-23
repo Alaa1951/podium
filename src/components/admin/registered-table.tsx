@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
-import { setAttendance } from "@/lib/actions/payments";
+import { setAttendance, setPayment } from "@/lib/actions/payments";
 import { archiveTeam, restoreTeam } from "@/lib/actions/team-people";
 import { setWaitlist } from "@/lib/actions/waitlist";
 import { AthleteAvatar } from "@/components/app/athlete-avatar";
@@ -66,6 +66,7 @@ export function RegisteredTable({
   seriesId,
   canArchive,
   canWaitlist,
+  canOverridePayment = false,
   detailId,
   readOnly = false,
 }: {
@@ -77,6 +78,11 @@ export function RegisteredTable({
   canArchive: boolean;
   /** May this viewer hand out a place, or take one back? */
   canWaitlist: boolean;
+  /**
+   * The door override. A full admin only, and deliberately not the same
+   * question as `readOnly` — the CRM owns the money whoever is looking.
+   */
+  canOverridePayment?: boolean;
   detailId?: string;
   readOnly?: boolean;
 }) {
@@ -125,6 +131,20 @@ export function RegisteredTable({
     startTransition(async () => report(await restoreTeam(seriesId, rowId)));
   }
 
+  // THE DOOR OVERRIDE. Not a payment screen coming back: it writes the one
+  // field, says so, and the next poll reconciles it against the CRM.
+  function overridePayment(row: RegisteredRow, status: "pending" | "paid") {
+    setMessage("");
+    startTransition(async () => {
+      const result = await setPayment({ teamId: row.id, status });
+      if (!result.ok) setMessage(t("Something went wrong. Try again."));
+      else {
+        setMessage(t("Recorded here. The CRM is still the record — update it too."));
+        router.refresh();
+      }
+    });
+  }
+
   function attendance(row: RegisteredRow) {
     if (readOnly) return;
     startTransition(async () => {
@@ -150,7 +170,7 @@ export function RegisteredTable({
       {message ? <div className="notice" role="status">{message}</div> : null}
       <p>{t(row.category)} · {t(row.division)}</p>
       {!readOnly ? <DetailLink href={`${path}/edit`} className="btn btn-secondary">{t("Edit")}</DetailLink> : null}
-      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} onToggle={() => {}} onAttendance={attendance} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
+      <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} onToggle={() => {}} onAttendance={attendance} canOverridePayment={canOverridePayment} onOverridePayment={overridePayment} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
       <button type="button" className="btn btn-secondary mobile-action-bar" disabled={pending || readOnly} onClick={() => attendance(row)}>{row.attended ? t("Checked in") : t("Check in")}</button>
     </div>;
   }
@@ -186,6 +206,8 @@ export function RegisteredTable({
                 pending={pending}
                 onToggle={() => setExpanded(expanded === row.id ? null : row.id)}
                 onAttendance={attendance}
+                canOverridePayment={canOverridePayment}
+                onOverridePayment={overridePayment}
                 onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined}
               />
             ))}

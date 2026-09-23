@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { alreadyEntered } from "@/lib/one-entry";
 import { linkPair, unlinkPair } from "@/lib/partners";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
@@ -142,13 +143,11 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
     if (!account) return { ok: false, error: "ATHLETE_NOT_FOUND" };
 
     // Nobody competes twice in the same competition.
-    const already = await prisma.competitor.findFirst({
-      where: {
-        team: { seriesId: team.seriesId, archivedAt: null },
-        NOT: { id: seat.id },
-        OR: [{ userId: account.id }, { email: account.email.toLowerCase() }],
-      },
-      select: { id: true },
+    const already = await alreadyEntered({
+      seriesId: team.seriesId,
+      userIds: [account.id],
+      emails: [account.email],
+      exceptCompetitorId: seat.id,
     });
     if (already) return { ok: false, error: "ALREADY_ENTERED" };
 

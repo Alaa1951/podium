@@ -9,6 +9,7 @@ import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
 import { isBft, isStudio, requireAccess } from "@/lib/session";
 import { nextTeamNumber } from "@/lib/actions/teams";
+import { alreadyEntered } from "@/lib/one-entry";
 import { registrationOpen } from "@/lib/visibility";
 import { revalidatePath } from "next/cache";
 
@@ -127,12 +128,12 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
   if (wrongCategory) return { ok: false, error: "CATEGORY_MISMATCH" };
 
   // Nobody enters the same competition twice.
-  const entered = await prisma.competitor.findFirst({
-    where: {
-      team: { seriesId: series.id, archivedAt: null },
-      OR: [{ userId: { in: data.athleteIds } }, { email: { in: ordered.map((athlete) => athlete.email) } }],
-    },
-    select: { id: true },
+  const entered = await alreadyEntered({
+    seriesId: series.id,
+    userIds: data.athleteIds,
+    // These used to go in as typed. Every writer stores them lowercased, so
+    // that copy only worked because of the column's collation.
+    emails: ordered.map((athlete) => athlete.email),
   });
   if (entered) return { ok: false, error: "ALREADY_ENTERED" };
 

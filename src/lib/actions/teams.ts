@@ -84,9 +84,19 @@ export async function setTeamWave(input: unknown): Promise<ActionResult> {
   // studio's team by guessing its id.
   const team = await prisma.team.findFirst({
     where: { id: parsed.data.teamId, ...teamScope(user) },
-    select: { id: true, seriesId: true, waveId: true, waveRef: { select: { status: true, number: true } } },
+    select: {
+      id: true,
+      seriesId: true,
+      waveId: true,
+      waitlistedAt: true,
+      waveRef: { select: { status: true, number: true } },
+    },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
+  // Admitting them is a separate, deliberate decision — and it is the one
+  // that hands out the place. Putting a waiting pair straight into a wave
+  // would do it silently, from a screen that is about the running order.
+  if (team.waitlistedAt) return { ok: false, error: "ON_THE_WAITING_LIST" };
 
   // A team cannot be pulled out of — or pushed into — a wave that has already
   // run or is running: the running order is the record of what happened on
@@ -208,8 +218,11 @@ export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
   const phase = deletionGuard(planned.status);
   if (!phase.allowed) return { ok: false, error: phase.reason };
 
+  // THE WAITING LIST IS NOT ON THE FLOOR. A waiting entry holds no place, so
+  // dealing it a rig takes one away from somebody who does — and the pair
+  // would appear on the running order while not competing.
   const teams = await prisma.team.findMany({
-    where: { seriesId: parsed.data.seriesId, archivedAt: null },
+    where: { seriesId: parsed.data.seriesId, archivedAt: null, waitlistedAt: null },
     select: { id: true, category: true, division: true, number: true },
   });
 

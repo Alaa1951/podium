@@ -2,8 +2,10 @@ import "server-only";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { createCrmClient, type CrmClient } from "@/lib/crm/client";
+import { admitIfRoom } from "@/lib/crm/admit";
 import { assertFieldMap } from "@/lib/crm/field-map";
 import { reconcile, summarise, type Action, type Snapshot } from "@/lib/crm/reconcile";
+import { findEntryInSeries } from "@/lib/one-entry";
 import { createTeam } from "@/lib/team-create";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,7 +99,7 @@ export async function releaseSync(db: Db, now: Date, result: SyncResult): Promis
 
 /** Everything the plan is worked out against, read in one pass. */
 async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promise<Snapshot> {
-  const [fieldIds, pipelines, contacts, opportunities, studios, teams] = await Promise.all([
+  const [fieldIds, pipelines, contacts, opportunities, studios, teams, series] = await Promise.all([
     client.listCustomFieldIds(),
     client.listPipelines(),
     client.listContacts(),
@@ -114,6 +116,7 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
         billingNumber: true,
       },
     }),
+    db.series.findUnique({ where: { id: seriesId }, select: { registrationClosesAt: true } }),
   ]);
 
   // Before anything is decided: a field deleted or rebuilt in the CRM form
@@ -127,6 +130,7 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
     pipelines,
     studioNames: studios.map((studio) => studio.name),
     teams,
+    registrationClosesAt: series?.registrationClosesAt ?? null,
   };
 }
 
@@ -206,6 +210,7 @@ async function apply(
           : { paidAt: paymentStatus === "paid" ? now : null, confirmedById: null }),
       },
     });
+
     return "updated";
   }
 
@@ -228,6 +233,61 @@ async function apply(
     });
   }
 
+  // ── Is this pair already entered? ────────────────────────────────────────
+  //
+  // ADOPT, DO NOT DUPLICATE. A pair who signed themselves up, or whom a
+  // studio entered by hand, already has a team — with no `externalId`, so
+  // the unique index sees no collision and this used to make a SECOND one.
+  // Two rows for two people stays invisible until payment lands, and then it
+  // is two lines on the board, two ranks in the results, and every figure in
+  // the reports counted twice.
+  //
+  // Adoption is refused unless BOTH seats match. One matching email means the
+  // partner changed, and which pair is the real entry is a person's decision,
+  // not a poll's.
+  const seatEmails = seats.map((seat) => seat.email).filter(Boolean) as string[];
+  const existing = seatEmails.length
+    ? await findEntryInSeries({ seriesId, emails: seatEmails }, db)
+    : null;
+
+  if (existing) {
+    const mine = await db.team.findUnique({
+      where: { id: existing.teamId },
+      select: { id: true, externalId: true, competitors: { select: { email: true } } },
+    });
+    const theirs = new Set(
+      (mine?.competitors ?? []).map((seat) => seat.email).filter(Boolean) as string[]
+    );
+    const bothMatch = seatEmails.length === 2 && seatEmails.every((email) => theirs.has(email));
+
+    if (mine && !mine.externalId && bothMatch) {
+      await db.team.update({
+        where: { id: mine.id },
+        data: {
+          externalId: draft.externalId,
+          source: "ghl",
+          rawPayload: draft.raw as never,
+          paymentStatus: draft.paymentStatus,
+          paidAt: draft.paymentStatus === "paid" ? now : null,
+          amountMinor: draft.amountMinor,
+          billingNumber: draft.billingNumber,
+        },
+      });
+      await db.crmIntake
+        .deleteMany({ where: { seriesId, externalId: draft.externalId } })
+        .catch(() => undefined);
+      console.info("[CRM:adopt]", `${draft.externalId} -> existing team`);
+      return "updated";
+    }
+
+    // Ambiguous. Leave both alone and say so — a poll must not pick.
+    console.warn(
+      "[CRM:conflict]",
+      `${draft.externalId} matches a team that is not its own; left untouched`
+    );
+    return "skipped";
+  }
+
   const created = await createTeam(db, {
     seriesId,
     name: draft.name,
@@ -239,6 +299,8 @@ async function apply(
     paymentStatus: draft.paymentStatus,
     source: "ghl",
     paidAt: draft.paymentStatus === "paid" ? now : null,
+    // The deadline applies to the CRM too, which it never used to.
+    waitlistedAt: draft.waitlisted ? now : null,
     amountMinor: draft.amountMinor,
     billingNumber: draft.billingNumber,
     externalId: draft.externalId,
@@ -350,6 +412,45 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
         );
       }
     }
+
+    // ── Let in whoever there is room for ──────────────────────────────────
+    //
+    // A PASS, NOT A REACTION TO PAYMENT. Tying this to the moment money
+    // arrives would miss the commoner case by far: a pair who paid weeks ago
+    // and are let in because somebody else withdrew this morning. Nothing
+    // about them changes in the CRM, so the reconciler has nothing to say
+    // about them — the room is what changed.
+    //
+    // Money still does not buy a place; the floor does. `admitIfRoom` fills
+    // a station on a wave somebody already planned and never creates one, so
+    // the most this can do is what a person would have done by hand.
+    let admitted = 0;
+    const readyToAdmit = await db.team.findMany({
+      where: {
+        seriesId: series.id,
+        archivedAt: null,
+        waitlistedAt: { not: null },
+        paymentStatus: "paid",
+      },
+      // Longest waiting first: the queue is a queue.
+      orderBy: { waitlistedAt: "asc" },
+      select: { id: true, number: true },
+    });
+    for (const team of readyToAdmit) {
+      const seat = await admitIfRoom(db, team.id);
+      if (!seat.admitted) {
+        // No room stops the whole pass: the next team in the queue would find
+        // the same full floor, and asking again per team is a query each.
+        if (seat.reason === "NO_ROOM") break;
+        continue;
+      }
+      admitted += 1;
+      console.info(
+        "[CRM:admit]",
+        `team ${team.number} -> wave ${seat.waveNumber}, station ${seat.station}`
+      );
+    }
+    if (admitted > 0) updated += admitted;
 
     // THE TABLE MIRRORS THE CRM, so what the CRM no longer has, it loses.
     // Without this, a contact deleted there — or finished by some path this

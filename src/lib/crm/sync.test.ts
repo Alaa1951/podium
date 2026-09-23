@@ -55,6 +55,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
       }),
     },
     series: { findUnique: vi.fn(async () => ({ id: "series-1" })) },
+    competitor: { findFirst: vi.fn(async (): Promise<object | null> => null) },
     crmIntake: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 0 })) },
     studio: {
       findMany: vi.fn(async (): Promise<{ id: string; name: string }[]> => []),
@@ -66,6 +67,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
       // `nextTeamNumber` reads the highest number through this one.
       findFirst: vi.fn(async () => null),
       update: vi.fn(async () => ({})),
+      findUnique: vi.fn(async (): Promise<object | null> => null),
       create: vi.fn(async () => ({ id: "t", number: 101, name: "X" })),
     },
     ...overrides,
@@ -321,6 +323,113 @@ describe("runSync", () => {
 
     const written = (db.team.create.mock.calls[0] as unknown as [{ data: { rawPayload: unknown } }])[0].data.rawPayload;
     expect(written).toEqual(contact);
+  });
+
+  // ADOPTION. A pair who signed themselves up already has a team, with no
+  // externalId — so the unique index saw no collision and this used to make a
+  // SECOND one. Two rows for two people is invisible until payment lands, and
+  // then it is two lines on the board and every report figure doubled.
+  it("adopts a team the same pair already has instead of making another", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    db.competitor.findFirst.mockResolvedValue({
+      id: "c1",
+      teamId: "signup-team",
+      email: "one@example.com",
+      userId: "u1",
+    });
+    db.team.findUnique.mockResolvedValue({
+      id: "signup-team",
+      externalId: null,
+      competitors: [{ email: "one@example.com" }, { email: "two@example.com" }],
+    });
+
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [
+        {
+          id: "crm-1",
+          contactName: "One Person",
+          email: "One@Example.com",
+          customFields: [
+            { id: FIELD.category, value: ["MEN"] },
+            { id: FIELD.division, value: ["OPEN"] },
+            { id: FIELD.nameTwo, value: "Two Person" },
+            { id: FIELD.emailTwo, value: "Two@Example.com" },
+          ],
+        },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "crm-1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    const result = await runSync({ prisma: db as never, client: client as never });
+
+    expect(result).toMatchObject({ ok: true, created: 0, updated: 1 });
+    expect(db.team.create).not.toHaveBeenCalled();
+    // The existing team becomes the CRM's, money and all.
+    expect(db.team.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "signup-team" },
+        data: expect.objectContaining({
+          externalId: "crm-1",
+          source: "ghl",
+          paymentStatus: "paid",
+        }),
+      })
+    );
+  });
+
+  // One matching email means the PARTNER changed, and which pair is the real
+  // entry is a person's decision. A poll must not pick — and must not make a
+  // second team either.
+  it("refuses to adopt or duplicate when only one person matches", async () => {
+    const { FIELD } = await import("@/lib/crm/field-map");
+    const db = fakeDb();
+    db.competitor.findFirst.mockResolvedValue({
+      id: "c1",
+      teamId: "signup-team",
+      email: "one@example.com",
+      userId: "u1",
+    });
+    db.team.findUnique.mockResolvedValue({
+      id: "signup-team",
+      externalId: null,
+      competitors: [{ email: "one@example.com" }, { email: "somebody-else@example.com" }],
+    });
+
+    const client = {
+      ...emptyClient(),
+      listPipelines: vi.fn(async () => [
+        { id: "p1", name: "Podium Series 1", stages: [{ id: "s1", name: "Paid – Registered" }] },
+      ]),
+      listContacts: vi.fn(async () => [
+        {
+          id: "crm-1",
+          contactName: "One Person",
+          email: "one@example.com",
+          customFields: [
+            { id: FIELD.category, value: ["MEN"] },
+            { id: FIELD.division, value: ["OPEN"] },
+            { id: FIELD.nameTwo, value: "Two Person" },
+            { id: FIELD.emailTwo, value: "two@example.com" },
+          ],
+        },
+      ]),
+      listOpportunities: vi.fn(async () => [
+        { id: "o1", contactId: "crm-1", pipelineId: "p1", pipelineStageId: "s1", status: "open" },
+      ]),
+    };
+
+    const result = await runSync({ prisma: db as never, client: client as never });
+
+    expect(result).toMatchObject({ ok: true, created: 0, updated: 0 });
+    expect(db.team.create).not.toHaveBeenCalled();
+    expect(db.team.update).not.toHaveBeenCalled();
   });
 
   // An unfinished registration is still somebody who paid and expects to

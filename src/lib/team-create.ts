@@ -47,6 +47,14 @@ export type NewTeam = {
   currency?: string;
   billingNumber?: string | null;
   paymentNote?: string | null;
+  /**
+   * Entered after registration closed, holding no place yet.
+   *
+   * It had no field here at all, which meant a CRM registration could never
+   * land on the waiting list however late it arrived — the deadline simply
+   * did not apply to the one route most entries come through.
+   */
+  waitlistedAt?: Date | null;
   /** The CRM record this came from. Unique per competition. */
   externalId?: string | null;
   /** That record exactly as it arrived, so a dispute can be read back. */
@@ -117,6 +125,7 @@ export async function createTeam(db: Db, input: NewTeam): Promise<CreateOutcome>
           studioId: input.studioId ?? null,
           paymentStatus: input.paymentStatus ?? "pending",
           source: input.source ?? "manual",
+          waitlistedAt: input.waitlistedAt ?? null,
           paidAt: input.paidAt ?? null,
           confirmedById: input.confirmedById ?? null,
           amountMinor: input.amountMinor ?? null,
