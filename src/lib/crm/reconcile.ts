@@ -168,7 +168,16 @@ export function paymentFromStage(pipelineName: string, stageName: string): Payme
   return null;
 }
 
-/** The seats a contact describes. Member 1 is the contact; member 2 is fields. */
+/**
+ * The seats a contact describes. Member 1 is the contact; member 2 is fields.
+ *
+ * A PARTNER EMAIL IDENTICAL TO THE REGISTRANT'S IS NOT AN EMAIL. Five of the
+ * live registrations have the same address in both boxes — somebody typed
+ * their own when asked for their partner's. Recording it as the partner's is
+ * worse than recording nothing: it tells the duplicate guard these are the
+ * same person, and it would send that partner's mail to somebody else. So it
+ * is dropped, and the seat honestly has no address.
+ */
 function seatsOf(contact: CrmContact, studioNames: readonly string[]): SeatDraft[] {
   const seats: SeatDraft[] = [];
 
@@ -188,10 +197,12 @@ function seatsOf(contact: CrmContact, studioNames: readonly string[]): SeatDraft
 
   const two = partnerFullName(contact);
   if (two) {
+    const ownEmail = contact.email?.trim().toLowerCase() || null;
+    const claimed = readField(contact, FIELD.emailTwo)?.toLowerCase() ?? null;
     seats.push({
       position: 2,
       fullName: two,
-      email: readField(contact, FIELD.emailTwo)?.toLowerCase() ?? null,
+      email: claimed && claimed === ownEmail ? null : claimed,
       phone: readField(contact, FIELD.phoneTwo),
       dateOfBirth: toDate(readField(contact, FIELD.birthTwo)),
       shirtSize: toShirtSize(readField(contact, FIELD.shirtTwo)),
