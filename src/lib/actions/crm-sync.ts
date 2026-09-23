@@ -63,10 +63,17 @@ export async function syncCrmNow(): Promise<ActionResult> {
  * Oldest first: the useful order is who has been waiting longest, not who
  * arrived last. Returns nothing when the sync is off, so the screen is
  * exactly as it was for anyone not using the CRM.
+ *
+ * `waitingDays` is worked out HERE rather than on either screen. The clock
+ * is impure, so reading it while rendering is both a lint error and a real
+ * hazard on a client component — the server would render one number and the
+ * browser hydrate with another. Doing it once also stops two screens
+ * computing the same thing slightly differently.
  */
 export async function crmIntakeFor(seriesId: string) {
   if (!crmSyncEnabled()) return [];
-  return prisma.crmIntake.findMany({
+  const now = Date.now();
+  const rows = await prisma.crmIntake.findMany({
     where: { seriesId },
     orderBy: { firstSeenAt: "asc" },
     select: {
@@ -82,6 +89,10 @@ export async function crmIntakeFor(seriesId: string) {
       firstSeenAt: true,
     },
   });
+  return rows.map((row) => ({
+    ...row,
+    waitingDays: Math.floor((now - row.firstSeenAt.getTime()) / 86_400_000),
+  }));
 }
 
 /** What the last poll did, for the line above the registration list. */

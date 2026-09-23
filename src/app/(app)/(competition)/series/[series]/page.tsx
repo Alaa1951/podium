@@ -2,7 +2,9 @@ import Link from "next/link";
 
 import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesReport, money } from "@/lib/reports";
+import { countWaitingList } from "@/lib/waiting-list";
 import { requireSeries, seriesHref } from "@/lib/require-series";
+import { isBft } from "@/lib/access";
 import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +17,18 @@ export const dynamic = "force-dynamic";
  * change it. A number you cannot act on is decoration.
  */
 export default async function CompetitionOverview(props: PageProps<"/series/[series]">) {
-  await requireAccess("overview.view");
+  const user = await requireAccess("overview.view");
   const { t, locale } = await getTranslator();
 
   const { series, waveSummary, phase } = await requireSeries(props.params);
-  const report = await getSeriesReport(series.id);
+  // The waiting list spans two tables and `getSeriesReport` only reads one,
+  // so it is counted beside the report rather than folded into it — a
+  // cross-table figure sitting next to `registered` would be two different
+  // populations in one object.
+  const [report, waiting] = await Promise.all([
+    getSeriesReport(series.id),
+    countWaitingList(series.id, { includeIntake: isBft(user) }),
+  ]);
 
   const at = (section = "") => seriesHref(series.slug, section);
   const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
@@ -36,16 +45,24 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
       href: at("studios"),
       action: t("Choose studios"),
     },
+    waiting.total > 0 &&
+      series.status !== "final" && {
+        text: t("{n} registration(s) are registered but not in the field.", { n: waiting.total }),
+        href: at("waiting"),
+        action: t("Open the waiting list"),
+      },
     report.pending > 0 && {
       text: t("{n} registration(s) are not paid, so they are not on the board.", {
         n: report.pending,
       }),
-      href: `${at("registrations")}?payment=pending`,
+      // `place=field` because the figure counts the field only. Without it
+      // the notice opens a list longer than the number it just quoted.
+      href: `${at("registrations")}?payment=pending&place=field`,
       action: t("Review payments"),
     },
-    report.registered > 0 &&
-      report.inWave < report.registered && {
-        text: t("{n} team(s) are not in a wave.", { n: report.registered - report.inWave }),
+    report.inField > 0 &&
+      report.inWave < report.inField && {
+        text: t("{n} team(s) are not in a wave.", { n: report.inField - report.inWave }),
         href: at("waves"),
         action: t("Build the running order"),
       },
@@ -112,6 +129,16 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           note={`${report.people.total} ${t("people")}`}
         />
         <Stat
+          href={at("waiting")}
+          label={t("Waiting list")}
+          value={waiting.total}
+          note={
+            waiting.total === 0
+              ? t("nobody waiting")
+              : t("{n} not a team yet", { n: waiting.intake })
+          }
+        />
+        <Stat
           href={`${at("registrations")}?payment=paid`}
           label={t("Paid")}
           value={report.paid}
@@ -119,7 +146,7 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           bar={pct(report.paid, report.registered)}
         />
         <Stat
-          href={`${at("registrations")}?payment=pending`}
+          href={`${at("registrations")}?payment=pending&place=field`}
           label={t("Awaiting payment")}
           value={report.pending}
           note={report.pending > 0 ? t("not on the board") : t("nothing outstanding")}

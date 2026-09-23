@@ -11,12 +11,19 @@ import { isCompeting } from "@/lib/team-status";
 //
 //   REGISTERED   pairs who entered, paid or not
 //   PAID         money confirmed — and the only ones the board shows
+//   WAITING      entered after the deadline; holds no place until admitted
 //   ATTENDED     turned up on the day
 //   MEMBERS      people who hold a BFT studio membership
 //
-// The last one counts PEOPLE, not teams, because a pair can be one member and
-// one guest — which is the interesting case and the one a team-level count
-// would quietly lose.
+// MEMBERS counts PEOPLE, not teams, because a pair can be one member and one
+// guest — which is the interesting case and the one a team-level count would
+// quietly lose.
+//
+// WITHDRAWN REGISTRATIONS ARE NOT REGISTRATIONS. Every figure here excludes
+// `archivedAt`, which it did not used to: a withdrawn pair was inside
+// `registered`, `pending` and `inWave`, while the roster screen beside it
+// (`getScopedRoster`) filtered them out — so the dashboard and the list it
+// links to disagreed, and neither said why.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type SeriesReport = {
@@ -24,6 +31,17 @@ export type SeriesReport = {
   paid: number;
   pending: number;
   refunded: number;
+  /**
+   * Entered after registration closed, holding no place yet.
+   *
+   * Counted separately because a waiting entry is not work to do on the
+   * field: it has no wave ON PURPOSE, and it is not competing whatever its
+   * money says. Folding it into the others is what made "N teams are not in
+   * a wave" a notice that could never reach zero.
+   */
+  waiting: number;
+  /** Entered, not withdrawn, and NOT waiting — the actual field. */
+  inField: number;
   attended: number;
   scored: number;
   inWave: number;
@@ -42,7 +60,8 @@ export type SeriesReport = {
 export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
   const [teams, competitors, studios] = await Promise.all([
     prisma.team.findMany({
-      where: { seriesId },
+      // Withdrawn entries are out of every figure — see the header.
+      where: { seriesId, archivedAt: null },
       select: {
         id: true,
         paymentStatus: true,
@@ -57,13 +76,14 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
       },
     }),
     prisma.competitor.findMany({
-      where: { team: { seriesId } },
+      where: { team: { seriesId, archivedAt: null } },
       select: { id: true, studioId: true },
     }),
     prisma.studio.findMany({ select: { id: true, name: true } }),
   ]);
 
   const paid = teams.filter(isCompeting);
+  const inField = teams.filter((team) => team.waitlistedAt === null);
   const studioNames = new Map(studios.map((studio) => [studio.id, studio.name]));
 
   const teamsByStudio = new Map<string, number>();
@@ -86,11 +106,19 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
   return {
     registered: teams.length,
     paid: paid.length,
-    pending: teams.filter((team) => team.paymentStatus === "pending").length,
+    // IN THE FIELD and unpaid. A waiting entry that has not paid is not
+    // money to chase: it holds no place, and admitting it is a separate
+    // decision that this figure must not quietly ask for.
+    pending: inField.filter((team) => team.paymentStatus === "pending").length,
     refunded: teams.filter((team) => team.paymentStatus === "refunded").length,
+    waiting: teams.filter((team) => team.waitlistedAt !== null).length,
     attended: teams.filter((team) => team.attendedAt !== null).length,
     scored: teams.filter((team) => team.score?.status === "submitted").length,
-    inWave: teams.filter((team) => team.waveId !== null).length,
+    inField: inField.length,
+    // Counted over the field, not over everyone: a waiting entry is not
+    // supposed to hold a wave, so including it makes a ratio that can never
+    // reach its own denominator.
+    inWave: inField.filter((team) => team.waveId !== null).length,
 
     takingsMinor: paid.reduce((sum, team) => sum + (team.amountMinor ?? 0), 0),
     // One event is priced in one currency; the first paid row settles it.

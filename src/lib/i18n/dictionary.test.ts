@@ -81,3 +81,75 @@ describe("the Arabic dictionary", () => {
     }
   });
 });
+
+describe("one key, one file", () => {
+  /**
+   * `AR` is a spread of eight dictionaries, so a key written in two of them
+   * silently loses: whichever file is spread LAST wins, and the other Arabic
+   * never renders anywhere. The merged object cannot show this — by the time
+   * you can read `AR`, the loser is gone.
+   *
+   * It has already happened once. `"Waiting"` was written into ar-console.ts
+   * for the CRM intake column while ar-mobile.ts already had it, and because
+   * AR_MOBILE spreads later the console value was dead the day it was typed.
+   * Nothing failed, nothing warned, and the column rendered the other word.
+   */
+  it("never gives one phrase two different translations", async () => {
+    const files = {
+      "ar-core": (await import("@/lib/i18n/ar-core")).AR_CORE,
+      "ar-console": (await import("@/lib/i18n/ar-console")).AR_CONSOLE,
+      "ar-results": (await import("@/lib/i18n/ar-results")).AR_RESULTS,
+      "ar-notifications": (await import("@/lib/i18n/ar-notifications")).AR_NOTIFICATIONS,
+      "ar-mobile": (await import("@/lib/i18n/ar-mobile")).AR_MOBILE,
+      "ar-access": (await import("@/lib/i18n/ar-access")).AR_ACCESS,
+      "ar-floor": (await import("@/lib/i18n/ar-floor")).AR_FLOOR,
+      "ar-signup": (await import("@/lib/i18n/ar-signup")).AR_SIGNUP,
+    };
+
+    // Only CONFLICTING duplicates are flagged. The same phrase written
+    // identically in two files is redundant and harmless — whichever wins,
+    // the screen reads the same. Two different values is the bug: one of them
+    // never renders, and somebody wrote it believing it would.
+    const seen = new Map<string, { file: string; value: string }>();
+    const clashes: string[] = [];
+    for (const [file, phrases] of Object.entries(files)) {
+      for (const [key, value] of Object.entries(phrases)) {
+        const first = seen.get(key);
+        if (!first) {
+          seen.set(key, { file, value });
+          continue;
+        }
+        if (first.value !== value) {
+          clashes.push(`"${key}" — ${first.file} says "${first.value}", ${file} says "${value}"`);
+        }
+      }
+    }
+
+    // KNOWN, AND NOT BLESSED. Each of these already renders the second value
+    // everywhere, because AR_MOBILE and AR_SIGNUP are spread last. Three are
+    // the wrong WORD rather than a different wording, and the list says which:
+    //
+    //   "Place"      results mean the RANK; "المكان" is a location, and it is
+    //                what the results table actually renders today.
+    //   "submitted"  the console means a score was SENT; "محفوظ" says saved.
+    //   "Signed up"  one file means self-registration, the other means a DATE.
+    //
+    // The fix is per-screen and sometimes means splitting the English key,
+    // which is a change of its own. This list exists so the debt is counted
+    // and, more importantly, so it cannot grow: a NEW conflict fails here.
+    const known = [
+      '"submitted" — ar-console says "مُرسلة", ar-mobile says "محفوظ"',
+      '"Place" — ar-results says "المركز", ar-mobile says "المكان"',
+      '"Submitted" — ar-mobile says "تم إرسال النتيجة", ar-floor says "تم الإرسال"',
+      '"Open" — ar-core says "مفتوح", ar-floor says "مفتوحة"',
+      '"Phone" — ar-console says "رقم الهاتف", ar-signup says "الهاتف"',
+      '"Signed up" — ar-mobile says "تسجيل ذاتي", ar-signup says "تاريخ التسجيل"',
+      '"New studio name" — ar-core says "اسم استوديو جديد", ar-signup says "اسم الاستوديو الجديد"',
+      '"That email does not look right." — ar-results says "هذا البريد لا يبدو صحيحًا.", ar-signup says "هذا البريد الإلكتروني غير صحيح."',
+    ];
+
+    expect(clashes.filter((clash) => !known.includes(clash))).toEqual([]);
+    // And the list shrinks or stays; it never quietly grows.
+    expect(clashes.length).toBeLessThanOrEqual(known.length);
+  });
+});

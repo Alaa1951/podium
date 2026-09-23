@@ -7,7 +7,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
 } }));
 vi.mock("@/lib/session", () => ({ teamScope }));
 
-import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
+import { getArchivedRoster, getScopedRoster, getWaitingRoster } from "@/lib/queries";
 
 const studio: CurrentUser = {
   id: "studio-user", email: "studio@example.test", name: null, role: "studio",
@@ -61,6 +61,38 @@ describe("lean registration reads", () => {
     await getArchivedRoster("series-1", studio);
     expect(mocks.teams.mock.lastCall?.[0].where).toEqual({
       seriesId: "series-1", NOT: { archivedAt: null }, studioId: "own-studio",
+    });
+  });
+});
+
+describe("the waiting list", () => {
+  // Three filters, and dropping any one of them is a different wrong answer:
+  // without `waitlistedAt` it is the whole roster, without `archivedAt` it
+  // shows withdrawn pairs as waiting, and without the scope a studio reads
+  // everybody else's entries.
+  it("reads only the waiting, only the live, and only what this account may see", async () => {
+    await getWaitingRoster("series-1", studio);
+    expect(mocks.teams).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          seriesId: "series-1",
+          archivedAt: null,
+          NOT: { waitlistedAt: null },
+          studioId: "own-studio",
+        },
+        // Longest waiting first: the order of a list whose whole purpose is
+        // deciding who gets let in next.
+        orderBy: { waitlistedAt: "asc" },
+      })
+    );
+  });
+
+  it("gives BFT MENA every waiting entry in the competition", async () => {
+    await getWaitingRoster("series-1", { ...studio, role: "admin", studioId: null });
+    expect(mocks.teams.mock.lastCall?.[0].where).toEqual({
+      seriesId: "series-1",
+      archivedAt: null,
+      NOT: { waitlistedAt: null },
     });
   });
 });

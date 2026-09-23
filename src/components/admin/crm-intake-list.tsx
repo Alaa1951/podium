@@ -36,7 +36,21 @@ export type CrmIntakeRow = {
   waitingDays: number;
 };
 
-export function CrmIntakeList({ rows }: { rows: CrmIntakeRow[] }) {
+export function CrmIntakeList({
+  rows,
+  intro,
+}: {
+  rows: CrmIntakeRow[];
+  /**
+   * The sentence under the heading.
+   *
+   * It defaults to the registrations screen's wording because that is where
+   * this list was born and where the roster really is "the list above". On
+   * the waiting-list screen the list above is the waiting teams, and the
+   * default sentence would point somebody at the wrong table.
+   */
+  intro?: string;
+}) {
   const t = useT();
   if (rows.length === 0) return null;
 
@@ -44,10 +58,11 @@ export function CrmIntakeList({ rows }: { rows: CrmIntakeRow[] }) {
     <section style={{ marginTop: 20 }}>
       <div className="console-group-title">{t("Not a team yet")}</div>
       <p className="reg-sub" style={{ marginTop: 4 }}>
-        {t(
-          "{n} registrations in the CRM cannot be entered yet. Each one joins the list above by itself once its CRM form is finished.",
-          { n: rows.length }
-        )}
+        {intro ??
+          t(
+            "{n} registrations in the CRM cannot be entered yet. Each one joins the list above by itself once its CRM form is finished.",
+            { n: rows.length }
+          )}
       </p>
 
       <div className="table-scroll" style={{ marginTop: 10 }}>

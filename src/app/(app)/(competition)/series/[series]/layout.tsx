@@ -3,11 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { ConsoleShell, type NavGroup } from "@/components/app/console-shell";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
-import { can, type PermissionKey } from "@/lib/access";
+import { can, isBft, teamScope, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { countPairedNotRegistered } from "@/lib/partner-watch";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
+import { countWaitingList } from "@/lib/waiting-list";
 import { getCurrentUser, homeForUser } from "@/lib/session";
 import { getTheme } from "@/lib/theme-server";
 
@@ -36,13 +37,23 @@ export default async function CompetitionLayout({
   const { t, locale } = await getTranslator();
   const theme = await getTheme();
 
-  const { series, waveSummary, teamCount, phase } = await requireSeries(params);
+  const { series, waveSummary, phase } = await requireSeries(params);
   const at = (section = "") => seriesHref(series.slug, section);
 
-  const [awaitingPayment, unassigned, waitingPairs] = await Promise.all([
-    prisma.team.count({ where: { seriesId: series.id, paymentStatus: "pending" } }),
-    prisma.team.count({ where: { seriesId: series.id, waveId: null } }),
+  // EVERY BADGE COUNTS THE FIELD, and the field is what is left after the
+  // withdrawn and the waiting are taken out. Both used to be inside these
+  // numbers, which made them read as work nobody could ever finish: a team on
+  // the waiting list has no wave ON PURPOSE, so "N not in a wave" had a floor
+  // it could not go below for as long as anybody was waiting.
+  const onTheField = { seriesId: series.id, archivedAt: null, waitlistedAt: null };
+
+  const [awaitingPayment, unassigned, waitingPairs, waiting] = await Promise.all([
+    prisma.team.count({ where: { ...onTheField, paymentStatus: "pending" } }),
+    prisma.team.count({ where: { ...onTheField, waveId: null } }),
     countPairedNotRegistered(series.id),
+    // Scoped the way the screen is: a studio counts its own waiting teams and
+    // never the CRM half, which is BFT MENA's alone.
+    countWaitingList(series.id, { includeIntake: isBft(user), scope: teamScope(user) }),
   ]);
 
   // The public results item mirrors what a stranger sees at /results: it only
@@ -78,6 +89,15 @@ export default async function CompetitionLayout({
           key: "registrations.view",
         },
         {
+          href: at("waiting"),
+          label: t("Waiting list"),
+          // Every row here is somebody's move: ours to admit, or theirs to
+          // finish the form. A finished competition's queue is history.
+          badge: waiting.total,
+          alert: waiting.total > 0 && series.status !== "final",
+          key: "registrations.view",
+        },
+        {
           href: at("partners"),
           label: t("Partner watch"),
           // Two people who agreed and were never entered is the one thing on
@@ -90,7 +110,11 @@ export default async function CompetitionLayout({
           href: at("waves"),
           label: t("Waves"),
           badge: unassigned,
-          alert: unassigned > 0 && teamCount > 0,
+          // No `teamCount` guard any more: it came from `series._count.teams`,
+          // which counts archived and waiting teams too — the same disease.
+          // It is redundant regardless, since no field teams means no
+          // unassigned ones.
+          alert: unassigned > 0,
           key: "waves.view",
         },
       ]),

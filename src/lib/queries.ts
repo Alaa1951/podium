@@ -329,6 +329,22 @@ export async function getScopedRoster(seriesId: string, user: CurrentUser, teamI
   return teams.map(toRosterRow);
 }
 
+/**
+ * The entries on the waiting list — those that came in after registration
+ * closed and hold no place yet.
+ *
+ * Scoped like every other roster query, so a studio sees its own and nobody
+ * else's. Ordered by when they started waiting, which is the useful order on
+ * a list whose whole purpose is deciding who gets let in next.
+ */
+export async function getWaitingRoster(seriesId: string, user: CurrentUser): Promise<RosterRow[]> {
+  const teams = await loadRoster({
+    where: { seriesId, archivedAt: null, NOT: { waitlistedAt: null }, ...teamScope(user) },
+    orderBy: { waitlistedAt: "asc" },
+  });
+  return teams.map(toRosterRow);
+}
+
 export async function getArchivedRoster(seriesId: string, user: CurrentUser): Promise<RosterRow[]> {
   const teams = await loadRoster({
     where: { seriesId, NOT: { archivedAt: null }, ...teamScope(user) },

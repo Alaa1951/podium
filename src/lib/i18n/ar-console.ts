@@ -130,11 +130,20 @@ export const AR_CONSOLE: Phrases = {
 
   // ── Registrations the CRM has not finished ───────────────────────────────
   "Not a team yet": "لم يصبح فريقًا بعد",
+  "Waiting for a place": "في انتظار مكان",
+  "Nobody is waiting for a place.": "لا أحد في انتظار مكان.",
+  "Everyone who registered and is not in the field. Either they entered after registration closed, or the CRM has not finished their registration.":
+    "كل من سجّل وليس في الميدان. إما سجّل بعد إغلاق التسجيل، أو الـ CRM لم يُكمل تسجيله.",
+  "{n} registration(s) are registered but not in the field.": "{n} تسجيلات مسجّلة لكنها ليست في الميدان.",
+  "Open the waiting list": "افتح قائمة الانتظار",
+  "nobody waiting": "لا أحد في الانتظار",
+  "{n} not a team yet": "{n} لم يصبحوا فرقًا بعد",
+  "{n} registrations in the CRM cannot be entered yet. Each one becomes a team by itself once its CRM form is finished.":
+    "{n} تسجيلات في الـ CRM لا يمكن إدخالها بعد. كل واحد منها يصبح فريقًا وحده بمجرد اكتمال فورم الـ CRM الخاص به.",
   "{n} registrations in the CRM cannot be entered yet. Each one joins the list above by itself once its CRM form is finished.":
     "{n} تسجيلات في الـ CRM لا يمكن إدخالها بعد. كل واحد منها ينضم للقائمة بالأعلى وحده بمجرد اكتمال فورم الـ CRM الخاص به.",
   "In the CRM": "في الـ CRM",
   "Still needed": "الناقص",
-  Waiting: "منتظر منذ",
   "{n} days": "{n} يوم",
   today: "اليوم",
   "no partner named": "لم يُذكر شريك",

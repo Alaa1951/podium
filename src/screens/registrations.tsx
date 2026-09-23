@@ -7,6 +7,7 @@ import { getSeriesStudios } from "@/lib/queries";
 import { teamStatus } from "@/lib/team-status";
 import { RegisteredFilters } from "@/components/admin/registered-filters";
 import { RegisteredTable, type RegisteredRow } from "@/components/admin/registered-table";
+import { toRegisteredRow } from "@/lib/registered-rows";
 import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
 import { can, isBft } from "@/lib/access";
@@ -77,58 +78,12 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     );
   });
 
-  const rows: RegisteredRow[] = (detailId ? teams.filter((team) => team.id === detailId) : filtered).map((team) => ({
-    id: team.id,
-    number: team.number,
-    name: team.name,
-    category: team.category,
-    division: team.division,
-    wave: team.waveId ? team.wave : null,
-    paymentStatus: team.paymentStatus,
-    waitlistedAt: team.waitlistedAt,
-    amount: team.amountMinor === null ? "—" : (team.amountMinor / 100).toFixed(2),
-    currency: team.currency,
-    billingNumber: team.billingNumber,
-    source: team.source,
-    registeredAt: team.registeredAt.toISOString().slice(0, 10),
-    attended: team.attendedAt !== null,
-    submitted: team.submitted,
-    people: team.competitors.map((person) => ({
-      id: person.id,
-      fullName: person.fullName,
-      phone: person.phone,
-      email: person.email,
-      studioName: person.studioName,
-      photoPath: person.photoPath,
-    })),
-  }));
+  const rows: RegisteredRow[] = (detailId ? teams.filter((team) => team.id === detailId) : filtered).map(
+    toRegisteredRow
+  );
 
 
-  const archivedRows: RegisteredRow[] = archivedTeams.map((team) => ({
-    id: team.id,
-    number: team.number,
-    name: team.name,
-    category: team.category,
-    division: team.division,
-    wave: team.waveId ? team.wave : null,
-    paymentStatus: team.paymentStatus,
-    waitlistedAt: team.waitlistedAt,
-    amount: team.amountMinor === null ? "—" : (team.amountMinor / 100).toFixed(2),
-    currency: team.currency,
-    billingNumber: team.billingNumber,
-    source: team.source,
-    registeredAt: team.registeredAt.toISOString().slice(0, 10),
-    attended: team.attendedAt !== null,
-    submitted: team.submitted,
-    people: team.competitors.map((person) => ({
-      id: person.id,
-      fullName: person.fullName,
-      phone: person.phone,
-      email: person.email,
-      studioName: person.studioName,
-      photoPath: person.photoPath,
-    })),
-  }));
+  const archivedRows: RegisteredRow[] = archivedTeams.map(toRegisteredRow);
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
@@ -207,10 +162,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
       {/* Below the field, not hidden from it: these people registered too. */}
       <CrmIntakeList
-        rows={crmWaiting.map((row) => ({
-          ...row,
-          waitingDays: Math.floor((Date.now() - row.firstSeenAt.getTime()) / 86_400_000),
-        }))}
+        rows={crmWaiting}
       />
     </div>
   );
