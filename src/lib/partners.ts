@@ -1,176 +1,69 @@
 import "server-only";
-
-import { sendPartnerInviteEmail } from "@/lib/email";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getBaseUrl, normalizeEmail } from "@/lib/security";
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PARTNERS.
-//
-// At sign-up an athlete either names a partner or says they are looking for
-// one. Linking happens when an address is PROVEN — the first time its owner
-// types the emailed code — never on an unverified form, so a stranger cannot
-// attach themselves to somebody by typing their email.
-//
-//   • Anyone who named this address as their partner is linked to it — but
-//     only if this athlete named them back, or named nobody.
-//   • Two athletes are linked only when each named the other (or one named
-//     the other and the other named nobody yet). Somebody named who has no
-//     account is invited; somebody named who has one is told by email.
-// ─────────────────────────────────────────────────────────────────────────────
+type Db = Pick<Prisma.TransactionClient, "seriesParticipant" | "user">;
 
-/** The slice of the client both `prisma` and a `$transaction` callback share. */
-type Db = Pick<typeof prisma, "user" | "athleteProfile">;
-
-const personSelect = {
-  name: true,
-  email: true,
-  phone: true,
-  athleteProfile: {
-    select: { dateOfBirth: true, sex: true, shirtSize: true, bftMember: true },
-  },
-} as const;
-
-/**
- * Link two athletes as partners, both ways.
- *
- * Each side's profile keeps a copy of the other's details — the name, address
- * and phone they will need to reach each other, and the date of birth, gender
- * and shirt size the studio would otherwise have to retype at registration.
- * Not `teamName`: what a pair competes as is their own choice, made when they
- * are entered, and neither of them has agreed to one yet.
- *
- * Pass `db` to run inside a caller's transaction — accepting a partner request
- * claims both profiles and links them in one go, and a gap between those two
- * would be a gap somebody else could be linked through.
- */
-export async function linkPair(a: string, b: string, db: Db = prisma) {
-  const now = new Date();
-  const [first, second] = await Promise.all([
-    db.user.findUnique({ where: { id: a }, select: personSelect }),
-    db.user.findUnique({ where: { id: b }, select: personSelect }),
-  ]);
-  if (!first || !second) return;
-
-  const sideOf = (them: typeof first, theirId: string) => ({
-    partnerUserId: theirId,
-    partnerLinkedAt: now,
-    lookingForPartner: false,
-    partnerName: them.name,
-    partnerEmail: them.email,
-    partnerPhone: them.phone,
-    partnerDateOfBirth: them.athleteProfile?.dateOfBirth ?? null,
-    partnerSex: them.athleteProfile?.sex ?? null,
-    partnerShirtSize: them.athleteProfile?.shirtSize ?? null,
-    partnerBftMember: them.athleteProfile?.bftMember ?? false,
-  });
-
-  const writes = [
-    { where: { userId: a }, data: sideOf(second, b) },
-    { where: { userId: b }, data: sideOf(first, a) },
-  ];
-
-  // Half a link is worse than none, so the two writes are always atomic. When
-  // a caller hands in its own transaction they already are; on our own client
-  // they need wrapping, and nesting one inside the other is not allowed.
-  if (db === prisma) {
-    await prisma.$transaction(writes.map((write) => prisma.athleteProfile.update(write)));
-    return;
-  }
-  for (const write of writes) await db.athleteProfile.update(write);
-}
-
-/**
- * Undo it, both ways.
- *
- * Every column `linkPair` writes is cleared, and the pair goes back to looking
- * — which is the state they were in before, not a third one. `teamName` goes
- * too: it is what the PAIR wanted to be called, and `signup.ts` already nulls
- * it whenever there is no partner, so leaving it would make this the only
- * place a team name outlives its team.
- *
- * Reads nothing, so unlike `linkPair` it cannot fail on an account that has
- * since been closed.
- */
-export async function unlinkPair(a: string, b: string, db: Db = prisma) {
-  const cleared = {
-    partnerUserId: null,
-    partnerLinkedAt: null,
-    lookingForPartner: true,
-    teamName: null,
-    partnerName: null,
-    partnerEmail: null,
-    partnerPhone: null,
-    partnerDateOfBirth: null,
-    partnerSex: null,
-    partnerShirtSize: null,
-    partnerBftMember: false,
-  };
-  const writes = [
-    { where: { userId: a }, data: cleared },
-    { where: { userId: b }, data: cleared },
-  ];
-
-  // Half an unlink is as bad as half a link: one side would still point at
-  // somebody who is no longer pointing back.
-  if (db === prisma) {
-    await prisma.$transaction(writes.map((write) => prisma.athleteProfile.update(write)));
-    return;
-  }
-  for (const write of writes) await db.athleteProfile.update(write);
-}
-
-/**
- * Link this athlete to their partner if both sides agree, or tell the partner.
- * Called when an athlete's address is first verified, and whenever they
- * change who their partner is. `rawEmail` must be the athlete's own, proven.
- */
-export async function onAthleteVerified(userId: string, rawEmail: string) {
-  const email = normalizeEmail(rawEmail);
-  const own = await prisma.athleteProfile.findUnique({
-    where: { userId },
-    select: { partnerEmail: true, partnerUserId: true, user: { select: { name: true } } },
-  });
-  if (!own || own.partnerUserId) return;
-  const named = own.partnerEmail ? normalizeEmail(own.partnerEmail) : null;
-
-  // 1. Someone who named this address, still unlinked — if this athlete named
-  //    them back, or has not named anyone.
-  const namedMe = await prisma.athleteProfile.findMany({
-    where: { partnerEmail: email, partnerUserId: null, NOT: { userId } },
-    orderBy: { createdAt: "asc" },
-    select: { userId: true, user: { select: { email: true } } },
-  });
-  const match = named
-    ? namedMe.find((profile) => normalizeEmail(profile.user.email) === named)
-    : namedMe[0];
-  if (match) {
-    await linkPair(userId, match.userId);
-    return;
-  }
-
-  // 2. The partner this athlete named, who has not named them (yet).
-  if (!named || named === email) return;
-  const partner = await prisma.user.findUnique({
-    where: { email: named },
-    select: { id: true, athleteProfile: { select: { partnerUserId: true, partnerEmail: true } } },
-  });
-  if (partner?.athleteProfile?.partnerUserId) return; // already paired with someone else
-  if (partner && partner.athleteProfile && !partner.athleteProfile.partnerEmail) {
-    // They are looking for a partner: this athlete naming them is the match.
-    await linkPair(userId, partner.id);
-    return;
-  }
-  try {
-    await sendPartnerInviteEmail({
-      email: named,
-      fromName: own.user.name ?? email,
-      hasAccount: Boolean(partner),
-      url: partner
-        ? `${getBaseUrl()}/me`
-        : `${getBaseUrl()}/signup?type=athlete&email=${encodeURIComponent(named)}`,
+/** A partner belongs to an entry, never to every competition on an account. */
+export async function linkPair(a: string, b: string, seriesId: string, db: Db = prisma) {
+  if (a === b) throw new Error("SAME_ATHLETE");
+  const perform = async (tx: Db) => {
+    const ids = [a, b].sort();
+    const rows = await tx.seriesParticipant.findMany({
+      where: { seriesId, userId: { in: ids }, archivedAt: null },
+      include: { user: { include: { athleteProfile: true } } },
     });
-  } catch {
-    // An invitation that did not go out must not undo the sign-up.
+    if (rows.length !== 2 || rows.some(p => p.user.archivedAt || p.user.status === "disabled")) throw new Error("NOT_FOUND");
+    for (const id of ids) {
+      const other = rows.find(p => p.userId !== id)!;
+      const changed = await tx.seriesParticipant.updateMany({
+        where: { seriesId, userId: id, archivedAt: null, OR: [{ partnerUserId: null }, { partnerUserId: other.userId }] },
+        data: {
+          partnerUserId: other.userId, partnerLinkedAt: new Date(), lookingForPartner: false,
+          partnerName: other.user.name, partnerEmail: other.user.email, partnerPhone: other.user.phone,
+          partnerDateOfBirth: other.user.athleteProfile?.dateOfBirth,
+          partnerSex: other.user.athleteProfile?.sex,
+          partnerShirtSize: other.shirtSize, partnerBftMember: other.bftMember,
+        },
+      });
+      if (changed.count !== 1) throw new Error("ALREADY_LINKED");
+    }
+  };
+  if (db === prisma) await prisma.$transaction(perform);
+  else await perform(db);
+}
+
+export async function unlinkPair(a: string, b: string, seriesId: string, db: Db = prisma) {
+  const perform = async (tx: Db) => {
+    for (const [self, other] of [[a, b], [b, a]]) {
+      await tx.seriesParticipant.updateMany({
+        where: { seriesId, userId: self, OR: [{ partnerUserId: other }, { partnerUserId: null }] },
+        data: { partnerUserId: null, partnerLinkedAt: null, lookingForPartner: true, teamName: null,
+          partnerName: null, partnerEmail: null, partnerPhone: null, partnerDateOfBirth: null,
+          partnerSex: null, partnerShirtSize: null, partnerBftMember: false },
+      });
+    }
+  };
+  if (db === prisma) await prisma.$transaction(perform);
+  else await perform(db);
+}
+
+/** Verification may link mutually named people, but only within the same entry. */
+export async function onAthleteVerified(userId: string, rawEmail: string, onlySeriesId?: string) {
+  const email = normalizeEmail(rawEmail);
+  const entries = await prisma.seriesParticipant.findMany({
+    where: { userId, archivedAt: null, partnerUserId: null, ...(onlySeriesId ? { seriesId: onlySeriesId } : {}) },
+  });
+  for (const own of entries) {
+    const named = own.partnerEmail ? normalizeEmail(own.partnerEmail) : null;
+    const candidates = await prisma.seriesParticipant.findMany({
+      where: { seriesId: own.seriesId, archivedAt: null, partnerUserId: null, partnerEmail: email,
+        userId: { not: userId }, user: { archivedAt: null, status: "active", emailVerified: { not: null } } },
+      include: { user: { select: { email: true } } }, orderBy: { createdAt: "asc" },
+    });
+    // An explicit mutual choice avoids claiming an unrelated person merely by knowing their email.
+    const match = named ? candidates.find(p => normalizeEmail(p.user.email) === named) : null;
+    if (match) await linkPair(userId, match.userId, own.seriesId);
   }
 }

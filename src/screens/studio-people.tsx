@@ -1,3 +1,4 @@
+import { competitionChoices } from "@/lib/competition-choice";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -43,6 +44,7 @@ async function pairingData(user: CurrentUser) {
         id: true,
         name: true,
         email: true,
+        seriesParticipants: { where: { archivedAt: null }, select: { seriesId: true, division: true, category: true, lookingForPartner: true, partnerUserId: true } },
         athleteProfile: {
           select: { division: true, category: true, sex: true, lookingForPartner: true, partnerUserId: true },
         },
@@ -53,16 +55,17 @@ async function pairingData(user: CurrentUser) {
   const now = new Date();
   const athletes: PairableAthlete[] = rows.map((row) => ({
     id: row.id,
+    entries: row.seriesParticipants.map(p => ({ ...p, partnerId: p.partnerUserId })),
     // The panel renders a name and a bracket. The address was being shipped
     // to five hundred browser rows for nothing, so it stays on the server.
     name: row.name ?? row.email,
     division: row.athleteProfile?.division ?? null,
     category: row.athleteProfile?.category ?? null,
     sex: row.athleteProfile?.sex ?? null,
-    lookingForPartner: row.athleteProfile?.lookingForPartner ?? false,
-    partnerId: row.athleteProfile?.partnerUserId ?? null,
+    lookingForPartner: true,
+    partnerId: null,
   }));
-  const competitions = series
+  const competitions = competitionChoices(series)
     .filter((one) => one.status !== "final" && registrationOpen({ role: user.role, registrationClosesAt: one.registrationClosesAt, now }).open)
     .map((one) => ({ id: one.id, name: one.name }));
   return { athletes, competitions };

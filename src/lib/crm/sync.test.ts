@@ -37,7 +37,8 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     lastSuccessAt: null as Date | null,
   };
 
-  return {
+  const db = {
+    $queryRaw: vi.fn(async () => [{ id: "series-1" }]),
     state,
     crmSyncState: {
       updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
@@ -72,6 +73,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+  return Object.assign(db, { $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)) });
 }
 
 /** A CRM with nothing in it — enough to let a poll run to the end. */

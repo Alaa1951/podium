@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { resolveMySeries, meHref } from "@/lib/participation";
 
 import { PlainHeader } from "@/components/app/plain-header";
 import { PartnerCandidates } from "@/components/me/partner-candidates";
@@ -33,17 +35,20 @@ export default async function PartnerFinderScreen(
   const { t } = await getTranslator();
 
   const params = (await searchParams) ?? {};
+  const series = await resolveMySeries(user.id, typeof params.series === "string" ? params.series : undefined);
+  if (!series) redirect("/me");
+  const home = meHref(series.id);
   const query = typeof params.q === "string" ? params.q : "";
   const page = Math.max(0, Number(typeof params.page === "string" ? params.page : 0) || 0);
 
-  const profile = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const profile = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId: series.id, userId: user.id } },
     select: { division: true, category: true, partnerUserId: true, partnerName: true },
   });
 
   const shell = (body: React.ReactNode) => (
     <>
-      <PlainHeader roleLabel={t("Find a partner")} homeHref="/me" backHref="/me" />
+      <PlainHeader roleLabel={t("Find a partner")} homeHref="/me" backHref={home} />
       <div className="screen">
         <div className="screen-head">
           <h1>{tab === "requests" ? t("Partner requests") : t("Find a partner")}</h1>
@@ -61,7 +66,7 @@ export default async function PartnerFinderScreen(
         <p className="reg-sub">
           {t("Set your level and category first — that is what you are matched on.")}
         </p>
-        <Link href="/me" className="btn btn-primary" style={{ marginTop: 14 }}>
+        <Link href={home} className="btn btn-primary" style={{ marginTop: 14 }}>
           {t("Open my profile")}
         </Link>
       </>
@@ -74,18 +79,19 @@ export default async function PartnerFinderScreen(
         <p className="reg-sub">
           {t("You already have a partner: {name}.", { name: profile.partnerName ?? "" })}
         </p>
-        <Link href="/me" className="btn btn-secondary" style={{ marginTop: 14 }}>
+        <Link href={home} className="btn btn-secondary" style={{ marginTop: 14 }}>
           {t("Back to my team")}
         </Link>
       </>
     );
   }
 
-  const me = { id: user.id, division: profile.division, category: profile.category };
+  const me = { id: user.id, seriesId: series.id, division: profile.division, category: profile.category };
 
   if (tab === "requests") {
     const rows = await prisma.partnerRequest.findMany({
       where: {
+        seriesId: series.id,
         status: "pending",
         OR: [{ fromUserId: user.id }, { toUserId: user.id }],
         // A request from or to an account that has since been closed is not
@@ -128,7 +134,7 @@ export default async function PartnerFinderScreen(
 
     return shell(
       <>
-        <PartnerRequests
+        <PartnerRequests seriesId={series.id}
           incoming={rows.filter((row) => row.fromUserId !== user.id).map((row) => shape(row, true))}
           outgoing={rows.filter((row) => row.fromUserId === user.id).map((row) => shape(row, false))}
         />
@@ -149,6 +155,7 @@ export default async function PartnerFinderScreen(
       </p>
 
       <form method="get" style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        <input type="hidden" name="series" value={series.id} />
         <input
           className="input"
           name="q"
@@ -168,14 +175,14 @@ export default async function PartnerFinderScreen(
         </p>
       ) : null}
 
-      <PartnerCandidates
+      <PartnerCandidates seriesId={series.id}
         rows={rows as PartnerCandidate[]}
         canRequest={!user.viewAs && can(user, "partner.request")}
       />
 
       {shown < total ? (
         <Link
-          href={`/me/partner?${new URLSearchParams({ ...(query ? { q: query } : {}), page: String(page + 1) })}`}
+          href={`/me/partner?${new URLSearchParams({ series: series.id, ...(query ? { q: query } : {}), page: String(page + 1) })}`}
           className="btn btn-secondary btn-block"
           style={{ marginTop: 14 }}
         >

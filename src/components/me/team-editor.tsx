@@ -10,12 +10,15 @@ import { useT } from "@/components/i18n/locale-provider";
 import { updateMyTeam, type MyTeamMemberInput } from "@/lib/actions/my-team";
 
 export type EditableMember = {
+  userId?: string | null;
   position: number;
   fullName: string;
   email: string | null;
 };
 
 const ERRORS: Record<string, string> = {
+  SHARED_PROFILE: "Edit personal details from your account; team changes do not change shared identities.",
+  ALREADY_ENTERED: "This athlete is already entered in this competition.",
   FORBIDDEN: "You are not allowed to do that.",
   TEAM_EDIT_CLOSED: "Team changes are closed — the event starts in less than 24 hours.",
   NAME_REQUIRED: "Give every member a name.",
@@ -29,10 +32,14 @@ const ERRORS: Record<string, string> = {
  */
 export function TeamEditor({
   members,
+  seriesId,
+  teamId,
   open,
   editMode = false,
 }: {
   members: EditableMember[];
+  seriesId: string;
+  teamId: string;
   open: boolean;
   editMode?: boolean;
 }) {
@@ -62,7 +69,7 @@ export function TeamEditor({
 
     startTransition(async () => {
       try {
-        const result = await updateMyTeam(input);
+        const result = await updateMyTeam(input, seriesId, teamId);
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           return;
@@ -70,7 +77,7 @@ export function TeamEditor({
         setSaved(true);
         setDirty(false);
         setEditing(false);
-        if (editMode) router.replace("/me");
+        if (editMode) router.replace(`/me?series=${encodeURIComponent(seriesId)}`);
         router.refresh();
       } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
@@ -87,7 +94,7 @@ export function TeamEditor({
   if (!editing) {
     return (
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        {mobile ? <Link href="/me/edit" className="btn btn-secondary">{t("Edit team")}</Link> : <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+        {mobile ? <Link href={`/me/edit?series=${encodeURIComponent(seriesId)}`} className="btn btn-secondary">{t("Edit team")}</Link> : <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
           {t("Edit team")}
         </button>}
         <span className="field-note" style={{ marginTop: 0 }}>
@@ -102,6 +109,7 @@ export function TeamEditor({
       {members.map((member) => (
         <fieldset key={member.position} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, display: "grid", gap: 8 }}>
           <legend className="field-label">{seat(member.position)}</legend>
+          {member.userId && <p className="field-note">{t("Edit personal details from your account; team changes do not change shared identities.")} <Link href="/me?series=all">{t("Personal details")}</Link></p>}
           <label className="field-label" htmlFor={`name-${member.position}`}>
             {t("Name")}
             <input
@@ -109,6 +117,7 @@ export function TeamEditor({
               name={`name-${member.position}`}
               className="input"
               defaultValue={member.fullName}
+              readOnly={Boolean(member.userId)}
               required
             />
           </label>
@@ -119,6 +128,7 @@ export function TeamEditor({
               name={`email-${member.position}`}
               className="input"
               type="email"
+              readOnly={Boolean(member.userId)}
               defaultValue={member.email ?? ""}
             />
           </label>
@@ -137,7 +147,7 @@ export function TeamEditor({
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => {if (!confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) return; setDirty(false); setEditing(false); if(editMode) router.replace("/me");}} disabled={pending}>
+        <button type="button" className="btn btn-ghost" onClick={() => {if (!confirmUnsaved(t("You have unsaved changes. Leave this screen?"))) return; setDirty(false); setEditing(false); if(editMode) router.replace(`/me?series=${encodeURIComponent(seriesId)}`);}} disabled={pending}>
           {t("Close")}
         </button>
       </div>

@@ -3,12 +3,11 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { linkPair } from "@/lib/partners";
+import { ensureParticipation, loadSeriesAthlete } from "@/lib/participation";
+import { createTeam } from "@/lib/team-create";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { normalizeName } from "@/lib/scoring";
 import { isBft, isStudio, requireAccess } from "@/lib/session";
-import { nextTeamNumber } from "@/lib/actions/teams";
 import { alreadyEntered } from "@/lib/one-entry";
 import { registrationOpen } from "@/lib/visibility";
 import { revalidatePath } from "next/cache";
@@ -63,35 +62,16 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
   // cross-studio pair would otherwise be a team nobody could enter: not the
   // one studio, not the other. When the two are already linked to each other,
   // either of their studios may register them.
-  const athletes = await prisma.user.findMany({
-    where: {
-      id: { in: data.athleteIds },
-      role: "competitor",
-      approvalStatus: "approved",
-      archivedAt: null,
-      status: { not: "disabled" },
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      studioId: true,
-      athleteProfile: {
-        select: {
-          dateOfBirth: true,
-          partnerUserId: true,
-          division: true,
-          category: true,
-          sex: true,
-          shirtSize: true,
-          bftMember: true,
-        },
-      },
-    },
-  });
-  if (athletes.length !== 2) return { ok: false, error: "NOT_FOUND" };
-  const ordered = data.athleteIds.map((id) => athletes.find((athlete) => athlete.id === id)!);
+  const identities = await prisma.user.findMany({ where: { id: { in: data.athleteIds }, role: "competitor", approvalStatus: "approved", archivedAt: null, status: "active" }, select: { id: true, studioId: true } });
+  if (identities.length !== 2) return { ok: false, error: "NOT_FOUND" };
+  // A studio may not create membership for another studio's uninvited athlete.
+  if (isStudio(actor) && identities.some(p => p.studioId !== actor.studioId)) {
+    const existing = await prisma.seriesParticipant.findMany({ where: { seriesId: series.id, userId: { in: data.athleteIds }, archivedAt: null } });
+    if (existing.length !== 2 || !existing.every(p => p.partnerUserId && data.athleteIds.includes(p.partnerUserId)) || !identities.some(p => p.studioId === actor.studioId)) return { ok: false, error: "NOT_FOUND" };
+  }
+  for (const id of data.athleteIds) await ensureParticipation(id, series.id);
+  const ordered = (await Promise.all(data.athleteIds.map(id => loadSeriesAthlete(id, series.id)))).filter((p): p is NonNullable<typeof p> => Boolean(p));
+  if (ordered.length !== 2) return { ok: false, error: "NOT_FOUND" };
 
   // Somebody already partnered with a third person is not paired again here.
   for (const athlete of ordered) {
@@ -141,40 +121,15 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
   const name = (data.teamName || first.name || first.email).toUpperCase();
   const owningStudio = isStudio(actor) ? actor.studioId : first.studioId ?? ordered[1].studioId ?? null;
 
-  const team = await prisma.team.create({
-    data: {
-      seriesId: series.id,
-      number: await nextTeamNumber(series.id),
-      name,
-      category: data.category,
-      division: data.division,
-      studioId: owningStudio,
-      paymentStatus: "pending",
-      source: "manual",
-      competitors: {
-        create: ordered.map((athlete, index) => ({
-          position: index + 1,
-          fullName: athlete.name ?? athlete.email,
-          normalizedName: normalizeName(athlete.name ?? athlete.email),
-          email: athlete.email.toLowerCase(),
-          phone: athlete.phone,
-          dateOfBirth: athlete.athleteProfile?.dateOfBirth ?? null,
-          // Carried from the profile so the shirt order does not have to be
-          // chased separately once a pair is entered this way.
-          shirtSize: athlete.athleteProfile?.shirtSize ?? null,
-          bftMember: athlete.athleteProfile?.bftMember ?? false,
-          studioId: athlete.studioId,
-          userId: athlete.id,
-        })),
-      },
-    },
-    select: { id: true, number: true, name: true },
+  const team = await createTeam(prisma, {
+    seriesId: series.id, name, category: data.category, division: data.division,
+    studioId: owningStudio, paymentStatus: "pending", source: "manual",
+    seats: ordered.map((athlete, index) => ({ position: index + 1, userId: athlete.id,
+      fullName: athlete.name ?? athlete.email, email: athlete.email, phone: athlete.phone,
+      dateOfBirth: athlete.athleteProfile.dateOfBirth, shirtSize: athlete.athleteProfile.shirtSize,
+      bftMember: athlete.athleteProfile.bftMember, studioId: athlete.studioId })),
   });
-
-  // Paired into a team means partnered, for any profile not yet linked.
-  if (ordered.every((athlete) => athlete.athleteProfile) && !ordered[0].athleteProfile?.partnerUserId) {
-    await linkPair(ordered[0].id, ordered[1].id).catch(() => undefined);
-  }
+  if (!team.ok) return { ok: false, error: team.error };
 
   await recordAudit({
     actorId: actor.id,

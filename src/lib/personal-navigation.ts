@@ -90,3 +90,8 @@ export function screenTitle(path: string): string | undefined {
   if (path.startsWith("/my-wave/")) return "My wave";
   return undefined;
 }
+
+/** Carry the explicit competition through personal tabs; never guess another entry. */
+export function personalNavHref(href: string, role: string, seriesId: string | null) {
+  return role === "competitor" && seriesId && seriesId !== "all" ? href + (href.includes("?") ? "&" : "?") + "series=" + encodeURIComponent(seriesId) : href;
+}

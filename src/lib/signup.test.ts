@@ -27,6 +27,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: mocks.findUser, create: mocks.createUser, update: mocks.updateUser },
+    seriesParticipant: { upsert: vi.fn() },
     athleteProfile: { upsert: mocks.upsertProfile, deleteMany: mocks.deleteProfiles },
     studio: { findFirst: mocks.findStudio },
     series: { findFirst: mocks.findSeries, findMany: mocks.listSeries },
@@ -150,13 +151,13 @@ describe("startSignup", { timeout: 30_000 }, () => {
     // Nothing open: the field is not rendered, so it must not be demanded.
     expect(await startSignup(athlete)).toEqual({ ok: true });
 
-    mocks.listSeries.mockResolvedValue([{ id: "s1" }]);
+    mocks.listSeries.mockResolvedValue([{ id: "s1", name: "Upcoming", status: "scheduled", competitionDate: new Date("2099-01-01") }]);
     expect(await startSignup(athlete)).toEqual({ ok: false, error: "COMPETITION_REQUIRED" });
   });
 
   it("only accepts a competition that is actually open for sign-up", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
-    mocks.listSeries.mockResolvedValue([{ id: "s1" }]);
+    mocks.listSeries.mockResolvedValue([{ id: "s1", name: "Upcoming", status: "scheduled", competitionDate: new Date("2099-01-01") }]);
 
     // A competition that is not open reads as no answer at all.
     mocks.findSeries.mockResolvedValue(null);
@@ -165,7 +166,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
       error: "COMPETITION_REQUIRED",
     });
 
-    mocks.findSeries.mockResolvedValue({ id: "s1" });
+    mocks.findSeries.mockResolvedValue({ id: "s1", name: "Upcoming", status: "scheduled", competitionDate: new Date("2099-01-01") });
     expect(await startSignup({ ...athlete, seriesId: "s1" })).toEqual({ ok: true });
     expect(mocks.createUser.mock.calls[0][0].data.requestedSeriesId).toBe("s1");
     expect(mocks.findSeries.mock.calls[0][0].where).toMatchObject({

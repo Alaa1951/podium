@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { resolveMySeries, meHref } from "@/lib/participation";
 
 import { PlainHeader } from "@/components/app/plain-header";
 import { SheetRefresher } from "@/components/floor/sheet-refresher";
@@ -36,17 +37,17 @@ function clock(ms: number | null) {
  * A zone LEADER sees every station of their zone, and places the judges
  * and reserves on stations. An athlete with no post sees their own wave.
  */
-export default async function MyWavePage(detailId?: string) {
+export default async function MyWavePage(detailId?: string, requestedSeries?: string) {
   const user = await requireUser();
   const { t } = await getTranslator();
   const posts = await judgePostsFor(user.id);
 
   if (posts.length === 0 && user.role === "competitor" && !detailId) {
-    const team = await prisma.team.findFirst({
-      where: { archivedAt: null, competitors: { some: { userId: user.id } } },
-      orderBy: { series: { competitionDate: "desc" } },
+    const selected = await resolveMySeries(user.id, requestedSeries);
+    const team = selected ? await prisma.team.findFirst({
+      where: { seriesId: selected.id, archivedAt: null, competitors: { some: { userId: user.id } } },
       include: { series: true, waveRef: true },
-    });
+    }) : null;
     return (
       <div className="screen">
         <PlainHeader roleLabel={user.name ?? t("Athlete")} />
@@ -70,7 +71,7 @@ export default async function MyWavePage(detailId?: string) {
               <dt>{t("Venue")}</dt>
               <dd>{team.series.venue}</dd>
             </dl>
-            <Link className="btn btn-primary" href="/me">
+            <Link className="btn btn-primary" href={meHref(team.seriesId)}>
               {t("My team")}
             </Link>
           </article>

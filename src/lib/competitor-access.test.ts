@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    seriesParticipant: { upsert: vi.fn() },
     competitor: { findMany: mocks.findCompetitors, updateMany: mocks.linkCompetitors },
     user: { findUnique: mocks.findUser, update: mocks.updateUser, create: mocks.createUser },
   },
@@ -86,6 +87,16 @@ describe("a place in the field", () => {
     expect(mocks.updateUser).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ approvalStatus: "approved" }) })
     );
+  });
+});
+
+describe("training payments", () => {
+  it("never upgrades account approval because a rehearsal team is marked paid", async () => {
+    const rehearsal = entry({ paymentStatus: "paid" });
+    mocks.findCompetitors.mockResolvedValue([{ ...rehearsal, team: { ...rehearsal.team, series: { ...rehearsal.team.series, isTraining: true } } }]);
+    mocks.findUser.mockResolvedValue({ id: "u-sara", name: "Sara", role: "competitor", status: "active", signupType: "athlete", approvalStatus: "pending" });
+    expect(await issueCompetitorCode("sara@example.com")).toMatchObject({ ok: true });
+    expect(mocks.updateUser).not.toHaveBeenCalled(); expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { competitionChoices } from "@/lib/competition-choice";
 import { cache } from "react";
 
 import type {
@@ -8,7 +9,6 @@ import type {
   RegistrationSource,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { normalizeName } from "@/lib/scoring";
 import { teamScope, type CurrentUser } from "@/lib/session";
 import { totalPoints, zoneBreakdown, type EntryValues, type ZoneDef } from "@/lib/zones";
 
@@ -22,7 +22,7 @@ const rosterInclude = {
   studio: { select: { id: true, name: true } },
   competitors: {
     orderBy: { position: "asc" },
-    include: { studio: { select: { id: true, name: true } } },
+    include: { studio: { select: { id: true, name: true } }, user: { select: { name: true, phone: true, email: true } } },
   },
 } as const;
 
@@ -128,9 +128,9 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
     competitors: team.competitors.map((c) => ({
       id: c.id,
       position: c.position,
-      fullName: c.fullName,
-      phone: c.phone,
-      email: c.email,
+      fullName: c.user?.name ?? c.fullName,
+      phone: c.user ? c.user.phone : c.phone,
+      email: c.user?.email ?? c.email,
       dateOfBirth: c.dateOfBirth,
       studioId: c.studioId,
       studioName: c.studio?.name ?? null,
@@ -244,39 +244,30 @@ export async function listArchivedSeries() {
  * act, and applying it would silently empty this list and block sign-up.
  */
 export async function listOpenSignupSeries() {
-  return prisma.series.findMany({
+  const rows = await prisma.series.findMany({
     where: {
       signupOpen: true,
+      isTraining: false,
       status: { in: ["scheduled", "live"] },
       archivedAt: null,
       isActive: true,
     },
     orderBy: { competitionDate: "asc" },
-    take: 12,
     // `registrationClosesAt` is included deliberately: it is not a leak — it is
     // the one fact somebody needs BEFORE they commit, so the form can tell them
     // they would be joining a waiting list rather than letting them find out
     // afterwards. Still no venue, no slug and no team count.
-    select: { id: true, name: true, competitionDate: true, registrationClosesAt: true },
+    select: { id: true, name: true, competitionDate: true, registrationClosesAt: true, status: true },
   });
+  return competitionChoices(rows).slice(0, 12);
 }
 
 /**
  * Where somebody lands with no competition chosen: the one running now, else
- * the next one scheduled, else the most recent.
+ * the next one scheduled. Finished competitions are never a default.
  */
 export async function getDefaultSeries() {
-  return (
-    (await prisma.series.findFirst({
-      where: { status: "live" },
-      orderBy: { competitionDate: "desc" },
-    })) ??
-    (await prisma.series.findFirst({
-      where: { status: "scheduled" },
-      orderBy: { competitionDate: "asc" },
-    })) ??
-    (await prisma.series.findFirst({ orderBy: { competitionDate: "desc" } }))
-  );
+  return competitionChoices(await prisma.series.findMany({ where: { archivedAt: null, isActive: true, isTraining: false, status: { in: ["scheduled", "live"] } } }))[0] ?? null;
 }
 
 /** The studios taking part in a competition. */
@@ -368,19 +359,12 @@ export async function getMyTeam(seriesId: string, user: CurrentUser) {
   const zones = await getSeriesZones(seriesId);
 
   const byAccount = await prisma.team.findFirst({
-    where: { seriesId, competitors: { some: { userId: user.id } } },
+    where: { seriesId, archivedAt: null, competitors: { some: { userId: user.id } } },
     include: teamInclude,
   });
   if (byAccount) return toTeamRow(byAccount, zones);
 
-  // A studio can register a competitor before that competitor has an account.
-  // Falling back to the normalised name links the two without a second row.
-  if (!user.name) return null;
-  const byName = await prisma.team.findFirst({
-    where: { seriesId, competitors: { some: { normalizedName: normalizeName(user.name) } } },
-    include: teamInclude,
-  });
-  return byName ? toTeamRow(byName, zones) : null;
+  return null;
 }
 
 export { lastWave, podiums, rankBracket, rankOverall, rankWave } from "@/lib/rankings";

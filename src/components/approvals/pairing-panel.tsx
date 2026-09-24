@@ -16,6 +16,7 @@ import { pairAthletes } from "@/lib/actions/pairing";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type PairableAthlete = {
+  entries?: { seriesId: string; division: string | null; category: string | null; lookingForPartner: boolean; partnerId: string | null }[];
   id: string;
   /** Already falls back to the address server-side when there is no name. */
   name: string;
@@ -43,7 +44,7 @@ const CATEGORY_FOR = (a?: string | null, b?: string | null) =>
   a && b ? (a === b ? (a === "f" ? "Womens" : "Mens") : "Mixed") : null;
 
 export function PairingPanel({
-  athletes,
+  athletes: accountAthletes,
   competitions,
 }: {
   athletes: PairableAthlete[];
@@ -68,6 +69,8 @@ export function PairingPanel({
   const [onlyLooking, setOnlyLooking] = useState(true);
   const [filterLevel, setFilterLevel] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+
+  const athletes = useMemo(() => accountAthletes.map(a => { const entry = a.entries?.find(p => p.seriesId === seriesId); return entry ? { ...a, ...entry } : a; }), [accountAthletes, seriesId]);
 
   const first = athletes.find((athlete) => athlete.id === firstId) ?? null;
   const second = athletes.find((athlete) => athlete.id === secondId) ?? null;
@@ -172,7 +175,7 @@ export function PairingPanel({
       <div className="form-row" style={{ alignItems: "flex-end" }}>
         <label style={{ flex: "1 1 200px" }}>
           <span className="field-label">{t("Competition")}</span>
-          <select className="input" value={seriesId} disabled={pending} onChange={(e) => setSeriesId(e.target.value)}>
+          <select className="input" value={seriesId} disabled={pending} onChange={(e) => { setSeriesId(e.target.value); setFirstId(""); setSecondId(""); setDivision(""); setCategory(""); setTeamName(""); }}>
             {competitions.map((series) => (
               <option key={series.id} value={series.id}>
                 {series.name}

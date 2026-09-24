@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/components/i18n/locale-provider";
 import { hasContextNavigation, matchesRoute, safeAppPath } from "@/lib/mobile-navigation";
 import {
   personalNavActivePath,
   personalNavCommonScreen,
   personalNavItems,
+  personalNavHref,
 } from "@/lib/personal-navigation";
 import { approveHistoryBack, confirmUnsaved, readNavigationTrail } from "@/components/app/mobile-runtime";
 import { NavigationProgress } from "@/components/app/navigation-progress";
@@ -47,6 +48,7 @@ export function MobileBack({ fallback }: { fallback: string }) {
 
 export function PersonalMobileNavigation({ role, homeHref, insideBoard = false }: { role: string; homeHref?: string; insideBoard?: boolean }) {
   const path = usePathname();
+  const seriesId = useSearchParams().get("series");
   const t = useT();
   if (!insideBoard && hasContextNavigation(path)) return null;
   const items = personalNavItems(role, homeHref);
@@ -54,6 +56,6 @@ export function PersonalMobileNavigation({ role, homeHref, insideBoard = false }
   const activePath = personalNavActivePath(path, commonScreen);
   return <nav className="mobile-tabbar personal-tabbar" aria-label={t("Sections")}>{items.map((item) => {
     const active = item.label === "More" ? commonScreen : matchesRoute(activePath, item.href);
-    return <Link key={item.href} href={item.href} prefetch={active ? false : true} data-active={active || undefined} aria-current={active ? "page" : undefined}><MobileIcon href={item.label === "More" ? "/more" : item.href} /><span>{t(item.label)}</span><NavigationProgress /></Link>;
+    return <Link key={item.href} href={personalNavHref(item.href, role, seriesId)} prefetch={active ? false : true} data-active={active || undefined} aria-current={active ? "page" : undefined}><MobileIcon href={item.label === "More" ? "/more" : item.href} /><span>{t(item.label)}</span><NavigationProgress /></Link>;
   })}</nav>;
 }

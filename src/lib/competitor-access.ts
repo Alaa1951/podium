@@ -44,7 +44,7 @@ export async function findRegistrations(rawEmail: string) {
           name: true,
           paymentStatus: true,
           waitlistedAt: true,
-          series: { select: { id: true, name: true, slug: true, status: true } },
+          series: { select: { id: true, name: true, slug: true, status: true, isTraining: true } },
         },
       },
     },
@@ -63,7 +63,7 @@ export async function accountForCompetitor(rawEmail: string, fullName: string) {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.status === "disabled") return null;
+    if (existing.status === "disabled" || existing.archivedAt) return null;
     await linkRegistrations(existing.id, email);
     // A paid entry is all the approval an athlete needs: someone who signed
     // up and then registered and paid is not left waiting on a queue.
@@ -98,6 +98,17 @@ async function linkRegistrations(userId: string, email: string) {
     where: { email, userId: null },
     data: { userId },
   });
+  const seats = await prisma.competitor.findMany({
+    where: { userId, team: { archivedAt: null, series: { archivedAt: null } } }, include: { team: true },
+  });
+  for (const seat of seats) {
+    await prisma.seriesParticipant.upsert({
+      where: { seriesId_userId: { seriesId: seat.team.seriesId, userId } }, update: {},
+      create: { seriesId: seat.team.seriesId, userId, signedUpAt: seat.team.createdAt,
+        division: seat.team.division, category: seat.team.category, shirtSize: seat.shirtSize,
+        bftMember: seat.bftMember, lookingForPartner: false, teamName: seat.team.name },
+    });
+  }
 }
 
 export type CodeRequest =
@@ -123,7 +134,7 @@ export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest
   // Either way an athlete who signed up has an account of their own, approved
   // or waiting, so they are not locked out — they just do not come in through
   // this door, which is the one that carries automatic approval with it.
-  const paid = registrations.filter((one) => isCompeting(one.team));
+  const paid = registrations.filter((one) => !one.team.series.isTraining && isCompeting(one.team));
   if (paid.length === 0) return issueSignedUpAthleteCode(rawEmail);
 
   const account = await accountForCompetitor(rawEmail, paid[0].fullName);

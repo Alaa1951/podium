@@ -60,12 +60,12 @@ export function AccountEditor({
   const [email, setEmail] = useState(account.email);
   const [role, setRole] = useState(account.role);
   const [studioId, setStudioId] = useState(account.studioId ?? "");
-  const [seriesId, setSeriesId] = useState(account.requestedSeriesId ?? "");
+  const [seriesId, setSeriesId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savedDraft, setSavedDraft] = useState("");
   const fingerprint = JSON.stringify([name, email, role, studioId, seriesId]);
-  const original = JSON.stringify([account.name ?? "", account.email, account.role, account.studioId ?? "", account.requestedSeriesId ?? ""]);
+  const original = JSON.stringify([account.name ?? "", account.email, account.role, account.studioId ?? "", ""]);
   useUnsavedChanges(fingerprint !== (savedDraft || original));
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
@@ -159,7 +159,7 @@ export function AccountEditor({
               value={studioId}
               onChange={(e) => setStudioId(e.target.value)}
             >
-              <option value="">{t("Not assigned")}</option>
+              <option value="">{t("Keep existing memberships")}</option>
               {studios.map((studio) => (
                 <option key={studio.id} value={studio.id}>
                   {studio.name}
@@ -173,7 +173,7 @@ export function AccountEditor({
             who signed up before the form asked, and whenever somebody moves. */}
         {role === "competitor" && competitions.length > 0 ? (
           <label style={{ flex: "1 1 200px" }}>
-            <span className="field-label">{t("Competition")}</span>
+            <span className="field-label">{t("Add competition membership")}</span>
             <select className="input" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
               <option value="">{t("Not assigned")}</option>
               {competitions.map((one) => (

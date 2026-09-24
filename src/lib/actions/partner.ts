@@ -8,6 +8,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendPartnerUnlinkedEmail } from "@/lib/email";
 import { onAthleteVerified, unlinkPair } from "@/lib/partners";
 import { prisma } from "@/lib/prisma";
+import { resolveMySeries, meHref } from "@/lib/participation";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
 import { getBaseUrl, isValidEmail, normalizeEmail } from "@/lib/security";
 import { requireRole } from "@/lib/session";
@@ -25,6 +26,7 @@ import { teamEditOpen } from "@/lib/visibility";
 export type PartnerResult = { ok: true } | { ok: false; error: string };
 
 const schema = z.object({
+  seriesId: z.string().min(1),
   hasPartner: z.boolean(),
   partnerName: z.string().trim().max(120).optional(),
   partnerEmail: z.string().trim().max(200).optional(),
@@ -39,9 +41,13 @@ export async function savePartner(input: unknown): Promise<PartnerResult> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const data = parsed.data;
+  const series = await resolveMySeries(user.id, data.seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
+  const entered = await prisma.competitor.count({ where: { userId: user.id, team: { seriesId: series.id, archivedAt: null } } });
+  if (entered) return { ok: false, error: "TEAM_REGISTERED" };
 
-  const current = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const current = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId: series.id, userId: user.id } },
     select: { partnerUserId: true },
   });
   if (current?.partnerUserId) return { ok: false, error: "ALREADY_LINKED" };
@@ -62,35 +68,42 @@ export async function savePartner(input: unknown): Promise<PartnerResult> {
     partnerEmail,
     partnerPhone: data.hasPartner ? data.partnerPhone || null : null,
   };
-  await prisma.athleteProfile.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, ...fields },
-    update: fields,
-  });
+  try {
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM Series WHERE id = ${series.id} FOR UPDATE`;
+      if (await tx.competitor.count({ where: { userId: user.id, team: { seriesId: series.id, archivedAt: null } } })) throw new Error("TEAM_REGISTERED");
+      const updated = await tx.seriesParticipant.updateMany({ where: { seriesId: series.id, userId: user.id, archivedAt: null, partnerUserId: null }, data: fields });
+      if (updated.count !== 1) throw new Error("ALREADY_LINKED");
+    });
+  } catch (error) {
+    if (error instanceof Error && ["TEAM_REGISTERED", "ALREADY_LINKED"].includes(error.message)) return { ok: false, error: error.message };
+    throw error;
+  }
 
   // Naming a partner is the end of looking for one, so the asks this athlete
   // sent are withdrawn. Asks they RECEIVED are left alone — those are other
   // people's, and this athlete can still answer them properly.
   if (data.hasPartner) {
     await prisma.partnerRequest.updateMany({
-      where: { fromUserId: user.id, status: "pending" },
+      where: { seriesId: series.id, fromUserId: user.id, status: "pending" },
       data: { status: "withdrawn", openPairKey: null, respondedAt: new Date() },
     });
   }
 
   // The athlete's own address is proven — they are signed in with it.
-  await onAthleteVerified(user.id, user.email).catch(() => undefined);
+  await onAthleteVerified(user.id, user.email, series.id).catch(() => undefined);
 
   // The old email flow may have just linked them. Anything still open on
   // either side of that pair is moot now.
-  const linked = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const linked = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId: series.id, userId: user.id } },
     select: { partnerUserId: true },
   });
   if (linked?.partnerUserId) {
     const pair = [user.id, linked.partnerUserId];
     await prisma.partnerRequest.updateMany({
       where: {
+        seriesId: series.id,
         status: "pending",
         OR: [{ fromUserId: { in: pair } }, { toUserId: { in: pair } }],
       },
@@ -122,17 +135,20 @@ export async function savePartner(input: unknown): Promise<PartnerResult> {
 // still name each other by email here if they change their minds.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function unlinkPartner(): Promise<PartnerResult> {
+export async function unlinkPartner(seriesId: string): Promise<PartnerResult> {
   const user = await requireRole("competitor");
   if (user.viewAs || !can(user, "partner.edit")) return { ok: false, error: "FORBIDDEN" };
+
+  const series = await resolveMySeries(user.id, seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
 
   // Unlinking emails somebody else, so it gets the same treatment as asking.
   if (!checkRate(`partner-unlink:${user.id}`, 5, 15 * MINUTE_MS).ok) {
     return { ok: false, error: "TRY_LATER" };
   }
 
-  const mine = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const mine = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId: series.id, userId: user.id } },
     select: { partnerUserId: true },
   });
   const partnerId = mine?.partnerUserId;
@@ -142,7 +158,7 @@ export async function unlinkPartner(): Promise<PartnerResult> {
   const entered = await prisma.competitor.findFirst({
     where: {
       userId: { in: [user.id, partnerId] },
-      team: { archivedAt: null, series: { status: { not: "final" } } },
+      team: { seriesId: series.id, archivedAt: null },
     },
     select: { id: true },
   });
@@ -150,20 +166,8 @@ export async function unlinkPartner(): Promise<PartnerResult> {
 
   // The deadline belongs to the competition they signed up for. Without one
   // there is nothing to count back from, and the door stays open.
-  const chosen = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      requestedSeries: { select: { competitionDate: true, teamEditCloseHours: true } },
-    },
-  });
-  if (chosen?.requestedSeries) {
-    const door = teamEditOpen({
-      competitionDate: chosen.requestedSeries.competitionDate,
-      teamEditCloseHours: chosen.requestedSeries.teamEditCloseHours,
-      now: new Date(),
-    });
-    if (!door.open) return { ok: false, error: "TEAM_EDIT_CLOSED" };
-  }
+  const door = teamEditOpen({ competitionDate: series.competitionDate, teamEditCloseHours: series.teamEditCloseHours, now: new Date() });
+  if (!door.open) return { ok: false, error: "TEAM_EDIT_CLOSED" };
 
   const partner = await prisma.user.findUnique({
     where: { id: partnerId },
@@ -172,17 +176,19 @@ export async function unlinkPartner(): Promise<PartnerResult> {
 
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Series WHERE id = ${series.id} FOR UPDATE`;
+      if (await tx.competitor.findFirst({ where: { userId: { in: [user.id, partnerId] }, team: { seriesId: series.id, archivedAt: null } }, select: { id: true } })) throw new Error("TEAM_REGISTERED");
       // Conditional, so two unlinks at the same instant cannot half-run.
-      const claimed = await tx.athleteProfile.updateMany({
-        where: { userId: user.id, partnerUserId: partnerId },
+      const claimed = await tx.seriesParticipant.updateMany({
+        where: { seriesId: series.id, userId: user.id, partnerUserId: partnerId },
         data: { partnerUserId: null },
       });
       if (claimed.count === 0) throw new Error("NOT_LINKED");
-      await unlinkPair(user.id, partnerId, tx);
+      await unlinkPair(user.id, partnerId, series.id, tx);
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    if (code === "NOT_LINKED") return { ok: false, error: code };
+    if (code === "NOT_LINKED" || code === "TEAM_REGISTERED") return { ok: false, error: code };
     console.error("[PARTNER:unlink]", code || error);
     return { ok: false, error: "FAILED" };
   }
@@ -192,7 +198,7 @@ export async function unlinkPartner(): Promise<PartnerResult> {
       await sendPartnerUnlinkedEmail({
         email: partner.email,
         byName: user.name ?? "",
-        url: `${getBaseUrl()}/me/partner`,
+        url: `${getBaseUrl()}${meHref(series.id, "/partner")}`,
       });
     } catch {
       // The change stands whether or not the email went out.

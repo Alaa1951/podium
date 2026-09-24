@@ -2,6 +2,21 @@ import type { Phrases } from "@/lib/i18n/phrases";
 
 /** Sign-up, athlete sign-in, the approval queue, and the athlete's profile. */
 export const AR_SIGNUP: Phrases = {
+  "Edit personal details from your account; team changes do not change shared identities.": "عدّل بياناتك الشخصية من الحساب؛ تعديل الفريق لا يغيّر بيانات الحساب المشتركة.",
+  "My competitions": "مسابقاتي",
+  "One account. A separate team and result in each competition.": "حساب واحد، وفريق ونتيجة مستقلان لكل مسابقة.",
+  "Training": "تدريب",
+  "Already completed": "انتهت بالفعل",
+  "Open competition": "فتح المسابقة",
+  "Join competition": "الاشتراك في المسابقة",
+  "Personal details": "البيانات الشخصية",
+  "These details belong to your account and appear in all your competitions.": "هذه بيانات حسابك المشتركة وتظهر في جميع مسابقاتك.",
+  "Profile updated.": "تم تحديث البيانات.",
+  "Check your name and phone number.": "راجع الاسم ورقم الهاتف.",
+  "This competition is not available to join.": "هذه المسابقة غير متاحة للاشتراك.",
+  "Your competition entry": "تسجيلك في هذه المسابقة",
+  "Add competition membership": "إضافة اشتراك في مسابقة",
+  "Keep existing memberships": "الاحتفاظ بالاشتراكات الحالية",
   // ── Sign-up ────────────────────────────────────────────────────────────────
   "Sign up": "إنشاء حساب",
   "Join PODIUM as an athlete, or as part of the team that runs it.": "انضم إلى PODIUM كرياضي، أو كجزء من الفريق الذي يديرها.",

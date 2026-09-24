@@ -36,9 +36,10 @@ const mocks = vi.hoisted(() => {
     revalidate: vi.fn(),
     /** The one client both the action and its transaction callback see. */
     db: {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "s1" }]),
       competitor: { findFirst: findSeat, update: updateSeat },
       user: { findFirst: findUser },
-      athleteProfile: { count: countProfiles },
+      seriesParticipant: { count: countProfiles },
       partnerRequest: { updateMany: cancelRequests },
     },
   };
@@ -62,6 +63,8 @@ vi.mock("@/lib/security", () => ({
   normalizeEmail: (e: string) => e.trim().toLowerCase(),
   isValidEmail: (e: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e),
 }));
+
+vi.mock("@/lib/participation", () => ({ ensureParticipation: async () => ({ shirtSize: "M", bftMember: false }) }));
 
 import { swapTeamMember } from "@/lib/actions/team-swap";
 
@@ -188,8 +191,8 @@ describe("the swap itself", () => {
   it("moves the partner link — out with the old, in with the new", async () => {
     await swapTeamMember({ competitorId: "c1", replacementUserId: "u-nour" });
 
-    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", mocks.db);
-    expect(mocks.linkPair).toHaveBeenCalledWith("u-nour", "u-mona", mocks.db);
+    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", "s1", mocks.db);
+    expect(mocks.linkPair).toHaveBeenCalledWith("u-nour", "u-mona", "s1", mocks.db);
   });
 
   it("does all of it in one transaction — half a swap is worse than none", async () => {
@@ -218,7 +221,7 @@ describe("the swap itself", () => {
     });
     // No account means no profile to link, so the remaining member is simply
     // unpaired rather than pointed at somebody who cannot be pointed back.
-    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", mocks.db);
+    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", "s1", mocks.db);
     expect(mocks.linkPair).not.toHaveBeenCalled();
   });
 

@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     series: { findFirst: mocks.findSeries },
     user: { findMany: mocks.findAthletes },
+    seriesParticipant: { findMany: async () => (await mocks.findAthletes()).map((a: { id: string; athleteProfile: object }) => ({ userId: a.id, ...a.athleteProfile })) },
     competitor: { findFirst: mocks.findCompetitor },
     team: { create: mocks.createTeam, findFirst: mocks.findTeam },
   },
@@ -41,6 +42,9 @@ vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: moc
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/visibility", () => ({ registrationOpen: mocks.registrationOpen }));
 vi.mock("@/lib/scoring", () => ({ normalizeName: (n: string) => n.toLowerCase() }));
+
+vi.mock("@/lib/participation", () => ({ ensureParticipation: vi.fn(), loadSeriesAthlete: async (id: string) => (await mocks.findAthletes()).find((a: { id: string }) => a.id === id) }));
+vi.mock("@/lib/team-create", () => ({ createTeam: mocks.createTeam }));
 
 import { pairAthletes } from "@/lib/actions/pairing";
 
@@ -82,7 +86,7 @@ beforeEach(() => {
   mocks.findAthletes.mockResolvedValue([athlete("a"), athlete("b")]);
   mocks.findCompetitor.mockResolvedValue(null);
   mocks.findTeam.mockResolvedValue({ number: 100 });
-  mocks.createTeam.mockResolvedValue({ id: "t1", number: 101, name: "A" });
+  mocks.createTeam.mockResolvedValue({ ok: true, id: "t1", number: 101, name: "A" });
   mocks.audit.mockResolvedValue(undefined);
   mocks.linkPair.mockResolvedValue(undefined);
 });
@@ -175,13 +179,13 @@ describe("the rest of the guards", () => {
 describe("what the team carries", () => {
   it("copies the shirt size and membership onto each seat", async () => {
     await pairAthletes(input);
-    const seats = mocks.createTeam.mock.calls[0][0].data.competitors.create;
+    const seats = mocks.createTeam.mock.calls[0][1].seats;
     expect(seats).toHaveLength(2);
     for (const seat of seats) expect(seat).toMatchObject({ shirtSize: "M", bftMember: false });
   });
 
-  it("links the two when neither was linked before", async () => {
+  it("passes both shared identities to the atomic team writer", async () => {
     await pairAthletes(input);
-    expect(mocks.linkPair).toHaveBeenCalledWith("a", "b");
+    expect(mocks.createTeam.mock.calls[0][1].seats.map((s: { userId: string }) => s.userId)).toEqual(["a", "b"]);
   });
 });

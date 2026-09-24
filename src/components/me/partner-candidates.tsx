@@ -26,9 +26,11 @@ const ERRORS: Record<string, string> = {
  * gets until the two of them agree.
  */
 export function PartnerCandidates({
+  seriesId,
   rows,
   canRequest,
 }: {
+  seriesId: string;
   rows: PartnerCandidate[];
   canRequest: boolean;
 }) {
@@ -43,7 +45,7 @@ export function PartnerCandidates({
     setBusy(id);
     startTransition(async () => {
       try {
-        const result = await sendPartnerRequest({ toUserId: id });
+        const result = await sendPartnerRequest({ seriesId, toUserId: id });
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           return;

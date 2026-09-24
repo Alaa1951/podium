@@ -83,7 +83,7 @@ export function SignupForm({
     email: initialEmail ?? "",
     phone: "",
     studioId: "",
-    seriesId: competitions.length === 1 ? competitions[0].id : "",
+    seriesId: competitions[0]?.id ?? "",
     password: "",
     dateOfBirth: "",
     sex: "" as "" | "m" | "f",

@@ -30,9 +30,11 @@ const ERRORS: Record<string, string> = {
 
 /** The asks waiting on this athlete, and the ones they sent. */
 export function PartnerRequests({
+  seriesId,
   incoming,
   outgoing,
 }: {
+  seriesId: string;
   incoming: PartnerRequestRow[];
   outgoing: PartnerRequestRow[];
 }) {
@@ -42,12 +44,12 @@ export function PartnerRequests({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
-  function run(id: string, action: (input: { requestId: string }) => Promise<{ ok: boolean; error?: string }>) {
+  function run(id: string, action: (input: { seriesId: string; requestId: string }) => Promise<{ ok: boolean; error?: string }>) {
     setError("");
     setBusy(id);
     startTransition(async () => {
       try {
-        const result = await action({ requestId: id });
+        const result = await action({ seriesId, requestId: id });
         if (!result.ok) {
           setError(t(ERRORS[result.error ?? ""] ?? "Something went wrong. Try again."));
           return;

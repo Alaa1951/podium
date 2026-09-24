@@ -28,13 +28,14 @@ export const dynamic = "force-dynamic";
 const off = () => NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
 /** How far along this team's portraits are — what the upload screen polls. */
-export async function GET() {
+export async function GET(request: Request) {
   if (!portraitsEnabled()) return off();
   const user = await requireRole("competitor");
 
+  const seriesId = new URL(request.url).searchParams.get("series");
+  if (!seriesId) return NextResponse.json({ error: "COMPETITION_REQUIRED" }, { status: 400 });
   const seat = await prisma.competitor.findFirst({
-    where: { userId: user.id, team: { archivedAt: null } },
-    orderBy: { team: { series: { competitionDate: "desc" } } },
+    where: { userId: user.id, team: { seriesId, archivedAt: null } },
     select: { teamId: true },
   });
   if (!seat) return NextResponse.json({ seats: [] });
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
   if (!competitorId || !(photo instanceof Blob)) {
     return NextResponse.json({ error: "NO_IMAGE" }, { status: 400 });
   }
+
+  const seriesId = String(form.get("seriesId") ?? "");
+  const ownSeat = await prisma.competitor.findFirst({ where: { id: competitorId, team: { seriesId, archivedAt: null, competitors: { some: { userId: user.id } } } }, select: { id: true } });
+  if (!seriesId || !ownSeat) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
   const bytes = Buffer.from(await photo.arrayBuffer());
   const result = await queuePortrait({

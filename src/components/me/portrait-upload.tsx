@@ -61,7 +61,7 @@ async function shrink(file: File): Promise<Blob> {
   });
 }
 
-export function PortraitUpload() {
+export function PortraitUpload({ seriesId }: { seriesId: string }) {
   const t = useT();
   const [seats, setSeats] = useState<Seat[] | null>(null);
   const [consent, setConsent] = useState(false);
@@ -71,7 +71,7 @@ export function PortraitUpload() {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/me/portraits", { cache: "no-store" });
+      const response = await fetch(`/api/me/portraits?series=${encodeURIComponent(seriesId)}`, { cache: "no-store" });
       if (!response.ok) {
         setSeats([]);
         return;
@@ -81,7 +81,7 @@ export function PortraitUpload() {
     } catch {
       // A dropped poll is not worth a message; the next one will do.
     }
-  }, []);
+  }, [seriesId]);
 
   // The first read. `load` sets state, so it is deliberately called from the
   // effect's own async tail rather than synchronously in its body — the same
@@ -115,11 +115,12 @@ export function PortraitUpload() {
       }
 
       const body = new FormData();
+      body.append("seriesId", seriesId);
       body.append("competitorId", seat.competitorId);
       body.append("consent", "true");
       body.append("photo", shrunk, "photo.jpg");
 
-      const response = await fetch("/api/me/portraits", { method: "POST", body });
+      const response = await fetch(`/api/me/portraits?series=${encodeURIComponent(seriesId)}`, { method: "POST", body });
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
         setError(t(ERRORS[payload.error ?? ""] ?? "Something went wrong. Try again."));

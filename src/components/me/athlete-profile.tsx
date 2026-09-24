@@ -44,7 +44,7 @@ const ERRORS: Record<string, string> = {
 const DIVISIONS = ["Rookie", "Open", "Pro"] as const;
 const CATEGORIES = ["Womens", "Mens", "Mixed"] as const;
 
-export function AthleteProfile({ profile, canEdit }: { profile: AthleteProfileDTO; canEdit: boolean }) {
+export function AthleteProfile({ profile, canEdit, seriesId }: { profile: AthleteProfileDTO; canEdit: boolean; seriesId: string }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -69,7 +69,7 @@ export function AthleteProfile({ profile, canEdit }: { profile: AthleteProfileDT
     setSaved(false);
     startTransition(async () => {
       try {
-        const result = await savePartner(form);
+        const result = await savePartner({ ...form, seriesId });
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           return;
@@ -88,7 +88,7 @@ export function AthleteProfile({ profile, canEdit }: { profile: AthleteProfileDT
     setSaved(false);
     startTransition(async () => {
       try {
-        const result = await unlinkPartner();
+        const result = await unlinkPartner(seriesId);
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           setConfirmingUnlink(false);
@@ -111,7 +111,7 @@ export function AthleteProfile({ profile, canEdit }: { profile: AthleteProfileDT
   return (
     <section className="card" style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>{t("Your athlete profile")}</h2>
+        <h2 style={{ margin: 0 }}>{t("Your competition entry")}</h2>
         {canEdit && !profile.partnerLinked && !editing ? (
           <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
             {t("Change")}

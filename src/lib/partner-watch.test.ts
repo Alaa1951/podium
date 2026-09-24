@@ -1,165 +1,33 @@
-/**
- * The staff's view of the people with nobody yet.
- *
- * The test that matters here is the MIRROR of the one in
- * partner-directory.test.ts: that select must not carry a contact detail, and
- * this one must. Side by side, the two intentions are legible, and narrowing
- * this one by mistake fails rather than quietly breaking the job it exists for.
- */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  findUsers: vi.fn(),
-  findRequests: vi.fn(),
-  findProfiles: vi.fn(),
-}));
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: { findMany: mocks.findUsers },
-    partnerRequest: { findMany: mocks.findRequests },
-    athleteProfile: { findMany: mocks.findProfiles },
-  },
-}));
-
-import { countPairedNotRegistered, getPartnerWatch } from "@/lib/partner-watch";
-
-const person = (id: string, over: Record<string, unknown> = {}) => ({
-  id,
-  name: `Name ${id}`,
-  email: `${id}@example.com`,
-  phone: "+97455500000",
-  studio: { name: "BFT The Pearl" },
-  athleteProfile: { division: "Open", category: "Womens" },
-  ...over,
+import { beforeEach, expect, it, vi } from "vitest";
+const mocks = vi.hoisted(() => ({ entries: vi.fn(), seats: vi.fn(), asks: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({ prisma: { seriesParticipant: { findMany: mocks.entries }, competitor: { findMany: mocks.seats }, partnerRequest: { findMany: mocks.asks } } }));
+import { getPartnerWatch, countPairedNotRegistered } from "./partner-watch";
+const entry = (id: string, partnerUserId: string | null = null, studioId = "gym1") => ({ userId: id, partnerUserId, lookingForPartner: !partnerUserId, division: "Open", category: "Mixed", partnerLinkedAt: null, user: { id, name: id, email: `${id}@example.com`, phone: "123456", studioId, studio: { name: studioId } } });
+beforeEach(() => { vi.resetAllMocks(); mocks.entries.mockResolvedValue([entry("a"), entry("b")]); mocks.seats.mockResolvedValue([]); mocks.asks.mockResolvedValue([]); });
+it("scopes every read to the selected competition", async () => {
+  await getPartnerWatch({ seriesId: "training", studioId: null });
+  expect(mocks.entries.mock.calls[0][0].where.seriesId).toBe("training");
+  expect(mocks.seats.mock.calls[0][0].where.team.seriesId).toBe("training");
+  expect(mocks.asks.mock.calls[0][0].where.seriesId).toBe("training");
 });
-
-beforeEach(() => {
-  vi.resetAllMocks();
-  mocks.findUsers.mockResolvedValue([]);
-  mocks.findRequests.mockResolvedValue([]);
-  mocks.findProfiles.mockResolvedValue([]);
+it("gives staff reachable people, using shared identity", async () => {
+  const result = await getPartnerWatch({ seriesId: "s1", studioId: "gym1" });
+  expect(result.looking[0]).toMatchObject({ email: "a@example.com", phone: "123456", studioName: "gym1" });
 });
-
-describe("what staff are given", () => {
-  it("selects the contact details — ringing somebody is the job", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: null });
-
-    const select = mocks.findUsers.mock.calls[0][0].select;
-    expect(select.email).toBe(true);
-    expect(select.phone).toBe(true);
-  });
-
-  it("returns a reachable person", async () => {
-    mocks.findUsers.mockResolvedValue([person("u1")]);
-
-    const watch = await getPartnerWatch({ seriesId: "s1", studioId: null });
-
-    expect(watch.looking[0]).toEqual({
-      userId: "u1",
-      name: "Name u1",
-      email: "u1@example.com",
-      phone: "+97455500000",
-      division: "Open",
-      category: "Womens",
-      studioName: "BFT The Pearl",
-    });
-  });
-
-  it("falls back to the address when somebody has no name", async () => {
-    mocks.findUsers.mockResolvedValue([person("u2", { name: null })]);
-    const watch = await getPartnerWatch({ seriesId: "s1", studioId: null });
-    expect(watch.looking[0].name).toBe("u2@example.com");
-  });
+it("shows a reciprocal cross-studio pair once to either studio", async () => {
+  mocks.entries.mockResolvedValue([entry("a", "b"), entry("b", "a", "gym2")]);
+  expect((await getPartnerWatch({ seriesId: "s1", studioId: "gym2" })).pairedNotRegistered).toHaveLength(1);
+  expect(await countPairedNotRegistered("s1")).toBe(1);
+  expect((await getPartnerWatch({ seriesId: "s1", studioId: "gym3" })).pairedNotRegistered).toHaveLength(0);
 });
-
-describe("who counts as being in this competition", () => {
-  it("takes both the sign-up choice and an existing entry", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: null });
-
-    const { where } = mocks.findUsers.mock.calls[0][0];
-    expect(where.OR).toEqual([
-      { requestedSeriesId: "s1" },
-      { competitors: { some: { team: { seriesId: "s1", archivedAt: null } } } },
-    ]);
-    // An athlete who arrived through the CRM has no requestedSeriesId; the
-    // second branch is what keeps them visible.
-    expect(where).toMatchObject({
-      role: "competitor",
-      approvalStatus: "approved",
-      archivedAt: null,
-      status: { not: "disabled" },
-    });
-  });
-
-  it("scopes a studio to its own people", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: "studio-a" });
-    expect(mocks.findUsers.mock.calls[0][0].where.studioId).toBe("studio-a");
-  });
-
-  it("leaves BFT MENA unscoped", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: null });
-    expect(mocks.findUsers.mock.calls[0][0].where.studioId).toBeUndefined();
-  });
-
-  it("shows a studio a cross-studio pair when either side is theirs", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: "studio-a" });
-    const { where } = mocks.findProfiles.mock.calls[0][0];
-    expect(where.OR).toEqual([
-      { user: { studioId: "studio-a" } },
-      { partner: { studioId: "studio-a" } },
-    ]);
-  });
+it("a team in this competition removes the pair from the queue", async () => {
+  mocks.entries.mockResolvedValue([entry("a", "b"), entry("b", "a")]); mocks.seats.mockResolvedValue([{ userId: "a" }]);
+  expect(await countPairedNotRegistered("s1")).toBe(0);
 });
-
-describe("pairs waiting to be entered", () => {
-  const pair = {
-    userId: "aaa",
-    partnerUserId: "bbb",
-    partnerLinkedAt: new Date("2026-09-20T00:00:00Z"),
-    user: person("aaa"),
-    partner: person("bbb"),
-  };
-
-  it("lists a pair once, not twice", async () => {
-    // Both sides of the same pair come back from the query.
-    mocks.findProfiles.mockResolvedValue([
-      pair,
-      { ...pair, userId: "bbb", partnerUserId: "aaa", user: person("bbb"), partner: person("aaa") },
-    ]);
-
-    const watch = await getPartnerWatch({ seriesId: "s1", studioId: null });
-
-    expect(watch.pairedNotRegistered).toHaveLength(1);
-    expect(watch.pairedNotRegistered[0].a.userId).toBe("aaa");
-    expect(watch.pairedNotRegistered[0].b.userId).toBe("bbb");
-  });
-
-  it("wants both of them without a team in this competition", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: null });
-    const { where } = mocks.findProfiles.mock.calls[0][0];
-    const noTeam = { competitors: { none: { team: { seriesId: "s1", archivedAt: null } } } };
-    expect(where.user).toMatchObject(noTeam);
-    expect(where.partner).toMatchObject(noTeam);
-  });
-
-  it("counts each pair once for the badge", async () => {
-    mocks.findProfiles.mockResolvedValue([
-      { userId: "aaa", partnerUserId: "bbb" },
-      { userId: "bbb", partnerUserId: "aaa" },
-      { userId: "ccc", partnerUserId: "ddd" },
-    ]);
-    expect(await countPairedNotRegistered("s1")).toBe(2);
-  });
+it("never joins a partner request to an athlete with no membership in this competition", async () => {
+  mocks.asks.mockResolvedValue([{ id: "r1", fromUserId: "a", toUserId: "elsewhere", createdAt: new Date() }]);
+  expect((await getPartnerWatch({ seriesId: "s1", studioId: null })).asking).toEqual([]);
 });
-
-describe("asks in flight", () => {
-  it("wants at least one side in this competition", async () => {
-    await getPartnerWatch({ seriesId: "s1", studioId: "studio-a" });
-    const { where } = mocks.findRequests.mock.calls[0][0];
-    expect(where.status).toBe("pending");
-    expect(where.OR).toHaveLength(2);
-    expect(where.OR[0]).toHaveProperty("from");
-    expect(where.OR[1]).toHaveProperty("to");
-  });
+it("requires reciprocal links", async () => {
+  mocks.entries.mockResolvedValue([entry("a", "b"), entry("b", "c")]); expect(await countPairedNotRegistered("s1")).toBe(0);
 });

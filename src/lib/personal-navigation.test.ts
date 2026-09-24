@@ -12,6 +12,7 @@ import {
   personalNavActivePath,
   personalNavCommonScreen,
   personalNavItems,
+  personalNavHref,
   screenTitle,
 } from "@/lib/personal-navigation";
 
@@ -77,4 +78,12 @@ describe("what a screen is called", () => {
   it("says nothing where the screen speaks for itself", () => {
     expect(screenTitle("/series/podium-2/board")).toBeUndefined();
   });
+});
+
+it("keeps the selected competition on personal tabs without changing staff navigation", () => {
+  expect(personalNavHref("/my-wave", "competitor", "training")).toBe("/my-wave?series=training");
+  expect(personalNavHref("/me", "competitor", "training")).toBe("/me?series=training");
+  expect(personalNavHref("/account", "competitor", "training")).toBe("/account?series=training");
+  expect(personalNavHref("/my-wave", "organiser", "training")).toBe("/my-wave");
+  expect(personalNavHref("/me", "competitor", "all")).toBe("/me");
 });

@@ -1,3 +1,4 @@
+import { competitionChoices } from "@/lib/competition-choice";
 import { notFound } from "next/navigation";
 
 import { AccessPanel } from "@/components/accounts/access-panel";
@@ -62,11 +63,11 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
   const rows = accounts.map(toRow);
   // Which competition an athlete signed up for is set here for anybody who
   // signed up before the form asked, and whenever somebody moves.
-  const competitions = (
+  const competitions = competitionChoices(
     await prisma.series.findMany({
       where: { status: { in: ["scheduled", "live"] }, archivedAt: null, isActive: true },
       orderBy: { competitionDate: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, status: true, competitionDate: true, isTraining: true },
     })
   );
   const archivedRows = archived.map(toRow);

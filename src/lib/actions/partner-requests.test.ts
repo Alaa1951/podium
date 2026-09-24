@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  resolve: vi.fn(),
   requireRole: vi.fn(),
   can: vi.fn(),
   rate: vi.fn(),
@@ -43,7 +44,7 @@ vi.mock("@/lib/security", () => ({ getBaseUrl: () => "https://podium.test" }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    athleteProfile: { findUnique: mocks.findProfile, updateMany: mocks.updateProfiles },
+    seriesParticipant: { findUnique: mocks.findProfile, updateMany: mocks.updateProfiles },
     partnerRequest: {
       count: mocks.countRequests,
       findFirst: mocks.findRequest,
@@ -53,6 +54,10 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: mocks.transaction,
   },
 }));
+
+vi.mock("@/lib/participation", () => ({ resolveMySeries: mocks.resolve, meHref: (id: string, suffix = "") => `/me${suffix}?series=${id}` }));
+vi.mock("@/lib/enter-pair", () => ({ enterPairIfReady: async () => ({ entered: false }) }));
+vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: vi.fn() }));
 
 import {
   acceptPartnerRequest,
@@ -71,6 +76,7 @@ const theirProfile = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.resolve.mockResolvedValue({ id: "s1", status: "scheduled" });
   mocks.requireRole.mockResolvedValue(me);
   mocks.can.mockReturnValue(true);
   mocks.rate.mockReturnValue({ ok: true });
@@ -82,14 +88,14 @@ beforeEach(() => {
   mocks.updateProfiles.mockResolvedValue({ count: 1 });
   mocks.audit.mockResolvedValue(undefined);
   mocks.email.mockResolvedValue(undefined);
-  mocks.findProfile.mockImplementation(async ({ where }: { where: { userId: string } }) =>
-    where.userId === "me" ? myProfile : theirProfile
+  mocks.findProfile.mockImplementation(async ({ where }: { where: { seriesId_userId: { userId: string } } }) =>
+    where.seriesId_userId.userId === "me" ? myProfile : theirProfile
   );
 });
 
 describe("asking somebody", () => {
   it("records the ask with a symmetric pair key and tells them", async () => {
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: true });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: true });
 
     const data = mocks.createRequest.mock.calls[0][0].data;
     expect(data).toMatchObject({ fromUserId: "me", toUserId: "them", division: "Open" });
@@ -107,40 +113,40 @@ describe("asking somebody", () => {
 
   it("stands even when the email does not go out", async () => {
     mocks.email.mockRejectedValue(new Error("SMTP down"));
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: true });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: true });
     expect(mocks.audit).toHaveBeenCalled();
   });
 
   it("refuses an admin looking through somebody else's eyes", async () => {
     mocks.requireRole.mockResolvedValue({ ...me, viewAs: { byAdminId: "boss" } });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: false, error: "FORBIDDEN" });
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
   it("refuses without the permission", async () => {
     mocks.can.mockReturnValue(false);
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: false, error: "FORBIDDEN" });
   });
 
   it("refuses asking yourself", async () => {
-    expect(await sendPartnerRequest({ toUserId: "me" })).toEqual({ ok: false, error: "INVALID_INPUT" });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "me" })).toEqual({ ok: false, error: "INVALID_INPUT" });
   });
 
   it("throttles the sender and the recipient independently", async () => {
     mocks.rate.mockReturnValueOnce({ ok: false });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: false, error: "TRY_LATER" });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: false, error: "TRY_LATER" });
 
     vi.clearAllMocks();
     mocks.requireRole.mockResolvedValue(me);
     mocks.can.mockReturnValue(true);
     mocks.rate.mockReturnValueOnce({ ok: true }).mockReturnValueOnce({ ok: false });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({ ok: false, error: "TRY_LATER" });
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({ ok: false, error: "TRY_LATER" });
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
   it("needs a level and a category before it can ask anyone", async () => {
     mocks.findProfile.mockResolvedValue({ division: null, category: null, partnerUserId: null });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "PROFILE_INCOMPLETE",
     });
@@ -148,7 +154,7 @@ describe("asking somebody", () => {
 
   it("refuses once this athlete already has a partner", async () => {
     mocks.findProfile.mockResolvedValue({ ...myProfile, partnerUserId: "someone" });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "ALREADY_LINKED",
     });
@@ -156,7 +162,7 @@ describe("asking somebody", () => {
 
   it("caps how many asks may be outstanding", async () => {
     mocks.countRequests.mockResolvedValue(5);
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "TOO_MANY_PENDING",
     });
@@ -164,7 +170,7 @@ describe("asking somebody", () => {
 
   it("will not let me ask again after they said no", async () => {
     mocks.findRequest.mockResolvedValue({ id: "old" });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "DECLINED_BEFORE",
     });
@@ -177,7 +183,7 @@ describe("asking somebody", () => {
 
   it("refuses an id that is not a candidate, however it was learned", async () => {
     mocks.candidateExists.mockResolvedValue(false);
-    expect(await sendPartnerRequest({ toUserId: "stranger" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "stranger" })).toEqual({
       ok: false,
       error: "NOT_FOUND",
     });
@@ -188,13 +194,13 @@ describe("asking somebody", () => {
     mocks.createRequest.mockRejectedValue(new Error("Unique constraint failed"));
 
     mocks.findRequest.mockResolvedValueOnce(null).mockResolvedValueOnce({ fromUserId: "me" });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "ALREADY_REQUESTED",
     });
 
     mocks.findRequest.mockResolvedValueOnce(null).mockResolvedValueOnce({ fromUserId: "them" });
-    expect(await sendPartnerRequest({ toUserId: "them" })).toEqual({
+    expect(await sendPartnerRequest({ seriesId: "s1", toUserId: "them" })).toEqual({
       ok: false,
       error: "THEY_ASKED_YOU",
     });
@@ -211,11 +217,13 @@ describe("accepting", () => {
 
   function txClient(over: Record<string, unknown> = {}) {
     return {
+      $queryRaw: vi.fn(),
       partnerRequest: {
         findFirst: vi.fn().mockResolvedValue(request),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
-      athleteProfile: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      competitor: { findFirst: vi.fn().mockResolvedValue(null) },
+      seriesParticipant: { findMany: vi.fn().mockResolvedValue(["them", "me"].map(userId => ({ userId, division: "Open", category: "Womens", user: { status: "active", archivedAt: null, approvalStatus: "approved" } }))), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       ...over,
     };
   }
@@ -224,11 +232,11 @@ describe("accepting", () => {
     const tx = txClient();
     runTx(tx);
 
-    expect(await acceptPartnerRequest({ requestId: "r1" })).toEqual({ ok: true });
+    expect(await acceptPartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({ ok: true });
 
-    expect(mocks.linkPair).toHaveBeenCalledWith("them", "me", tx);
+    expect(mocks.linkPair).toHaveBeenCalledWith("them", "me", "s1", tx);
     // Both profiles claimed conditionally — this is the race guard.
-    for (const call of tx.athleteProfile.updateMany.mock.calls) {
+    for (const call of tx.seriesParticipant.updateMany.mock.calls) {
       expect(call[0].where.partnerUserId).toBeNull();
     }
   });
@@ -237,7 +245,7 @@ describe("accepting", () => {
     const tx = txClient();
     runTx(tx);
 
-    await acceptPartnerRequest({ requestId: "r1" });
+    await acceptPartnerRequest({ seriesId: "s1", requestId: "r1" });
 
     const cancel = tx.partnerRequest.updateMany.mock.calls.at(-1)![0];
     expect(cancel.where).toMatchObject({ status: "pending", id: { not: "r1" } });
@@ -257,7 +265,7 @@ describe("accepting", () => {
     });
     runTx(tx);
 
-    expect(await acceptPartnerRequest({ requestId: "r1" })).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(await acceptPartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({ ok: false, error: "NOT_FOUND" });
     expect(mocks.linkPair).not.toHaveBeenCalled();
     // The recipient's own id is in the where — that IS the authorisation.
     expect(tx.partnerRequest.findFirst.mock.calls[0][0].where.toUserId).toBe("me");
@@ -272,7 +280,7 @@ describe("accepting", () => {
     });
     runTx(tx);
 
-    expect(await acceptPartnerRequest({ requestId: "r1" })).toEqual({
+    expect(await acceptPartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({
       ok: false,
       error: "ALREADY_DECIDED",
     });
@@ -281,11 +289,11 @@ describe("accepting", () => {
 
   it("refuses when either side got partnered a moment earlier", async () => {
     const tx = txClient({
-      athleteProfile: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      seriesParticipant: { findMany: vi.fn().mockResolvedValue(["them", "me"].map(userId => ({ userId, division: "Open", category: "Womens", user: { status: "active", approvalStatus: "approved" } }))), updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
     });
     runTx(tx);
 
-    expect(await acceptPartnerRequest({ requestId: "r1" })).toEqual({
+    expect(await acceptPartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({
       ok: false,
       error: "ALREADY_LINKED",
     });
@@ -295,7 +303,7 @@ describe("accepting", () => {
 
 describe("declining and withdrawing", () => {
   it("only the person asked may decline", async () => {
-    expect(await declinePartnerRequest({ requestId: "r1" })).toEqual({ ok: true });
+    expect(await declinePartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({ ok: true });
     expect(mocks.updateRequests.mock.calls[0][0].where).toMatchObject({
       id: "r1",
       toUserId: "me",
@@ -304,7 +312,7 @@ describe("declining and withdrawing", () => {
   });
 
   it("only the asker may withdraw", async () => {
-    expect(await withdrawPartnerRequest({ requestId: "r1" })).toEqual({ ok: true });
+    expect(await withdrawPartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({ ok: true });
     expect(mocks.updateRequests.mock.calls[0][0].where).toMatchObject({
       id: "r1",
       fromUserId: "me",
@@ -314,7 +322,7 @@ describe("declining and withdrawing", () => {
 
   it("answering twice changes nothing the second time", async () => {
     mocks.updateRequests.mockResolvedValue({ count: 0 });
-    expect(await declinePartnerRequest({ requestId: "r1" })).toEqual({
+    expect(await declinePartnerRequest({ seriesId: "s1", requestId: "r1" })).toEqual({
       ok: false,
       error: "ALREADY_DECIDED",
     });

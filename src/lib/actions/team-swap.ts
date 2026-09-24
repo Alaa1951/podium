@@ -6,6 +6,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { alreadyEntered } from "@/lib/one-entry";
 import { linkPair, unlinkPair } from "@/lib/partners";
+import { ensureParticipation } from "@/lib/participation";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
@@ -185,7 +186,15 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
 
   const outgoing = { userId: seat.userId, label: seat.fullName };
 
+  try {
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM Series WHERE id = ${team.seriesId} FOR UPDATE`;
+    if (await alreadyEntered({ seriesId: team.seriesId, userIds: [replacement.userId], emails: [replacement.email], exceptCompetitorId: seat.id }, tx)) throw new Error("ALREADY_ENTERED");
+    if (replacement.userId) {
+      const entry = await ensureParticipation(replacement.userId, team.seriesId, tx);
+      replacement.shirtSize = entry.shirtSize;
+      replacement.bftMember = entry.bftMember;
+    }
     await tx.competitor.update({
       where: { id: seat.id },
       data: {
@@ -207,14 +216,14 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
     // `/me` lies to two people at once: the one who left still sees the pair,
     // and the one who arrived does not.
     if (outgoing.userId && otherUserId) {
-      const linked = await tx.athleteProfile.count({
-        where: { userId: outgoing.userId, partnerUserId: otherUserId },
+      const linked = await tx.seriesParticipant.count({
+        where: { seriesId: team.seriesId, userId: outgoing.userId, partnerUserId: otherUserId },
       });
-      if (linked) await unlinkPair(outgoing.userId, otherUserId, tx);
+      if (linked) await unlinkPair(outgoing.userId, otherUserId, team.seriesId, tx);
     }
     if (replacement.userId && replacement.hasProfile && otherUserId) {
-      const other = await tx.athleteProfile.count({ where: { userId: otherUserId } });
-      if (other) await linkPair(replacement.userId, otherUserId, tx);
+      const other = await tx.seriesParticipant.count({ where: { seriesId: team.seriesId, userId: otherUserId } });
+      if (other) await linkPair(replacement.userId, otherUserId, team.seriesId, tx);
     }
 
     // Whoever arrives has a partner now, so their open asks are moot — and so
@@ -222,6 +231,7 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
     if (replacement.userId) {
       await tx.partnerRequest.updateMany({
         where: {
+          seriesId: team.seriesId,
           status: "pending",
           OR: [{ fromUserId: replacement.userId }, { toUserId: replacement.userId }],
         },
@@ -229,6 +239,10 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
       });
     }
   });
+  } catch (error) {
+    if (error instanceof Error && ["ALREADY_ENTERED", "ALREADY_LINKED"].includes(error.message)) return { ok: false, error: error.message === "ALREADY_LINKED" ? "HAS_OTHER_PARTNER" : error.message };
+    throw error;
+  }
 
   await recordAudit({
     actorId: actor.id,

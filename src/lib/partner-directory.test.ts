@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     partnerRequest: { findMany: mocks.findRequests },
-    athleteProfile: {
+    seriesParticipant: {
       findMany: mocks.findProfiles,
       count: mocks.countProfiles,
       findFirst: mocks.findProfile,
@@ -25,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
 
 import { listPartnerCandidates, partnerCandidateExists } from "@/lib/partner-directory";
 
-const me = { id: "me", division: "Open" as const, category: "Womens" as const };
+const me = { id: "me", seriesId: "series-1", division: "Open" as const, category: "Womens" as const };
 
 beforeEach(() => {
   vi.resetAllMocks();

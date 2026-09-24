@@ -7,9 +7,11 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendPartnerRequestEmail } from "@/lib/email";
 import { partnerCandidateExists } from "@/lib/partner-directory";
 import { enterPairIfReady } from "@/lib/enter-pair";
+import { alreadyEntered } from "@/lib/one-entry";
 import { linkPair } from "@/lib/partners";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { prisma } from "@/lib/prisma";
+import { resolveMySeries, meHref } from "@/lib/participation";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
 import { getBaseUrl } from "@/lib/security";
 import { can, requireRole } from "@/lib/session";
@@ -52,7 +54,7 @@ const MAX_PENDING = 5;
 /** Sorted and joined, so a pair reads the same whichever way round it is. */
 const pairKeyOf = (a: string, b: string) => [a, b].sort().join(":");
 
-const idSchema = z.object({ requestId: z.string().min(1).max(191) });
+const idSchema = z.object({ seriesId: z.string().min(1), requestId: z.string().min(1).max(191) });
 
 function revalidate() {
   revalidatePath("/me");
@@ -66,9 +68,12 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
   const user = await requireRole("competitor");
   if (user.viewAs || !can(user, "partner.request")) return { ok: false, error: "FORBIDDEN" };
 
-  const parsed = z.object({ toUserId: z.string().min(1).max(191) }).safeParse(input);
+  const parsed = z.object({ seriesId: z.string().min(1), toUserId: z.string().min(1).max(191) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const toUserId = parsed.data.toUserId;
+  const series = await resolveMySeries(user.id, parsed.data.seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
+  const seriesId = series.id;
   if (toUserId === user.id) return { ok: false, error: "INVALID_INPUT" };
 
   // Two axes: one person cannot spray, and one popular athlete cannot be
@@ -80,23 +85,23 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
     return { ok: false, error: "TRY_LATER" };
   }
 
-  const mine = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const mine = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId, userId: user.id } },
     select: { division: true, category: true, partnerUserId: true },
   });
   if (!mine || !mine.division || !mine.category) return { ok: false, error: "PROFILE_INCOMPLETE" };
   if (mine.partnerUserId) return { ok: false, error: "ALREADY_LINKED" };
 
-  const me = { id: user.id, division: mine.division, category: mine.category };
+  const me = { id: user.id, seriesId, division: mine.division, category: mine.category };
 
   const pending = await prisma.partnerRequest.count({
-    where: { fromUserId: user.id, status: "pending" },
+    where: { seriesId, fromUserId: user.id, status: "pending" },
   });
   if (pending >= MAX_PENDING) return { ok: false, error: "TOO_MANY_PENDING" };
 
   // They said no once. They may still ask me — but I do not get to ask again.
   const refused = await prisma.partnerRequest.findFirst({
-    where: { fromUserId: user.id, toUserId, status: "declined" },
+    where: { seriesId, fromUserId: user.id, toUserId, status: "declined" },
     select: { id: true },
   });
   if (refused) return { ok: false, error: "DECLINED_BEFORE" };
@@ -106,8 +111,8 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
   // unlinked, approved, active, and in your own bracket.
   if (!(await partnerCandidateExists({ me, toUserId }))) return { ok: false, error: "NOT_FOUND" };
 
-  const theirs = await prisma.athleteProfile.findUnique({
-    where: { userId: toUserId },
+  const theirs = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId, userId: toUserId } },
     select: { division: true, category: true, user: { select: { email: true, name: true } } },
   });
   if (!theirs) return { ok: false, error: "NOT_FOUND" };
@@ -116,6 +121,7 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
   try {
     await prisma.partnerRequest.create({
       data: {
+        seriesId,
         fromUserId: user.id,
         toUserId,
         pairKey: key,
@@ -130,7 +136,7 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
     // The unique index on openPairKey is the "one open request per pair" rule.
     // Which way round it is decides what the sender is told.
     const open = await prisma.partnerRequest.findFirst({
-      where: { openPairKey: key },
+      where: { seriesId, openPairKey: key },
       select: { fromUserId: true },
     });
     if (!open) return { ok: false, error: "FAILED" };
@@ -143,7 +149,7 @@ export async function sendPartnerRequest(input: unknown): Promise<PartnerRequest
       fromName: user.name ?? "",
       division: mine.division,
       category: mine.category,
-      url: `${getBaseUrl()}/me/partner/requests`,
+      url: `${getBaseUrl()}${meHref(seriesId, "/partner/requests")}`,
     });
   } catch {
     // The request stands whether or not the email went out.
@@ -169,6 +175,9 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const series = await resolveMySeries(user.id, parsed.data.seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
+  const seriesId = series.id;
   if (!checkRate(`partner-answer:${user.id}`, 30, MINUTE_MS).ok) {
     return { ok: false, error: "TRY_LATER" };
   }
@@ -176,11 +185,20 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
   const now = new Date();
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Series WHERE id = ${seriesId} FOR UPDATE`;
       const request = await tx.partnerRequest.findFirst({
-        where: { id: parsed.data.requestId, toUserId: user.id },
+        where: { seriesId, id: parsed.data.requestId, toUserId: user.id },
         select: { id: true, fromUserId: true, toUserId: true },
       });
       if (!request) throw new Error("NOT_FOUND");
+
+      const entries = await tx.seriesParticipant.findMany({
+        where: { seriesId, userId: { in: [request.fromUserId, request.toUserId] }, archivedAt: null },
+        include: { user: { select: { status: true, archivedAt: true, approvalStatus: true } } },
+      });
+      if (entries.length !== 2 || entries.some(p => p.user.status !== "active" || p.user.archivedAt || p.user.approvalStatus !== "approved")) throw new Error("NOT_FOUND");
+      if (!entries[0].division || !entries[0].category || entries.some(p => p.division !== entries[0].division || p.category !== entries[0].category)) throw new Error("PROFILE_INCOMPLETE");
+      if (await alreadyEntered({ seriesId, userIds: [request.fromUserId, request.toUserId] }, tx)) throw new Error("ALREADY_LINKED");
 
       // Whoever answers first decides; a second answer finds nothing pending.
       const claimed = await tx.partnerRequest.updateMany({
@@ -197,18 +215,19 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
         [request.fromUserId, request.toUserId],
         [request.toUserId, request.fromUserId],
       ]) {
-        const locked = await tx.athleteProfile.updateMany({
-          where: { userId: self, partnerUserId: null },
+        const locked = await tx.seriesParticipant.updateMany({
+          where: { seriesId, userId: self, archivedAt: null, partnerUserId: null },
           data: { partnerUserId: other },
         });
         if (locked.count === 0) throw new Error("ALREADY_LINKED");
       }
 
-      await linkPair(request.fromUserId, request.toUserId, tx);
+      await linkPair(request.fromUserId, request.toUserId, seriesId, tx);
 
       // Every other open ask either of them had is moot now.
       await tx.partnerRequest.updateMany({
         where: {
+          seriesId,
           status: "pending",
           id: { not: request.id },
           OR: [{ fromUserId: { in: pair } }, { toUserId: { in: pair } }],
@@ -226,7 +245,7 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
     });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
-    if (code === "NOT_FOUND" || code === "ALREADY_DECIDED" || code === "ALREADY_LINKED") {
+    if (code === "PROFILE_INCOMPLETE" || code === "NOT_FOUND" || code === "ALREADY_DECIDED" || code === "ALREADY_LINKED") {
       return { ok: false, error: code };
     }
     console.error("[PARTNER:accept]", code || error);
@@ -240,7 +259,7 @@ export async function acceptPartnerRequest(input: unknown): Promise<PartnerReque
   // OUTSIDE the transaction, and best-effort: accepting a partner request has
   // already succeeded and must not be undone because an entry could not be
   // made. It is a no-op in every case but the complete one.
-  await enterPairIfReady(user.id).catch((error: unknown) => {
+  await enterPairIfReady(user.id, seriesId).catch((error: unknown) => {
     console.error("[PARTNER:accept:enter]", error);
   });
 
@@ -256,11 +275,14 @@ export async function declinePartnerRequest(input: unknown): Promise<PartnerRequ
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const series = await resolveMySeries(user.id, parsed.data.seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
+  const seriesId = series.id;
 
   // `toUserId: user.id` IS the authorisation, checked by the same statement
   // that writes — only the person asked can say no.
   const done = await prisma.partnerRequest.updateMany({
-    where: { id: parsed.data.requestId, toUserId: user.id, status: "pending" },
+    where: { seriesId, id: parsed.data.requestId, toUserId: user.id, status: "pending" },
     data: { status: "declined", openPairKey: null, respondedAt: new Date() },
   });
   if (done.count === 0) return { ok: false, error: "ALREADY_DECIDED" };
@@ -283,9 +305,12 @@ export async function withdrawPartnerRequest(input: unknown): Promise<PartnerReq
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const series = await resolveMySeries(user.id, parsed.data.seriesId);
+  if (!series || series.status === "final") return { ok: false, error: "FORBIDDEN" };
+  const seriesId = series.id;
 
   const done = await prisma.partnerRequest.updateMany({
-    where: { id: parsed.data.requestId, fromUserId: user.id, status: "pending" },
+    where: { seriesId, id: parsed.data.requestId, fromUserId: user.id, status: "pending" },
     data: { status: "withdrawn", openPairKey: null, respondedAt: new Date() },
   });
   if (done.count === 0) return { ok: false, error: "ALREADY_DECIDED" };

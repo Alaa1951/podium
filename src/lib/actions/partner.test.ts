@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
   const findProfile = vi.fn();
   const updateProfiles = vi.fn();
   return {
+    resolve: vi.fn(),
     requireRole: vi.fn(),
     can: vi.fn(),
     checkRate: vi.fn(),
@@ -28,7 +29,7 @@ const mocks = vi.hoisted(() => {
     email: vi.fn(),
     audit: vi.fn(),
     revalidate: vi.fn(),
-    tx: { athleteProfile: { updateMany: updateProfiles } },
+    tx: { $queryRaw: vi.fn(), competitor: { findFirst: vi.fn().mockResolvedValue(null) }, seriesParticipant: { updateMany: updateProfiles } },
   };
 });
 
@@ -36,7 +37,7 @@ vi.mock("@/lib/session", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/access", () => ({ can: mocks.can }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    athleteProfile: {
+    seriesParticipant: {
       findUnique: mocks.findProfile,
       updateMany: mocks.updateProfiles,
       upsert: vi.fn(),
@@ -59,12 +60,15 @@ vi.mock("@/lib/security", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 
+vi.mock("@/lib/participation", () => ({ resolveMySeries: mocks.resolve, meHref: (id: string) => "/me?series=" + id }));
+
 import { unlinkPartner } from "@/lib/actions/partner";
 
 const athlete = { id: "u-sara", name: "Sara Ali", email: "sara@example.com", role: "competitor" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.resolve.mockResolvedValue({ id: "series-1", competitionDate: new Date("2026-11-01"), teamEditCloseHours: 24 });
   mocks.requireRole.mockResolvedValue(athlete);
   mocks.can.mockReturnValue(true);
   mocks.checkRate.mockReturnValue({ ok: true });
@@ -82,69 +86,69 @@ beforeEach(() => {
 describe("who may", () => {
   it("refuses a read-only stand-in", async () => {
     mocks.requireRole.mockResolvedValue({ ...athlete, viewAs: "someone" });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "FORBIDDEN" });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("refuses somebody without partner.edit", async () => {
     mocks.can.mockReturnValue(false);
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "FORBIDDEN" });
   });
 
   it("throttles it — this sends somebody else an email", async () => {
     mocks.checkRate.mockReturnValue({ ok: false });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "TRY_LATER" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "TRY_LATER" });
   });
 
   it("does nothing when there is no partner", async () => {
     mocks.findProfile.mockResolvedValue({ partnerUserId: null });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "NOT_LINKED" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "NOT_LINKED" });
   });
 });
 
 describe("the doors", () => {
   it("hands an entered pair to staff instead", async () => {
     mocks.findCompetitor.mockResolvedValue({ id: "c1" });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "TEAM_REGISTERED" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "TEAM_REGISTERED" });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("shuts at the competition's own cutoff", async () => {
     mocks.teamEditOpen.mockReturnValue({ open: false, reason: "TEAM_EDIT_CLOSED" });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "TEAM_EDIT_CLOSED" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "TEAM_EDIT_CLOSED" });
   });
 
-  it("stays open for somebody with no competition chosen — nothing to count back from", async () => {
+  it("uses the selected competition cutoff even when the legacy choice is empty", async () => {
     mocks.findUser.mockResolvedValue({ email: "mona@example.com", requestedSeries: null });
-    expect(await unlinkPartner()).toEqual({ ok: true });
-    expect(mocks.teamEditOpen).not.toHaveBeenCalled();
+    expect(await unlinkPartner("series-1")).toEqual({ ok: true });
+    expect(mocks.teamEditOpen).toHaveBeenCalled();
   });
 });
 
 describe("unlinking", () => {
   it("clears both sides inside one transaction", async () => {
-    expect(await unlinkPartner()).toEqual({ ok: true });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: true });
     expect(mocks.transaction).toHaveBeenCalledOnce();
-    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", mocks.tx);
+    expect(mocks.unlinkPair).toHaveBeenCalledWith("u-sara", "u-mona", "series-1", mocks.tx);
   });
 
   it("claims the link conditionally, so two taps cannot half-run it", async () => {
     expect(mocks.updateProfiles).not.toHaveBeenCalled();
-    await unlinkPartner();
+    await unlinkPartner("series-1");
     expect(mocks.updateProfiles).toHaveBeenCalledWith({
-      where: { userId: "u-sara", partnerUserId: "u-mona" },
+      where: { seriesId: "series-1", userId: "u-sara", partnerUserId: "u-mona" },
       data: { partnerUserId: null },
     });
   });
 
   it("loses the race gracefully when somebody else got there first", async () => {
     mocks.updateProfiles.mockResolvedValue({ count: 0 });
-    expect(await unlinkPartner()).toEqual({ ok: false, error: "NOT_LINKED" });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: false, error: "NOT_LINKED" });
     expect(mocks.unlinkPair).not.toHaveBeenCalled();
   });
 
   it("tells the other person — nobody should find out by opening the app", async () => {
-    await unlinkPartner();
+    await unlinkPartner("series-1");
     expect(mocks.email).toHaveBeenCalledWith(
       expect.objectContaining({ email: "mona@example.com", byName: "Sara Ali" })
     );
@@ -152,7 +156,7 @@ describe("unlinking", () => {
 
   it("still stands when the email does not go out", async () => {
     mocks.email.mockRejectedValue(new Error("smtp down"));
-    expect(await unlinkPartner()).toEqual({ ok: true });
+    expect(await unlinkPartner("series-1")).toEqual({ ok: true });
     expect(mocks.audit).toHaveBeenCalled();
   });
 });

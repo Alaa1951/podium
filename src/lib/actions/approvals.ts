@@ -7,7 +7,7 @@ import { can, isBft, isStudio } from "@/lib/access";
 import { approvalScope } from "@/lib/approvals";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendSignupDecisionEmail } from "@/lib/email";
-import { enterPairIfReady, type EnterPairOutcome } from "@/lib/enter-pair";
+import { enterApprovedPairs, type EnterPairOutcome } from "@/lib/enter-pair";
 import { canAssignRole } from "@/lib/permissions/grant-policy";
 import { prisma } from "@/lib/prisma";
 import { getBaseUrl } from "@/lib/security";
@@ -160,7 +160,7 @@ export async function approveSignup(input: unknown): Promise<ApprovalResult> {
   // made, and every reason it might not be is a condition, not a fault.
   let entered: EnterPairOutcome = { entered: false, reason: "NOT_APPROVED" };
   if (accountType === "competitor") {
-    entered = await enterPairIfReady(request.id).catch((error: unknown) => {
+    entered = await enterApprovedPairs(request.id).catch((error: unknown) => {
       console.error("[APPROVALS:enter]", error);
       return { entered: false, reason: "NOT_APPROVED" } as const;
     });

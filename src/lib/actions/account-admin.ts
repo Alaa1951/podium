@@ -7,6 +7,8 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { canManageTarget } from "@/lib/permissions/grant-policy";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { competitionChoices } from "@/lib/competition-choice";
+import { ensureParticipation } from "@/lib/participation";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
@@ -42,6 +44,7 @@ const editSchema = z.object({
 /** Correct a person's name, email, account type or studio. */
 export async function updateAccount(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("users.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -77,6 +80,11 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
   const studioId = parsed.data.studioId || null;
   if (role === "studio" && !studioId) return { ok: false, error: "STUDIO_REQUIRED" };
 
+  if (role === "competitor" && parsed.data.requestedSeriesId) {
+    const event = await prisma.series.findUnique({ where: { id: parsed.data.requestedSeriesId } });
+    if (!event || !competitionChoices([event]).length) return { ok: false, error: "NOT_FOUND" };
+  }
+
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -84,13 +92,14 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
       email,
       role,
       studioId: role === "admin" || role === "staff" ? null : studioId,
-      // Only an athlete belongs to a competition this way.
-      ...(parsed.data.requestedSeriesId !== undefined
-        ? { requestedSeriesId: role === "competitor" ? parsed.data.requestedSeriesId || null : null }
-        : {}),
+      // Membership is additive; never overwrite the original signup choice.
       permissionsUpdatedAt: before.role !== role ? new Date() : undefined,
     },
   });
+
+  if (role === "competitor" && parsed.data.requestedSeriesId) {
+    await ensureParticipation(userId, parsed.data.requestedSeriesId);
+  }
 
   // What actually changed, in words — an audit line has to be readable a year
   // later by somebody who was not in the room.

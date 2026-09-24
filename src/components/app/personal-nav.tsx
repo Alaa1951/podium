@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { MobileIcon } from "@/components/app/mobile-navigation";
@@ -12,6 +12,7 @@ import {
   personalNavActivePath,
   personalNavCommonScreen,
   personalNavItems,
+  personalNavHref,
 } from "@/lib/personal-navigation";
 
 /**
@@ -28,6 +29,7 @@ import {
  */
 export function PersonalDesktopNavigation({ role, homeHref }: { role: string; homeHref?: string }) {
   const path = usePathname();
+  const seriesId = useSearchParams().get("series");
   const t = useT();
 
   // Staff and studios have the sidebar; this must not add a second bar to it.
@@ -48,7 +50,7 @@ export function PersonalDesktopNavigation({ role, homeHref }: { role: string; ho
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={personalNavHref(item.href, role, seriesId)}
             prefetch={active ? false : true}
             data-active={active || undefined}
             aria-current={active ? "page" : undefined}

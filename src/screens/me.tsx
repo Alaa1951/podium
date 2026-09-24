@@ -1,4 +1,9 @@
 import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import MyCompetitions from "@/screens/my-competitions";
+import { CompetitionPicker } from "@/components/me/competition-picker";
+import { competitionChoices } from "@/lib/competition-choice";
+import { listMySeries, resolveMySeries, meHref } from "@/lib/participation";
 
 import { ApprovalBanner } from "@/components/app/approval-banner";
 import { PlainHeader } from "@/components/app/plain-header";
@@ -28,13 +33,20 @@ export const dynamic = "force-dynamic";
  * Deliberately the whole of what a competitor account can reach. They see their
  * own team and nothing else, which is what `teamScope` already says.
  */
-export default async function MyPage(editMode = false) {
+export default async function MyPage(editMode = false, requestedSeries?: string) {
   const user = await requireRole("competitor");
   const { t, locale } = await getTranslator();
 
+  if (requestedSeries === "all") return <MyCompetitions />;
+  const series = await resolveMySeries(user.id, requestedSeries);
+  if (!series) { if (requestedSeries) notFound(); return <MyCompetitions />; }
+  if (!requestedSeries) redirect(meHref(series.id));
+  const choices = competitionChoices(await listMySeries(user.id));
+  const picker = <CompetitionPicker selected={series.id} series={choices.map(s => ({ id: s.id, name: s.name, status: s.status, isTraining: s.isTraining, date: new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Qatar", dateStyle: "medium" }).format(s.competitionDate) }))} />;
+
   // The profile an athlete filled in at sign-up: level, category, partner.
-  const profileRow = await prisma.athleteProfile.findUnique({
-    where: { userId: user.id },
+  const profileRow = await prisma.seriesParticipant.findUnique({
+    where: { seriesId_userId: { seriesId: series.id, userId: user.id } },
     select: {
       division: true,
       category: true,
@@ -43,6 +55,7 @@ export default async function MyPage(editMode = false) {
       partnerEmail: true,
       partnerPhone: true,
       partnerUserId: true,
+      partner: { select: { name: true, email: true, phone: true } },
     },
   });
   const profile: AthleteProfileDTO | null = profileRow
@@ -50,9 +63,9 @@ export default async function MyPage(editMode = false) {
         division: profileRow.division,
         category: profileRow.category,
         lookingForPartner: profileRow.lookingForPartner,
-        partnerName: profileRow.partnerName,
-        partnerEmail: profileRow.partnerEmail,
-        partnerPhone: profileRow.partnerPhone,
+        partnerName: profileRow.partner?.name ?? profileRow.partnerName,
+        partnerEmail: profileRow.partner?.email ?? profileRow.partnerEmail,
+        partnerPhone: profileRow.partner ? profileRow.partner.phone : profileRow.partnerPhone,
         partnerLinked: Boolean(profileRow.partnerUserId),
       }
     : null;
@@ -63,6 +76,7 @@ export default async function MyPage(editMode = false) {
     profile && !profile.partnerLinked
       ? await prisma.partnerRequest.count({
           where: {
+            seriesId: series.id,
             toUserId: user.id,
             status: "pending",
             from: { archivedAt: null, status: { not: "disabled" } },
@@ -77,47 +91,22 @@ export default async function MyPage(editMode = false) {
           {waitingRequests === 1
             ? t("An athlete wants to partner with you.")
             : t("{n} athletes want to partner with you.", { n: waitingRequests })}{" "}
-          <Link href="/me/partner/requests" style={{ color: "var(--bft-cyan-text)" }}>
+          <Link href={meHref(series.id, "/partner/requests")} style={{ color: "var(--bft-cyan-text)" }}>
             {t("Open your requests")}
           </Link>
         </div>
       ) : null}
-      <AthleteProfile profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
+      <AthleteProfile seriesId={series.id} profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
       {profile.lookingForPartner && !profile.partnerLinked && can(user, "partner.browse") ? (
-        <Link href="/me/partner" className="btn btn-primary" style={{ marginTop: 12 }}>
+        <Link href={meHref(series.id, "/partner")} className="btn btn-primary" style={{ marginTop: 12 }}>
           {t("Find a partner")}
         </Link>
       ) : null}
     </>
   ) : null;
 
-  // The competition they are in: the most recent one with an entry of theirs.
-  const entry = await prisma.team.findFirst({
-    where: { competitors: { some: { userId: user.id } } },
-    orderBy: { series: { competitionDate: "desc" } },
-    select: { series: { select: { id: true, slug: true, name: true, competitionDate: true, teamEditCloseHours: true, status: true, venue: true, boardOpensAt: true, resultsPublicAt: true } } },
-  });
-
-  if (!entry) {
-    return (
-      <div className="screen">
-        <PlainHeader roleLabel={user.name ?? t("Athlete")} />
-        <div className="screen-head">
-          <h1>{t("Your PODIUM")}</h1>
-        </div>
-        <ApprovalBanner userId={user.id} />
-        {profileCard}
-        <div className="notice">
-          <strong>{t("No entry found for you yet.")}</strong>{" "}
-          {t("Your studio registers your pair. It appears here as soon as they do.")}
-        </div>
-      </div>
-    );
-  }
-
-  const series = entry.series;
   const waveGrant = await prisma.zoneStaff.findFirst({
-    where: { userId: user.id, series: { status: "live" } },
+    where: { userId: user.id, seriesId: series.id, series: { status: "live" } },
     select: { id: true },
   });
   const [team, zones, everyone, waves] = await Promise.all([
@@ -149,10 +138,11 @@ export default async function MyPage(editMode = false) {
   if (!team) {
     return (
       <div className="screen">
-        <PlainHeader roleLabel={user.name ?? t("Athlete")} />
+        <PlainHeader roleLabel={`${series.name}${series.isTraining ? " · " + t("Training") : ""}`} homeHref="/me" backHref="/me?series=all" />
         <ApprovalBanner userId={user.id} />
+        {picker}
         {profileCard}
-        <div className="notice">{t("Your entry could not be found. Ask your studio to check it.")}</div>
+        <div className="notice">{t("No entry found for you yet.")}</div>
       </div>
     );
   }
@@ -180,12 +170,13 @@ export default async function MyPage(editMode = false) {
       : [];
   const mine = ranked.find((one) => one.id === team.id) ?? null;
 
-  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email}))} open={canEditTeam} editMode /></div>;
+  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor seriesId={series.id} teamId={team.id} members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email,userId:person.userId}))} open={canEditTeam} editMode /></div>;
 
   return (
     <div className="screen">
-      <PlainHeader roleLabel={user.name ?? t("Athlete")} />
+      <PlainHeader roleLabel={`${series.name}${series.isTraining ? " · " + t("Training") : ""}`} homeHref="/me" backHref="/me?series=all" />
       <ApprovalBanner userId={user.id} />
+        {picker}
 
       <div className="screen-head">
         <div>
@@ -209,7 +200,7 @@ export default async function MyPage(editMode = false) {
         <Link href="/results" className="btn btn-secondary">
           {t("Public results")}
         </Link>
-        <Link href="/me" className="btn btn-secondary">
+        <Link href={meHref(series.id)} className="btn btn-secondary">
           {t("My team")}
         </Link>
       </div>
@@ -249,7 +240,7 @@ export default async function MyPage(editMode = false) {
       {waveGrant ? (
         <div className="notice" style={{ marginBottom: 18 }}>
           <strong>{t("You have a score sheet.")}</strong>{" "}
-          <Link href="/my-wave" className="linkish">
+          <Link href={`/my-wave?series=${encodeURIComponent(series.id)}`} className="linkish">
             {t("Open your score sheet")} →
           </Link>
         </div>
@@ -306,14 +297,15 @@ export default async function MyPage(editMode = false) {
 
       {/* The portraits for the screens over the rigs. Renders nothing at all
           when the feature is switched off — the API it asks says 404. */}
-      <PortraitUpload />
+      <PortraitUpload seriesId={series.id} />
 
       {/* Correcting who stands on the team — the clock decided above. */}
-      <TeamEditor
+      <TeamEditor seriesId={series.id} teamId={team.id}
         members={team.competitors.map((person) => ({
           position: person.position,
           fullName: person.fullName,
           email: person.email,
+          userId: person.userId,
         }))}
         open={canEditTeam}
       />

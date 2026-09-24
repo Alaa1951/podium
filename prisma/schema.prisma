@@ -115,9 +115,7 @@ model User {
   /// The gym they chose at sign-up — it routes the request to that studio.
   requestedStudioId   String?
   requestedStudio     Studio?        @relation("RequestedStudio", fields: [requestedStudioId], references: [id], onDelete: SetNull)
-  /// The competition they signed up for. An athlete belongs to one before they
-  /// belong to a team — this is what puts them in front of the people whose
-  /// job is to find them a partner.
+  /// Legacy first-signup choice. Active memberships live in SeriesParticipant.
   requestedSeriesId   String?
   requestedSeries     Series?        @relation("RequestedSeries", fields: [requestedSeriesId], references: [id], onDelete: SetNull)
   /// A Gym/Studio request: the gym to create or link on approval.
@@ -163,6 +161,8 @@ model User {
   zoneScoresSubmitted     ZoneScore[]        @relation("ZoneScoreSubmittedBy")
   accessRoles             UserAccessRole[]   @relation("UserAccessRoles")
   athleteProfile          AthleteProfile?    @relation("AthleteProfileOwner")
+  seriesParticipants      SeriesParticipant[] @relation("ParticipantUser")
+  seriesPartners          SeriesParticipant[] @relation("ParticipantPartner")
   partneredProfiles       AthleteProfile[]   @relation("AthletePartner")
   partnerRequestsSent     PartnerRequest[]   @relation("PartnerRequestFrom")
   partnerRequestsReceived PartnerRequest[]   @relation("PartnerRequestTo")
@@ -246,6 +246,9 @@ enum PartnerRequestStatus {
 /// Accepting is what links the two — nothing else here writes a partnership.
 model PartnerRequest {
   id         String @id @default(cuid())
+  /// Null only for legacy requests whose competition could not be proven.
+  seriesId   String?
+  series     Series? @relation(fields: [seriesId], references: [id], onDelete: Cascade)
   fromUserId String
   toUserId   String
   from       User   @relation("PartnerRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
@@ -272,7 +275,8 @@ model PartnerRequest {
   createdAt   DateTime  @default(now())
   respondedAt DateTime?
 
-  @@unique([openPairKey])
+  @@unique([seriesId, openPairKey])
+  @@index([seriesId, status])
   @@index([toUserId, status, createdAt])
   @@index([fromUserId, status, createdAt])
   @@index([pairKey, createdAt])
@@ -519,6 +523,11 @@ model Series {
   /// Short, URL-safe, stable — so a link to a series survives a rename.
   slug     String  @unique
   isActive Boolean @default(true)
+  /// A rehearsal uses the same accounts but never grants real payment/approval.
+  isTraining Boolean @default(false)
+  /// One-time rehearsal provenance; copying again requires a deliberate new target.
+  trainingSourceId String?
+  trainingCopiedAt DateTime?
 
   competitionDate DateTime
   venue           String       @default("All studios")
@@ -610,9 +619,47 @@ model Series {
   /// has entered them in a team.
   signupRequests User[]         @relation("RequestedSeries")
   crmIntakes     CrmIntake[]
+  participants   SeriesParticipant[]
+  partnerRequests PartnerRequest[]
 
   @@index([status])
   @@index([competitionDate])
+}
+
+/// One account's participation in one competition, including before a team exists.
+/// Identity remains on User/AthleteProfile; partnering and entry choices live here.
+model SeriesParticipant {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User @relation("ParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+  archivedAt DateTime?
+  signedUpAt DateTime @default(now())
+  division Division?
+  category Category?
+  shirtSize ShirtSize?
+  bftMember Boolean @default(false)
+  lookingForPartner Boolean @default(true)
+  teamName String?
+  partnerUserId String?
+  partner User? @relation("ParticipantPartner", fields: [partnerUserId], references: [id], onDelete: SetNull)
+  partnerName String?
+  partnerEmail String?
+  partnerPhone String?
+  partnerDateOfBirth DateTime?
+  partnerSex String?
+  partnerShirtSize ShirtSize?
+  partnerBftMember Boolean @default(false)
+  partnerLinkedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([seriesId, userId])
+  @@index([userId, archivedAt])
+  @@index([seriesId, lookingForPartner, division, category])
+  @@index([seriesId, partnerEmail])
+  @@index([partnerUserId])
 }
 
 /// A studio taking part in a competition.

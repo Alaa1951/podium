@@ -1,28 +1,6 @@
 import "server-only";
-
 import type { Category, Division } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WHO STILL HAS NOBODY — the staff's view.
-//
-// `partner-directory.ts` is an ATHLETE reading another athlete: four fields,
-// no contact details, and a test that walks the select and fails if one ever
-// appears. THIS is staff reading the same people, and the whole point is a
-// phone number, because the job is to ring somebody and pair them up.
-//
-// Two modules, two selects, two tests — and nothing here imports from the
-// directory. That separation is exactly why the directory's privacy test still
-// means something: widening this file cannot widen that one.
-//
-// MEMBERSHIP OF A COMPETITION, in one place. An athlete belongs to this
-// competition's watch when either is true:
-//   • they chose it at sign-up (`requestedSeriesId`), or
-//   • somebody has already entered them in a team in it.
-// The second branch is what stops an athlete who arrived through the CRM from
-// being invisible here.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type PartnerWatchPerson = {
   userId: string;
   name: string;
@@ -57,160 +35,33 @@ export type PartnerWatch = {
   pairedNotRegistered: PartnerWatchPair[];
 };
 
-const LIMIT = 500;
 
-/** The fields staff need to act: who they are, and how to reach them. */
-const personSelect = {
-  id: true,
-  name: true,
-  email: true,
-  phone: true,
-  studio: { select: { name: true } },
-  athleteProfile: { select: { division: true, category: true } },
-} as const;
-
-type PersonRow = {
-  id: string;
-  name: string | null;
-  email: string;
-  phone: string | null;
-  studio: { name: string } | null;
-  athleteProfile: { division: Division | null; category: Category | null } | null;
-};
-
-const shape = (row: PersonRow): PartnerWatchPerson => ({
-  userId: row.id,
-  name: row.name ?? row.email,
-  email: row.email,
-  phone: row.phone,
-  division: row.athleteProfile?.division ?? null,
-  category: row.athleteProfile?.category ?? null,
-  studioName: row.studio?.name ?? null,
-});
-
-/** Everybody this competition's watch covers, before any per-list filter. */
-function inThisCompetition(seriesId: string) {
-  return {
-    role: "competitor" as const,
-    approvalStatus: "approved" as const,
-    archivedAt: null,
-    status: { not: "disabled" as const },
-    OR: [
-      { requestedSeriesId: seriesId },
-      { competitors: { some: { team: { seriesId, archivedAt: null } } } },
-    ],
-  };
-}
-
-const hasNoTeam = (seriesId: string) => ({
-  competitors: { none: { team: { seriesId, archivedAt: null } } },
-});
-
-export async function getPartnerWatch(params: {
-  seriesId: string;
-  /** A studio sees its own people; BFT MENA passes null and sees everyone. */
-  studioId: string | null;
-}): Promise<PartnerWatch> {
-  const { seriesId, studioId } = params;
-  const base = inThisCompetition(seriesId);
-  const mine = studioId ? { studioId } : {};
-
-  const [looking, unteamed, asks, paired] = await Promise.all([
-    prisma.user.findMany({
-      where: {
-        ...base,
-        ...mine,
-        athleteProfile: { is: { lookingForPartner: true, partnerUserId: null } },
-      },
-      orderBy: { name: "asc" },
-      take: LIMIT,
-      select: personSelect,
-    }),
-    prisma.user.findMany({
-      where: { ...base, ...mine, ...hasNoTeam(seriesId) },
-      orderBy: { name: "asc" },
-      take: LIMIT,
-      select: personSelect,
-    }),
-    // At least one side in this competition: "these two are talking, and one
-    // of them is mine" is the fact worth surfacing.
-    prisma.partnerRequest.findMany({
-      where: {
-        status: "pending",
-        OR: [
-          { from: { ...base, ...mine } },
-          { to: { ...base, ...mine } },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-      take: LIMIT,
-      select: {
-        id: true,
-        createdAt: true,
-        from: { select: personSelect },
-        to: { select: personSelect },
-      },
-    }),
-    // Linked to each other, neither on a team here. `userId < partnerUserId`
-    // keeps one row per pair rather than the same pair twice.
-    prisma.athleteProfile.findMany({
-      where: {
-        partnerUserId: { not: null },
-        user: { ...base, ...hasNoTeam(seriesId) },
-        // A studio sees a pair when EITHER side is its own: two athletes who
-        // found each other across studios belong to both lists, not neither.
-        ...(studioId
-          ? { OR: [{ user: { studioId } }, { partner: { studioId } }] }
-          : {}),
-        partner: { ...base, ...hasNoTeam(seriesId) },
-      },
-      orderBy: { partnerLinkedAt: "desc" },
-      take: LIMIT,
-      select: {
-        userId: true,
-        partnerUserId: true,
-        partnerLinkedAt: true,
-        user: { select: personSelect },
-        partner: { select: personSelect },
-      },
-    }),
+export async function getPartnerWatch({ seriesId, studioId }: { seriesId: string; studioId: string | null }): Promise<PartnerWatch> {
+  const [entries, seats, requests] = await Promise.all([
+    prisma.seriesParticipant.findMany({ where: { seriesId, archivedAt: null, user: { role: "competitor", approvalStatus: "approved", archivedAt: null, status: "active" } },
+      include: { user: { select: { id: true, name: true, email: true, phone: true, studioId: true, studio: { select: { name: true } } } } }, orderBy: { user: { name: "asc" } } }),
+    prisma.competitor.findMany({ where: { userId: { not: null }, team: { seriesId, archivedAt: null } }, select: { userId: true } }),
+    prisma.partnerRequest.findMany({ where: { seriesId, status: "pending" }, orderBy: { createdAt: "desc" } }),
   ]);
-
+  const teamed = new Set(seats.map(p => p.userId));
+  const byId = new Map(entries.map(p => [p.userId, p]));
+  type Entry = (typeof entries)[number];
+  const mine = (p: Entry) => !studioId || p.user.studioId === studioId;
+  const person = (p: Entry): PartnerWatchPerson => ({ userId: p.userId, name: p.user.name ?? p.user.email, email: p.user.email, phone: p.user.phone,
+    division: p.division, category: p.category, studioName: p.user.studio?.name ?? null });
   return {
-    looking: looking.map(shape),
-    unteamed: unteamed.map(shape),
-    asking: asks.map((row) => ({
-      id: row.id,
-      from: shape(row.from),
-      to: shape(row.to),
-      sentAt: row.createdAt,
-    })),
-    pairedNotRegistered: paired
-      .filter((row) => row.partnerUserId && row.userId < row.partnerUserId && row.partner)
-      .map((row) => ({
-        a: shape(row.user),
-        b: shape(row.partner!),
-        linkedAt: row.partnerLinkedAt,
-      })),
+    looking: entries.filter(p => mine(p) && p.lookingForPartner && !p.partnerUserId && !teamed.has(p.userId)).map(person),
+    unteamed: entries.filter(p => mine(p) && !teamed.has(p.userId)).map(person),
+    asking: requests.flatMap(r => { const from = byId.get(r.fromUserId), to = byId.get(r.toUserId);
+      return from && to && (mine(from) || mine(to)) ? [{ id: r.id, from: person(from), to: person(to), sentAt: r.createdAt }] : []; }),
+    pairedNotRegistered: entries.flatMap(p => {
+      const partner = p.partnerUserId ? byId.get(p.partnerUserId) : null;
+      return partner && partner.partnerUserId === p.userId && p.userId < partner.userId && !teamed.has(p.userId) && !teamed.has(partner.userId) && (mine(p) || mine(partner))
+        ? [{ a: person(p), b: person(partner), linkedAt: p.partnerLinkedAt }] : [];
+    }),
   };
 }
 
-/**
- * How many pairs are waiting to be entered — the badge on the menu.
- *
- * This is the list that costs a competition entries if nobody looks at it:
- * two people who agreed, and nothing happened.
- */
-export async function countPairedNotRegistered(seriesId: string): Promise<number> {
-  const base = inThisCompetition(seriesId);
-  const rows = await prisma.athleteProfile.findMany({
-    where: {
-      partnerUserId: { not: null },
-      user: { ...base, ...hasNoTeam(seriesId) },
-      partner: { ...base, ...hasNoTeam(seriesId) },
-    },
-    select: { userId: true, partnerUserId: true },
-    take: LIMIT,
-  });
-  return rows.filter((row) => row.partnerUserId && row.userId < row.partnerUserId).length;
+export async function countPairedNotRegistered(seriesId: string) {
+  return (await getPartnerWatch({ seriesId, studioId: null })).pairedNotRegistered.length;
 }

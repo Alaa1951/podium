@@ -49,9 +49,10 @@ export const CANDIDATES_PER_PAGE = 25;
  * is not a promise never to change your mind, and the person who declined
  * keeps the right to ask later.
  */
-async function relatedIds(userId: string): Promise<string[]> {
+async function relatedIds(userId: string, seriesId: string): Promise<string[]> {
   const rows = await prisma.partnerRequest.findMany({
     where: {
+      seriesId,
       OR: [{ fromUserId: userId }, { toUserId: userId }],
       status: { in: ["pending", "accepted", "declined"] },
     },
@@ -76,15 +77,16 @@ async function relatedIds(userId: string): Promise<string[]> {
  * that cannot be entered.
  */
 export async function listPartnerCandidates(params: {
-  me: { id: string; division: Division; category: Category };
+  me: { id: string; seriesId: string; division: Division; category: Category };
   /** Name search. Empty string means no search. */
   query: string;
   page: number;
 }): Promise<PartnerCandidatePage> {
   const search = params.query.trim();
-  const excluded = await relatedIds(params.me.id);
+  const excluded = await relatedIds(params.me.id, params.me.seriesId);
 
   const where = {
+    seriesId: params.me.seriesId, archivedAt: null,
     // The three columns of @@index([lookingForPartner, division, category]),
     // all as equality, which is the whole reason that index exists.
     lookingForPartner: true,
@@ -106,7 +108,7 @@ export async function listPartnerCandidates(params: {
   };
 
   const [rows, total] = await Promise.all([
-    prisma.athleteProfile.findMany({
+    prisma.seriesParticipant.findMany({
       where,
       orderBy: { user: { name: "asc" } },
       skip: Math.max(0, params.page) * CANDIDATES_PER_PAGE,
@@ -118,7 +120,7 @@ export async function listPartnerCandidates(params: {
         user: { select: { name: true, studio: { select: { name: true } } } },
       },
     }),
-    prisma.athleteProfile.count({ where }),
+    prisma.seriesParticipant.count({ where }),
   ]);
 
   return {
@@ -141,11 +143,12 @@ export async function listPartnerCandidates(params: {
  * when a request is sent, so knowing an id from anywhere else buys nothing.
  */
 export async function partnerCandidateExists(params: {
-  me: { id: string; division: Division; category: Category };
+  me: { id: string; seriesId: string; division: Division; category: Category };
   toUserId: string;
 }): Promise<boolean> {
-  const found = await prisma.athleteProfile.findFirst({
+  const found = await prisma.seriesParticipant.findFirst({
     where: {
+      seriesId: params.me.seriesId, archivedAt: null,
       userId: params.toUserId,
       lookingForPartner: true,
       division: params.me.division,

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { sendAlreadyRegisteredEmail, sendOtpEmail } from "@/lib/email";
 import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
+import { competitionChoices } from "@/lib/competition-choice";
 import { listOpenSignupSeries } from "@/lib/queries";
 import { checkRate, MINUTE_MS } from "@/lib/rate-limit";
 import { SHIRT_SIZES } from "@/lib/shirt-sizes";
@@ -145,21 +146,11 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   // the server knows whether any are on offer: with none open the field is
   // not rendered and must not be demanded.
   const athleteSignup = data.type === "athlete";
-  const seriesId = data.seriesId
-    ? (
-        await prisma.series.findFirst({
-          where: {
-            id: data.seriesId,
-            signupOpen: true,
-            status: { in: ["scheduled", "live"] },
-            archivedAt: null,
-            isActive: true,
-          },
-          select: { id: true },
-        })
-      )?.id ?? null
-    : null;
-  if (athleteSignup && !seriesId && (await listOpenSignupSeries()).length > 0) {
+  const requestedSeries = data.seriesId ? await prisma.series.findFirst({
+    where: { id: data.seriesId, signupOpen: true, isTraining: false, status: { in: ["scheduled", "live"] }, archivedAt: null, isActive: true },
+  }) : null;
+  const seriesId = requestedSeries && competitionChoices([requestedSeries]).length ? requestedSeries.id : null;
+  if (athleteSignup && !seriesId && (data.seriesId || (await listOpenSignupSeries()).length > 0)) {
     return { ok: false, error: "COMPETITION_REQUIRED" };
   }
 
@@ -234,6 +225,17 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
     });
   } else {
     await prisma.athleteProfile.deleteMany({ where: { userId: user.id } });
+  }
+
+  if (athlete && seriesId && profile) {
+    const entryFields = { ...profile, dateOfBirth: undefined, sex: undefined };
+    delete entryFields.dateOfBirth;
+    delete entryFields.sex;
+    await prisma.seriesParticipant.upsert({
+      where: { seriesId_userId: { seriesId, userId: user.id } },
+      create: { seriesId, userId: user.id, ...entryFields },
+      update: entryFields,
+    });
   }
 
   // The code is a sign-in code: typing it in proves the address and signs in.
