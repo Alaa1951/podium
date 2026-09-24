@@ -104,6 +104,7 @@ describe("one key, one file", () => {
       "ar-access": (await import("@/lib/i18n/ar-access")).AR_ACCESS,
       "ar-floor": (await import("@/lib/i18n/ar-floor")).AR_FLOOR,
       "ar-signup": (await import("@/lib/i18n/ar-signup")).AR_SIGNUP,
+      "ar-wave-schedule": (await import("@/lib/i18n/ar-wave-schedule")).AR_WAVE_SCHEDULE,
     };
 
     // Only CONFLICTING duplicates are flagged. The same phrase written

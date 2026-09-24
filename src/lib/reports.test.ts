@@ -24,6 +24,8 @@ const { getSeriesReport } = await import("@/lib/reports");
 function team(over: Record<string, unknown> = {}) {
   return {
     id: "t",
+    category: "Mens",
+    division: "Rookie",
     paymentStatus: "paid",
     waitlistedAt: null,
     attendedAt: null,
@@ -115,5 +117,21 @@ describe("the field and the queue", () => {
   it("leaves a gap in the payment states exactly the size of the queue", async () => {
     const report = await getSeriesReport("series-1");
     expect(report.registered - (report.paid + report.pending + report.refunded)).toBe(report.waiting);
+  });
+});
+
+describe("category totals", () => {
+  it("counts field teams regardless of payment, excludes waiting, and includes empty levels", async () => {
+    mocks.teams.mockResolvedValue([
+      team(), team({ paymentStatus: "pending" }), team({ waitlistedAt: new Date() }),
+      team({ category: "Mixed", division: "Open" }), team({ category: "Womens", division: "Pro" }),
+    ]);
+    const report = await getSeriesReport("series-1");
+    expect(report.byCategory.map(c => [c.category, c.total, c.levels.map(l => [l.division, l.count])])).toEqual([
+      ["Mens", 2, [["Rookie", 2], ["Open", 0], ["Pro", 0]]],
+      ["Mixed", 1, [["Rookie", 0], ["Open", 1], ["Pro", 0]]],
+      ["Womens", 1, [["Rookie", 0], ["Open", 0], ["Pro", 1]]],
+    ]);
+    expect(report.byCategory.reduce((sum, c) => sum + c.total, 0)).toBe(report.inField);
   });
 });

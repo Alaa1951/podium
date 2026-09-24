@@ -41,13 +41,14 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
 
       <WaveBoard
         seriesId={series.id}
-        teams={teams.map((team) => ({
+        teams={teams.filter(team => !team.waitlistedAt).map((team) => ({
           id: team.id,
           number: team.number,
           name: team.name,
           category: team.category,
           division: team.division,
           wave: team.wave,
+          waveId: team.waveId,
           station: team.station,
           competitors: team.competitors.map((person) => ({
             id: person.id,
@@ -59,6 +60,7 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
         studios={studios.map((studio) => ({ id: studio.id, name: studio.name }))}
         waveMinutes={series.waveMinutes}
         waveCapacity={series.waveCapacity}
+        canRebuild={series.status === "scheduled" && waves.every(wave => wave.status === "pending")}
         detailId={detailId}
         editMode={editMode}
         isAdmin={can(user, "waves.edit") && !user.viewAs}

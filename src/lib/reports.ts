@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { isCompeting } from "@/lib/team-status";
+import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE FIGURES BFT MENA ACTUALLY ASKS FOR.
@@ -27,6 +28,7 @@ import { isCompeting } from "@/lib/team-status";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type SeriesReport = {
+  byCategory: { category: string; total: number; levels: { division: string; count: number }[] }[];
   registered: number;
   paid: number;
   pending: number;
@@ -64,6 +66,8 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
       where: { seriesId, archivedAt: null },
       select: {
         id: true,
+        category: true,
+        division: true,
         paymentStatus: true,
         waitlistedAt: true,
         attendedAt: true,
@@ -104,6 +108,13 @@ export async function getSeriesReport(seriesId: string): Promise<SeriesReport> {
   const members = competitors.filter((person) => person.studioId !== null).length;
 
   return {
+    byCategory: SCHEDULE_CATEGORIES.map(category => ({
+      category,
+      total: inField.filter(team => team.category === category).length,
+      levels: SCHEDULE_DIVISIONS.map(division => ({ division,
+        count: inField.filter(team => team.category === category && team.division === division).length,
+      })),
+    })),
     registered: teams.length,
     paid: paid.length,
     // IN THE FIELD and unpaid. A waiting entry that has not paid is not

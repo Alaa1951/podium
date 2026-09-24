@@ -11,6 +11,7 @@ export type SetupTeam = {
   category: string;
   division: string;
   wave: number;
+  waveId: string | null;
   /** 1–9: where the team stands in every zone of its wave. */
   station: number | null;
   competitors: { id: string; fullName: string; studioId: string | null }[];
@@ -91,7 +92,7 @@ export function TeamRow({
         <span className="pd-num" style={{ color: "var(--text-secondary)", fontSize: 13 }}>
           {team.number}
         </span>
-        {onStation ? (
+        {onStation && team.waveId ? (
           <select
             className="input pd-num"
             aria-label={`${team.name} ${t("Station")}`}
@@ -157,11 +158,12 @@ export function TeamRow({
       <select
         className="input pd-num"
         aria-label={`${team.name} ${t("Wave")}`}
-        value={team.wave}
+        value={team.waveId ? team.wave : ""}
         disabled={pending}
         onChange={(e) => onMove(team.id, Number(e.target.value))}
         style={{ width: 66, flex: "none", padding: "3px 6px", fontSize: 13 }}
       >
+        <option value="" disabled>{t("Unassigned")}</option>
         {pickable.map((n) => (
           <option key={n} value={n}>
             {n}

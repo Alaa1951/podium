@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { FilterSheet } from "@/components/app/filter-sheet";
+import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 
 /**
  * One search box and four filters, all of them in the URL.
@@ -14,6 +15,8 @@ import { FilterSheet } from "@/components/app/filter-sheet";
  * "12 awaiting payment" has to land on those twelve.
  */
 export function RegisteredFilters({
+  category = "all",
+  division = "all",
   query,
   payment,
   place,
@@ -22,6 +25,8 @@ export function RegisteredFilters({
   showing,
   total,
 }: {
+  category?: string;
+  division?: string;
   query: string;
   payment: string;
   /** A place in the field, or the waiting list. NOT a payment state. */
@@ -64,7 +69,7 @@ export function RegisteredFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
-  const clear = query || payment !== "all" || place !== "all" || membership !== "all" || wave !== "all";
+  const clear = query || category !== "all" || division !== "all" || payment !== "all" || place !== "all" || membership !== "all" || wave !== "all";
 
   return (
     <div className="reg-filters">
@@ -78,7 +83,12 @@ export function RegisteredFilters({
         style={{ flex: "1 1 260px", minWidth: 0 }}
       />
 
-      <FilterSheet><Select
+      <FilterSheet>
+      <Select label={t("Category")} value={category} onChange={value => apply({ category: value })}
+        options={[{ value: "all", label: t("All categories") }, ...SCHEDULE_CATEGORIES.map(value => ({ value, label: t(value) }))]} />
+      <Select label={t("Level")} value={division} onChange={value => apply({ division: value })}
+        options={[{ value: "all", label: t("All levels") }, ...SCHEDULE_DIVISIONS.map(value => ({ value, label: t(value) }))]} />
+      <Select
         label={t("Payment")}
         value={payment}
         onChange={(value) => apply({ payment: value })}
@@ -138,7 +148,7 @@ export function RegisteredFilters({
             disabled={pending}
             onClick={() => {
               setText("");
-              apply({ q: "", payment: "all", place: "all", membership: "all", wave: "all" });
+              apply({ q: "", category: "all", division: "all", payment: "all", place: "all", membership: "all", wave: "all" });
             }}
             style={{ marginInlineStart: 8 }}
           >

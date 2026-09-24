@@ -105,7 +105,7 @@ export function WaveCard({
             : ""}
         </div>
 
-        {isAdmin ? (
+        {isAdmin && wave.status === "pending" ? (
           <div style={{ display: "flex", gap: 6 }}>
             <button type="button" className="chip-sm" disabled={pending} onClick={onToggleSettings}>
               {editing ? t("Close") : t("Settings")}
@@ -154,7 +154,6 @@ export function WaveCard({
 }
 
 export function OrphanCard({
-  number,
   inWave,
   stations,
   grid,
@@ -182,8 +181,7 @@ export function OrphanCard({
         <span className="badge badge-warn">{t("Not in the running order")}</span>
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           {t(
-            "These teams point at Wave {n}, which is not in the running order. Add that wave, or move them.",
-            { n: number }
+            "These teams have not been assigned to a wave. Choose a wave to place them."
           )}
         </div>
       </div>

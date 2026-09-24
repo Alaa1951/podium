@@ -10,6 +10,7 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
 import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
+import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
@@ -147,7 +148,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
     );
   }
 
-  const wave = waves.find((one) => one.number === team.wave) ?? null;
+  const wave = !team.waitlistedAt && team.waveId ? waves.find((one) => one.id === team.waveId) ?? null : null;
   const status = teamStatus(team);
 
   // Correcting who stands on the team — open until the series' own cutoff,
@@ -274,6 +275,9 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           </span>
         </div>
       </div>
+
+      <WaveChangePanel teamId={team.id} userId={user.id} readOnly={!!user.viewAs || !can(user, "athleteHome.view")}
+        eligible={wave?.status === "pending" && series.status !== "final" && !series.archivedAt} />
 
       <div className="console-group-title" style={{ marginTop: 26 }}>
         {t("Your pair")}

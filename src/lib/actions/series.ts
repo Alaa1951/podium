@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { scheduleTransaction } from "@/lib/wave-schedule-db";
+import { ScheduleError, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { waveLengthMinutes } from "@/lib/floor";
@@ -118,7 +120,8 @@ const settingsSchema = z.object({
   name: z.string().trim().min(2).max(120),
   competitionDate: z.string().min(1),
   venue: z.string().trim().min(1).max(120),
-  firstWaveTime: z.string().regex(/^\d{2}:\d{2}$/),
+  firstWaveTime: z.string().regex(TIME_PATTERN),
+  waveIntervalMinutes: z.coerce.number().int().min(1).max(1440).default(20),
   // One team per station: never more than nine.
   waveCapacity: z.coerce.number().int().min(1).max(9),
   zoneWorkMinutes: z.coerce.number().int().min(1).max(60),
@@ -145,6 +148,7 @@ const whenever = (value: string | undefined) => {
 /** Everything about a competition that is a setting rather than a fact. */
 export async function updateSeriesSettings(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("settings.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -167,39 +171,46 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
     waveLengthMinutes({ workMinutes: data.zoneWorkMinutes, breakMinutes: data.zoneBreakMinutes, zoneCount })
   );
 
-  await prisma.series.update({
-    where: { id: seriesId },
-    data: {
-      name: data.name,
-      slug: await uniqueSlug(data.name, seriesId),
-      competitionDate: date,
-      venue: data.venue,
-      firstWaveTime: data.firstWaveTime,
-      waveMinutes,
-      waveCapacity: data.waveCapacity,
-      zoneWorkMinutes: data.zoneWorkMinutes,
-      zoneBreakMinutes: data.zoneBreakMinutes,
-      boardOpensAt: whenever(data.boardOpensAt),
-      signupOpen: data.signupOpen,
-      registrationClosesAt: whenever(data.registrationClosesAt),
-      registrationsFinalAt: whenever(data.registrationsFinalAt),
-      scoreEntryClosesAt: whenever(data.scoreEntryClosesAt),
-      resultsPublicAt: whenever(data.resultsPublicAt),
-      championsAnnouncedAt: whenever(data.championsAnnouncedAt),
-      teamEditCloseHours: data.teamEditCloseHours,
-      showTeamName: data.showTeamName,
-      showCompetitorNames: data.showCompetitorNames,
-      showStudioColumn: data.showStudioColumn,
-    },
-  });
+  try {
+    await scheduleTransaction(seriesId, async tx => {
+      if (await tx.team.count({ where: { seriesId, waveRef: { status: "pending" }, station: { gt: data.waveCapacity } } })) throw new ScheduleError("BEYOND_CAPACITY");
+      await tx.series.update({
+        where: { id: seriesId },
+        data: {
+          name: data.name,
+          slug: await uniqueSlug(data.name, seriesId),
+          competitionDate: date,
+          venue: data.venue,
+          firstWaveTime: data.firstWaveTime,
+          waveIntervalMinutes: data.waveIntervalMinutes,
+          waveMinutes,
+          waveCapacity: data.waveCapacity,
+          zoneWorkMinutes: data.zoneWorkMinutes,
+          zoneBreakMinutes: data.zoneBreakMinutes,
+          boardOpensAt: whenever(data.boardOpensAt),
+          signupOpen: data.signupOpen,
+          registrationClosesAt: whenever(data.registrationClosesAt),
+          registrationsFinalAt: whenever(data.registrationsFinalAt),
+          scoreEntryClosesAt: whenever(data.scoreEntryClosesAt),
+          resultsPublicAt: whenever(data.resultsPublicAt),
+          championsAnnouncedAt: whenever(data.championsAnnouncedAt),
+          teamEditCloseHours: data.teamEditCloseHours,
+          showTeamName: data.showTeamName,
+          showCompetitorNames: data.showCompetitorNames,
+          showStudioColumn: data.showStudioColumn,
+        },
+      });
 
-  // Length and capacity belong to the competition, not to each wave —
-  // changing them here restamps every wave not yet on the floor. A wave that
-  // has started keeps the clock it started with.
-  await prisma.wave.updateMany({
-    where: { seriesId, status: "pending" },
-    data: { durationMinutes: waveMinutes, capacity: data.waveCapacity },
-  });
+      // Length and capacity belong to the competition, not to each wave —
+      // changing them here restamps every wave not yet on the floor. A wave that
+      // has started keeps the clock it started with.
+      await tx.wave.updateMany({
+        where: { seriesId, status: "pending" },
+        data: { durationMinutes: waveMinutes, capacity: data.waveCapacity },
+      });
+
+    });
+  } catch (error) { return scheduleError(error); }
 
   await recordAudit({
     actorId: actor.id,

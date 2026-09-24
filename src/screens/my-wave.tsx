@@ -6,6 +6,8 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { SheetRefresher } from "@/components/floor/sheet-refresher";
 import { ZoneEntryCard, type ZoneEntryTeam } from "@/components/floor/zone-entry-card";
 import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
+import { WaveChangePanel } from "@/components/me/wave-change-panel";
+import { can } from "@/lib/access";
 import { hasReachedZone, waveInZone, wavePosition, type FloorTiming } from "@/lib/floor";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
@@ -61,11 +63,11 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
               <dt>{t("Team")}</dt>
               <dd>{team.name}</dd>
               <dt>{t("Wave")}</dt>
-              <dd>{team.wave}</dd>
+              <dd>{!team.waitlistedAt ? team.waveRef?.number ?? "—" : "—"}</dd>
               <dt>{t("Station")}</dt>
               <dd>{team.station ?? "—"}</dd>
-              <dt>{t("Start time")}</dt>
-              <dd>{team.waveRef?.startTime ?? "—"}</dd>
+              <dt>{t("Expected start time")}</dt>
+              <dd>{!team.waitlistedAt ? team.waveRef?.startTime ?? "—" : "—"}</dd>
               <dt>{t("Status")}</dt>
               <dd>{t(team.waveRef?.status ?? "pending")}</dd>
               <dt>{t("Venue")}</dt>
@@ -74,6 +76,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
             <Link className="btn btn-primary" href={meHref(team.seriesId)}>
               {t("My team")}
             </Link>
+            <WaveChangePanel teamId={team.id} userId={user.id} readOnly={!!user.viewAs || !can(user, "athleteHome.view")}
+              eligible={!team.waitlistedAt && team.waveRef?.status === "pending" && team.series.status !== "final" && !team.series.archivedAt} />
           </article>
         ) : (
           <p className="notice">{t("No entry found for you yet.")}</p>

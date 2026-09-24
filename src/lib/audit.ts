@@ -12,6 +12,10 @@ import { getIpFromHeaders } from "@/lib/security";
 // here is best-effort and swallows its own errors after logging them.
 
 export const AUDIT = {
+  waveScheduleChanged: "wave.schedule_changed",
+  waveChangeRequested: "wave.change_requested",
+  waveChangeApproved: "wave.change_approved",
+  waveChangeRejected: "wave.change_rejected",
   accountInvited: "account.invited",
   accountReinvited: "account.reinvited",
   accountEnabled: "account.enabled",

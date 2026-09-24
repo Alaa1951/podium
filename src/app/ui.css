@@ -1111,3 +1111,28 @@ select.input { cursor: pointer; }
 @media (max-width: 560px) {
   .team-entry-photo { width: 64px; }
 }
+
+/* Competition field, schedule requests and approvals. */
+.category-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.category-stats .stat-card > a { display: grid; color: inherit; text-decoration: none; }
+.category-stats-levels { display: grid; gap: 10px; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+.category-stats-levels a { display: flex; justify-content: space-between; gap: 12px; color: inherit; }
+.approval-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.wave-request-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 20px; }
+.wave-request-filters label { flex: 1 1 180px; min-width: 0; }
+.wave-change-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 20px; }
+.wave-request-card { padding: 20px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.wave-request-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wave-request-heading h2 { overflow-wrap: anywhere; }
+.wave-request-actions, .wave-change-form { display: grid; gap: 12px; }
+.wave-change-panel { margin-top: 24px; }
+.wave-change-form { margin-top: 16px; max-width: 560px; }
+.wave-request-history { display: grid; gap: 12px; margin-top: 20px; }
+.wave-request-history article { padding-block: 12px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.wave-request-history .badge { margin-inline-end: 12px; }
+.wave-request-actions textarea, .wave-change-form textarea { width: 100%; resize: vertical; }
+@media (max-width: 640px) {
+  .category-stats { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .wave-request-filters > *, .wave-request-actions .btn { width: 100%; }
+  .wave-request-card { padding: 16px; }
+}

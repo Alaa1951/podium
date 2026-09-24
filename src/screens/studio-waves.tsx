@@ -34,8 +34,9 @@ export default async function StudioWavesPage(
         seriesId: series.id,
         studioId: user.studioId ?? "__none__",
         archivedAt: null,
+        waitlistedAt: null,
       },
-      select: { id: true, name: true, number: true, wave: true, paymentStatus: true },
+      select: { id: true, name: true, number: true, wave: true, waveId: true, paymentStatus: true },
       orderBy: { number: "asc" },
     }),
   ]);
@@ -47,10 +48,10 @@ export default async function StudioWavesPage(
         ? t("Finished")
         : t("Upcoming");
 
-  const unassigned = teams.filter((team) => !team.wave);
+  const unassigned = teams.filter((team) => !team.waveId);
 
   if(detailId && !waves.some(wave=>wave.id===detailId)) notFound();
-  if(detailId){const wave=waves.find(wave=>wave.id===detailId)!;return <div className="screen mobile-detail"><h1>{t("Wave")} {wave.number}</h1><dl><dt>{t("Estimated start")}</dt><dd>{wave.startTime}</dd><dt>{t("Status")}</dt><dd>{statusLabel(wave.status)}</dd></dl><h2>{t("Your teams")}</h2>{teams.filter(team=>team.wave===wave.number).map(team=><DetailLink key={team.id} href={`/studio/${slug}/teams/${team.id}`}><strong>{team.number}. {team.name}</strong></DetailLink>)}</div>;}
+  if(detailId){const wave=waves.find(wave=>wave.id===detailId)!;return <div className="screen mobile-detail"><h1>{t("Wave")} {wave.number}</h1><dl><dt>{t("Estimated start")}</dt><dd>{wave.startTime}</dd><dt>{t("Status")}</dt><dd>{statusLabel(wave.status)}</dd></dl><h2>{t("Your teams")}</h2>{teams.filter(team=>team.waveId===wave.id).map(team=><DetailLink key={team.id} href={`/studio/${slug}/teams/${team.id}`}><strong>{team.number}. {team.name}</strong></DetailLink>)}</div>;}
   return (
     <div className="screen">
       <div className="screen-head">
@@ -78,7 +79,7 @@ export default async function StudioWavesPage(
           </thead>
           <tbody>
             {waves.map((wave) => {
-              const mine = teams.filter((team) => team.wave === wave.number);
+              const mine = teams.filter((team) => team.waveId === wave.id);
               return (
                 <tr key={wave.id}>
                   <td className="pd-num">{wave.number}</td>

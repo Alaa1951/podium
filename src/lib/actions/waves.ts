@@ -7,8 +7,11 @@ import { MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireAccess } from "@/lib/session";
+import { ScheduleError, scheduledTime, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
+import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
 import { deletionGuard } from "@/lib/series-guard";
-import { fillFinisherTimes, floorTimingFor, waveLengthFor } from "@/lib/wave-clock";
+import type { Prisma } from "@/generated/prisma/client";
+import { fillFinisherTimes, waveLengthFor } from "@/lib/wave-clock";
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -32,93 +35,51 @@ const waveSchema = z.object({
 export async function controlWave(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waveControl.control");
   if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
-
   const parsed = waveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const found = await prisma.wave.findUnique({ where: { id: parsed.data.waveId }, select: { seriesId: true } });
+  if (!found) return { ok: false, error: "NOT_FOUND" };
+  const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data));
+  if (!result.ok) return result;
+  await recordAudit({ actorId: actor.id, action: AUDIT.waveControlled, targetType: "event", targetId: found.seriesId,
+    detail: "wave=" + parsed.data.waveId + " action=" + parsed.data.action });
+  revalidateCompetitionViews();
+  return { ok: true };
+}
 
-  const wave = await prisma.wave.findUnique({
-    where: { id: parsed.data.waveId },
-    include: {
-      series: { select: { status: true } },
-      teams: { where: { archivedAt: null }, select: { station: true } },
-    },
-  });
-  if (!wave) return { ok: false, error: "NOT_FOUND" };
-
+async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof waveSchema>): Promise<ActionResult> {
+  const wave = await tx.wave.findUnique({ where: { id: input.waveId }, include: {
+    series: true, teams: { where: { archivedAt: null, waitlistedAt: null }, select: { station: true } },
+  } });
+  if (!wave || wave.series.archivedAt) return { ok: false, error: "NOT_FOUND" };
   const now = new Date();
-  let detail = "";
-
-  switch (parsed.data.action) {
+  switch (input.action) {
     case "start": {
       if (wave.series.status !== "live") return { ok: false, error: "SERIES_NOT_LIVE" };
       if (wave.status !== "pending") return { ok: false, error: "ALREADY_STARTED" };
-      // Starting an empty wave would put a clock on an empty floor.
-      if (wave.teams.length === 0) return { ok: false, error: "NO_TEAMS" };
-      if (wave.teams.length > MAX_STATIONS || wave.teams.some((team) => team.station === null)) {
-        return { ok: false, error: "STATIONS_MISSING" };
-      }
-
-      const timing = await floorTimingFor(wave.seriesId);
-      if (timing.zoneCount === 0) return { ok: false, error: "NO_ZONES" };
-
-      // Zone 1 must be free: waves stay one zone apart, so two never meet.
-      const running = await prisma.wave.findMany({
-        where: { seriesId: wave.seriesId, status: "running", NOT: { id: wave.id } },
-        select: { startedAt: true },
-      });
+      if (!wave.teams.length) return { ok: false, error: "NO_TEAMS" };
+      if (wave.teams.length > wave.capacity || wave.teams.length > MAX_STATIONS || wave.teams.some(team => team.station === null)) return { ok: false, error: "STATIONS_MISSING" };
+      const timing = { workMinutes: wave.series.zoneWorkMinutes, breakMinutes: wave.series.zoneBreakMinutes,
+        zoneCount: await tx.zone.count({ where: { seriesId: wave.seriesId } }) };
+      if (!timing.zoneCount) return { ok: false, error: "NO_ZONES" };
+      const running = await tx.wave.findMany({ where: { seriesId: wave.seriesId, status: "running", NOT: { id: wave.id } }, select: { startedAt: true } });
       const freeAt = zoneOneFreeAt(running, timing, now);
       if (freeAt) return { ok: false, error: "ZONE_OCCUPIED", freeInMs: freeAt.getTime() - now.getTime() };
-
       const minutes = waveLengthFor(timing);
-      const started = await prisma.wave.updateMany({
-        where: { id: wave.id, status: "pending" },
-        data: {
-          status: "running",
-          durationMinutes: minutes,
-          startedAt: now,
-          endsAt: new Date(now.getTime() + minutes * 60_000),
-        },
-      });
-      if (started.count === 0) return { ok: false, error: "ALREADY_STARTED" };
-      detail = `${minutes} min, ${timing.zoneCount} zones`;
+      await tx.wave.update({ where: { id: wave.id }, data: { status: "running", durationMinutes: minutes, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000) } });
       break;
     }
     case "finish": {
       if (wave.status !== "running") return { ok: false, error: "NOT_RUNNING" };
-      // "End now" is for emergencies. Every team that competed without being
-      // stopped keeps the time the wave had left at this instant.
-      const remainingMs = Math.max(0, (wave.endsAt?.getTime() ?? now.getTime()) - now.getTime());
-      const filled = await prisma.$transaction(async (tx) => {
-        const done = await tx.wave.updateMany({
-          where: { id: wave.id, status: "running" },
-          data: { status: "complete", endsAt: now },
-        });
-        return done.count === 1 ? fillFinisherTimes(tx, wave, remainingMs) : 0;
-      });
-      detail = `ended early with ${Math.round(remainingMs / 1000)}s left${filled ? `; finisher time recorded for ${filled}` : ""}`;
+      const remaining = Math.max(0, (wave.endsAt?.getTime() ?? now.getTime()) - now.getTime());
+      await tx.wave.update({ where: { id: wave.id }, data: { status: "complete", endsAt: now } });
+      await fillFinisherTimes(tx, wave, remaining);
       break;
     }
-    case "reset": {
-      // Back to not-yet-run. Scores already entered are untouched: this is a
-      // correction to the schedule, never to the results.
-      await prisma.wave.update({
-        where: { id: wave.id },
-        data: { status: "pending", startedAt: null, endsAt: null },
-      });
+    case "reset":
+      await tx.wave.update({ where: { id: wave.id }, data: { status: "pending", startedAt: null, endsAt: null } });
       break;
-    }
   }
-
-  await recordAudit({
-    actorId: actor.id,
-    action: AUDIT.waveControlled,
-    targetType: "event",
-    targetId: wave.seriesId,
-    targetLabel: `Wave ${wave.number}`,
-    detail: `wave=${wave.number} action=${parsed.data.action}${detail ? ` ${detail}` : ""}`,
-  });
-
-  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -126,7 +87,7 @@ const waveSaveSchema = z.object({
   seriesId: z.string().min(1),
   waveId: z.string().min(1).optional(),
   number: z.coerce.number().int().min(1).max(99),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  startTime: z.string().regex(TIME_PATTERN).optional(),
 });
 
 /**
@@ -136,37 +97,54 @@ const waveSaveSchema = z.object({
  * change in Settings reaches every wave at once.
  */
 export async function saveWave(input: unknown): Promise<ActionResult> {
-  await requireAccess("waves.edit");
-
+  const actor = await requireAccess("waves.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
   const parsed = waveSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId, waveId, number, startTime } = parsed.data;
+  try {
+    await scheduleTransaction(seriesId, async (tx) => {
+      const series = await tx.series.findUnique({ where: { id: seriesId } });
+      if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
+      if (series.status === "final") throw new ScheduleError("SERIES_FINISHED");
+      const clash = await tx.wave.findFirst({ where: { seriesId, number, ...(waveId ? { NOT: { id: waveId } } : {}) } });
+      if (clash) throw new ScheduleError("WAVE_NUMBER_TAKEN");
+      if (waveId) {
+        const wave = await tx.wave.findFirst({ where: { id: waveId, seriesId } });
+        if (!wave) throw new ScheduleError("NOT_FOUND");
+        if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
+        if (!startTime) throw new ScheduleError("INVALID_INPUT");
+        await tx.wave.update({ where: { id: wave.id }, data: { number, startTime } });
+        await tx.team.updateMany({ where: { waveId: wave.id }, data: { wave: number } });
+      } else {
+        const wave = await waveRowFor(tx, seriesId, number);
+        if (startTime) await tx.wave.update({ where: { id: wave.id }, data: { startTime } });
+      }
+    });
+  } catch (error) { return scheduleError(error); }
+  await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: seriesId,
+    detail: "wave=" + number + (startTime ? " start=" + startTime : " created") });
+  revalidateCompetitionViews();
+  return { ok: true };
+}
 
-  const clash = await prisma.wave.findFirst({
-    where: { seriesId, number, ...(waveId ? { NOT: { id: waveId } } : {}) },
-    select: { id: true },
-  });
-  if (clash) return { ok: false, error: "WAVE_NUMBER_TAKEN" };
-
-  const series = await prisma.series.findUnique({
-    where: { id: seriesId },
-    select: { waveMinutes: true, waveCapacity: true },
-  });
-  if (!series) return { ok: false, error: "NOT_FOUND" };
-
-  const fields = {
-    number,
-    startTime,
-    durationMinutes: series.waveMinutes,
-    capacity: series.waveCapacity,
-  };
-
-  if (waveId) {
-    await prisma.wave.update({ where: { id: waveId }, data: fields });
-  } else {
-    await prisma.wave.create({ data: { seriesId, ...fields } });
-  }
-
+export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
+  const actor = await requireAccess("waves.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const { seriesId } = parsed.data;
+  try {
+    await scheduleTransaction(seriesId, async (tx) => {
+      const series = await tx.series.findUnique({ where: { id: seriesId } });
+      if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
+      const waves = await tx.wave.findMany({ where: { seriesId }, orderBy: { number: "asc" } });
+      if (series.status !== "scheduled" || waves.some(w => w.status !== "pending")) throw new ScheduleError("WAVE_STARTED");
+      const times = waves.map((wave, index) => ({ id: wave.id, startTime: scheduledTime(series.firstWaveTime, series.waveIntervalMinutes, index) }));
+      for (const time of times) await tx.wave.update({ where: { id: time.id }, data: { startTime: time.startTime } });
+    });
+  } catch (error) { return scheduleError(error); }
+  await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: seriesId, detail: "arranged estimated starts" });
   revalidateCompetitionViews();
   return { ok: true };
 }
@@ -176,41 +154,37 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
  * is the honest state for a team whose wave no longer exists.
  */
 export async function deleteWave(input: unknown): Promise<ActionResult> {
-  await requireAccess("waves.edit");
-
+  const actor = await requireAccess("waves.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ waveId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-
-  const wave = await prisma.wave.findUnique({
-    where: { id: parsed.data.waveId },
-    select: { id: true, seriesId: true, status: true, series: { select: { status: true } } },
-  });
-  if (!wave) return { ok: false, error: "NOT_FOUND" };
-  if (wave.status === "running") return { ok: false, error: "WAVE_RUNNING" };
-
-  // A live event is locked and a finished one is the record: its waves can no
-  // more be removed than its results can.
-  const phase = deletionGuard(wave.series.status);
-  if (!phase.allowed) return { ok: false, error: phase.reason };
-
-  await prisma.$transaction([
-    prisma.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null, station: null } }),
-    prisma.wave.delete({ where: { id: wave.id } }),
-  ]);
-
+  const found = await prisma.wave.findUnique({ where: { id: parsed.data.waveId }, select: { seriesId: true } });
+  if (!found) return { ok: false, error: "NOT_FOUND" };
+  try {
+    await scheduleTransaction(found.seriesId, async tx => {
+      const wave = await tx.wave.findUnique({ where: { id: parsed.data.waveId }, include: { series: true } });
+      if (!wave || wave.series.archivedAt) throw new ScheduleError("NOT_FOUND");
+      if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
+      const guard = deletionGuard(wave.series.status);
+      if (!guard.allowed) throw new ScheduleError(guard.reason);
+      await tx.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null, station: null } });
+      await tx.wave.delete({ where: { id: wave.id } });
+    });
+  } catch (error) { return scheduleError(error); }
   revalidateCompetitionViews();
   return { ok: true };
 }
 
 const scheduleSchema = z.object({
   seriesId: z.string().min(1),
-  firstWaveTime: z.string().regex(/^\d{2}:\d{2}$/),
+  firstWaveTime: z.string().regex(TIME_PATTERN),
   // One team per station: never more than nine.
   waveCapacity: z.coerce.number().int().min(1).max(MAX_STATIONS),
 });
 
 export async function updateSchedule(input: unknown): Promise<ActionResult> {
-  await requireAccess("waves.edit");
+  const actor = await requireAccess("waves.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = scheduleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

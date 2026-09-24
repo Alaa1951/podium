@@ -59,6 +59,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
     venue: series.venue,
     status: series.status,
     firstWaveTime: series.firstWaveTime,
+    waveIntervalMinutes: series.waveIntervalMinutes,
     waveMinutes: series.waveMinutes,
     waveCapacity: series.waveCapacity,
     zoneWorkMinutes: series.zoneWorkMinutes,

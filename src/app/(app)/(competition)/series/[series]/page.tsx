@@ -117,6 +117,26 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
         </div>
       )}
 
+      <h2 className="section-title" style={{ marginTop: 28 }}>{t("Teams by category")}</h2>
+      <div className="category-stats" style={{ marginTop: 10 }}>
+        {report.byCategory.map(group => (
+          <section className="stat-card" key={group.category}>
+            <Link href={`${at("registrations")}?place=field&category=${group.category}`}>
+              <span className="stat-label">{t(group.category)}</span>
+              <span className="stat-value">{group.total}</span>
+              <span className="stat-note">{t("Teams")}</span>
+            </Link>
+            <div className="category-stats-levels">
+              {group.levels.map(level => (
+                <Link key={level.division} href={`${at("registrations")}?place=field&category=${group.category}&division=${level.division}`}>
+                  <span>{t(level.division)}</span><strong className="pd-num">{level.count}</strong>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
       {/* ── The funnel ─────────────────────────────────────────────────────── */}
       <h2 className="section-title" style={{ marginTop: 28 }}>
         {t("Registrations")}

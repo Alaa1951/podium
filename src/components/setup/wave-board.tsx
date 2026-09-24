@@ -6,10 +6,11 @@ import { useState, useTransition } from "react";
 import { DetailLink } from "@/components/app/detail-link";
 import { useIsMobile } from "@/components/app/use-mobile";
 import { useT } from "@/components/i18n/locale-provider";
-import { deleteWave, saveWave } from "@/lib/actions/waves";
+import { arrangeWaveTimes, deleteWave, saveWave } from "@/lib/actions/waves";
 import { autoAssignWaves, setTeamStation, setTeamWave } from "@/lib/actions/teams";
 import { setAthleteStudio } from "@/lib/actions/team-people";
-import { waveWindowLabel, type WaveState } from "@/lib/waves";
+import { type WaveState } from "@/lib/waves";
+import { waveScheduleErrorMessage } from "@/lib/wave-schedule-messages";
 import { type SetupTeam } from "@/components/setup/wave-board-parts";
 import { OrphanCard, WaveCard } from "@/components/setup/wave-card";
 
@@ -36,6 +37,7 @@ export function WaveBoard({
   waveCapacity,
   isAdmin,
   ownStudioId,
+  canRebuild = true,
 }: {
   detailId?: string;
   editMode?: boolean;
@@ -49,6 +51,7 @@ export function WaveBoard({
   waveCapacity: number;
   isAdmin: boolean;
   ownStudioId: string | null;
+  canRebuild?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -71,9 +74,9 @@ export function WaveBoard({
   // A team can carry a wave number the running order has not caught up with —
   // an import, or a wave deleted under it. Those numbers are shown as
   // unscheduled rather than quietly dropped.
-  const scheduled = new Set(waves.map((wave) => wave.number));
-  const orphanNumbers = [...new Set(teams.map((team) => team.wave))]
-    .filter((number) => !scheduled.has(number))
+  const scheduled = new Set(waves.map((wave) => wave.id));
+  const unassigned = teams.filter(team => !team.waveId || !scheduled.has(team.waveId));
+  const orphanNumbers = [...new Set(unassigned.map((team) => team.wave))]
     .sort((a, b) => a - b);
 
   // The next wave to CREATE is one past the highest wave that exists. Teams are
@@ -86,7 +89,7 @@ export function WaveBoard({
   // The PICKER still has to reach any number a team already claims, or a team
   // sitting on wave 7 could not be moved to a wave that does not exist yet.
   const claimed = Math.max(highest, 0, ...teams.map((x) => x.wave));
-  const pickable = Array.from({ length: Math.max(16, claimed + 1) }, (_, i) => i + 1);
+  const pickable = Array.from({ length: Math.min(99, Math.max(16, claimed + 1)) }, (_, i) => i + 1);
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
     if (result.ok) {
@@ -98,7 +101,7 @@ export function WaveBoard({
       result.error === "WAVE_RUNNING"
         ? t("End the wave on the floor before re-planning the running order.")
         : result.error === "WAVE_STARTED"
-          ? t("That wave has already run — only BFT MENA can move a team out of it.")
+          ? t("Waves that have started cannot be rescheduled.")
           : result.error === "WAVE_NUMBER_TAKEN"
             ? t("There is already a wave with that number.")
             : result.error === "WAVE_FULL"
@@ -107,7 +110,7 @@ export function WaveBoard({
                 ? t("This wave runs {n} stations — pick one of those, or raise Teams per wave in Settings.", { n: waveCapacity })
                 : result.error === "STATION_TAKEN"
                 ? t("Another studio's team is on that station.")
-                : t("Something went wrong. Try again.")
+                : t(waveScheduleErrorMessage(result.error))
     );
   }
 
@@ -125,6 +128,7 @@ export function WaveBoard({
   }
 
   function autoAssign() {
+    if (waves.length && !window.confirm(t("Reassign all teams? This replaces manual moves and approved time changes."))) return;
     setMessage("");
     startTransition(async () => report(await autoAssignWaves({ seriesId, perWave })));
   }
@@ -132,20 +136,21 @@ export function WaveBoard({
   function addWave() {
     setMessage("");
     const number = highest + 1;
-    const previous = waves[waves.length - 1];
-    const start = previous
-      ? waveWindowLabel(previous.startTime, previous.durationMinutes).end
-      : "09:00";
 
     startTransition(async () =>
       report(
         await saveWave({
           seriesId,
           number,
-          startTime: start,
         })
       )
     );
+  }
+
+  function arrangeTime() {
+    if (!window.confirm(t("Recalculate all wave start times? This replaces current times, including manual changes."))) return;
+    setMessage("");
+    startTransition(async () => report(await arrangeWaveTimes({ seriesId })));
   }
 
   function removeWave(waveId: string) {
@@ -227,9 +232,12 @@ export function WaveBoard({
               type="button"
               className="btn btn-primary"
               onClick={autoAssign}
-              disabled={pending}
+              disabled={pending || !canRebuild}
             >
               {t("Auto-assign waves")}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={arrangeTime} disabled={pending || !canRebuild || !waves.length}>
+              {t("Arrange time")}
             </button>
           </div>
         ) : null}
@@ -237,7 +245,7 @@ export function WaveBoard({
 
       <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 10, maxWidth: "70ch" }}>
         {t(
-          "Auto-assign groups teams by bracket first, then fills waves in order — so a wave runs one or two brackets at a time and the judges use one set of loads per floor. Override any team with the dropdown on its row, and give any wave its own estimated start."
+          "Teams fill waves in order: Men, Mixed, Women; Rookie, Open, Pro within each category. Remaining places are filled from the next group. Arrange time calculates starts from the competition settings."
         )}
       </p>
 
@@ -248,11 +256,11 @@ export function WaveBoard({
       ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 22 }}>
-        {waves.filter(wave => !detailId || wave.id === detailId).map((wave) => mobile && !detailId ? <DetailLink key={wave.id} href={`${path}/${wave.id}`}><strong>{t("Wave")} {wave.number}</strong><span>{wave.startTime} · {teams.filter(team => team.wave === wave.number).length} {t("Teams")}</span><span className="badge badge-neutral">{t(wave.status === "running" ? "On the floor" : wave.status === "complete" ? "Complete" : "Not started")}</span></DetailLink> : (
+        {waves.filter(wave => !detailId || wave.id === detailId).map((wave) => mobile && !detailId ? <DetailLink key={wave.id} href={`${path}/${wave.id}`}><strong>{t("Wave")} {wave.number}</strong><span>{wave.startTime} · {teams.filter(team => team.waveId === wave.id).length} {t("Teams")}</span><span className="badge badge-neutral">{t(wave.status === "running" ? "On the floor" : wave.status === "complete" ? "Complete" : "Not started")}</span></DetailLink> : (
           <WaveCard
             key={wave.id}
             wave={wave}
-            inWave={teams.filter((team) => team.wave === wave.number)}
+            inWave={teams.filter((team) => team.waveId === wave.id)}
             isAdmin={isAdmin}
             pending={pending}
             editing={editing === wave.id}
@@ -268,7 +276,7 @@ export function WaveBoard({
           <OrphanCard
             key={`orphan-${number}`}
             number={number}
-            inWave={teams.filter((team) => team.wave === number)}
+            inWave={unassigned.filter((team) => team.wave === number)}
             stations={waveCapacity}
             grid={grid}
           />

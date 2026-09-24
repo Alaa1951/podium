@@ -12,6 +12,8 @@ const projects = ["chromium","webkit"].flatMap((browser) => [320,375,390,430,768
 })))));
 
 export default defineConfig({
+  // Prisma's generated ESM uses import.meta; Node loads it without the test transform.
+  build: { external: ["**/src/generated/prisma/**"] },
   testDir:"./e2e", timeout:180_000, expect:{timeout:15_000}, workers:2,
   reporter:[["list"],["html",{outputFolder:reportFolder,open:"never"}],["json",{outputFile:`${reportFolder}/results.json`}]],
   outputDir:`.mobile-qa/results${reportName ? `/${reportName}` : ""}`, projects,

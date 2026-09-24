@@ -52,10 +52,14 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   const place = typeof searchParams.place === "string" ? searchParams.place : "all";
   const membership = typeof searchParams.membership === "string" ? searchParams.membership : "all";
   const waveFilter = typeof searchParams.wave === "string" ? searchParams.wave : "all";
+  const category = typeof searchParams.category === "string" ? searchParams.category : "all";
+  const division = typeof searchParams.division === "string" ? searchParams.division : "all";
 
   const needle = normalizeName(query);
 
   const filtered = teams.filter((team) => {
+    if (category !== "all" && team.category !== category) return false;
+    if (division !== "all" && team.division !== division) return false;
     if (payment !== "all" && team.paymentStatus !== payment) return false;
     // A place, asked separately from the money on purpose.
     if (place === "waiting" && !team.waitlistedAt) return false;
@@ -143,6 +147,8 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       </div> : null}
 
       <RegisteredFilters
+        category={category}
+        division={division}
         query={query}
         payment={payment}
         place={place}

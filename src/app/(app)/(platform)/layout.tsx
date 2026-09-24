@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { can, canAny, type PermissionKey } from "@/lib/access";
 import { countPendingSignups } from "@/lib/approvals";
+import { countPendingWaveChanges } from "@/lib/wave-change-requests";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { homeForUser, requireUser } from "@/lib/session";
@@ -48,7 +49,7 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
     prisma.series.count(),
     prisma.studio.count({ where: { isActive: true } }),
     prisma.user.count({ where: { status: "invited", signupType: null } }),
-    countPendingSignups(user),
+    Promise.all([countPendingSignups(user), countPendingWaveChanges(user)]).then(counts => counts[0] + counts[1]),
   ]);
 
   // Each item carries the key its screen checks, so the menu can never offer

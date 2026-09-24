@@ -30,6 +30,7 @@ export type SeriesSettings = {
   venue: string;
   status: "scheduled" | "live" | "final";
   firstWaveTime: string;
+  waveIntervalMinutes: number;
   waveMinutes: number;
   waveCapacity: number;
   zoneWorkMinutes: number;
@@ -189,6 +190,10 @@ export function SettingsForm({
               value={form.firstWaveTime}
               onChange={(e) => set("firstWaveTime", e.target.value)}
             />
+          </Field>
+          <Field label={t("Minutes between wave starts")} hint={t("Arrange time applies this interval to the schedule.")}>
+            <input className="input pd-num" type="number" min={1} max={1440}
+              value={form.waveIntervalMinutes} onChange={e => set("waveIntervalMinutes", Number(e.target.value))} />
           </Field>
           <Field label={t("Work per zone (minutes)")}>
             <input

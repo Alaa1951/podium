@@ -170,6 +170,8 @@ model User {
   notificationsCreated    Notification[]     @relation("NotificationCreator")
   notificationReads       NotificationRead[]
   portraitUploads         PortraitJob[]      @relation("PortraitUploadedBy")
+  waveChangeRequests      WaveChangeRequest[] @relation("WaveChangeRequester")
+  waveChangeDecisions     WaveChangeRequest[] @relation("WaveChangeReviewer")
 
   @@index([studioId])
   @@index([role])
@@ -536,6 +538,8 @@ model Series {
   // Event-day configuration — held as data, never in code, so a different
   // finisher length or wave size does not require a release.
   firstWaveTime    String    @default("09:00") // HH:mm
+  /// Spacing between estimated starts, separate from the full floor duration.
+  waveIntervalMinutes Int   @default(20)
   /// The whole wave, derived: zones × work + (zones − 1) × break. Kept on the
   /// row (and stamped onto each wave) so every clock reads one number.
   waveMinutes      Int       @default(20)
@@ -621,6 +625,7 @@ model Series {
   crmIntakes     CrmIntake[]
   participants   SeriesParticipant[]
   partnerRequests PartnerRequest[]
+  waveChangeRequests WaveChangeRequest[]
 
   @@index([status])
   @@index([competitionDate])
@@ -940,6 +945,7 @@ model Team {
   score        Score?
   portraitJobs PortraitJob[]
   portraits    TeamPortrait[]
+  waveChangeRequests WaveChangeRequest[]
 
   @@unique([seriesId, number])
   @@unique([seriesId, externalId])
@@ -953,6 +959,48 @@ model Team {
 
 /// One of the two people on a team — a person, with the details the
 /// registration form actually collects, not just a name on a roster.
+enum WaveTimePreference {
+  morning
+  midday
+  evening
+}
+
+enum WaveChangeStatus {
+  pending
+  approved
+  rejected
+}
+
+model WaveChangeRequest {
+  id String @id @default(cuid())
+  seriesId String
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  teamId String
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy User @relation("WaveChangeRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  preference WaveTimePreference
+  note String? @db.VarChar(1000)
+  status WaveChangeStatus @default(pending)
+  /// teamId while pending; NULL after a decision. MySQL permits multiple NULLs.
+  openTeamId String? @unique
+  /// Snapshots survive schedule rebuilding and wave deletion.
+  fromWaveNumber Int
+  fromStartTime String
+  toWaveNumber Int?
+  toStartTime String?
+  reviewedById String?
+  reviewedBy User? @relation("WaveChangeReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason String? @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+
+  @@index([seriesId, status, createdAt])
+  @@index([teamId, createdAt])
+  @@index([requestedById])
+  @@index([reviewedById])
+}
+
 model Competitor {
   id       String @id @default(cuid())
   teamId   String
