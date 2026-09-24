@@ -88,6 +88,31 @@ function snapshot(partial: Partial<Snapshot>): Snapshot {
   };
 }
 
+describe("approved CRM registration merges", () => {
+  const team: ExistingTeam = { id: "team-kept", externalId: "payer", source: "ghl", paymentStatus: "paid", amountMinor: 19900, billingNumber: "invoice-kept" };
+  const merge = { teamId: team.id, retiredExternalId: "retired", canonicalExternalId: "payer", status: "completed" };
+  it("does not recreate an intake for a retired contact even after its opportunity is removed", () => {
+    const old = { id: "retired", email: "partner@example.test", customFields: [] };
+    const result = reconcile(snapshot({ teams: [team], contacts: [old], merges: [merge] }));
+    expect(result).toEqual([{ kind: "skip", externalId: "retired", reason: "registration merged into existing team" }]);
+  });
+  it("keeps reading payment and later refunds from the canonical payer", () => {
+    const result = reconcile(snapshot({ teams: [team], contacts: [contact("payer"), contact("retired")], merges: [merge],
+      pipelines: [{ id: "refund", name: "Refunds", stages: [{ id: "returned", name: "Processed" }] }],
+      opportunities: [{ id: "opp", contactId: "payer", pipelineId: "refund", pipelineStageId: "returned", status: "open" }, opportunity("retired", STAGE.registeredNotPaid)] }));
+    expect(result[0]).toMatchObject({ kind: "update", teamId: team.id, changes: { paymentStatus: "refunded" } });
+    expect(result[1].kind).toBe("skip");
+  });
+  it("pauses both contacts while an interrupted merge is awaiting completion", () => {
+    const result = reconcile(snapshot({ teams: [{ ...team, externalId: "retired" }], contacts: [contact("payer"), contact("retired")], merges: [{ ...merge, status: "prepared" }] }));
+    expect(result.every(action => action.kind === "skip")).toBe(true);
+  });
+  it("does not suppress unreviewed contacts or reuse a merge from another competition", () => {
+    const result = reconcile(snapshot({ contacts: [{ id: "retired", customFields: [] }], merges: [] }));
+    expect(result[0].kind).toBe("intake");
+  });
+});
+
 describe("paymentFromStage", () => {
   // THE ORDER OF THE TESTS INSIDE THE FUNCTION IS THE WHOLE TRICK. Two of the
   // three real stage names contain the word "Paid" while meaning the opposite.

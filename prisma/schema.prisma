@@ -626,6 +626,7 @@ model Series {
   participants   SeriesParticipant[]
   partnerRequests PartnerRequest[]
   waveChangeRequests WaveChangeRequest[]
+  crmRegistrationMerges CrmRegistrationMerge[]
 
   @@index([status])
   @@index([competitionDate])
@@ -946,6 +947,7 @@ model Team {
   portraitJobs PortraitJob[]
   portraits    TeamPortrait[]
   waveChangeRequests WaveChangeRequest[]
+  crmRegistrationMerges CrmRegistrationMerge[]
 
   @@unique([seriesId, number])
   @@unique([seriesId, externalId])
@@ -1413,4 +1415,28 @@ model CrmIntake {
 
   @@unique([seriesId, externalId])
   @@index([seriesId, missing])
+}
+
+/// An explicitly approved registration consolidation. Kept after CRM cleanup
+/// so an old contact cannot create a second intake or overwrite the payer.
+model CrmRegistrationMerge {
+  id                  String   @id @default(cuid())
+  seriesId            String
+  series              Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  teamId              String
+  team                Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  retiredExternalId   String   @db.VarChar(191)
+  canonicalExternalId String   @db.VarChar(191)
+  /// prepared pauses both sources; linked/completed suppress only the retired one.
+  status              String   @default("prepared") @db.VarChar(32)
+  beforeSnapshot      Json
+  paymentEvidence     Json?
+  reason              String   @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  completedAt         DateTime?
+
+  @@unique([seriesId, retiredExternalId])
+  @@index([seriesId, canonicalExternalId])
+  @@index([teamId])
 }

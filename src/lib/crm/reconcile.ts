@@ -134,6 +134,8 @@ export type Snapshot = {
   studioNames: string[];
   /** Teams already in the target competition. */
   teams: ExistingTeam[];
+  /** Human-approved merges only, scoped to this competition by the reader. */
+  merges?: { teamId: string; retiredExternalId: string; canonicalExternalId: string; status: string }[];
   /**
    * After this, an entry waits for a place. Null means the door never closed
    * — and then nobody waits, which is the state of a competition nobody has
@@ -310,6 +312,21 @@ export function reconcile(snapshot: Snapshot): Action[] {
   const actions: Action[] = [];
 
   for (const contact of snapshot.contacts) {
+    const merge = snapshot.merges?.find((entry) =>
+      entry.retiredExternalId === contact.id || entry.canonicalExternalId === contact.id
+    );
+    if (merge) {
+      const canonical = snapshot.teams.find((team) => team.id === merge.teamId);
+      // A prepared/interrupted merge must not be undone by an ordinary poll.
+      // After linking, the payer remains the only source of payment/refunds.
+      const linked = (merge.status === "linked" || merge.status === "completed") &&
+        canonical?.externalId === merge.canonicalExternalId;
+      if (!linked || contact.id === merge.retiredExternalId) {
+        actions.push({ kind: "skip", externalId: contact.id,
+          reason: linked ? "registration merged into existing team" : "registration merge awaiting completion" });
+        continue;
+      }
+    }
     const opportunity = opportunityByContact.get(contact.id);
     const named = opportunity ? stageById.get(opportunity.pipelineStageId) : undefined;
     const payment = named ? paymentFromStage(named.pipeline, named.stage) : null;

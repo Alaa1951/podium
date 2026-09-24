@@ -99,7 +99,7 @@ export async function releaseSync(db: Db, now: Date, result: SyncResult): Promis
 
 /** Everything the plan is worked out against, read in one pass. */
 async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promise<Snapshot> {
-  const [fieldIds, pipelines, contacts, opportunities, studios, teams, series] = await Promise.all([
+  const [fieldIds, pipelines, contacts, opportunities, studios, teams, series, merges] = await Promise.all([
     client.listCustomFieldIds(),
     client.listPipelines(),
     client.listContacts(),
@@ -117,6 +117,10 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
       },
     }),
     db.series.findUnique({ where: { id: seriesId }, select: { registrationClosesAt: true } }),
+    db.crmRegistrationMerge.findMany({
+      where: { seriesId },
+      select: { teamId: true, retiredExternalId: true, canonicalExternalId: true, status: true },
+    }),
   ]);
 
   // Before anything is decided: a field deleted or rebuilt in the CRM form
@@ -130,6 +134,7 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
     pipelines,
     studioNames: studios.map((studio) => studio.name),
     teams,
+    merges,
     registrationClosesAt: series?.registrationClosesAt ?? null,
   };
 }

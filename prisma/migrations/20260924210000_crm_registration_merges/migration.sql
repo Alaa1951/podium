@@ -1,0 +1,20 @@
+CREATE TABLE `CrmRegistrationMerge` (
+    `id` VARCHAR(191) NOT NULL,
+    `seriesId` VARCHAR(191) NOT NULL,
+    `teamId` VARCHAR(191) NOT NULL,
+    `retiredExternalId` VARCHAR(191) NOT NULL,
+    `canonicalExternalId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(32) NOT NULL DEFAULT 'prepared',
+    `beforeSnapshot` JSON NOT NULL,
+    `paymentEvidence` JSON NULL,
+    `reason` TEXT NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+    `completedAt` DATETIME(3) NULL,
+    UNIQUE INDEX `CrmRegistrationMerge_seriesId_retiredExternalId_key` (`seriesId`, `retiredExternalId`),
+    INDEX `CrmRegistrationMerge_seriesId_canonicalExternalId_idx` (`seriesId`, `canonicalExternalId`),
+    INDEX `CrmRegistrationMerge_teamId_idx` (`teamId`),
+    PRIMARY KEY (`id`),
+    CONSTRAINT `CrmRegistrationMerge_seriesId_fkey` FOREIGN KEY (`seriesId`) REFERENCES `Series` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `CrmRegistrationMerge_teamId_fkey` FOREIGN KEY (`teamId`) REFERENCES `Team` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

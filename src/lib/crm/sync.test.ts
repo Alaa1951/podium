@@ -58,6 +58,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     series: { findUnique: vi.fn(async () => ({ id: "series-1" })) },
     competitor: { findFirst: vi.fn(async (): Promise<object | null> => null) },
     crmIntake: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 0 })) },
+    crmRegistrationMerge: { findMany: vi.fn(async () => []) },
     studio: {
       findMany: vi.fn(async (): Promise<{ id: string; name: string }[]> => []),
       create: vi.fn(async (): Promise<{ id: string }> => ({ id: "st-new" })),

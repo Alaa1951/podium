@@ -133,6 +133,26 @@ cd /opt/podium && npx prisma migrate deploy
 Backups run nightly at 03:00 via root cron → `/opt/backups` (keeps 14).
 Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 
+### Reviewed CRM registration consolidation
+
+`scripts/merge-crm-registrations.mjs` consolidates a reviewed pair of registrations
+around the payer while preserving the existing team and athlete IDs. Its JSON
+plan contains private contact IDs and payment evidence and must stay outside Git.
+It defaults to a dry run. With `--apply --backup-dir <private-directory>`, it
+claims the CRM sync lock, backs up each registration, writes registration fields
+without changing the payer's money, links the existing team, then removes the
+retired CRM registration. Run a database backup first. Load the server environment
+with Node's `--env-file` option; do not copy secrets into the plan.
+
+The `CrmRegistrationMerge` record preserves the original data and payment
+references. `prepared` blocks syncing both sources during an interrupted merge;
+`linked` and `completed` suppress the retired source and keep following the
+canonical payer, including later refunds. Rerun the same reviewed plan to resume
+an interrupted operation. A changed identity, payment value, other registration,
+or conflicting athlete detail stops the operation for review. This command has
+no UI endpoint and never merges two different people using CRM's contact-merge
+feature. Install its additive migration before deploying the reader.
+
 ### Environment that must be set in production
 
 | Variable | Why |
