@@ -32,7 +32,7 @@ export async function findRegistrations(rawEmail: string) {
   if (!email) return [];
 
   return prisma.competitor.findMany({
-    where: { email },
+    where: { email, team: { archivedAt: null, series: { archivedAt: null } } },
     orderBy: { team: { series: { competitionDate: "desc" } } },
     select: {
       id: true,
@@ -54,7 +54,7 @@ export async function findRegistrations(rawEmail: string) {
 /**
  * The account this competitor signs in as, created the first time they ask.
  *
- * Every registration carrying the same email is linked to it, so a competitor
+ * Each unambiguous registration carrying the same email is linked to it, so a competitor
  * who has entered three PODIUMs sees all three under one login rather than
  * needing a different way in for each.
  */
@@ -92,16 +92,27 @@ export async function accountForCompetitor(rawEmail: string, fullName: string) {
   return created;
 }
 
-/** Point every registration with this email at the account. */
+/** A shared purchaser email cannot claim multiple athletes in one event. */
+function unambiguousRegistrations<T extends { id: string; team: { series: { id: string } } }>(rows: T[]): T[] {
+  const bySeries = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const ids = bySeries.get(row.team.series.id) ?? new Set<string>();
+    ids.add(row.id); bySeries.set(row.team.series.id, ids);
+  }
+  return rows.filter(row => bySeries.get(row.team.series.id)?.size === 1);
+}
+
+/** Link only a single proven seat per competition, preserving ambiguous imports. */
 async function linkRegistrations(userId: string, email: string) {
-  await prisma.competitor.updateMany({
-    where: { email, userId: null },
-    data: { userId },
+  const matches = await prisma.competitor.findMany({
+    where: { email, team: { archivedAt: null, series: { archivedAt: null } } }, include: { team: { include: { series: { select: { id: true } } } } },
   });
-  const seats = await prisma.competitor.findMany({
-    where: { userId, team: { archivedAt: null, series: { archivedAt: null } } }, include: { team: true },
-  });
-  for (const seat of seats) {
+  for (const seat of unambiguousRegistrations(matches)) {
+    if (seat.userId && seat.userId !== userId) continue;
+    if (!seat.userId) {
+      const claimed = await prisma.competitor.updateMany({ where: { id: seat.id, email, userId: null }, data: { userId } });
+      if (claimed.count !== 1) continue;
+    }
     await prisma.seriesParticipant.upsert({
       where: { seriesId_userId: { seriesId: seat.team.seriesId, userId } }, update: {},
       create: { seriesId: seat.team.seriesId, userId, signedUpAt: seat.team.createdAt,
@@ -134,7 +145,7 @@ export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest
   // Either way an athlete who signed up has an account of their own, approved
   // or waiting, so they are not locked out — they just do not come in through
   // this door, which is the one that carries automatic approval with it.
-  const paid = registrations.filter((one) => !one.team.series.isTraining && isCompeting(one.team));
+  const paid = unambiguousRegistrations(registrations).filter((one) => !one.team.series.isTraining && isCompeting(one.team));
   if (paid.length === 0) return issueSignedUpAthleteCode(rawEmail);
 
   const account = await accountForCompetitor(rawEmail, paid[0].fullName);

@@ -61,6 +61,7 @@ try {
     delete: Object.fromEntries(Object.entries(beforeTarget).filter(([k]) => k !== 'Series').map(([k, rows]) => [k, rows.length])),
     copy: Object.fromEntries(Object.entries(plan).map(([k, rows]) => [k, rows.length])),
     usersCreated: 0, usersDeleted: 0, scoresCopied: 0,
+    unlinkedSharedEmailGroups: [...new Set(plan.Competitor.filter(c => !c.userId && c.email).map(c => c.email.trim().toLowerCase()))].filter(email => plan.Competitor.filter(c => c.email?.trim().toLowerCase() === email).length > 1).length,
     sourceFingerprint: fingerprint(beforeSource), targetFingerprint: fingerprint(beforeTarget),
   };
   console.log(json(report));

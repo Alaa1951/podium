@@ -18,14 +18,19 @@ export function planCopy(source, targetId, now = new Date()) {
   const teamIds = new Map(teams.map(t => [t.id, newId()]));
   const seen = new Set();
   const seats = source.Competitor.filter(c => teamIds.has(c.teamId)).map(c => {
-    const key = c.userId ? 'user:' + c.userId : c.email ? 'email:' + c.email.trim().toLowerCase() : null;
+    const key = c.userId ? 'user:' + c.userId : null;
     if (key && seen.has(key)) throw new Error('DUPLICATE_SOURCE_ATHLETE');
     if (key) seen.add(key);
     return { ...c, id: newId(), teamId: teamIds.get(c.teamId), photoPath: null };
   });
-  // Email catches a mixture of linked and unlinked seats referring to the same person.
-  const emails = seats.map(c => c.email?.trim().toLowerCase()).filter(Boolean);
-  if (new Set(emails).size !== emails.length) throw new Error('DUPLICATE_SOURCE_EMAIL');
+  // Imported rosters may share a purchaser's email. Preserve those unlinked
+  // seats exactly; an email is not proof that two seats are the same athlete.
+  const emails = new Map();
+  for (const seat of seats) {
+    const email = seat.email?.trim().toLowerCase();
+    if (email) emails.set(email, [...(emails.get(email) ?? []), seat]);
+  }
+  if ([...emails.values()].some(group => group.length > 1 && group.some(c => c.userId))) throw new Error('DUPLICATE_SOURCE_EMAIL');
   const active = source.SeriesParticipant.filter(p => !p.archivedAt);
   const members = new Set(active.map(p => p.userId));
   if (seats.some(c => c.userId && !members.has(c.userId))) throw new Error('SOURCE_MEMBERSHIP_MISSING: run the participation migration and repair missing memberships first');

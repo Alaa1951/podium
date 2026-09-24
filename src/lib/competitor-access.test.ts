@@ -46,6 +46,7 @@ function entry(team: { paymentStatus: string; waitlistedAt?: Date | null }) {
     userId: null,
     team: {
       id: "t1",
+      seriesId: "s1",
       name: "FALCONS",
       paymentStatus: team.paymentStatus,
       waitlistedAt: team.waitlistedAt ?? null,
@@ -97,6 +98,24 @@ describe("training payments", () => {
     mocks.findUser.mockResolvedValue({ id: "u-sara", name: "Sara", role: "competitor", status: "active", signupType: "athlete", approvalStatus: "pending" });
     expect(await issueCompetitorCode("sara@example.com")).toMatchObject({ ok: true });
     expect(mocks.updateUser).not.toHaveBeenCalled(); expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared contact email on imported rosters", () => {
+  it("does not turn different athletes sharing one event email into one account", async () => {
+    const first = entry({ paymentStatus: "paid" });
+    mocks.findCompetitors.mockResolvedValue([first, { ...first, id: "c2", fullName: "Another athlete" }]);
+    expect(await issueCompetitorCode("shared@example.com")).toEqual({ ok: false });
+    expect(mocks.createUser).not.toHaveBeenCalled();
+    expect(mocks.linkCompetitors).not.toHaveBeenCalled();
+  });
+  it("links the same account across events but leaves an ambiguous event unclaimed", async () => {
+    const first = entry({ paymentStatus: "paid" });
+    const next = { ...first, id: "c-next", team: { ...first.team, seriesId: "s2", series: { ...first.team.series, id: "s2" } } };
+    mocks.findCompetitors.mockResolvedValue([first, { ...first, id: "c2" }, next]);
+    expect(await issueCompetitorCode("sara@example.com")).toMatchObject({ ok: true });
+    expect(mocks.linkCompetitors).toHaveBeenCalledTimes(1);
+    expect(mocks.linkCompetitors).toHaveBeenCalledWith({ where: { id: "c-next", email: "sara@example.com", userId: null }, data: { userId: "u-sara" } });
   });
 });
 

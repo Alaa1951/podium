@@ -37,6 +37,8 @@ try {
   await query("INSERT INTO AthleteProfile(id,userId,division,category,partnerUserId,updatedAt) VALUES ('ap-a','a','Open','Mixed','b',NOW(3)),('ap-b','b','Open','Mixed','a',NOW(3)),('ap-solo','solo','Rookie','Mixed',NULL,NOW(3))");
   await query("INSERT INTO Team(id,seriesId,number,name,category,division,paymentStatus,amountMinor,updatedAt) VALUES ('original','source',101,'Original','Mixed','Open','paid',10000,NOW(3)),('old-test','target',101,'Old test','Mixed','Open','pending',NULL,NOW(3))");
   await query("INSERT INTO Competitor(id,teamId,position,fullName,normalizedName,email,userId) VALUES ('seat-a','original',1,'Athlete A','athlete a','a@bftmena.com','a'),('seat-b','original',2,'Athlete B','athlete b','b@example.com','b'),('old-seat','old-test',1,'Test','test','test@bftmena.com','test')");
+  await query("INSERT INTO Team(id,seriesId,number,name,category,division,paymentStatus,amountMinor,updatedAt) VALUES ('imported','source',102,'Imported pair','Mixed','Open','paid',10000,NOW(3))");
+  await query("INSERT INTO Competitor(id,teamId,position,fullName,normalizedName,email) VALUES ('import-a','imported',1,'Imported A','imported a','purchaser@example.com'),('import-b','imported',2,'Imported B','imported b','purchaser@example.com')");
   await query("INSERT INTO Score(id,teamId,status,updatedAt) VALUES ('real-score','original','submitted',NOW(3)),('old-score','old-test','draft',NOW(3))");
   await query("INSERT INTO Zone(id,seriesId,number,name) VALUES ('source-zone','source',1,'Strength'),('target-zone','target',1,'Strength')");
   await query("INSERT INTO ZoneInput(id,zoneId,position,label) VALUES ('source-input','source-zone',1,'Reps'),('target-input','target-zone',1,'Reps')");
@@ -67,9 +69,10 @@ try {
   const result = r.stdout.trim().split('\n').map(line => { try { return JSON.parse(line); } catch { return null; } }).find(row => row?.applied);
   assert.ok(result?.rollback);
   const copied = await graph('target');
-  assert.equal(copied.teams.length, 1); assert.equal(copied.entries.length, 3); assert.equal(copied.seats.length, 2); assert.equal(copied.scores.length, 0);
+  assert.equal(copied.teams.length, 2); assert.equal(copied.entries.length, 3); assert.equal(copied.seats.length, 4); assert.equal(copied.scores.length, 0);
   assert.equal(copied.teams[0].paymentStatus, 'paid'); assert.equal(copied.teams[0].waveId, null);
-  assert.deepEqual(copied.seats.map(c => c.userId).sort(), ['a', 'b']);
+  assert.deepEqual(copied.seats.filter(c => c.userId).map(c => c.userId).sort(), ['a', 'b']);
+  assert.equal(copied.seats.filter(c => c.email === 'purchaser@example.com' && c.userId === null).length, 2, 'shared contact email never merges imported athlete seats');
   assert.equal(fingerprint(await graph('source')), sourceBefore, 'source remains identical after cloning');
   await query("INSERT INTO Score(id,teamId,status,updatedAt) VALUES ('trial-score',?,'submitted',NOW(3))", [copied.teams[0].id]);
   await query("INSERT INTO ZoneEntry(id,scoreId,inputId,value) VALUES ('trial-result','trial-score','target-input',42)");

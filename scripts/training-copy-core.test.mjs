@@ -26,6 +26,16 @@ describe('one-time rehearsal', () => {
     const input = rows(); input.SeriesParticipant.push({ id: 'solo', userId: 'solo', seriesId: 'real', partnerUserId: null }, { id: 'gone', userId: 'gone', archivedAt: new Date() });
     expect(planCopy(input, 'test').SeriesParticipant.map(p => p.userId)).toEqual(['same-user', 'solo']);
   });
+  it('preserves imported seats sharing a purchaser email without inventing a shared account', () => {
+    const input = rows(); input.Competitor[0].userId = null;
+    input.Competitor.push({ ...input.Competitor[0], id: 'other-seat', position: 2, fullName: 'Another athlete' });
+    const copy = planCopy(input, 'test');
+    expect(copy.Competitor).toHaveLength(2);
+    expect(copy.Competitor.every(c => c.userId === null)).toBe(true);
+    expect(copy.Competitor[0].id).not.toBe(copy.Competitor[1].id);
+    input.Competitor[0].userId = 'same-user';
+    expect(() => planCopy(input, 'test')).toThrow('DUPLICATE_SOURCE_EMAIL');
+  });
 });
 it('matches only the exact test domain', () => {
   expect(isTestAddress(' A@BFTMENA.COM ')).toBe(true);

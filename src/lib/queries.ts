@@ -354,7 +354,7 @@ export async function getTeamForUser(teamId: string, user: CurrentUser) {
   return { ...toTeamRow(team, zones), seriesId: team.seriesId, zoneDefs: zones };
 }
 
-/** The competitor's own team for this competition, matched by account or by name. */
+/** The competitor's own team for this competition, matched by account. */
 export async function getMyTeam(seriesId: string, user: CurrentUser) {
   const zones = await getSeriesZones(seriesId);
 
