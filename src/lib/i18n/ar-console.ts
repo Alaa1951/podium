@@ -84,6 +84,10 @@ export const AR_CONSOLE: Phrases = {
   // REGISTERED = paid and entered. MEMBER = holds a BFT studio membership.
   // The two are deliberately different words in Arabic as well as in English.
   Registrations: "التسجيلات",
+  "Paid - Total": "إجمالي المسددين",
+  "Paid registrations": "تسجيلات تم سدادها",
+  "Paid - In competition": "مسددون داخل المسابقة",
+  "Paid - Waiting list": "مسددون في قائمة الانتظار",
   "Add registration": "إضافة تسجيل",
   "Register this pair": "سجّل هذا الفريق",
   "The entry": "بيانات المشاركة",

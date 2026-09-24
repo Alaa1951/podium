@@ -35,6 +35,8 @@ const ALLOWED = new Set([
   // Reports COUNT the payment states separately — pending and refunded are
   // figures in their own right, not a gate on competing.
   "lib/reports.ts",
+  // Counts paid registrations, including waiting entries; does not grant a place.
+  "lib/paid-registrations.ts",
   // Creating a registration reads the money off the form to set paidAt.
   "lib/actions/registrations.ts",
   // The registrations screen's payment filter, which exists to filter by money.

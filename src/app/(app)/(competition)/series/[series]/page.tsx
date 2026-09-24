@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesReport, money } from "@/lib/reports";
 import { countWaitingList } from "@/lib/waiting-list";
+import { getPaidRegistrationSummary } from "@/lib/paid-registrations";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { isBft } from "@/lib/access";
 import { requireAccess } from "@/lib/session";
@@ -25,9 +26,10 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
   // so it is counted beside the report rather than folded into it — a
   // cross-table figure sitting next to `registered` would be two different
   // populations in one object.
-  const [report, waiting] = await Promise.all([
+  const [report, waiting, paidSummary] = await Promise.all([
     getSeriesReport(series.id),
     countWaitingList(series.id, { includeIntake: isBft(user) }),
+    isBft(user) ? getPaidRegistrationSummary(series.id, true) : Promise.resolve(null),
   ]);
 
   const at = (section = "") => seriesHref(series.slug, section);
@@ -97,6 +99,27 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           </a>
         </div>
       </div>
+
+      {paidSummary ? (
+        <section className="paid-total-summary" aria-labelledby="paid-total-label">
+          <div className="paid-total-value">
+            <h2 className="stat-label" id="paid-total-label">{t("Paid - Total")}</h2>
+            <strong className="stat-value">{paidSummary.total}</strong>
+            <span className="stat-note">{t("Paid registrations")}</span>
+          </div>
+          <div className="paid-total-breakdown">
+            <Link href={`${at("registrations")}?payment=paid&place=field`}>
+              <strong className="pd-num">{paidSummary.inField}</strong>
+              <span>{t("Paid - In competition")}</span>
+            </Link>
+            <span className="paid-total-plus" aria-hidden="true">+</span>
+            <Link href={at("waiting")}>
+              <strong className="pd-num">{paidSummary.waiting}</strong>
+              <span>{t("Paid - Waiting list")}</span>
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {/* ── What needs doing ───────────────────────────────────────────────── */}
       {blocking.length > 0 ? (

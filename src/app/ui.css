@@ -1113,6 +1113,16 @@ select.input { cursor: pointer; }
 }
 
 /* Competition field, schedule requests and approvals. */
+.paid-total-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 24px 40px; padding: 20px 24px; margin-bottom: 20px; border: 1px solid var(--border); border-inline-start: 4px solid var(--bft-cyan); border-radius: var(--r-md); background: var(--surface); }
+.paid-total-value { display: grid; gap: 6px; }
+.paid-total-value h2 { margin: 0; color: var(--text-secondary); }
+.paid-total-summary .stat-value { font-size: 44px; }
+.paid-total-breakdown { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.paid-total-breakdown a { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+.paid-total-breakdown a:hover span { text-decoration: underline; }
+.paid-total-breakdown strong { font-size: 24px; line-height: 1.2; }
+.paid-total-breakdown span { font-size: 13px; color: var(--text-secondary); }
+.paid-total-plus { font-size: 20px; }
 .category-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .category-stats .stat-card > a { display: grid; color: inherit; text-decoration: none; }
 .category-stats-levels { display: grid; gap: 10px; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
@@ -1132,6 +1142,9 @@ select.input { cursor: pointer; }
 .wave-request-history .badge { margin-inline-end: 12px; }
 .wave-request-actions textarea, .wave-change-form textarea { width: 100%; resize: vertical; }
 @media (max-width: 640px) {
+  .paid-total-summary { padding: 16px; gap: 16px; }
+  .paid-total-value { width: 100%; }
+  .paid-total-breakdown { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; }
   .category-stats { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .wave-request-filters > *, .wave-request-actions .btn { width: 100%; }
   .wave-request-card { padding: 16px; }
