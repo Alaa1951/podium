@@ -166,8 +166,7 @@ try {
       assert(hash(locked) === hash(before.team), "Team changed since reviewed snapshot");
       const minor = Math.round(Number(plan.payment.amount) * 100);
       assert(Number.isFinite(minor) && minor >= 0 && /^\d+(\.\d{1,2})?$/.test(plan.payment.amount), "Invalid canonical payment amount");
-      const note = [before.team.paymentNote, `CRM registrations consolidated by explicit operator request. Payer contact: ${entry.payerId}. Original payment values retained; supporting evidence saved in merge ${mergeId}.`].filter(Boolean).join("\n");
-      await db.query("UPDATE Team SET externalId=?,rawPayload=?,paymentStatus='paid',paidAt=COALESCE(paidAt,UTC_TIMESTAMP(3)),amountMinor=?,billingNumber=?,confirmedById=NULL,paymentNote=?,updatedAt=UTC_TIMESTAMP(3) WHERE id=?", [entry.payerId, encode(canonical), minor, plan.payment.invoice, note, entry.teamId]);
+      await db.query("UPDATE Team SET externalId=?,rawPayload=?,paymentStatus='paid',paidAt=COALESCE(paidAt,UTC_TIMESTAMP(3)),amountMinor=?,billingNumber=?,confirmedById=NULL,updatedAt=UTC_TIMESTAMP(3) WHERE id=?", [entry.payerId, encode(canonical), minor, plan.payment.invoice, entry.teamId]);
       await db.query("DELETE FROM CrmIntake WHERE seriesId=? AND externalId IN (?,?)", [spec.seriesId, entry.payerId, entry.retiredId]);
       await db.query("UPDATE CrmRegistrationMerge SET status='linked',updatedAt=UTC_TIMESTAMP(3) WHERE id=? AND status='prepared'", [mergeId]);
       await db.commit(); inTransaction = false; state = "linked";
