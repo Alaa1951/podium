@@ -9,7 +9,7 @@ import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
 import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
-import { hasReachedZone, waveInZone, wavePosition, type FloorTiming } from "@/lib/floor";
+import { zoneArrival, zoneDuty, type FloorTiming } from "@/lib/floor";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getSeriesWaves, getSeriesZones } from "@/lib/queries";
@@ -17,9 +17,6 @@ import { homeFor, requireUser } from "@/lib/session";
 import { judgePostsFor, listZoneStaff } from "@/lib/zone-staff";
 
 export const dynamic = "force-dynamic";
-
-/** How many waves back a post still shows, so a late submit can be finished. */
-const RECENT_WAVES = 3;
 
 function clock(ms: number | null) {
   if (ms === null) return "--:--";
@@ -31,14 +28,17 @@ function clock(ms: number | null) {
  * THE JUDGE SHEET.
  *
  * A judge works one ZONE for the whole competition, standing at one STATION.
- * This sheet shows them the team on their station in whichever wave is in
- * their zone right now — that zone's movements only — and the teams of the
- * last few waves at their station, so a zone left unsubmitted can still be
- * finished. It re-reads itself every few seconds, so the next wave appears on
- * its own.
+ * This sheet shows them ONE team: the one on their station, in the wave their
+ * zone is on — that zone's movements only. Nothing appears before a wave has
+ * started and reached the zone, and nothing from a wave the zone has moved
+ * on from; when there is no team, the sheet says so, and which wave comes
+ * next and when. It re-reads itself every few seconds and at the moment the
+ * clock changes something, so a started wave appears on its own. The server
+ * writes by the same rules (saveZoneScore).
  *
- * A zone LEADER sees every station of their zone, and places the judges
- * and reserves on stations. An athlete with no post sees their own wave.
+ * A zone LEADER sees every station of their zone, finishes any sheet a judge
+ * left open, places the judges and reserves on stations, and starts the next
+ * wave. An athlete with no post sees their own wave.
  */
 export default async function MyWavePage(detailId?: string, requestedSeries?: string) {
   const user = await requireUser();
@@ -136,25 +136,18 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
         zoneCount: ordered.length,
       };
 
-      const withState = waves.map((wave) => ({ ...wave, completed: wave.status === "complete" }));
-      const current = waveInZone(
-        withState.filter((wave) => wave.status === "running"),
-        zoneIndex,
-        timing,
-        now
-      );
-      // Waves that have already passed this zone, newest first.
-      const passed = withState
-        .filter((wave) => wave.id !== current?.wave.id)
-        .filter((wave) => wave.completed || hasReachedZone(wave, zoneIndex, timing, now))
-        .filter((wave) => {
-          const position = wavePosition(wave, timing, now);
-          return position.phase === "done" || (position.zoneIndex ?? 0) > zoneIndex;
-        })
-        .slice(0, RECENT_WAVES);
-      const shownWaves = [...(current ? [current.wave] : []), ...passed];
-
+      // WHAT THIS POST SEES — the same rules the server writes by
+      // (floor.ts › zoneDuty; zone-score-rules.ts):
+      //   • a judge or reserve: the team on their station, in the wave their
+      //     zone is ON — nothing that has not reached the zone, nothing the
+      //     zone has moved on from, no other station;
+      //   • the zone leader: every station of that wave, and any earlier
+      //     wave's sheet still not submitted (the zone's safety valve).
+      const duty = zoneDuty(waves, zoneIndex, timing, now);
       const leader = post.position === "leader";
+      const reachedWaves = waves.filter((wave) => zoneArrival(wave, zoneIndex, timing, now) !== null);
+      const shownWaves = leader ? reachedWaves : duty.wave ? [duty.wave] : [];
+
       const teams = shownWaves.length
         ? await prisma.team.findMany({
             where: {
@@ -233,18 +226,30 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       return {
         post,
         zone,
-        current: current
+        // The wave this zone is on. Once it has left the zone, only a sheet
+        // still open stays — to be submitted before the next wave arrives.
+        current: duty.wave
           ? {
-              waveNumber: current.wave.number,
-              phase: current.phase,
-              remaining: clock(current.phaseRemainingMs),
-              teams: teams.filter((team) => team.waveId === current.wave.id).map(toEntry),
+              waveNumber: duty.wave.number,
+              phase: duty.phase,
+              remaining: clock(duty.phaseRemainingMs),
+              teams: teams
+                .filter((team) => team.waveId === duty.wave!.id)
+                .map(toEntry)
+                .filter((team) => duty.phase !== "left" || !team.locked || !!detailId),
             }
           : null,
-        earlier: teams
-          .filter((team) => team.waveId !== current?.wave.id)
-          .map(toEntry)
-          .filter((team) => !team.locked || !!detailId),
+        next: duty.next ? { waveNumber: duty.next.wave.number, inTime: clock(duty.next.inMs) } : null,
+        // The leader's safety valve: earlier waves' sheets nobody submitted.
+        earlier: leader
+          ? teams
+              .filter((team) => team.waveId !== duty.wave?.id)
+              .map(toEntry)
+              .filter((team) => !team.locked || !!detailId)
+          : [],
+        // When this panel next changes by the clock alone — the sheet
+        // re-reads itself right then, not up to a poll later.
+        changeInMs: Math.min(duty.phaseRemainingMs ?? Infinity, duty.next?.inMs ?? Infinity),
         staff,
         leaderFloor,
         timing,
@@ -256,7 +261,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
   return (
     <div className="screen">
-      <SheetRefresher />
+      <SheetRefresher seconds={5} changeInMs={Math.min(...panels.map((panel) => panel.changeInMs))} />
       <PlainHeader roleLabel={user.name ?? t("Judge")} homeHref="/my-wave" />
       <div className="screen-head">
         <div>
@@ -282,7 +287,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
         ))}
       </div>
 
-      {panels.map(({ post, zone, current, earlier, staff, leaderFloor, timing }) => (
+      {panels.map(({ post, zone, current, next, earlier, staff, leaderFloor, timing }) => (
         <section key={post.id} style={{ marginBottom: 34 }}>
           <h2 className="section-title" style={{ marginTop: 0 }}>
             {post.series.name} · {t("Zone")} {post.zone.number} {"///"} {t(post.zone.name)} ·{" "}
@@ -297,21 +302,47 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
             <div className="notice">{t("The competition has not started yet. Your sheet opens when it does.")}</div>
           ) : post.position !== "leader" && !post.station ? (
             <div className="notice">{t("Waiting for your zone leader to place you on a station.")}</div>
-          ) : current ? (
+          ) : current && (current.phase !== "left" || current.teams.length > 0) ? (
             <>
               <p className="reg-sub pd-num">
                 {t("Wave")} {current.waveNumber} ·{" "}
-                {current.phase === "work" ? t("working · {time} left", { time: current.remaining }) : t("changing zones · {time}", { time: current.remaining })}
+                {current.phase === "work"
+                  ? t("working · {time} left", { time: current.remaining })
+                  : current.phase === "break"
+                    ? t("changing zones · {time}", { time: current.remaining })
+                    : t("has left your zone — submit before the next wave arrives.")}
               </p>
               <div className="zone-entries">
                 {current.teams.map((team) => (
                   <ZoneEntryCard key={team.id} team={team} zone={zone} />
                 ))}
-                {current.teams.length === 0 ? <p className="reg-sub">{t("No team on your station in this wave.")}</p> : null}
+                {current.teams.length === 0 ? (
+                  <p className="reg-sub">
+                    {post.position === "leader" ? t("No team in your zone in this wave.") : t("No team on your station in this wave.")}
+                  </p>
+                ) : null}
               </div>
+              {current.phase === "left" && next ? (
+                <p className="reg-sub pd-num">
+                  {t("Wave {wave} reaches Zone {zone} in {time}.", { wave: next.waveNumber, zone: post.zone.number, time: next.inTime })}
+                </p>
+              ) : null}
             </>
           ) : (
-            <div className="notice">{t("Waiting for the next wave to reach your zone.")}</div>
+            // Nothing to score: no wave has reached this zone yet, or the zone
+            // has moved on and every sheet is in. Say so — and what is coming.
+            <div className="notice pd-num">
+              <strong>
+                {post.position === "leader" ? t("No team in your zone right now.") : t("No team on your zone or station right now.")}
+              </strong>{" "}
+              {next
+                ? t("Wave {wave} is on the floor and reaches Zone {zone} in {time}. Your team appears here by itself.", {
+                    wave: next.waveNumber,
+                    zone: post.zone.number,
+                    time: next.inTime,
+                  })
+                : t("A team appears here by itself when a wave that has started reaches Zone {zone}.", { zone: post.zone.number })}
+            </div>
           )}
 
           {earlier.length ? (
@@ -338,6 +369,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                 timing={timing}
                 canControl={!user.viewAs}
                 startOnly
+                poll={false}
               />
             </div>
           ) : null}

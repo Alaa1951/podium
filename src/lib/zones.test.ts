@@ -14,6 +14,7 @@ import {
   inputPoints,
   isComplete,
   isCounted,
+  keepTyping,
   totalPoints,
   validateEntries,
   zoneBreakdown,
@@ -279,5 +280,32 @@ describe("how a formula reads on screen", () => {
 
   it("spells out a zone", () => {
     expect(zoneFormula(ZONES[3])).toBe("(minutes remaining × 10) + (seconds remaining ÷ 10)");
+  });
+});
+
+describe("keepTyping — a re-read never wipes a score being entered", () => {
+  const before = { [DEADLIFT]: 2, [BENCH]: null, [METRES]: 1000 };
+
+  it("keeps what was typed and not saved, takes the rest from the server", () => {
+    // The judge added 3 bench reps; meanwhile the server's rower moved to 1200.
+    const draft = { ...before, [BENCH]: 3 };
+    const after = { [DEADLIFT]: 2, [BENCH]: null, [METRES]: 1200 };
+    expect(keepTyping(ZONES, draft, before, after)).toMatchObject({ [DEADLIFT]: 2, [BENCH]: 3, [METRES]: 1200 });
+  });
+
+  it("takes the server's values when nothing is being typed", () => {
+    const after = { [DEADLIFT]: 5, [BENCH]: 4, [METRES]: 1000 };
+    expect(keepTyping(ZONES, { ...before }, before, after)).toEqual(after);
+  });
+
+  it("drops typing into a zone that is locked now — it cannot be saved", () => {
+    const draft = { ...before, [BENCH]: 3 };
+    const after = { [DEADLIFT]: 2, [BENCH]: 7, [METRES]: 1000 };
+    expect(keepTyping(ZONES, draft, before, after, ["z1"])).toMatchObject({ [BENCH]: 7 });
+  });
+
+  it("keeps a value typed back to empty", () => {
+    const draft = { ...before, [DEADLIFT]: null };
+    expect(keepTyping(ZONES, draft, before, { ...before })).toMatchObject({ [DEADLIFT]: null });
   });
 });

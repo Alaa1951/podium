@@ -14,7 +14,8 @@
  * Options (combine freely):
  *   --place <competition-slug>  put test_zone_leader on the first zone of that
  *                               competition with no leader, as its leader, and
- *                               test_judge on the same zone at station 1
+ *                               each test judge on the same zone, on its own
+ *                               station (test_judge 1, test_judge2 2)
  *   --block                     switch every test account off (Users → Block)
  *   --unblock                   switch them back on
  *
@@ -162,12 +163,15 @@ async function provision(actor) {
 async function place(actor, slug) {
   const series = await prisma.series.findUnique({ where: { slug }, select: { id: true, name: true, archivedAt: true } });
   if (!series || series.archivedAt) fail(`no competition "${slug}".`);
-  const [leader, judge] = await Promise.all(
-    ['zone_leader', 'judge'].map((slugOf) =>
-      prisma.user.findUnique({ where: { email: testAccountEmail(slugOf) }, select: { id: true, email: true, status: true } })
-    )
+  const posted = TEST_ACCOUNTS.filter((def) => def.post);
+  const people = await Promise.all(
+    posted.map(async (def) => ({
+      def,
+      user: await prisma.user.findUnique({ where: { email: testAccountEmail(def.slug) }, select: { id: true, email: true } }),
+    }))
   );
-  if (!leader || !judge) fail('create the test accounts before placing them.');
+  if (people.some((one) => !one.user)) fail('create the test accounts before placing them.');
+  const leader = people.find((one) => one.def.post === 'leader')?.user;
   const zones = await prisma.zone.findMany({
     where: { seriesId: series.id },
     orderBy: { number: 'asc' },
@@ -175,27 +179,27 @@ async function place(actor, slug) {
   });
   // Never demote a real leader: the first zone with no leader, or the one the
   // test leader already leads.
-  const zone = zones.find((row) => row.staff.length === 0 || row.staff.some((one) => one.userId === leader.id));
+  const zone = zones.find((row) => row.staff.length === 0 || row.staff.some((one) => one.userId === leader?.id));
   if (!zone) fail(`every zone of "${slug}" already has a leader — place the test accounts from Wave control instead.`);
 
   await prisma.$transaction(async (tx) => {
-    await tx.zoneStaff.upsert({
-      where: { zoneId_userId: { zoneId: zone.id, userId: leader.id } },
-      create: { seriesId: series.id, zoneId: zone.id, userId: leader.id, position: 'leader', assignedById: actor },
-      update: { position: 'leader', station: null, assignedById: actor },
-    });
-    await tx.zoneStaff.upsert({
-      where: { zoneId_userId: { zoneId: zone.id, userId: judge.id } },
-      create: { seriesId: series.id, zoneId: zone.id, userId: judge.id, position: 'judge', station: 1, assignedById: actor },
-      update: { position: 'judge', station: 1, assignedById: actor },
-    });
+    for (const { def, user } of people) {
+      const position = def.post === 'leader' ? 'leader' : 'judge';
+      const station = def.post === 'leader' ? null : def.station ?? null;
+      await tx.zoneStaff.upsert({
+        where: { zoneId_userId: { zoneId: zone.id, userId: user.id } },
+        create: { seriesId: series.id, zoneId: zone.id, userId: user.id, position, station, assignedById: actor },
+        update: { position, station, assignedById: actor },
+      });
+    }
   });
-  for (const [user, what] of [[leader, 'leader'], [judge, 'judge, station 1']]) {
+  const placed = people.map(({ def, user }) => `${user.email} ${def.post === 'leader' ? 'leader' : `judge, station ${def.station}`}`);
+  for (const detail of placed) {
     await prisma.adminAuditLog.create({
-      data: { actorId: actor, action: 'zone.staff_changed', targetType: 'event', targetId: series.id, targetLabel: `Zone ${zone.number}`, detail: `${user.email} → ${what} (test account)` },
+      data: { actorId: actor, action: 'zone.staff_changed', targetType: 'event', targetId: series.id, targetLabel: `Zone ${zone.number}`, detail: `${detail} (test account)` },
     });
   }
-  return `${series.name}: Zone ${zone.number} — ${leader.email} leader, ${judge.email} judge at station 1`;
+  return `${series.name}: Zone ${zone.number} — ${placed.join('; ')}`;
 }
 
 async function setStatus(actor, status) {

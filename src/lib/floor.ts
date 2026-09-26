@@ -102,19 +102,6 @@ export function wavePosition(
   return { phase: "done", zoneIndex: null, phaseRemainingMs: null, waveRemainingMs: 0 };
 }
 
-/** Whether a wave has reached a zone yet (its work there has begun). */
-export function hasReachedZone(
-  wave: { startedAt: Date | null },
-  zoneIndex: number,
-  timing: FloorTiming,
-  now: Date
-): boolean {
-  if (!wave.startedAt) return false;
-  const window = zoneWindows(timing)[zoneIndex];
-  if (!window) return false;
-  return now.getTime() - wave.startedAt.getTime() >= window.workStartMs;
-}
-
 /**
  * When Zone 1 is free again for a new wave to start, given the waves already
  * on the floor. A wave holds Zone 1 for its work plus the changeover after
@@ -133,23 +120,113 @@ export function zoneOneFreeAt(
   return busyUntil.length ? new Date(Math.max(...busyUntil)) : null;
 }
 
+// ── Zone duty: which wave a zone's judges are scoring ────────────────────────
+//
+// A judge scores ONE team: the one on their station, in the wave their zone
+// is on. The screen and the server both ask the functions below, so what a
+// judge is shown and what they may write can never disagree.
+
+/** A wave as the floor rules need it. */
+export type FloorWave = {
+  id: string;
+  status: "pending" | "running" | "complete";
+  startedAt: Date | null;
+  /** When the clock runs (or ran) out — for a wave ended with End now, the moment it was ended. */
+  endsAt: Date | null;
+};
+
 /**
- * Which wave is in a given zone at `now` — working there, or in the break
- * right after it (the judges are still finishing that team's sheet).
+ * When a wave's work in a zone began, as epoch ms — or null when it has not
+ * got there: not started (or reset), not arrived yet, or ENDED before that
+ * zone's work began. A complete wave reached only the zones it started
+ * before its end: treating every complete wave as having been everywhere put
+ * a wave ended in Zone 1 on the sheets of Zones 2 to 4.
  */
-export function waveInZone<W extends { startedAt: Date | null; completed?: boolean }>(
+export function zoneArrival(wave: FloorWave, zoneIndex: number, timing: FloorTiming, now: Date): number | null {
+  if (wave.status === "pending" || !wave.startedAt) return null;
+  const window = zoneWindows(timing)[zoneIndex];
+  if (!window) return null;
+  const arrival = wave.startedAt.getTime() + window.workStartMs;
+  if (arrival > now.getTime()) return null;
+  if (wave.status === "complete" && wave.endsAt && arrival >= wave.endsAt.getTime()) return null;
+  return arrival;
+}
+
+/**
+ * The wave a zone is ON: of the waves that have reached it, the one that
+ * arrived last. Its teams are the ones the zone's judges score — while it
+ * works there, through the changeover after it, and (for a zone still not
+ * submitted) until the next wave arrives and takes its place. Waves start at
+ * least one zone-slot apart (zoneOneFreeAt), so a zone is never on two.
+ */
+export function waveOnDuty<W extends FloorWave>(
   waves: W[],
   zoneIndex: number,
   timing: FloorTiming,
   now: Date
-): { wave: W; phase: "work" | "break"; phaseRemainingMs: number } | null {
+): W | null {
+  let onDuty: W | null = null;
+  let latest = -Infinity;
   for (const wave of waves) {
-    const position = wavePosition(wave, timing, now);
-    if ((position.phase === "work" || position.phase === "break") && position.zoneIndex === zoneIndex) {
-      return { wave, phase: position.phase, phaseRemainingMs: position.phaseRemainingMs ?? 0 };
+    const arrival = zoneArrival(wave, zoneIndex, timing, now);
+    if (arrival !== null && arrival > latest) {
+      onDuty = wave;
+      latest = arrival;
     }
   }
-  return null;
+  return onDuty;
+}
+
+export type ZoneDuty<W extends FloorWave> = {
+  /** The wave the zone is on, or null before any wave has reached it. */
+  wave: W | null;
+  /**
+   * Where that wave is, seen from this zone: working here, in the changeover
+   * right after, or gone on (moved to the next zone, or over).
+   */
+  phase: "work" | "break" | "left" | null;
+  /** Time left in `work` or `break`; null otherwise. */
+  phaseRemainingMs: number | null;
+  /** The soonest running wave still to reach this zone, and how long until it does. */
+  next: { wave: W; inMs: number } | null;
+};
+
+/** Everything a judge sheet shows about its zone at `now` — see waveOnDuty. */
+export function zoneDuty<W extends FloorWave>(
+  waves: W[],
+  zoneIndex: number,
+  timing: FloorTiming,
+  now: Date
+): ZoneDuty<W> {
+  const window = zoneWindows(timing)[zoneIndex];
+  const wave = waveOnDuty(waves, zoneIndex, timing, now);
+
+  let phase: ZoneDuty<W>["phase"] = null;
+  let phaseRemainingMs: number | null = null;
+  if (wave && window && wave.startedAt) {
+    const elapsed = now.getTime() - wave.startedAt.getTime();
+    if (wave.status === "running" && elapsed < window.workEndMs) {
+      phase = "work";
+      phaseRemainingMs = window.workEndMs - elapsed;
+    } else if (wave.status === "running" && elapsed < window.breakEndMs) {
+      phase = "break";
+      phaseRemainingMs = window.breakEndMs - elapsed;
+    } else {
+      phase = "left";
+    }
+  }
+
+  let next: ZoneDuty<W>["next"] = null;
+  if (window) {
+    for (const candidate of waves) {
+      if (candidate.status !== "running" || !candidate.startedAt) continue;
+      if (zoneArrival(candidate, zoneIndex, timing, now) !== null) continue;
+      const inMs = candidate.startedAt.getTime() + window.workStartMs - now.getTime();
+      if (inMs > 0 && (!next || inMs < next.inMs)) next = { wave: candidate, inMs };
+    }
+  }
+
+  return { wave, phase, phaseRemainingMs, next };
 }
 
 /** The lowest free station in a wave, or null when all nine are taken. */

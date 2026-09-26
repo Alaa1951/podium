@@ -157,6 +157,32 @@ export function isComplete(zones: ZoneDef[], values: EntryValues) {
   });
 }
 
+/**
+ * A card's values after the server re-read its team (a poll, another card's
+ * save). What the person has typed and not saved yet — a value that differs
+ * from what the server last sent — STAYS; everything else takes what the
+ * server holds now, and so does every value of a zone that is locked now
+ * (a judge submitted it: typing into it can no longer be saved).
+ */
+export function keepTyping(
+  zones: ZoneDef[],
+  draft: EntryValues,
+  before: EntryValues,
+  after: EntryValues,
+  lockedZoneIds: string[] = []
+): EntryValues {
+  const locked = new Set(lockedZoneIds);
+  const next: EntryValues = { ...after };
+  for (const zone of zones) {
+    if (locked.has(zone.id)) continue;
+    for (const input of zone.inputs) {
+      const typed = draft[input.id] ?? null;
+      if (typed !== (before[input.id] ?? null)) next[input.id] = typed;
+    }
+  }
+  return next;
+}
+
 /** How much of the form is filled, for the operator's progress line. */
 export function filledCount(zones: ZoneDef[], values: EntryValues) {
   const inputs = allInputs(zones);

@@ -10,7 +10,7 @@ import { FinisherStop } from "@/components/scores/finisher-clock";
 import { halfOf, show } from "@/components/scores/score-grid-row";
 import { saveZoneScore } from "@/lib/actions/scores";
 import { fmt } from "@/lib/scoring";
-import { groupInputs, isComplete, isCounted, zonePoints, type EntryValues, type ZoneDef } from "@/lib/zones";
+import { groupInputs, isComplete, isCounted, keepTyping, zonePoints, type EntryValues, type ZoneDef } from "@/lib/zones";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ONE TEAM, ONE ZONE — what a judge scores.
@@ -41,6 +41,7 @@ const ERRORS: Record<string, string> = {
   WRONG_STATION: "This team is not on your station.",
   NO_STATION: "Your zone leader has not placed you on a station yet.",
   WAVE_NOT_HERE: "This wave has not reached your zone yet.",
+  WAVE_MOVED_ON: "The next wave has reached your zone, so this team is closed for you. Your zone leader can still submit it.",
   SERIES_NOT_LIVE: "The competition is not running.",
   SCORE_ENTRY_CLOSED: "Score entry has closed for this competition.",
   INCOMPLETE: "Fill in every field before submitting.",
@@ -57,10 +58,15 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
   const [saved, setSaved] = useState(false);
 
   // The server re-read this team: take what it now holds.
+  // The server re-read this team — the sheet's poll, another card's save, the
+  // leader's wave panel. Values somebody is still typing are KEPT: only a card
+  // with nothing unsaved takes the server's values, and a zone that has just
+  // been submitted always does (it is locked now). Taking them regardless
+  // wiped a half-entered score every few seconds.
   const [seen, setSeen] = useState(team);
   if (seen !== team) {
     setSeen(team);
-    setDraft(team.values);
+    setDraft(keepTyping([zone], draft, seen.values, team.values, team.locked ? [zone.id] : []));
     setError("");
   }
 

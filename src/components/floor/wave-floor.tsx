@@ -53,6 +53,7 @@ export function WaveFloor({
   timing,
   canControl,
   startOnly = false,
+  poll = true,
 }: {
   waves: WaveState[];
   teamsByWave: Record<string, FloorTeam[]>;
@@ -61,6 +62,12 @@ export function WaveFloor({
   canControl: boolean;
   /** A zone leader's view: Start only — End now and Reset are the supervisor's. */
   startOnly?: boolean;
+  /**
+   * Re-read the page while a wave runs. Off inside the judge sheet, which
+   * re-reads itself (SheetRefresher) — two timers there refreshed twice as
+   * often, and neither may run over a score being typed.
+   */
+  poll?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -84,10 +91,14 @@ export function WaveFloor({
 
   const anyRunning = waves.some((wave) => wave.status === "running");
   useEffect(() => {
-    if (!anyRunning) return;
-    const poll = setInterval(() => router.refresh(), 10_000);
-    return () => clearInterval(poll);
-  }, [anyRunning, router]);
+    if (!anyRunning || !poll) return;
+    const id = setInterval(() => {
+      // Never over unsaved values on the same page.
+      if (document.querySelector('[data-dirty="true"]')) return;
+      router.refresh();
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [anyRunning, poll, router]);
 
   const at = now === null ? null : new Date(now);
   const started = (wave: WaveState) => (wave.startedAt ? new Date(wave.startedAt) : null);

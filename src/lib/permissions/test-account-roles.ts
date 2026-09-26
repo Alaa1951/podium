@@ -23,6 +23,8 @@ export type TestAccountDef = {
   roles: string[];
   /** Floor post it is meant to be put on, for the docs and `--place`. */
   post?: "leader" | "judge";
+  /** A judge's station on that zone. */
+  station?: number;
   /** A studio account belongs to the empty sandbox studio, never a real one. */
   sandboxStudio?: boolean;
   /** What to try with it, in one line. */
@@ -66,11 +68,21 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
   },
   {
     slug: "judge",
-    name: "TEST · Judge",
+    name: "TEST · Judge 1",
     accountType: "organiser",
     roles: ["judge"],
     post: "judge",
-    purpose: "A judge on a zone and station: scores the team on that station, that zone only.",
+    station: 1,
+    purpose: "Judge 1, on station 1 of the zone: sees and scores only the station-1 team of the wave the zone is on.",
+  },
+  {
+    slug: "judge2",
+    name: "TEST · Judge 2",
+    accountType: "organiser",
+    roles: ["judge"],
+    post: "judge",
+    station: 2,
+    purpose: "Judge 2, on station 2 of the same zone — to check that each judge sees only their own station.",
   },
   {
     slug: "volunteer",

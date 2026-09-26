@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   finisherRemainingMs,
-  hasReachedZone,
   lowestFreeStation,
   stationSlots,
   remainingClock,
-  waveInZone,
+  waveOnDuty,
+  zoneArrival,
+  zoneDuty,
+  type FloorWave,
   waveLengthMinutes,
   wavePosition,
   zoneOneFreeAt,
@@ -72,11 +74,90 @@ describe("where a wave is", () => {
     expect(wavePosition({ startedAt: start, completed: true }, FOUR, at(30)).phase).toBe("done");
   });
 
-  it("knows which zones a wave has reached", () => {
-    expect(hasReachedZone(wave, 0, FOUR, at(0))).toBe(true);
-    expect(hasReachedZone(wave, 1, FOUR, at(19, 59))).toBe(false);
-    expect(hasReachedZone(wave, 1, FOUR, at(20))).toBe(true);
-    expect(hasReachedZone({ startedAt: null }, 0, FOUR, at(0))).toBe(false);
+});
+
+// A wave row as the duty rules read it.
+const row = (id: string, startedAt: Date | null, status: "pending" | "running" | "complete" = "running", endsAt: Date | null = null): FloorWave => ({
+  id,
+  status,
+  startedAt,
+  endsAt: endsAt ?? (startedAt ? new Date(startedAt.getTime() + 75 * 60_000) : null),
+});
+
+describe("when a wave reaches a zone", () => {
+  it("arrives at each zone when its work there begins", () => {
+    const wave = row("w1", start);
+    expect(zoneArrival(wave, 0, FOUR, at(0))).toBe(start.getTime());
+    expect(zoneArrival(wave, 1, FOUR, at(19, 59))).toBeNull();
+    expect(zoneArrival(wave, 1, FOUR, at(20))).toBe(at(20).getTime());
+    expect(zoneArrival(wave, 3, FOUR, at(60))).toBe(at(60).getTime());
+  });
+
+  it("never arrives anywhere before it starts, or after a reset", () => {
+    expect(zoneArrival(row("w1", null, "pending"), 0, FOUR, at(30))).toBeNull();
+  });
+
+  it("reaches only the zones it started before it was ended early", () => {
+    // End now at 25:00, during Zone 2's work: Zones 3 and 4 never saw it.
+    const ended = row("w1", start, "complete", at(25));
+    expect(zoneArrival(ended, 0, FOUR, at(90))).not.toBeNull();
+    expect(zoneArrival(ended, 1, FOUR, at(90))).not.toBeNull();
+    expect(zoneArrival(ended, 2, FOUR, at(90))).toBeNull();
+    expect(zoneArrival(ended, 3, FOUR, at(90))).toBeNull();
+  });
+
+  it("reached every zone when it ran its full clock", () => {
+    const full = row("w1", start, "complete");
+    expect(zoneArrival(full, 3, FOUR, at(100))).toBe(at(60).getTime());
+  });
+});
+
+describe("the wave a zone is on", () => {
+  const one = row("w1", start);
+  const two = row("w2", at(20));
+
+  it("is none until a wave arrives", () => {
+    const duty = zoneDuty([one], 1, FOUR, at(10));
+    expect(duty.wave).toBeNull();
+    expect(duty.phase).toBeNull();
+    // …but the sheet can say which wave is coming, and when.
+    expect(duty.next).toMatchObject({ wave: { id: "w1" }, inMs: 10 * 60_000 });
+  });
+
+  it("is the wave working there, then in the changeover after it", () => {
+    expect(zoneDuty([one], 0, FOUR, at(5))).toMatchObject({ wave: { id: "w1" }, phase: "work", phaseRemainingMs: 10 * 60_000 });
+    expect(zoneDuty([one], 0, FOUR, at(17))).toMatchObject({ wave: { id: "w1" }, phase: "break", phaseRemainingMs: 3 * 60_000 });
+  });
+
+  it("stays on the wave after it leaves, until the next wave arrives", () => {
+    // Wave 1 is in Zone 2 now; Zone 1 has no newer wave yet.
+    expect(zoneDuty([one], 0, FOUR, at(21))).toMatchObject({ wave: { id: "w1" }, phase: "left" });
+    // Wave 2 starts at 20:00 and takes Zone 1 over.
+    expect(zoneDuty([one, two], 0, FOUR, at(21))).toMatchObject({ wave: { id: "w2" }, phase: "work" });
+    // Zone 2 is on wave 1 at the same moment — one zone apart.
+    expect(zoneDuty([one, two], 1, FOUR, at(21))).toMatchObject({ wave: { id: "w1" }, phase: "work" });
+  });
+
+  it("has no changeover after the last zone — the wave is over", () => {
+    expect(zoneDuty([one], 3, FOUR, at(70))).toMatchObject({ phase: "work" });
+    expect(zoneDuty([one], 3, FOUR, at(75))).toMatchObject({ wave: { id: "w1" }, phase: "left" });
+  });
+
+  it("never puts a wave ended early on the zones it did not reach", () => {
+    const ended = row("w1", start, "complete", at(5));
+    expect(zoneDuty([ended], 0, FOUR, at(6))).toMatchObject({ wave: { id: "w1" }, phase: "left" });
+    expect(zoneDuty([ended], 1, FOUR, at(30)).wave).toBeNull();
+    expect(zoneDuty([ended], 1, FOUR, at(30)).next).toBeNull();
+  });
+
+  it("finds the soonest wave still to come", () => {
+    // Zone 3 at 25:00: wave 1 arrives at 40:00, wave 2 at 60:00.
+    expect(zoneDuty([one, two], 2, FOUR, at(25)).next).toMatchObject({ wave: { id: "w1" }, inMs: 15 * 60_000 });
+  });
+
+  it("waveOnDuty agrees with zoneDuty", () => {
+    expect(waveOnDuty([one, two], 0, FOUR, at(30))?.id).toBe("w2");
+    expect(waveOnDuty([one, two], 3, FOUR, at(30))).toBeNull();
   });
 });
 
@@ -99,17 +180,6 @@ describe("the start guard", () => {
         .map((p) => p.zoneIndex);
       expect(new Set(zones).size).toBe(zones.length);
     }
-  });
-});
-
-describe("which wave is in a zone", () => {
-  const waves = [{ startedAt: start, n: 1 }, { startedAt: at(20), n: 2 }];
-
-  it("finds the wave working there, or still in the break after it", () => {
-    expect(waveInZone(waves, 0, FOUR, at(25))?.wave.n).toBe(2);
-    expect(waveInZone(waves, 1, FOUR, at(25))?.wave.n).toBe(1);
-    expect(waveInZone(waves, 1, FOUR, at(36))).toMatchObject({ phase: "break" });
-    expect(waveInZone(waves, 3, FOUR, at(25))).toBeNull();
   });
 });
 

@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { hasReachedZone } from "@/lib/floor";
+import { waveOnDuty, zoneArrival } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { getSeriesZones } from "@/lib/queries";
@@ -110,8 +110,10 @@ const saveZoneSchema = z.object({
 /**
  * A judge's write: one zone of one team. Everything that decides it is
  * re-read from the database — the judge's post on this zone, the team's
- * station, whether its wave has reached the zone, whether the zone is
- * already locked — and handed to canWriteZoneScore (zone-score-rules.ts).
+ * station, whether its wave has reached the zone and is the wave the zone is
+ * on (floor.ts › zoneArrival, waveOnDuty — the same rules the judge sheet
+ * shows by), whether the zone is already locked — and handed to
+ * canWriteZoneScore (zone-score-rules.ts).
  */
 export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
   const user = await requireUser();
@@ -129,7 +131,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
       station: true,
       archivedAt: true,
       series: { select: { status: true, scoreEntryClosesAt: true } },
-      waveRef: { select: { startedAt: true, status: true } },
+      waveId: true,
       score: {
         select: {
           entries: { select: { inputId: true, value: true } },
@@ -146,19 +148,25 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
   if (zoneIndex < 0) return { ok: false, error: "NOT_FOUND" };
   const zone = ordered[zoneIndex];
 
-  const [post, timing, inScope] = await Promise.all([
+  const [post, timing, inScope, started] = await Promise.all([
     prisma.zoneStaff.findUnique({
       where: { zoneId_userId: { zoneId, userId: user.id } },
       select: { position: true, station: true },
     }),
     floorTimingFor(team.seriesId),
     prisma.team.count({ where: { id: team.id, ...teamScope(user) } }),
+    // Every wave that has been on the floor: which one this zone is ON is a
+    // question about all of them, not only this team's.
+    prisma.wave.findMany({
+      where: { seriesId: team.seriesId, NOT: { startedAt: null } },
+      select: { id: true, status: true, startedAt: true, endsAt: true },
+    }),
   ]);
 
-  const wave = team.waveRef;
-  const reached =
-    !!wave?.startedAt &&
-    (wave.status === "complete" || hasReachedZone({ startedAt: wave.startedAt }, zoneIndex, timing, new Date()));
+  const now = new Date();
+  const wave = started.find((row) => row.id === team.waveId) ?? null;
+  const reached = !!wave && zoneArrival(wave, zoneIndex, timing, now) !== null;
+  const onDuty = !!wave && waveOnDuty(started, zoneIndex, timing, now)?.id === wave.id;
 
   const decision = canWriteZoneScore({
     user,
@@ -166,8 +174,9 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
     team: { station: team.station },
     seriesStatus: team.series.status,
     reached,
+    onDuty,
     zoneSubmitted: team.score?.zones.some((row) => row.zoneId === zoneId && row.status === "submitted") ?? false,
-    entryClosed: !!team.series.scoreEntryClosesAt && Date.now() >= team.series.scoreEntryClosesAt.getTime(),
+    entryClosed: !!team.series.scoreEntryClosesAt && now >= team.series.scoreEntryClosesAt,
   });
   if (!decision.allowed) return { ok: false, error: decision.reason };
   if (decision.as === "console" && !inScope) return { ok: false, error: "FORBIDDEN" };

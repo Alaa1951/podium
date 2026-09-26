@@ -179,19 +179,34 @@ out(
   "",
   "| Post | Scores | Also | Rule in |",
   "| --- | --- | --- | --- |",
-  "| **Zone leader** (one per zone) | any station of their zone | places the zone's judges on stations (from their sheet); **starts the next wave** (Start only) | `zone-score-rules.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |",
-  "| **Judge** | the team on their own station, their own zone | — | `zone-score-rules.ts` |",
+  "| **Zone leader** (one per zone) | any station of their zone, for any wave that reached it — including a sheet a judge left open | places the zone's judges on stations (from their sheet); **starts the next wave** (Start only) | `zone-score-rules.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |",
+  "| **Judge** | only the team on their own station, in the wave their zone is **on** | — | `zone-score-rules.ts`, `floor.ts › zoneDuty` |",
   "| **Reserve** | same as a judge, once placed on a station | — | `zone-score-rules.ts` |",
+  "",
+  "### What a judge sees, and when",
+  "",
+  "The judge sheet (`/my-wave`) shows **one team**: the one on the judge's station, in the wave the judge's zone is **on** — the last wave that has reached that zone (`floor.ts › waveOnDuty`). The screen and the server use the same rule, so nothing can be written that the sheet does not show.",
+  "",
+  "| Moment (Zone N) | The judge sees |",
+  "| --- | --- |",
+  "| Competition not Running | \"The competition has not started yet.\" |",
+  "| Not placed on a station | \"Waiting for your zone leader to place you on a station.\" |",
+  "| No wave has reached Zone N | \"No team on your zone or station right now\" — and, if a wave is on the floor, which one and **when it reaches Zone N** (a countdown). |",
+  "| A wave is working in Zone N, or changing zones after it | the station's team, with the zone timer. \"No team on your station in this wave\" if the wave has none there. |",
+  "| That wave has moved on, sheet not submitted | the team stays, marked \"has left your zone — submit before the next wave arrives\". |",
+  "| That wave has moved on, sheet submitted | \"No team on your zone or station right now\", and when the next wave arrives. |",
+  "| The next wave reaches Zone N | its team replaces the last one. A sheet still open from the last wave is closed for the judge; **the zone leader** (or BFT MENA in the console) submits it. |",
+  "",
+  "A wave appears on the sheet **by itself**: the sheet re-reads every 5 seconds, and exactly when the clock brings a wave into the zone. A wave ended early (End now) never reaches the zones it had not started — those zones never see its teams.",
   "",
   "A judge or leader can write a zone only when **all** of these hold (`src/lib/zone-score-rules.ts`):",
   "",
   "1. the competition is **Running**;",
-  "2. the team's wave has **reached that zone** (its work there has begun) — or is complete;",
-  "3. the zone is **not submitted** yet for that team (a submitted zone is locked);",
-  "4. the competition's **score-entry cut-off** has not passed;",
-  "5. a judge (not a leader) has been **placed on a station**, and it is the team's station.",
-  "",
-  "Submitting a zone locks it. The sheet keeps the last three waves' unsubmitted teams, so a late submit can still be finished.",
+  "2. the team's wave has **reached that zone** (its work there began, before any early end);",
+  "3. for a judge or reserve: that wave is the one the zone is **on** (not one it has moved on from);",
+  "4. the zone is **not submitted** yet for that team (a submitted zone is locked);",
+  "5. the competition's **score-entry cut-off** has not passed;",
+  "6. a judge (not a leader) has been **placed on a station**, and it is the team's station.",
   ""
 );
 
@@ -206,7 +221,7 @@ out(
   "| **Corrections** | BFT MENA Full access only | *Unlock for correction* returns a submitted score to draft; nobody else can be given `scores.correct` or `scores.unlock`. |",
   "",
   "- Organisers, judges, gyms and athletes **never** write from the console, whatever keys they hold (`canWriteScore`, `src/lib/access.ts`). The Judge role holds `scores.enter` for the floor; it does not open the console.",
-  "- After a wave's clock ends, the console is closed for everyone but Full access; judges may still finish an unsubmitted zone from their sheet until the score-entry cut-off.",
+  "- After a wave's clock ends, the console is closed for everyone but Full access. A judge can still submit the last wave's open sheet until the next wave reaches their zone; the zone leader can submit any open sheet of their zone until the score-entry cut-off.",
   "- **Finisher (last zone) time** is what the wave clock had left when the team finished, and never more than one zone's work time (`finisherRemainingMs`, `src/lib/floor.ts`). The Stop button opens only when the last zone begins; ending a wave early records 0:00 for teams that never reached the finisher.",
   ""
 );
@@ -240,7 +255,7 @@ out(
 for (const def of TEST_ACCOUNTS) {
   const roleNames = def.roles.map((key) => roles.find((role) => role.key === key)?.name ?? key).join(", ");
   out(
-    `| \`${testAccountEmail(def.slug)}\` | ${ACCOUNT_TYPE[def.accountType] ?? def.accountType} | ${roleNames} | ${def.post === "leader" ? "Zone leader" : def.post === "judge" ? "Judge, station 1" : "—"} | ${def.purpose} |`
+    `| \`${testAccountEmail(def.slug)}\` | ${ACCOUNT_TYPE[def.accountType] ?? def.accountType} | ${roleNames} | ${def.post === "leader" ? "Zone leader" : def.post === "judge" ? `Judge, station ${def.station ?? "—"}` : "—"} | ${def.purpose} |`
   );
 }
 out(

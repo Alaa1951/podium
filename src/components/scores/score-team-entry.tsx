@@ -12,6 +12,7 @@ import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import {
   groupInputs,
   isCounted,
+  keepTyping,
   totalPoints,
   zonePoints,
   type EntryValues,
@@ -69,12 +70,12 @@ export function ScoreTeamEntry({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  // The server re-read this team: drop anything half-typed and take what it
-  // now holds, so the screen never keeps showing a value the database refused.
+  // The server re-read this team: values still being typed are kept, a zone a
+  // judge has just submitted takes the server's values (see ScoreGridRow).
   const [seen, setSeen] = useState(team);
   if (seen !== team) {
     setSeen(team);
-    setDraft(team.values);
+    setDraft(keepTyping(zones, draft, seen.values, team.values, team.lockedZones ?? []));
     setError("");
   }
 

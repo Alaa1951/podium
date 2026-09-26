@@ -13,6 +13,7 @@ const base: ZoneWriteFacts = {
   team: { station: 3 },
   seriesStatus: "live",
   reached: true,
+  onDuty: true,
   zoneSubmitted: false,
 };
 
@@ -109,5 +110,28 @@ describe("the score-entry cut-off", () => {
   it("never closes it for BFT MENA Full access", () => {
     const admin = { ...base, user: { role: "admin" as const, permissions: ["*"] }, entryClosed: true };
     expect(canWriteZoneScore(admin)).toEqual({ allowed: true, as: "admin" });
+  });
+});
+
+describe("only the wave the zone is on", () => {
+  it("refuses a judge a team the zone has moved on from", () => {
+    // The next wave has arrived: the old team is the zone leader's to finish.
+    expect(canWriteZoneScore({ ...base, onDuty: false })).toMatchObject({ reason: "WAVE_MOVED_ON" });
+  });
+
+  it("refuses a reserve the same way", () => {
+    const reserve = { ...base, post: { position: "reserve" as const, station: 3 }, onDuty: false };
+    expect(canWriteZoneScore(reserve)).toMatchObject({ reason: "WAVE_MOVED_ON" });
+  });
+
+  it("lets the zone leader finish an earlier wave's sheet — the safety valve", () => {
+    const leader = { ...base, post: { position: "leader" as const, station: null }, onDuty: false };
+    expect(canWriteZoneScore(leader)).toEqual({ allowed: true, as: "leader" });
+  });
+
+  it("still refuses everyone a wave that never reached the zone", () => {
+    const leader = { ...base, post: { position: "leader" as const, station: null }, reached: false, onDuty: false };
+    expect(canWriteZoneScore(leader)).toMatchObject({ reason: "WAVE_NOT_HERE" });
+    expect(canWriteZoneScore({ ...base, reached: false, onDuty: false })).toMatchObject({ reason: "WAVE_NOT_HERE" });
   });
 });
