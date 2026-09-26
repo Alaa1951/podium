@@ -71,7 +71,7 @@ export function ScoreRow({
       style={{
         gridTemplateColumns: columns,
         gap: 12,
-        padding: "11px 16px",
+        padding: "6px 14px",
         animationDelay: `${Math.min(index, 10) * 16}ms`,
       }}
     >
@@ -85,7 +85,7 @@ export function ScoreRow({
           style={{
             fontFamily: "var(--font-heading), sans-serif",
             fontWeight: 700,
-            fontSize: "clamp(14px,1.5vw,18px)",
+            fontSize: "clamp(14px,1.35vw,17px)",
             color: "var(--board-text)",
           }}
         >
@@ -108,7 +108,7 @@ export function ScoreRow({
       <div
         className="display num"
         style={{
-          fontSize: "clamp(17px,2vw,26px)",
+          fontSize: "clamp(16px,1.8vw,24px)",
           color: "var(--board-text)",
           textAlign: "end",
           whiteSpace: "nowrap",

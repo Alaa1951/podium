@@ -182,7 +182,7 @@ export function BracketChips({
           gap: 8,
           flexWrap: "wrap",
           alignItems: "center",
-          padding: "clamp(12px,2vw,16px) clamp(16px,3vw,36px) 0",
+          padding: "clamp(8px,1vw,10px) clamp(16px,3vw,36px) 0",
         }}
       >
         <button
@@ -265,8 +265,8 @@ export function BoardProgress({
           alignItems: "center",
           gap: "clamp(12px,2vw,20px)",
           flexWrap: "wrap",
-          margin: "clamp(12px,2vw,16px) clamp(16px,3vw,36px) 0",
-          padding: "12px 16px",
+          margin: "clamp(8px,1vw,10px) clamp(16px,3vw,36px) 0",
+          padding: "7px 14px",
           borderRadius: "var(--r-md)",
           border: "1px solid var(--board-border)",
           background: "var(--board-raised)",

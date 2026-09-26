@@ -53,7 +53,7 @@ export function SponsorStrip({
       <div className="sponsor-track">
         <div
           className="sponsor-rail"
-          style={{ transform: `translateX(${-(spot * 188 + 85)}px)` }}
+          style={{ transform: `translateX(${-(spot * 134 + 60)}px)` }}
         >
           {Array.from({ length: count }, (_, i) => {
             const logo = logos[i];
@@ -63,8 +63,8 @@ export function SponsorStrip({
                   <Image
                     src={logo.src}
                     alt={logo.alt}
-                    width={170}
-                    height={56}
+                    width={120}
+                    height={34}
                     style={{ width: "100%", height: "100%", objectFit: "contain" }}
                   />
                 ) : (

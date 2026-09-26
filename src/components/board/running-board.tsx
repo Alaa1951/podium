@@ -45,10 +45,10 @@ import { SponsorStrip } from "@/components/board/sponsor-strip";
 
 const PAGE_SECONDS = 14;
 
-// This is read from across a gym, not scrolled on a desk. Ten rows fill a
+// This is read from across a gym, not scrolled on a desk. Twelve rows fill a
 // wall screen at a size somebody out of breath can actually read; the rest
 // arrive on the next page, which turns itself.
-const ROWS_PER_PAGE = 10;
+const ROWS_PER_PAGE = 12;
 
 
 export function RunningBoard({
@@ -270,7 +270,7 @@ export function RunningBoard({
             <div style={{ textAlign: "end" }}>{t("Total")}</div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {visible.map((row, index) => (
               <ScoreRow
                 key={row.id}

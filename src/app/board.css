@@ -61,8 +61,8 @@
 
 /* The rank itself: a disc, so it reads as a position rather than a number. */
 .rank-disc {
-  width: clamp(30px, 3vw, 40px);
-  height: clamp(30px, 3vw, 40px);
+  width: clamp(26px, 2.4vw, 34px);
+  height: clamp(26px, 2.4vw, 34px);
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -209,12 +209,12 @@
   align-items: flex-end;
   gap: clamp(16px, 3vw, 32px);
   flex-wrap: wrap;
-  padding: clamp(16px, 3vw, 26px) clamp(16px, 3vw, 36px) clamp(14px, 2vw, 18px);
+  padding: clamp(10px, 1.6vw, 16px) clamp(16px, 3vw, 36px) clamp(8px, 1vw, 12px);
   border-bottom: 1px solid var(--board-border-strong);
 }
 
 .board-head-title {
-  font-size: clamp(28px, 5vw, 72px);
+  font-size: clamp(26px, 4.2vw, 62px);
   margin: 0;
   color: var(--board-text);
   overflow-wrap: break-word;
@@ -244,7 +244,7 @@
   text-align: end;
 }
 .board-head-clock .display {
-  font-size: clamp(36px, 5vw, 76px);
+  font-size: clamp(32px, 4.4vw, 66px);
   color: var(--board-text);
 }
 .board-head-clock[data-idle] .display { opacity: 0.55; }
@@ -303,15 +303,15 @@
 .running-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(230px, 24%, 330px);
-  gap: clamp(14px, 2vw, 22px);
+  gap: clamp(12px, 1.4vw, 18px);
   align-items: start;
-  padding: clamp(14px, 2vw, 20px) clamp(16px, 3vw, 36px) clamp(24px, 4vw, 36px);
+  padding: clamp(8px, 1vw, 12px) clamp(16px, 3vw, 36px) clamp(8px, 1vw, 12px);
   flex: 1;
 }
 
 .zone-head {
   gap: 12px;
-  padding: 0 16px 10px;
+  padding: 0 14px 6px;
   font-family: var(--font-heading), sans-serif;
   font-weight: 700;
   font-size: 10px;
@@ -323,13 +323,13 @@
 .board-legend {
   margin-top: auto;
   display: flex;
-  gap: clamp(14px, 3vw, 34px);
+  gap: clamp(12px, 2vw, 26px);
   flex-wrap: wrap;
-  padding: clamp(14px, 2vw, 20px) clamp(16px, 3vw, 36px);
+  padding: 6px clamp(16px, 3vw, 36px);
   border-top: 1px solid var(--board-border);
   font-family: var(--font-heading), sans-serif;
   font-weight: 700;
-  font-size: clamp(9px, 0.9vw, 11px);
+  font-size: clamp(8px, 0.75vw, 10px);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--board-text-muted);
@@ -341,7 +341,7 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 14px 16px 0;
+  padding: 8px 14px 0;
 }
 .board-pager > div:last-child { display: flex; gap: 6px; margin-inline-start: auto; }
 
@@ -366,15 +366,15 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(14px, 2vw, 26px);
-  padding: clamp(12px, 1.6vw, 18px) clamp(16px, 4vw, 40px);
+  gap: clamp(12px, 1.6vw, 20px);
+  padding: 4px clamp(16px, 3vw, 36px);
   border-top: 1px solid rgba(242, 242, 243, 0.25);
 }
 
 .sponsor-bar-label {
   font-family: var(--font-heading), sans-serif;
   font-weight: 700;
-  font-size: clamp(10px, 0.8vw, 12px);
+  font-size: clamp(9px, 0.7vw, 10px);
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--color-accent-300);
@@ -383,7 +383,7 @@
 
 .sponsor-track {
   position: relative;
-  height: clamp(72px, 7vw, 96px);
+  height: 50px;
   overflow: hidden;
 }
 
@@ -393,13 +393,14 @@
   inset-inline-start: 50%;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sponsor-slot {
-  width: clamp(130px, 11vw, 170px);
-  height: clamp(46px, 4.4vw, 56px);
+  /* Fixed, because the rail steps by exactly one slot and gap (sponsor-strip.tsx). */
+  width: 120px;
+  height: 34px;
   flex: none;
   display: grid;
   place-items: center;
@@ -408,7 +409,7 @@
   opacity: 0.42;
   transform: scale(0.88);
 }
-.sponsor-slot[data-on] { opacity: 1; transform: scale(1.5); }
+.sponsor-slot[data-on] { opacity: 1; transform: scale(1.3); }
 
 /* Until a logo is uploaded: a dashed frame that says what belongs here. */
 .sponsor-placeholder {
