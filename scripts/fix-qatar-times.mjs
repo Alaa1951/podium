@@ -1,12 +1,13 @@
 /**
- * Shifts every competition datetime +3 hours — ONCE.
+ * Shifts every competition datetime −3 hours — ONCE.
  *
  * The settings forms always meant Qatar time, but the server stored the typed
  * wall time as UTC, so a competition set for 02:00 was kept as 02:00Z, which
- * displays as 05:00 Qatar. The app now parses entries as Qatar time
+ * displays as 05:00 Qatar — three hours AHEAD of the intended instant
+ * (02:00 Qatar = 23:00Z). The app now parses entries as Qatar time
  * (src/lib/qatar-time.ts); this script repairs the rows saved before that fix
- * by adding three hours to the stored instants: 02:00Z — which MEANT 02:00
- * Qatar — becomes 23:00Z the evening before, which IS 02:00 Qatar.
+ * by subtracting three hours from the stored instants: 02:00Z — which MEANT
+ * 02:00 Qatar — becomes 23:00Z the evening before, which IS 02:00 Qatar.
  *
  * Columns: competitionDate, boardOpensAt, registrationClosesAt,
  * registrationsFinalAt, scoreEntryClosesAt, resultsPublicAt,
@@ -27,7 +28,7 @@ import { PrismaClient } from "../src/generated/prisma/client.ts";
 
 process.loadEnvFile?.(path.join(process.cwd(), ".env"));
 
-const SHIFT_MS = 3 * 60 * 60 * 1000;
+const SHIFT_MS = 3 * 60 * 60 * 1000; // SUBTRACTED — the bug stored instants 3h late.
 const COLUMNS = [
   "competitionDate",
   "boardOpensAt",
@@ -74,7 +75,7 @@ for (const row of series) {
   for (const column of COLUMNS) {
     const value = row[column];
     if (!value) continue;
-    const shifted = new Date(value.getTime() + SHIFT_MS);
+    const shifted = new Date(value.getTime() - SHIFT_MS);
     updates[column] = shifted;
     touchedColumns++;
     lines.push(`    ${column}: ${value.toISOString()} → ${shifted.toISOString()}`);
