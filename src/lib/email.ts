@@ -2,6 +2,8 @@ import "server-only";
 
 import nodemailer, { type Transporter } from "nodemailer";
 
+import { isTestAccount } from "@/lib/test-accounts";
+
 const BRAND = "PODIUM";
 
 type MailPayload = { to: string; subject: string; text: string; html: string };
@@ -81,6 +83,13 @@ function shouldLogInsteadOfSend() {
 }
 
 async function sendMail(payload: MailPayload) {
+  // A test account is not a mailbox (test-accounts.ts): nothing is sent to
+  // it, whatever the mail — so it can never bounce, and never carries a code.
+  if (isTestAccount({ TEST_ACCOUNT_EMAILS: process.env.TEST_ACCOUNT_EMAILS }, payload.to)) {
+    console.info(`[EMAIL] not sent — test account (${payload.subject})`);
+    return;
+  }
+
   if (shouldLogInsteadOfSend()) {
     // The timestamp is what lets `npm run otp` say how old a code is. A code
     // lives ten minutes; without this, a code read out of yesterday's log

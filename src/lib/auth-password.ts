@@ -7,6 +7,7 @@ import { sendSecurityAlertEmail } from "@/lib/email";
 import { verifyOtpChallenge } from "@/lib/otp";
 import { onAthleteVerified } from "@/lib/partners";
 import { otpDevBypassEnabled, staffOtpExempt } from "@/lib/otp-bypass";
+import { isTestAccount } from "@/lib/test-accounts";
 import { prisma } from "@/lib/prisma";
 import { limitAuthAttempt } from "@/lib/rate-limit";
 import { normalizeEmail, verifyPassword } from "@/lib/security";
@@ -92,7 +93,10 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       // Evaluate the server-only allowlist after the password has been checked.
       // Never use it in either code-only provider below.
       const exempt = staffOtpExempt({ OTP_EXEMPT_EMAILS: process.env.OTP_EXEMPT_EMAILS }, email, user.role);
-      if ((user.forceOtpNextLogin || suspicious || !trusted) && !OTP_DEV_BYPASS && !exempt) {
+      // A test account (test-accounts.ts) has no inbox to read a code from:
+      // its password is the whole sign-in. Blocking it on Users switches it off.
+      const testAccount = isTestAccount({ TEST_ACCOUNT_EMAILS: process.env.TEST_ACCOUNT_EMAILS }, email);
+      if ((user.forceOtpNextLogin || suspicious || !trusted) && !OTP_DEV_BYPASS && !exempt && !testAccount) {
         await challengeDevice({
           userId: user.id,
           email,

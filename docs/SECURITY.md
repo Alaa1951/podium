@@ -47,6 +47,15 @@ effect. It never bypasses OTP-only or competitor authentication, and does not ma
 an unrecognized device trusted. Remove the exception and disable the reviewer
 account after review. The global development bypass is still ignored in production.
 
+`TEST_ACCOUNT_EMAILS` is a second server-only exact allowlist, for the per-role test
+accounts (docs/ACCESS.md). A listed address signs in with its password alone — no
+emailed code, whatever the device — and `email.ts` sends it nothing, so a test
+account can never bounce mail or receive a code. The password, rate limits, account
+status, audit log and permissions all still apply; what a test account may do is
+exactly its account type and roles. The list and the password never go in the
+repository (it is public). Block the accounts on Users between test sessions: a
+blocked account cannot sign in at all.
+
 ### What sign-in does not reveal
 
 An unknown email and a wrong password fail identically. Password reset always
