@@ -110,6 +110,8 @@ export function ScoreEntry({
         setError(
           result.error === "EDIT_BUDGET_SPENT"
             ? t("This score is locked. Ask BFT MENA to make further corrections.")
+            : result.error === "SCORE_LOCKED"
+              ? t("A judge has already submitted that zone, so it is locked. Only BFT MENA Full access can correct it.")
             : result.error === "INVALID_SCORE"
               ? t("Check the numbers — a value is negative, not whole, or over the limit.")
               : t("Something went wrong. Try again.")

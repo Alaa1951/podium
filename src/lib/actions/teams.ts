@@ -4,25 +4,15 @@ import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { lowestFreeStation, MAX_STATIONS } from "@/lib/floor";
-import { nextTeamNumber as sharedNextTeamNumber } from "@/lib/team-create";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { assignmentPlan, ScheduleError, scheduleError } from "@/lib/wave-schedule";
 import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
-import { requireAccess, teamScope } from "@/lib/session";
+import { can, requireAccess, teamScope } from "@/lib/session";
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message?: string } : { message?: string; data: T }))
   | { ok: false; error: string };
-
-/**
- * Kept as a named export for the callers that read better with it, but the
- * arithmetic itself lives in one place now: there used to be a second, subtly
- * different copy in `registrations.ts` without the floor at 100.
- */
-export async function nextTeamNumber(seriesId: string) {
-  return sharedNextTeamNumber(prisma, seriesId);
-}
 
 const setWaveSchema = z.object({
   teamId: z.string().min(1),
@@ -54,6 +44,12 @@ export async function setTeamWave(input: unknown): Promise<ActionResult> {
       if (!team || team.series.archivedAt) throw new ScheduleError("NOT_FOUND");
       if (team.waitlistedAt) throw new ScheduleError("ON_THE_WAITING_LIST");
       if (team.series.status === "final" || (team.waveRef && team.waveRef.status !== "pending")) throw new ScheduleError("WAVE_STARTED");
+      // Moving into a wave number nobody has made would make it: that is
+      // building the running order (waves.edit), not placing a team in it.
+      if (!can(user, "waves.edit")) {
+        const exists = await tx.wave.count({ where: { seriesId: team.seriesId, number: parsed.data.wave } });
+        if (!exists) throw new ScheduleError("NO_SUCH_WAVE");
+      }
       const target = await waveRowFor(tx, team.seriesId, parsed.data.wave);
       if (target.status !== "pending") throw new ScheduleError("WAVE_STARTED");
       if (target.id === team.waveId) return;

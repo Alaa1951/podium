@@ -5,7 +5,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesStudios } from "@/lib/queries";
 import { getSeriesReport } from "@/lib/reports";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { requireAccess } from "@/lib/session";
+import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function NewRegistrationPage(
   props: PageProps<"/series/[series]/registrations/new">
 ) {
-  await requireAccess("registrations.create");
+  await requireConsoleAccess("registrations.create");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);

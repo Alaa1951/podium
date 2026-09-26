@@ -23,6 +23,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+  // A "View as" preview is read-only: no reset mail to the previewed person.
+  if (user.viewAs) return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
 
   const ip = getIpFromHeaders(req.headers);
   const rate = limitAuthAttempt({ scope: "request-password-reset", ip, identifier: user.email, limit: 5 });

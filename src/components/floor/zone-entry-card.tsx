@@ -42,6 +42,7 @@ const ERRORS: Record<string, string> = {
   NO_STATION: "Your zone leader has not placed you on a station yet.",
   WAVE_NOT_HERE: "This wave has not reached your zone yet.",
   SERIES_NOT_LIVE: "The competition is not running.",
+  SCORE_ENTRY_CLOSED: "Score entry has closed for this competition.",
   INCOMPLETE: "Fill in every field before submitting.",
   INVALID_SCORE: "A value is out of range.",
   FORBIDDEN: "You are not allowed to score this.",

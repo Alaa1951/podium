@@ -128,7 +128,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
       seriesId: true,
       station: true,
       archivedAt: true,
-      series: { select: { status: true } },
+      series: { select: { status: true, scoreEntryClosesAt: true } },
       waveRef: { select: { startedAt: true, status: true } },
       score: {
         select: {
@@ -167,6 +167,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
     seriesStatus: team.series.status,
     reached,
     zoneSubmitted: team.score?.zones.some((row) => row.zoneId === zoneId && row.status === "submitted") ?? false,
+    entryClosed: !!team.series.scoreEntryClosesAt && Date.now() >= team.series.scoreEntryClosesAt.getTime(),
   });
   if (!decision.allowed) return { ok: false, error: decision.reason };
   if (decision.as === "console" && !inScope) return { ok: false, error: "FORBIDDEN" };
@@ -214,11 +215,13 @@ const saveScoreSchema = z.object({
 });
 
 /**
- * BFT MENA's console write: a whole team, every zone at once, which submits
- * and locks every zone. Judges score zone by zone from their own sheet
- * (saveZoneScore); studios do not enter scores at all.
+ * BFT MENA's console write: a whole team at once. Every zone the write leaves
+ * COMPLETE is submitted and locked; a zone still missing a value stays open
+ * for its judges. Judges score zone by zone from their own sheet
+ * (saveZoneScore); studios, organisers and athletes do not write here at all.
  *
  *   * only BFT MENA holding `scores.enter` (canWriteScore, access.ts);
+ *   * a zone a judge has submitted is not rewritten (Full access corrects);
  *   * only before the score-entry cut-off and the wave's clock;
  *   * a submitted score is corrected by BFT MENA Full access only;
  *   * every changed movement is written to the audit log with who changed it.
@@ -234,7 +237,7 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
   const team = await prisma.team.findFirst({
     where: { id: teamId, ...teamScope(user) },
     include: {
-      score: { include: { entries: true } },
+      score: { include: { entries: true, zones: { select: { zoneId: true, status: true } } } },
       series: { select: { scoreEntryClosesAt: true } },
       waveRef: { select: { endsAt: true } },
     },
@@ -263,6 +266,33 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
 
   const previous = new Map((team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value]));
 
+  // A zone a judge has submitted is locked zone by zone, not only when the
+  // whole team is: the console may not rewrite it (Full access corrects). The
+  // grid sends every field back, so an unchanged value is simply dropped.
+  const lockedZones = new Set((team.score?.zones ?? []).filter((row) => row.status === "submitted").map((row) => row.zoneId));
+  if (!can(user, "scores.correct")) {
+    for (const zone of zones) {
+      if (!lockedZones.has(zone.id)) continue;
+      for (const inputDef of zone.inputs) {
+        if (!(inputDef.id in next)) continue;
+        if ((next[inputDef.id] ?? null) !== (previous.get(inputDef.id) ?? null)) return { ok: false, error: "SCORE_LOCKED" };
+        delete next[inputDef.id];
+      }
+    }
+  }
+
+  // Only a COMPLETE zone is submitted and locked. Submitting every zone on
+  // every save locked the zones nobody had filled in yet — a team saved from
+  // the console before its wave reached Zone 2 had Zone 2 locked, empty, and
+  // its judges could not score it.
+  const merged = Object.fromEntries(
+    allInputs(zones).map((inputDef) => [inputDef.id, inputDef.id in next ? next[inputDef.id] : previous.get(inputDef.id) ?? null])
+  );
+  // A zone already submitted keeps its judge as the one who submitted it.
+  const submitZones = zones
+    .filter((zone) => !lockedZones.has(zone.id) && isComplete([zone], merged))
+    .map((zone) => zone.id);
+
   await prisma.$transaction((tx) =>
     writeEntries(tx, {
       teamId,
@@ -270,7 +300,7 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
       zones,
       next,
       previous,
-      submitZones: zones.map((zone) => zone.id),
+      submitZones,
     })
   );
 

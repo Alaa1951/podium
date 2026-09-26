@@ -185,7 +185,7 @@ export function RowPair({
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    disabled={pending || readOnly}
+                    disabled={pending}
                     onClick={() => onArchive(row)}
                     style={{ marginTop: 10, color: "var(--status-danger-text)", height: 32, fontSize: 12 }}
                   >

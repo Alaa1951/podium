@@ -6,9 +6,11 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import {
   canAssignRole,
+  canGiveRole,
   canChangeOverrides,
   mergeScoped,
 } from "@/lib/permissions/grant-policy";
+import { targetWithPermissions } from "@/lib/permissions/load";
 import { parseOverrides } from "@/lib/permissions/resolve";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/session";
@@ -45,10 +47,10 @@ async function loadRoleChange(input: unknown) {
     prisma.user.findUnique({ where: { id: parsed.data.userId }, select: TARGET_SELECT }),
     prisma.accessRole.findUnique({
       where: { id: parsed.data.roleId },
-      select: { id: true, name: true, assignableBy: true, permissions: true },
+      select: { id: true, name: true, assignableBy: true, permissions: true, accountTypes: true },
     }),
   ]);
-  return target && role && !target.archivedAt ? { target, role } : null;
+  return target && role && !target.archivedAt ? { target: await targetWithPermissions(target), role } : null;
 }
 
 function revalidateAccess() {
@@ -65,7 +67,7 @@ export async function assignAccessRole(input: unknown): Promise<AccessActionResu
   if (!loaded) return { ok: false, error: "NOT_FOUND" };
   const { target, role } = loaded;
 
-  const decision = canAssignRole(actor, target, role);
+  const decision = canGiveRole(actor, target, role);
   if (!decision.allowed) return { ok: false, error: decision.reason, keys: decision.keys };
 
   const existing = await prisma.userAccessRole.findUnique({
@@ -159,7 +161,7 @@ export async function savePermissionOverrides(input: unknown): Promise<AccessAct
   const deny = mergeScoped(before.deny, parsed.data.deny, editable);
   const after = { grant: grant.filter((key) => !deny.includes(key)), deny };
 
-  const decision = canChangeOverrides(actor, target, before, after);
+  const decision = canChangeOverrides(actor, await targetWithPermissions(target), before, after);
   if (!decision.allowed) return { ok: false, error: decision.reason, keys: decision.keys };
 
   const written = await prisma.user.updateMany({

@@ -29,11 +29,19 @@ export type TargetAccount = {
   id: string;
   role: AccountType;
   studioId: string | null;
+  /**
+   * The target's effective permissions. Needed when a BFT MENA Partial actor
+   * manages another Partial account (see canManageTarget); load them with
+   * targetWithPermissions (permissions/load.ts).
+   */
+  permissions?: string[];
 };
 
 export type RoleForGrant = {
   assignableBy: RoleAssigner;
   permissions: unknown;
+  /** The account types the role is meant for (AccessRole.accountTypes). Empty or absent: any. */
+  accountTypes?: unknown;
 };
 
 const holds = (actor: Actor, key: string) =>
@@ -97,14 +105,27 @@ export function canEditRole(actor: Actor, before: unknown, after: string[]): Dec
 
 /**
  * Whether the actor may change who this person is at all (roles, overrides,
- * status). Never yourself; never BFT MENA Full unless you are it; a studio
- * only within its own studio and never over BFT MENA staff.
+ * status, name and email, reset links). Never yourself; never BFT MENA Full
+ * unless you are it; a studio only within its own studio and never over BFT
+ * MENA staff.
+ *
+ * BFT MENA Partial over another Partial account: only when the actor holds
+ * every permission that account holds. Otherwise a Partial account could
+ * change a stronger colleague's email, send the reset link there, and sign in
+ * as them — rule 1 ("only what you hold") walked around through the account.
+ * Without the target's permissions the answer is no: fail closed.
  */
 export function canManageTarget(actor: Actor, target: TargetAccount): Decision {
   if (actor.id === target.id) return { allowed: false, reason: "CANNOT_CHANGE_OWN_ACCESS" };
   if (actor.role === "admin") return { allowed: true };
   if (target.role === "admin") return { allowed: false, reason: "FORBIDDEN" };
-  if (actor.role === "staff") return { allowed: true };
+  if (actor.role === "staff") {
+    if (target.role !== "staff") return { allowed: true };
+    if (!target.permissions) return { allowed: false, reason: "FORBIDDEN" };
+    const notHeld = target.permissions.filter((key) => !holds(actor, key));
+    if (notHeld.length) return { allowed: false, reason: "NOT_HELD", keys: notHeld };
+    return { allowed: true };
+  }
   if (actor.role === "studio") {
     if (!actor.studioId || target.studioId !== actor.studioId) {
       return { allowed: false, reason: "FORBIDDEN" };
@@ -132,6 +153,30 @@ export function canAssignRole(actor: Actor, target: TargetAccount, role: RoleFor
   // BFT MENA Partial: only roles made entirely of permissions they hold.
   const notHeld = normalizeStoredPermissions(role.permissions).filter((key) => !holds(actor, key));
   if (notHeld.length) return { allowed: false, reason: "NOT_HELD", keys: notHeld };
+  return { allowed: true };
+}
+
+/** Whether a role is meant for this account type. A role naming none fits all. */
+export function roleFitsAccount(role: Pick<RoleForGrant, "accountTypes">, accountType: AccountType): boolean {
+  const types = Array.isArray(role.accountTypes)
+    ? role.accountTypes.filter((type): type is string => typeof type === "string")
+    : [];
+  return types.length === 0 || types.includes(accountType);
+}
+
+/**
+ * GIVING a role (not taking it away): everything canAssignRole asks, and the
+ * role must be meant for the person's account type — the Judge role for an
+ * organiser account, never for an athlete's. BFT MENA Full access decides for
+ * itself. Taking a role away stays possible whatever it is held on, so a
+ * wrongly given role can always be removed.
+ */
+export function canGiveRole(actor: Actor, target: TargetAccount, role: RoleForGrant): Decision {
+  const decision = canAssignRole(actor, target, role);
+  if (!decision.allowed) return decision;
+  if (actor.role !== "admin" && !roleFitsAccount(role, target.role)) {
+    return { allowed: false, reason: "ROLE_NOT_FOR_ACCOUNT_TYPE" };
+  }
   return { allowed: true };
 }
 

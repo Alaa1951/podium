@@ -13,6 +13,7 @@ import {
   accountScope,
   can,
   canCreateAccount,
+  canControlWave,
   canWriteScore,
   isAdmin,
   isBft,
@@ -133,6 +134,15 @@ describe("canWriteScore — the whole rule for writing a score from the console"
     expect(canWriteScore(organiser, series, during).allowed).toBe(false);
   });
 
+  it("refuses a JUDGE — the key is theirs for the floor sheet, not for the whole field", () => {
+    // Organiser account + Judge role: holds scores.enter, and would otherwise
+    // write every zone of every team through the console action.
+    const judge: CurrentUser = { ...organiser, permissions: ["judgeSheet.view", "scores.enter"] };
+    const result = canWriteScore(judge, series, during);
+    expect(result.allowed).toBe(false);
+    expect(result.allowed === false && result.reason).toBe("FORBIDDEN");
+  });
+
   it("REFUSES everyone but Full access after the cut-off", () => {
     const result = canWriteScore(staff, series, after);
     expect(result.allowed).toBe(false);
@@ -239,5 +249,27 @@ describe("accountScope — which accounts an account may list", () => {
   it("limits athletes and organisers to themselves", () => {
     expect(accountScope(competitor)).toEqual({ id: "u-competitor" });
     expect(accountScope(organiser)).toEqual({ id: "u-organiser" });
+  });
+});
+
+describe("canControlWave — who presses the wave buttons", () => {
+  const supervisor: CurrentUser = { ...organiser, permissions: ["waveControl.view", "waveControl.control"] };
+  const judge: CurrentUser = { ...organiser, permissions: ["judgeSheet.view", "scores.enter"] };
+
+  it("lets the supervisor press every button", () => {
+    for (const action of ["start", "finish", "reset"] as const) {
+      expect(canControlWave(supervisor, action, false)).toBe(true);
+    }
+    expect(canControlWave(admin, "reset", false)).toBe(true);
+  });
+
+  it("lets a zone leader START a wave — and only start it", () => {
+    expect(canControlWave(judge, "start", true)).toBe(true);
+    expect(canControlWave(judge, "finish", true)).toBe(false);
+    expect(canControlWave(judge, "reset", true)).toBe(false);
+  });
+
+  it("refuses a judge who leads no zone of that competition", () => {
+    expect(canControlWave(judge, "start", false)).toBe(false);
   });
 });

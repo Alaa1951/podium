@@ -96,3 +96,18 @@ describe("BFT MENA", () => {
     expect(canWriteZoneScore({ ...base, user: studio, post: null })).toMatchObject({ reason: "FORBIDDEN" });
   });
 });
+
+describe("the score-entry cut-off", () => {
+  it("closes the sheet for judges, leaders and Partial staff alike", () => {
+    expect(canWriteZoneScore({ ...base, entryClosed: true })).toMatchObject({ reason: "SCORE_ENTRY_CLOSED" });
+    const leader = { ...base, post: { position: "leader" as const, station: null }, entryClosed: true };
+    expect(canWriteZoneScore(leader)).toMatchObject({ reason: "SCORE_ENTRY_CLOSED" });
+    const staff = { ...base, user: { role: "staff" as const, permissions: ["scores.enter"] }, post: null, entryClosed: true };
+    expect(canWriteZoneScore(staff)).toMatchObject({ reason: "SCORE_ENTRY_CLOSED" });
+  });
+
+  it("never closes it for BFT MENA Full access", () => {
+    const admin = { ...base, user: { role: "admin" as const, permissions: ["*"] }, entryClosed: true };
+    expect(canWriteZoneScore(admin)).toEqual({ allowed: true, as: "admin" });
+  });
+});

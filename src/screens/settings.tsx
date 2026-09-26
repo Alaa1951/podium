@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getSeriesZones } from "@/lib/queries";
 import { formatQatarForInput } from "@/lib/qatar-time";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { can, requireAccess } from "@/lib/session";
+import { can, requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ const forInput = formatQatarForInput;
  * 2 is allowed to be a different sport from Series 1.
  */
 export default async function SettingsPage(props: SeriesScreenProps, zoneId?: string, zoneEdit = false) {
-  const user = await requireAccess(zoneEdit ? "settings.edit" : "settings.view");
+  const user = await requireConsoleAccess(zoneEdit ? "settings.edit" : "settings.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
@@ -132,13 +132,13 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
       <div className="notice" style={{ marginTop: 30 }}>
         <strong>{t("Waves and wave access.")}</strong>{" "}
         {t(
-          "Assign teams to their waves from the Waves screen; put judges on the floor from Score entry."
+          "Assign teams to their waves from the Waves screen; put judges on zones and pick zone leaders from Wave control."
         )}{" "}
         <Link href={seriesHref(series.slug, "waves")} className="linkish">
           {t("Waves")} →
         </Link>{" "}
-        <Link href={seriesHref(series.slug, "scores")} className="linkish">
-          {t("Score entry")} →
+        <Link href={seriesHref(series.slug, "wave-control")} className="linkish">
+          {t("Wave control")} →
         </Link>
       </div>
     </div>

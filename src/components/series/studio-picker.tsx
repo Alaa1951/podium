@@ -26,7 +26,16 @@ export type StudioRow = {
   accounts: number;
 };
 
-export function StudioPicker({ seriesId, studios }: { seriesId: string; studios: StudioRow[] }) {
+export function StudioPicker({
+  seriesId,
+  studios,
+  readOnly = false,
+}: {
+  seriesId: string;
+  studios: StudioRow[];
+  /** Without competitionStudios.edit the list is shown, not changed. */
+  readOnly?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -75,7 +84,7 @@ export function StudioPicker({ seriesId, studios }: { seriesId: string; studios:
             type="button"
             className="picker-card"
             data-on={studio.taking || undefined}
-            disabled={pending}
+            disabled={pending || readOnly}
             onClick={() => toggle(studio)}
             aria-pressed={studio.taking}
           >

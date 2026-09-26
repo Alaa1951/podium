@@ -5,6 +5,7 @@ import { alreadyEntered } from "@/lib/one-entry";
 import { prisma } from "@/lib/prisma";
 import { normalizeName } from "@/lib/scoring";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
+import { can } from "@/lib/access";
 import { getCurrentUser } from "@/lib/session";
 import { teamEditOpen } from "@/lib/visibility";
 
@@ -30,6 +31,8 @@ export type UpdateMyTeamResult =
 export async function updateMyTeam(members: MyTeamMemberInput[], seriesId: string, teamId: string): Promise<UpdateMyTeamResult> {
   const user = await getCurrentUser();
   if (!user || user.role !== "competitor" || user.viewAs || !seriesId || !teamId || !Array.isArray(members)) return { ok: false, error: "FORBIDDEN" };
+  // The Athlete role's own key: taking it away (a lock, or a custom role) stops edits.
+  if (!can(user, "athleteHome.editTeam")) return { ok: false, error: "FORBIDDEN" };
 
   // The account's own competitor row names the one team it may touch — its
   // selected competition, with both ids checked against their membership.

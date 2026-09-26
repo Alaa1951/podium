@@ -53,6 +53,7 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
       number: true,
       name: true,
       waitlistedAt: true,
+      waveRef: { select: { status: true } },
       score: { select: { id: true } },
       series: { select: { name: true, slug: true, status: true } },
       competitors: { select: { email: true } },
@@ -63,6 +64,8 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
   // A finished competition is its own record; its field cannot be re-decided.
   if (team.series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
   if (waiting && team.score) return { ok: false, error: "TEAM_ALREADY_SCORED" };
+  // A team whose wave is on the floor (or done) is competing, not waiting.
+  if (waiting && team.waveRef && team.waveRef.status !== "pending") return { ok: false, error: "WAVE_STARTED" };
 
   // Conditional on the state it is being moved OUT of, so two people pressing
   // at once do not both report success for the same change.

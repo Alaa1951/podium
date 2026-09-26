@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import { getTranslator } from "@/lib/i18n/server";
 import { getPartnerWatch, type PartnerWatchPerson } from "@/lib/partner-watch";
-import { requireAccess } from "@/lib/session";
+import { NO_MATCH } from "@/lib/access";
+import { requireAccess, requireConsoleAccess } from "@/lib/session";
 import { requireSeries } from "@/lib/require-series";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +23,17 @@ export default async function PartnerWatchScreen(
   params: Promise<{ series: string }>,
   studioScoped: boolean
 ) {
-  const user = await requireAccess("registrations.partners");
+  // The console's list is every studio's; the studio's is its own. Which one
+  // is decided by who is asking, not only by which route rendered this.
+  const user = studioScoped
+    ? await requireAccess("registrations.partners")
+    : await requireConsoleAccess("registrations.partners");
   const { series } = await requireSeries(params);
   const { t } = await getTranslator();
 
   const watch = await getPartnerWatch({
     seriesId: series.id,
-    studioId: studioScoped && user.role === "studio" ? user.studioId : null,
+    studioId: user.role === "studio" ? user.studioId ?? NO_MATCH : null,
   });
 
   const registerHref = studioScoped

@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { updateMyTeam } from "./my-team";
 const members = [{ position: 1, fullName: "Athlete", email: "a@example.com" }];
 beforeEach(() => {
-  vi.resetAllMocks(); mocks.user.mockResolvedValue({ id: "a", role: "competitor" }); mocks.door.mockReturnValue({ open: true });
+  vi.resetAllMocks(); mocks.user.mockResolvedValue({ id: "a", role: "competitor", permissions: ["athleteHome.editTeam"] }); mocks.door.mockReturnValue({ open: true });
   mocks.seat.mockResolvedValue({ teamId: "target-team", team: { series: { competitionDate: new Date("2099-01-01"), teamEditCloseHours: 24 } } });
   mocks.roster.mockResolvedValue([{ id: "seat", position: 1, userId: "a", fullName: "Old snapshot", email: "a@example.com", user: { name: "Athlete", email: "a@example.com" } }]);
   mocks.tx.mockImplementation(async fn => fn({ $queryRaw: vi.fn(), competitor: { updateMany: mocks.update } }));
@@ -27,8 +27,13 @@ it("leaves shared identities and original seat snapshots untouched for unchanged
   expect(await updateMyTeam(members, "training", "target-team")).toEqual({ ok: true }); expect(mocks.update).not.toHaveBeenCalled();
 });
 it("refuses view-as and a closed edit deadline", async () => {
-  mocks.user.mockResolvedValue({ id: "a", role: "competitor", viewAs: {} });
+  mocks.user.mockResolvedValue({ id: "a", role: "competitor", permissions: ["athleteHome.editTeam"], viewAs: {} });
   expect(await updateMyTeam(members, "training", "target-team")).toEqual({ ok: false, error: "FORBIDDEN" });
-  mocks.user.mockResolvedValue({ id: "a", role: "competitor" }); mocks.door.mockReturnValue({ open: false });
+  mocks.user.mockResolvedValue({ id: "a", role: "competitor", permissions: ["athleteHome.editTeam"] }); mocks.door.mockReturnValue({ open: false });
   expect(await updateMyTeam(members, "training", "target-team")).toEqual({ ok: false, error: "TEAM_EDIT_CLOSED" });
+});
+it("refuses an athlete whose roles no longer carry athleteHome.editTeam", async () => {
+  mocks.user.mockResolvedValue({ id: "a", role: "competitor", permissions: [] });
+  expect(await updateMyTeam(members, "training", "target-team")).toEqual({ ok: false, error: "FORBIDDEN" });
+  expect(mocks.seat).not.toHaveBeenCalled();
 });

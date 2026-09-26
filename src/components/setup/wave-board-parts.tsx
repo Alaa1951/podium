@@ -54,6 +54,7 @@ export function TeamRow({
   team,
   pickable,
   pending,
+  canEditTeams,
   studioName,
   stations,
   onMove,
@@ -63,6 +64,8 @@ export function TeamRow({
   team: SetupTeam;
   pickable: number[];
   pending: boolean;
+  /** The studio chips — registrations.edit, not placing. */
+  canEditTeams: boolean;
   studioName: (id: string | null) => string;
   /**
    * How many stations this team's wave has — its capacity, NOT the floor's
@@ -145,7 +148,7 @@ export function TeamRow({
               type="button"
               className="chip-sm"
               data-active={!!competitor.studioId}
-              disabled={pending}
+              disabled={!canEditTeams}
               onClick={() => onCycle(competitor.id, competitor.studioId)}
               style={{ textAlign: "start" }}
             >

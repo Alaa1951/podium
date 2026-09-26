@@ -2,7 +2,7 @@ import "server-only";
 
 import type { CurrentUser } from "@/lib/access";
 import { PERMISSION_TREE, policyOf } from "@/lib/permissions/catalog";
-import { canAssignRole, canManageTarget } from "@/lib/permissions/grant-policy";
+import { canAssignRole, canGiveRole, canManageTarget } from "@/lib/permissions/grant-policy";
 import { loadAccessInputs } from "@/lib/permissions/load";
 import {
   explainPermissions,
@@ -103,6 +103,7 @@ export async function buildAccessPanel(
         description: true,
         assignableBy: true,
         permissions: true,
+        accountTypes: true,
       },
     }),
     loadAccessInputs(target.id, target.role),
@@ -110,18 +111,21 @@ export async function buildAccessPanel(
 
   const actor = { id: viewer.id, role: viewer.role, studioId: viewer.studioId, permissions: viewer.permissions };
   const readOnly = !!viewer.viewAs;
-  const canManage = !readOnly && canManageTarget(actor, target).allowed;
+  // A Partial target is judged on what it holds (canManageTarget) — the same
+  // resolution this panel shows, so the buttons and the server agree.
+  const subject = target.role === "staff" ? { ...target, permissions: resolveEffectivePermissions(inputs) } : target;
+  const canManage = !readOnly && canManageTarget(actor, subject).allowed;
   const heldIds = new Set(target.accessRoles.map((link) => link.accessRole.id));
 
   const held = target.accessRoles.map(({ accessRole }) => ({
     id: accessRole.id,
     name: accessRole.name,
     nameAr: accessRole.nameAr,
-    canRemove: canManage && canAssignRole(actor, target, accessRole).allowed,
+    canRemove: canManage && canAssignRole(actor, subject, accessRole).allowed,
   }));
   const assignable = canManage
     ? allRoles
-        .filter((role) => !heldIds.has(role.id) && canAssignRole(actor, target, role).allowed)
+        .filter((role) => !heldIds.has(role.id) && canGiveRole(actor, subject, role).allowed)
         .map(({ id, name, nameAr, description }) => ({ id, name, nameAr, description }))
     : [];
 

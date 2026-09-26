@@ -3,6 +3,7 @@ import "server-only";
 import type { CurrentUser } from "@/lib/session";
 import { isStudio, teamScope } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { registrationOpen } from "@/lib/visibility";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT STAFF NEED TO KNOW BEFORE SWAPPING SOMEBODY.
@@ -18,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 
 export type SwapDoor =
   | { open: true }
-  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" };
+  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" };
 
 export type SwapSeat = {
   competitorId: string;
@@ -45,7 +46,7 @@ export async function readSwapSeat(
           waveId: true,
           waveRef: { select: { status: true } },
           score: { select: { id: true } },
-          series: { select: { status: true } },
+          series: { select: { status: true, registrationClosesAt: true } },
         },
       },
     },
@@ -53,6 +54,9 @@ export async function readSwapSeat(
   if (!seat) return null;
   const team = seat.team;
 
+  // Changing who is on a team after registration closes is BFT MENA's, the
+  // same as editing the registration (registrationOpen).
+  const closed = !registrationOpen({ role: user.role, registrationClosesAt: team.series.registrationClosesAt, now: new Date() }).open;
   const door: SwapDoor =
     team.series.status === "final"
       ? { open: false, reason: "SERIES_FINISHED" }
@@ -60,7 +64,9 @@ export async function readSwapSeat(
         ? { open: false, reason: "TEAM_ALREADY_SCORED" }
         : team.waveId && team.waveRef?.status !== "pending"
           ? { open: false, reason: "WAVE_STARTED" }
-          : { open: true };
+          : closed
+            ? { open: false, reason: "REGISTRATION_CLOSED" }
+            : { open: true };
 
   return {
     competitorId: seat.id,

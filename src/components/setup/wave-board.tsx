@@ -36,7 +36,8 @@ export function WaveBoard({
   studios,
   waveCapacity,
   isAdmin,
-  ownStudioId,
+  canPlace,
+  canEditTeams,
   canRebuild = true,
 }: {
   detailId?: string;
@@ -49,8 +50,12 @@ export function WaveBoard({
   /** Defaults for a wave that does not exist yet. */
   waveMinutes: number;
   waveCapacity: number;
+  /** waves.edit — the running order itself: add, number, time, rebuild. */
   isAdmin: boolean;
-  ownStudioId: string | null;
+  /** waves.placeTeams — move a team to another wave or station. */
+  canPlace: boolean;
+  /** registrations.edit — mark an athlete as a studio's member or not. */
+  canEditTeams: boolean;
   canRebuild?: boolean;
 }) {
   const t = useT();
@@ -65,11 +70,9 @@ export function WaveBoard({
   const studioName = (id: string | null) =>
     id ? (studios.find((s) => s.id === id)?.name ?? "—") : t("Non-member");
 
-  const cycle: (string | null)[] = isAdmin
-    ? [null, ...studios.map((s) => s.id)]
-    : ownStudioId
-      ? [null, ownStudioId]
-      : [null];
+  // The console's screen: every studio taking part is a choice (a studio
+  // account never reaches it — requireConsoleAccess).
+  const cycle: (string | null)[] = [null, ...studios.map((s) => s.id)];
 
   // A team can carry a wave number the running order has not caught up with —
   // an import, or a wave deleted under it. Those numbers are shown as
@@ -174,7 +177,11 @@ export function WaveBoard({
 
   const grid = {
     pickable,
-    pending: pending || !isAdmin,
+    // Each control follows the key its action checks, so nothing is offered
+    // that would then be refused: moving a team is placeTeams, the studio
+    // chip is registrations.edit.
+    pending: pending || !canPlace,
+    canEditTeams: canEditTeams && !pending,
     studioName,
     onMove: moveTeam,
     onCycle: cycleMembership,

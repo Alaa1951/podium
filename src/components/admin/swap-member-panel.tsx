@@ -20,6 +20,7 @@ const CLOSED: Record<Extract<SwapDoor, { open: false }>["reason"], string> = {
   SERIES_FINISHED: "This competition is finished. Its field is the record now.",
   TEAM_ALREADY_SCORED: "This team has a score. Nobody can be swapped out of a scored team.",
   WAVE_STARTED: "This team's wave has started. Nobody can be swapped once they are on the floor.",
+  REGISTRATION_CLOSED: "Registration has closed. Ask BFT MENA to change who is on this team.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -32,6 +33,7 @@ const ERRORS: Record<string, string> = {
   SERIES_FINISHED: CLOSED.SERIES_FINISHED,
   TEAM_ALREADY_SCORED: CLOSED.TEAM_ALREADY_SCORED,
   WAVE_STARTED: CLOSED.WAVE_STARTED,
+  REGISTRATION_CLOSED: CLOSED.REGISTRATION_CLOSED,
   FORBIDDEN: "You cannot change this.",
 };
 

@@ -6,6 +6,8 @@ import { can, type CurrentUser } from "@/lib/access";
 //   BFT MENA Full     anything, any time — including a submitted zone. The
 //                     only correction path (scores.correct is never given).
 //   Submitted zone    locked for everyone else.
+//   Entry closed      once the competition's score-entry cut-off has passed,
+//                     for everyone but Full access — judges included.
 //   BFT MENA Partial  with scores.enter: any zone, from the console, until
 //                     it is submitted.
 //   Zone leader       any station of their own zone, once the wave has
@@ -26,6 +28,8 @@ export type ZoneWriteFacts = {
   /** Whether the team's wave has reached this zone (its work there began). */
   reached: boolean;
   zoneSubmitted: boolean;
+  /** The competition's score-entry cut-off has passed. */
+  entryClosed?: boolean;
 };
 
 export type ZoneWriteDecision =
@@ -35,6 +39,7 @@ export type ZoneWriteDecision =
       reason:
         | "FORBIDDEN"
         | "SCORE_LOCKED"
+        | "SCORE_ENTRY_CLOSED"
         | "SERIES_NOT_LIVE"
         | "WAVE_NOT_HERE"
         | "NO_STATION"
@@ -48,6 +53,7 @@ export function canWriteZoneScore(facts: ZoneWriteFacts): ZoneWriteDecision {
     return can(user, "scores.correct") ? { allowed: true, as: "admin" } : { allowed: false, reason: "SCORE_LOCKED" };
   }
   if (!can(user, "scores.enter")) return { allowed: false, reason: "FORBIDDEN" };
+  if (facts.entryClosed) return { allowed: false, reason: "SCORE_ENTRY_CLOSED" };
   if (user.role === "staff") return { allowed: true, as: "console" };
 
   if (!post) return { allowed: false, reason: "FORBIDDEN" };

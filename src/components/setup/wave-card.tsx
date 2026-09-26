@@ -22,6 +22,8 @@ type TeamGridProps = {
   stations: number;
   pickable: number[];
   pending: boolean;
+  /** Whether the studio chips may be pressed (registrations.edit). */
+  canEditTeams: boolean;
   studioName: (studioId: string | null) => string;
   onMove: (teamId: string, wave: number) => void;
   onCycle: (competitorId: string, current: string | null) => void;
@@ -38,6 +40,7 @@ function TeamGrid(props: TeamGridProps) {
           stations={props.stations}
           pickable={props.pickable}
           pending={props.pending}
+          canEditTeams={props.canEditTeams}
           studioName={props.studioName}
           onMove={props.onMove}
           onCycle={props.onCycle}

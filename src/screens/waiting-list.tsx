@@ -2,14 +2,14 @@ import type { SeriesScreenProps } from "@/screens/types";
 
 import { CrmIntakeList } from "@/components/admin/crm-intake-list";
 import { RegisteredTable } from "@/components/admin/registered-table";
-import { can, isAdmin, isBft } from "@/lib/access";
-import { crmIntakeFor } from "@/lib/actions/crm-sync";
+import { can, canAny, isAdmin, isBft } from "@/lib/access";
+import { crmIntakeFor } from "@/lib/crm/intake";
 import { getTranslator } from "@/lib/i18n/server";
 import { getWaitingRoster } from "@/lib/queries";
 import { listStudios } from "@/lib/queries-people";
 import { toRegisteredRow } from "@/lib/registered-rows";
 import { requireSeries } from "@/lib/require-series";
-import { requireAccess } from "@/lib/session";
+import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  * next poll, as a team. Nothing about who owns the record changes.
  */
 export default async function WaitingListScreen(props: SeriesScreenProps) {
-  const user = await requireAccess("registrations.view");
+  const user = await requireConsoleAccess("registrations.view");
   const { series } = await requireSeries(props.params);
   const { t } = await getTranslator();
 
@@ -91,7 +91,7 @@ export default async function WaitingListScreen(props: SeriesScreenProps) {
               }
               canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
               canOverridePayment={!user.viewAs && isAdmin(user)}
-              readOnly={!can(user, "registrations.payment") || !!user.viewAs}
+              readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")}
             />
           </>
         )}

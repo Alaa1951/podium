@@ -10,7 +10,7 @@ import { getScopedTeams, getSeriesZones } from "@/lib/queries";
 import { getSeriesScoreAudit } from "@/lib/queries-people";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { can } from "@/lib/access";
-import { requireAccess } from "@/lib/session";
+import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * row when its outlier check, its factors or its unlock are wanted.
  */
 export default async function ScoresPage(props: SeriesScreenProps, detailId?: string) {
-  const user = await requireAccess("scores.view");
+  const user = await requireConsoleAccess("scores.view");
   const live = !user.viewAs;
   const gridRights = {
     editBudget: 0,

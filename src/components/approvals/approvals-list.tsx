@@ -24,6 +24,7 @@ const ERRORS: Record<string, string> = {
   NOT_FOUND: "That request is no longer waiting.",
   FORBIDDEN: "You are not allowed to do that.",
   ROLE_NOT_ASSIGNABLE: "You cannot give that role.",
+  ROLE_NOT_FOR_ACCOUNT_TYPE: "That role is not meant for this kind of account.",
   NOT_HELD: "You cannot give a role with permissions you do not hold.",
   STUDIO_REQUIRED: "Pick the studio, or type the name of a new one.",
   STUDIO_NAME_TAKEN: "A studio with that name already exists — pick it from the list.",

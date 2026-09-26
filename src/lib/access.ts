@@ -110,9 +110,13 @@ export type ScoreWriteDecision =
 /**
  * THE WHOLE RULE for writing a score from the console, in one place.
  *
- * Scores are entered by judges (their per-wave grant, checked in the action)
- * and by BFT MENA staff holding `scores.enter`. Studios no longer enter scores:
- * a studio person who judges is given the Judge role as well.
+ * The console is BFT MENA's: Full access, or Partial access holding
+ * `scores.enter`. Judges and zone leaders hold `scores.enter` too — it is what
+ * lets them score on the floor — but they write one zone of one team from
+ * their own sheet (saveZoneScore, zone-score-rules.ts), where their zone and
+ * station are checked. Letting the key alone through here handed every judge
+ * the whole field, every zone, from a crafted request. Studios, organisers and
+ * athletes never write from the console.
  *
  * Once a wave's clock has run out its scores are history, and correcting them
  * is BFT MENA Full access only — a permission nobody can be given.
@@ -128,9 +132,30 @@ export function canWriteScore(
   if (series.scoreEntryClosesAt && now >= series.scoreEntryClosesAt) {
     return { allowed: false, reason: "SCORE_ENTRY_CLOSED" };
   }
-  if (user.role === "studio" || user.role === "competitor") return { allowed: false, reason: "FORBIDDEN" };
+  if (user.role !== "staff") return { allowed: false, reason: "FORBIDDEN" };
   if (!can(user, "scores.enter")) return { allowed: false, reason: "FORBIDDEN" };
   return { allowed: true };
+}
+
+/**
+ * WHO MAY PRESS THE WAVE BUTTONS.
+ *
+ *   waveControl.control  (the supervisor: Organiser role, BFT MENA)
+ *                        Start, End now and Reset.
+ *   Zone leader          Start only, for a competition they lead a zone of.
+ *                        Sending the next wave onto the floor is a floor
+ *                        call; stopping or rewinding one is the supervisor's.
+ *
+ * `leadsAZone` is whether this person leads any zone of the wave's
+ * competition — the action reads it from ZoneStaff.
+ */
+export function canControlWave(
+  user: Pick<CurrentUser, "role" | "permissions">,
+  action: "start" | "finish" | "reset",
+  leadsAZone: boolean
+): boolean {
+  if (can(user, "waveControl.control")) return true;
+  return action === "start" && leadsAZone;
 }
 
 /**

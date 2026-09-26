@@ -4,7 +4,7 @@ import { WaveBoard } from "@/components/setup/wave-board";
 import { getTranslator } from "@/lib/i18n/server";
 import { getScopedRoster, getSeriesStudios } from "@/lib/queries";
 import { requireSeries } from "@/lib/require-series";
-import { can, requireAccess } from "@/lib/session";
+import { can, requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * the operator's job and lives next to the scores, where they will be standing.
  */
 export default async function WavesPage(props: SeriesScreenProps, detailId?: string, editMode = false) {
-  const user = await requireAccess(editMode ? "waves.edit" : "waves.view");
+  const user = await requireConsoleAccess(editMode ? "waves.edit" : "waves.view");
   const { t } = await getTranslator();
 
   const { series, waves } = await requireSeries(props.params);
@@ -64,7 +64,8 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
         detailId={detailId}
         editMode={editMode}
         isAdmin={can(user, "waves.edit") && !user.viewAs}
-        ownStudioId={user.studioId}
+        canPlace={can(user, "waves.placeTeams") && !user.viewAs}
+        canEditTeams={can(user, "registrations.edit") && !user.viewAs}
       />
     </div>
   );

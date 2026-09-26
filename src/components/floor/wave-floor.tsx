@@ -35,6 +35,7 @@ const ERRORS: Record<string, string> = {
   NO_ZONES: "This competition has no zones yet — add them in Settings.",
   SERIES_NOT_LIVE: "Set the competition to Running before starting a wave.",
   ALREADY_STARTED: "This wave has already started.",
+  SERIES_FINISHED: "This competition is finished. Its waves can no longer be changed.",
   NOT_RUNNING: "This wave is not on the floor.",
   FORBIDDEN: "You are not allowed to do that.",
 };
@@ -51,12 +52,15 @@ export function WaveFloor({
   zones,
   timing,
   canControl,
+  startOnly = false,
 }: {
   waves: WaveState[];
   teamsByWave: Record<string, FloorTeam[]>;
   zones: { id: string; number: number; name: string }[];
   timing: FloorTiming;
   canControl: boolean;
+  /** A zone leader's view: Start only — End now and Reset are the supervisor's. */
+  startOnly?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -267,12 +271,12 @@ export function WaveFloor({
                       {freeInMs > 0 ? t("Start · Zone 1 free in {time}", { time: clock(freeInMs) }) : t("Start wave")}
                     </button>
                   ) : null}
-                  {wave.status === "running" ? (
+                  {wave.status === "running" && !startOnly ? (
                     <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => run(wave.id, "finish")}>
                       {t("End now")}
                     </button>
                   ) : null}
-                  {wave.status !== "pending" ? (
+                  {wave.status !== "pending" && !startOnly ? (
                     <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => run(wave.id, "reset")}>
                       {t("Reset")}
                     </button>

@@ -2,9 +2,8 @@
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { crmSyncEnabled, runSync, SYNC_STATE_ID } from "@/lib/crm/sync";
-import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireAccess } from "@/lib/session";
+import { isBft, requireAccess } from "@/lib/session";
 
 export type ActionResult =
   | { ok: true; message: string }
@@ -30,6 +29,9 @@ export type ActionResult =
 export async function syncCrmNow(): Promise<ActionResult> {
   const actor = await requireAccess("registrations.create");
   if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  // The sync is the whole CRM, every gym's intake at once: BFT MENA's button.
+  // Gyms hold registrations.create for their own entries, not for this.
+  if (!isBft(actor)) return { ok: false, error: "FORBIDDEN" };
   if (!crmSyncEnabled()) return { ok: false, error: "DISABLED" };
 
   const result = await runSync();
@@ -55,59 +57,4 @@ export async function syncCrmNow(): Promise<ActionResult> {
     ok: true,
     message: `Created ${result.created}, updated ${result.updated}, ${result.waiting} not teams yet.`,
   };
-}
-
-/**
- * The registrations the CRM has not finished, for the work list.
- *
- * Oldest first: the useful order is who has been waiting longest, not who
- * arrived last. Returns nothing when the sync is off, so the screen is
- * exactly as it was for anyone not using the CRM.
- *
- * `waitingDays` is worked out HERE rather than on either screen. The clock
- * is impure, so reading it while rendering is both a lint error and a real
- * hazard on a client component — the server would render one number and the
- * browser hydrate with another. Doing it once also stops two screens
- * computing the same thing slightly differently.
- */
-export async function crmIntakeFor(seriesId: string) {
-  if (!crmSyncEnabled()) return [];
-  const now = Date.now();
-  const rows = await prisma.crmIntake.findMany({
-    where: { seriesId },
-    orderBy: { firstSeenAt: "asc" },
-    select: {
-      id: true,
-      externalId: true,
-      contactName: true,
-      email: true,
-      phone: true,
-      partnerName: true,
-      teamName: true,
-      stageName: true,
-      missing: true,
-      firstSeenAt: true,
-    },
-  });
-  return rows.map((row) => ({
-    ...row,
-    waitingDays: Math.floor((now - row.firstSeenAt.getTime()) / 86_400_000),
-  }));
-}
-
-/** What the last poll did, for the line above the registration list. */
-export async function lastCrmSync() {
-  if (!crmSyncEnabled()) return null;
-  return prisma.crmSyncState.findUnique({
-    where: { id: SYNC_STATE_ID },
-    select: {
-      running: true,
-      lastSuccessAt: true,
-      lastCreated: true,
-      lastUpdated: true,
-      lastWaiting: true,
-      lastSkipped: true,
-      lastError: true,
-    },
-  });
 }

@@ -33,6 +33,7 @@ const ERRORS: Record<string, string> = {
   HAS_OTHER_PARTNER: "One of them is already partnered with someone else.",
   ALREADY_ENTERED: "One of them is already entered in this competition.",
   REGISTRATION_CLOSED: "Registration for this competition is closed.",
+  SERIES_FINISHED: "This competition is finished. Nobody can be added to it.",
   MIXED_LEVELS: "These two compete at different levels.",
   LEVEL_MISMATCH: "That level is not the one these two compete at.",
   CATEGORY_MISMATCH: "That category does not match who these two are.",

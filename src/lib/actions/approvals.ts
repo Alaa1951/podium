@@ -8,7 +8,7 @@ import { approvalScope } from "@/lib/approvals";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { sendSignupDecisionEmail } from "@/lib/email";
 import { enterApprovedPairs, type EnterPairOutcome } from "@/lib/enter-pair";
-import { canAssignRole } from "@/lib/permissions/grant-policy";
+import { canGiveRole } from "@/lib/permissions/grant-policy";
 import { prisma } from "@/lib/prisma";
 import { getBaseUrl } from "@/lib/security";
 import { requireAccess } from "@/lib/session";
@@ -109,7 +109,7 @@ export async function approveSignup(input: unknown): Promise<ApprovalResult> {
   const roles = data.roleIds.length
     ? await prisma.accessRole.findMany({
         where: { id: { in: data.roleIds } },
-        select: { id: true, name: true, assignableBy: true, permissions: true },
+        select: { id: true, name: true, assignableBy: true, permissions: true, accountTypes: true },
       })
     : [];
   if (roles.length !== new Set(data.roleIds).size) return { ok: false, error: "NOT_FOUND" };
@@ -117,7 +117,7 @@ export async function approveSignup(input: unknown): Promise<ApprovalResult> {
   for (const role of roles) {
     // A brand-new studio does not exist yet, so the studio check is moot:
     // only BFT MENA reaches this with a new studio.
-    const decision = canAssignRole(actor, target, role);
+    const decision = canGiveRole(actor, target, role);
     if (!decision.allowed) return { ok: false, error: decision.reason, keys: decision.keys };
   }
 

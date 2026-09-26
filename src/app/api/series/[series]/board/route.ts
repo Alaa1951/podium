@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { buildBoardPayload } from "@/lib/board";
 import { getSeriesState } from "@/lib/series-state";
 import { getCurrentUser } from "@/lib/session";
-import { boardAccess } from "@/lib/visibility";
+import { readsWholeBoard } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
  *
  * The same rule the board page applies, through boardAccess: BFT MENA always;
  * every other signed-in account once the event is live or finished — that is
- * exactly what a live leaderboard promises them. While the event is still
+ * exactly what a live leaderboard promises them. The floor supervisor
+ * (waveControl.view) as well, so the rig screens can be set up before the day
+ * starts (readsWholeBoard). While the event is still
  * being scheduled the payload carries drafts and unreleased waves, so nobody
  * but BFT MENA reads it.
  */
@@ -27,8 +29,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
   // Before the event everyone signed in may open the board page — it shows the
   // countdown — but the payload carries drafts and unreleased waves, so only an
   // account whose access covers the whole field reads it.
-  const access = boardAccess(user.role, state.phase);
-  if (!access.canSeeBoard || access.scope !== "all") {
+  if (!readsWholeBoard(user, state.phase)) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 

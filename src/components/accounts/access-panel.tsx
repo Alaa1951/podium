@@ -29,6 +29,7 @@ const ERRORS: Record<string, string> = {
   STALE: "Someone else changed this person's access while you were editing. Reload to see it.",
   NOT_HELD: "You can only give permissions you hold yourself.",
   ROLE_NOT_ASSIGNABLE: "Studios can't give this role.",
+  ROLE_NOT_FOR_ACCOUNT_TYPE: "That role is not meant for this kind of account.",
   CANNOT_CHANGE_OWN_ACCESS: "You cannot change your own access — ask someone else.",
   FORBIDDEN: "You are not allowed to do that.",
   NOT_STORABLE: "That permission can't be granted to anyone.",

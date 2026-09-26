@@ -61,11 +61,16 @@ const registrationSchema = z.object({
  */
 export async function createRegistration(input: unknown): Promise<ActionResult<{ id: string }>> {
   const actor = await requireAccess("registrations.create");
-  if (!isBft(actor)) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isBft(actor)) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = registrationSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const data = parsed.data;
+
+  // A finished (or archived) competition's field is the record.
+  const series = await prisma.series.findUnique({ where: { id: data.seriesId }, select: { status: true, archivedAt: true } });
+  if (!series || series.archivedAt) return { ok: false, error: "NOT_FOUND" };
+  if (series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
 
   // NOBODY ENTERS THE SAME COMPETITION TWICE, which this path did not check
   // at all. It relied on `@@unique([seriesId, externalId])`, and the form

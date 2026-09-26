@@ -62,9 +62,12 @@ export async function saveSponsor(input: unknown): Promise<ActionResult> {
   });
   if (clash) return { ok: false, error: "POSITION_TAKEN" };
 
+  // Scoped to the competition in the request: a sponsor id from another
+  // competition is simply not found, never rewritten.
   const before = sponsorId
-    ? await prisma.sponsor.findUnique({ where: { id: sponsorId } })
+    ? await prisma.sponsor.findFirst({ where: { id: sponsorId, seriesId } })
     : null;
+  if (sponsorId && !before) return { ok: false, error: "NOT_FOUND" };
 
   const fields = { alt, position, imageB64: base64, mimeType };
 

@@ -104,7 +104,8 @@ export async function setZoneStaffStation(input: unknown): Promise<ZoneStaffResu
   if (!row) return { ok: false, error: "NOT_FOUND" };
 
   let allowed = can(actor, "zoneStaff.assign");
-  if (!allowed) {
+  // A leader places their own zone's judges — while they still hold the sheet.
+  if (!allowed && can(actor, "judgeSheet.view")) {
     const leads = await prisma.zoneStaff.count({
       where: { zoneId: row.zoneId, userId: actor.id, position: "leader" },
     });

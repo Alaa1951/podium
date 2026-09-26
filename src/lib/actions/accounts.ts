@@ -13,6 +13,7 @@ import { normalizeName } from "@/lib/scoring";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
 import { revokeTrustedDevices } from "@/lib/trusted-device";
 import { canManageTarget } from "@/lib/permissions/grant-policy";
+import { targetWithPermissions } from "@/lib/permissions/load";
 import { canCreateAccount, requireAccess } from "@/lib/session";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -78,11 +79,23 @@ export async function inviteAccount(input: unknown): Promise<ActionResult> {
     },
   });
 
-  // If a studio already registered this person as a competitor, link the
-  // existing registration to the new account rather than creating a second one.
+  // If this person is already entered on a team, link that seat to the new
+  // account rather than creating a second one. Theirs means: the same email,
+  // anywhere — or, for a seat entered without an email, the same name on a
+  // team of the SAME gym. Matching the name alone across every gym attached
+  // an account to strangers' seats (a common name is common), and with them
+  // those teams' rosters and their partners' contact details.
   if (role === "competitor") {
     await prisma.competitor.updateMany({
-      where: { normalizedName: normalizeName(parsed.data.name), userId: null },
+      where: {
+        userId: null,
+        OR: [
+          { email },
+          ...(permission.studioId
+            ? [{ email: null, normalizedName: normalizeName(parsed.data.name), team: { studioId: permission.studioId } }]
+            : []),
+        ],
+      },
       data: { userId: created.id },
     });
   }
@@ -157,7 +170,7 @@ export async function setAccountStatus(input: unknown): Promise<ActionResult> {
     where: { id: parsed.data.userId, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
-  const manage = canManageTarget(actor, target);
+  const manage = canManageTarget(actor, await targetWithPermissions(target));
   if (!manage.allowed) return { ok: false, error: manage.reason };
 
   // An account that never set a password stays `invited` — enabling it would
@@ -205,7 +218,7 @@ export async function assignStudio(input: unknown): Promise<ActionResult> {
     select: { id: true, role: true, studioId: true },
   });
   if (!current) return { ok: false, error: "NOT_FOUND" };
-  const manage = canManageTarget(actor, current);
+  const manage = canManageTarget(actor, await targetWithPermissions(current));
   if (!manage.allowed) return { ok: false, error: manage.reason };
 
   const moved = await prisma.user.update({
@@ -319,7 +332,7 @@ export async function archiveAccount(input: unknown): Promise<ActionResult> {
     where: { id: parsed.data.userId, archivedAt: null, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
-  const manage = canManageTarget(actor, target);
+  const manage = canManageTarget(actor, await targetWithPermissions(target));
   if (!manage.allowed) return { ok: false, error: manage.reason };
 
   await prisma.user.update({
@@ -358,7 +371,7 @@ export async function restoreAccount(input: unknown): Promise<ActionResult> {
     where: { id: parsed.data.userId, NOT: { archivedAt: null }, ...accountScope(actor) },
   });
   if (!target) return { ok: false, error: "NOT_FOUND" };
-  const manage = canManageTarget(actor, target);
+  const manage = canManageTarget(actor, await targetWithPermissions(target));
   if (!manage.allowed) return { ok: false, error: manage.reason };
 
   await prisma.user.update({

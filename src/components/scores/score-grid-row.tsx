@@ -151,7 +151,11 @@ export function ScoreGridRow({
           </div>
         </td>
 
-        {zones.map((zone) => (
+        {zones.map((zone) => {
+          // A zone its judge submitted is locked zone by zone: only Full
+          // access corrects it (the server refuses the rest — saveScore).
+          const zoneLocked = locked || (!!team.lockedZones?.includes(zone.id) && !isAdmin);
+          return (
           <td key={zone.id} className="grid-zone">
             <div className="grid-zone-fields">
               {groupInputs(zone).map((group) =>
@@ -160,7 +164,7 @@ export function ScoreGridRow({
                     <ClockField
                       minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
                       seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
-                      disabled={locked || pending}
+                      disabled={zoneLocked || pending}
                       onChange={set}
                       size="sm"
                       label={t("Time remaining")}
@@ -169,7 +173,7 @@ export function ScoreGridRow({
                       <FinisherStop
                         endsAt={team.waveEndsAt}
                         workMinutes={team.finisherWorkMinutes}
-                        disabled={locked || pending}
+                        disabled={zoneLocked || pending}
                         onCapture={({ minutes, seconds }) => {
                           const next = { ...draft, [group.minutes.id]: minutes, [group.seconds.id]: seconds };
                           setDraft(next);
@@ -188,7 +192,7 @@ export function ScoreGridRow({
                       aria-label={`${team.name} — ${t(group.input.label)}`}
                       title={t(group.input.label)}
                       value={show(draft[group.input.id])}
-                      disabled={locked || pending}
+                      disabled={zoneLocked || pending}
                       onChange={(e) =>
                         set(group.input.id, e.target.value.trim() === "" ? null : Number(e.target.value))
                       }
@@ -198,7 +202,7 @@ export function ScoreGridRow({
                         <button
                           type="button"
                           className="btn btn-sm btn-cyan"
-                          disabled={locked || pending}
+                          disabled={zoneLocked || pending}
                           aria-label={`${t(group.input.label)} +1`}
                           title={`+1 ${t(group.input.label)}`}
                           onClick={() =>
@@ -217,7 +221,7 @@ export function ScoreGridRow({
                         <button
                           type="button"
                           className="btn btn-sm btn-secondary"
-                          disabled={locked || pending}
+                          disabled={zoneLocked || pending}
                           aria-label={`${t(group.input.label)} −1`}
                           title={`−1 ${t(group.input.label)}`}
                           onClick={() => set(group.input.id, Math.max(0, (draft[group.input.id] ?? 0) - 1))}
@@ -246,7 +250,8 @@ export function ScoreGridRow({
               ) : null}
             </div>
           </td>
-        ))}
+          );
+        })}
 
         <td className="grid-total pd-num">{fmt(total, 2)}</td>
         <td className="pd-num grid-rank">{team.submitted || dirty ? rank : "—"}</td>
@@ -341,6 +346,8 @@ export function scoreErrorMessage(code: string, t: (key: string) => string) {
       return t("Score entry has closed for this competition.");
     case "WAVE_CLOCK_ENDED":
       return t("The wave clock has ended — this score is locked.");
+    case "SCORE_LOCKED":
+      return t("A judge has already submitted that zone, so it is locked. Only BFT MENA Full access can correct it.");
     case "FORBIDDEN":
       return t("You may not enter scores for this team.");
     case "INVALID_SCORE":

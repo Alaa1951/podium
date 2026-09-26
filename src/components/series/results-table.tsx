@@ -58,7 +58,8 @@ export function ResultsTable({
   brackets: string[];
   studios: string[];
   zoneNames: { number: number; name: string }[];
-  exportHref: string;
+  /** Null when this viewer may not export (registrations.export). */
+  exportHref: string | null;
   detailId?: string;
 }) {
   const t = useT();
@@ -165,9 +166,11 @@ export function ResultsTable({
           {visible.length === rows.length
             ? `${rows.length} ${t("teams")} · ${scored} ${t("scored")}`
             : `${visible.length} ${t("of")} ${rows.length}`}
-          <a className="linkish" href={exportHref} style={{ marginInlineStart: 10 }}>
-            {t("Export CSV")}
-          </a>
+          {exportHref ? (
+            <a className="linkish" href={exportHref} style={{ marginInlineStart: 10 }}>
+              {t("Export CSV")}
+            </a>
+          ) : null}
         </div>
       </div>
 

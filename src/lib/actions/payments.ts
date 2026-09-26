@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireAccess } from "@/lib/session";
+import { requireAccess, requireAnyAccess } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -74,7 +74,10 @@ export async function setPayment(input: unknown): Promise<ActionResult> {
 
 /** Checked in on the day, or not after all. */
 export async function setAttendance(input: unknown): Promise<ActionResult> {
-  const actor = await requireAccess("registrations.payment");
+  // Check-in is floor work (registrations.attendance, the Organiser's);
+  // whoever confirms payment may do it too.
+  const actor = await requireAnyAccess(["registrations.attendance", "registrations.payment"]);
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = z
     .object({ teamId: z.string().min(1), attended: z.boolean() })

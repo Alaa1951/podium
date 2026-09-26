@@ -90,7 +90,9 @@ export function ZoneEditor({
         ? t("There is already a zone with that number.")
         : result.error === "ALREADY_DEFINED"
           ? t("This series already has zones.")
-          : t("Check the form — every movement needs a label and whole factors.")
+          : result.error === "MOVEMENT_HAS_SCORES"
+            ? t("That movement already has scores recorded — the competition has started, so it cannot be removed.")
+            : t("Check the form — every movement needs a label and whole factors.")
     );
   }
 

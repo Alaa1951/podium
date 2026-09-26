@@ -5,8 +5,8 @@ import { getSeriesReport, money } from "@/lib/reports";
 import { countWaitingList } from "@/lib/waiting-list";
 import { getPaidRegistrationSummary } from "@/lib/paid-registrations";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { isBft } from "@/lib/access";
-import { requireAccess } from "@/lib/session";
+import { can, isBft } from "@/lib/access";
+import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * change it. A number you cannot act on is decoration.
  */
 export default async function CompetitionOverview(props: PageProps<"/series/[series]">) {
-  const user = await requireAccess("overview.view");
+  const user = await requireConsoleAccess("overview.view");
   const { t, locale } = await getTranslator();
 
   const { series, waveSummary, phase } = await requireSeries(props.params);
@@ -94,9 +94,11 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
           <Link href={at("board")} className="btn btn-secondary">
             {t("Live board")}
           </Link>
-          <a href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
-            {t("Export CSV")}
-          </a>
+          {can(user, "registrations.export") ? (
+            <a href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
+              {t("Export CSV")}
+            </a>
+          ) : null}
         </div>
       </div>
 

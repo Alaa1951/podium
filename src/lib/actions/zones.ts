@@ -53,6 +53,7 @@ const zoneSchema = z.object({
 /** Create or rewrite one zone and its movements. */
 export async function saveZone(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("settings.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = zoneSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -70,6 +71,24 @@ export async function saveZone(input: unknown): Promise<ActionResult> {
         include: { inputs: { orderBy: { position: "asc" } } },
       })
     : null;
+  // The zone, and every movement being updated, must belong to THIS
+  // competition's zone — ids from the request are not trusted to.
+  if (zoneId && (!before || before.seriesId !== seriesId)) return { ok: false, error: "NOT_FOUND" };
+  const own = new Set(before?.inputs.map((one) => one.id) ?? []);
+  if (inputs.some((movement) => movement.id && !own.has(movement.id))) return { ok: false, error: "INVALID_INPUT" };
+
+  // Once a competition has started, removing a movement would delete the
+  // scores recorded against it — rewriting results, not correcting them.
+  // Labels and factors may still change (that is recorded in the audit log).
+  const series = await prisma.series.findUnique({ where: { id: seriesId }, select: { status: true, archivedAt: true } });
+  if (!series || series.archivedAt) return { ok: false, error: "NOT_FOUND" };
+  if (before && series.status !== "scheduled") {
+    const keepIds = new Set(inputs.map((movement) => movement.id).filter(Boolean));
+    const removed = before.inputs.filter((one) => !keepIds.has(one.id)).map((one) => one.id);
+    if (removed.length && (await prisma.zoneEntry.count({ where: { inputId: { in: removed }, value: { not: null } } }))) {
+      return { ok: false, error: "MOVEMENT_HAS_SCORES" };
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     const zone = zoneId

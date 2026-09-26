@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { canManageTarget } from "@/lib/permissions/grant-policy";
+import { targetWithPermissions } from "@/lib/permissions/load";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { competitionChoices } from "@/lib/competition-choice";
@@ -64,7 +65,7 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
   if (!before) return { ok: false, error: "NOT_FOUND" };
 
   // Only BFT MENA Full access makes (or unmakes) BFT MENA Full access.
-  const manage = canManageTarget(actor, before);
+  const manage = canManageTarget(actor, await targetWithPermissions(before));
   if (!manage.allowed) return { ok: false, error: manage.reason };
   if (actor.role !== "admin" && (role === "admin" || before.role === "admin")) {
     return { ok: false, error: "FORBIDDEN" };
@@ -133,15 +134,19 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
  */
 export async function sendResetLink(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("users.edit");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = z.object({ userId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const user = await prisma.user.findUnique({
     where: { id: parsed.data.userId },
-    select: { id: true, email: true, status: true },
+    select: { id: true, email: true, status: true, role: true, studioId: true },
   });
   if (!user) return { ok: false, error: "NOT_FOUND" };
+  // The same authority as editing the account: a reset link is a way in.
+  const manage = canManageTarget(actor, await targetWithPermissions(user));
+  if (!manage.allowed) return { ok: false, error: manage.reason };
   if (user.status === "disabled") return { ok: false, error: "ACCOUNT_DISABLED" };
 
   const { url } = await issueAuthToken({ userId: user.id, purpose: "reset" });

@@ -5,6 +5,7 @@ export function waveScheduleErrorMessage(error?: string) {
     case "TOO_MANY_WAVES": return "The schedule supports up to 99 waves. Increase teams per wave.";
     case "WAVE_STARTED": case "SERIES_FINISHED": return "Waves that have started cannot be rescheduled.";
     case "WAVE_FULL": return "That wave is full. Choose another wave.";
+    case "NO_SUCH_WAVE": return "That wave does not exist yet. Waves are added by whoever builds the running order.";
     case "SCHEDULE_CHANGED": return "The schedule or request changed. Refresh and try again.";
     case "REQUEST_PENDING": return "Your team already has a pending time change request.";
     case "FORBIDDEN": return "You do not have permission to do this.";

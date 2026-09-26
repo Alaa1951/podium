@@ -82,8 +82,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Organiser",
     nameAr: "منظم",
     description:
-      "Sees everything in a competition and runs the floor: waves, wave control, zone teams. Does not edit teams or enter scores.",
-    assignableBy: "bft_studio",
+      "Runs the floor of every competition: builds the waves and places teams, starts the day, starts/ends/resets waves on Wave control, puts judges on zones and picks zone leaders, checks teams in. Sees the entry list, scores and results. Does not edit teams, enter scores or change settings.",
+    // BFT MENA only: the role runs the floor of EVERY competition (Wave
+    // control, zone teams), so a gym handing it out would hand one of its own
+    // people control of rival gyms' waves and judges.
+    assignableBy: "bft",
     accountTypes: ["organiser", "studio", "staff"],
     sortOrder: 30,
     permissions: [
@@ -92,6 +95,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "registrations.view",
       "registrations.export",
       "registrations.partners",
+      "registrations.attendance",
       "waves.view",
       "waves.placeTeams",
       "waves.edit",
@@ -108,7 +112,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     key: "judge",
     name: "Judge",
     nameAr: "حكم",
-    description: "Enters scores for the zone and station they are placed on. Nothing else.",
+    description:
+      "Scores on the floor from the judge sheet: the team on their station in their zone. Placed as a zone LEADER, scores any station of that zone, places its judges on stations and starts the next wave.",
     assignableBy: "bft_studio",
     accountTypes: ["organiser", "studio", "staff"],
     sortOrder: 40,

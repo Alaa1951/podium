@@ -164,6 +164,10 @@ export const CATALOG = {
           // people the floor can hold is not a studio's call.
           waitlist: act("Admit entries from the waiting list", "قبول التسجيلات من قائمة الانتظار", "bftOnly"),
           payment: act("Confirm payment and attendance", "تأكيد الدفع والحضور", "bftOnly"),
+          // Checking a team in at the door is floor work, not money: split from
+          // `payment` (BFT MENA only) so the Organiser can run check-in on the
+          // day. `payment` still covers it for whoever holds that.
+          attendance: act("Check teams in on the day", "تسجيل حضور الفرق يوم البطولة"),
           export: act("Export the roster", "تصدير القائمة"),
         },
       },

@@ -50,7 +50,7 @@ export function homeFor(role: Role): string {
  */
 export async function homeForUser(user: CurrentUser): Promise<string> {
   try {
-    if (await hasLiveZonePost(user.id)) return "/my-wave";
+    if (can(user, "judgeSheet.view") && (await hasLiveZonePost(user.id))) return "/my-wave";
   } catch {
     // A refused route must never turn into a 500 because the grant lookup
     // hiccuped — the role's ordinary home is always a safe answer.
@@ -131,6 +131,20 @@ export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
 export async function requireAccess(permission: PermissionKey): Promise<CurrentUser> {
   const user = await requireUser();
   if (!can(user, permission)) redirect(await homeForUser(user));
+  return user;
+}
+
+/**
+ * Gate a COMPETITION CONSOLE screen (/series/[series]/…): the key, and the
+ * console itself — BFT MENA and organisers, never a studio or an athlete,
+ * who have areas of their own scoped to their own teams. The competition
+ * layout turns them away as well, but a layout is not a guard: a page segment
+ * can be rendered on its own during navigation, so every console screen
+ * repeats the check rather than trusting the layout above it.
+ */
+export async function requireConsoleAccess(permission: PermissionKey): Promise<CurrentUser> {
+  const user = await requireAccess(permission);
+  if (user.role === "studio" || user.role === "competitor") redirect(await homeForUser(user));
   return user;
 }
 

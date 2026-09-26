@@ -5,7 +5,7 @@ import { ZoneStationsDisplay } from "@/components/board/station-display";
 import { buildBoardPayload } from "@/lib/board";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { getCurrentUser } from "@/lib/session";
-import { boardAccess } from "@/lib/visibility";
+import { readsWholeBoard } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +27,7 @@ export default async function ZoneStationsPage(
   if (!Number.isInteger(zoneNumber) || zoneNumber < 1) notFound();
 
   const { series, phase } = await requireSeries(props.params);
-  const access = boardAccess(user.role, phase);
-  if (!access.canSeeBoard || access.scope !== "all") notFound();
+  if (!readsWholeBoard(user, phase)) notFound();
 
   const payload = await buildBoardPayload(series.id);
   if (!payload) notFound();

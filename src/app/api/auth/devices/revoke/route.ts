@@ -15,6 +15,9 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  // A "View as" preview is read-only: an admin looking through somebody's eyes
+  // must not drop that person's devices under their name.
+  if (user.viewAs) return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as { deviceId?: string; all?: boolean };
   const all = body.all === true;

@@ -81,6 +81,7 @@ export const AR_ACCESS: Phrases = {
   "Someone else changed this person's access while you were editing. Reload to see it.":
     "قام شخص آخر بتعديل صلاحيات هذا الشخص أثناء تعديلك. أعد تحميل الصفحة لرؤيتها.",
   "Studios can't give this role.": "لا يمكن للاستوديوهات منح هذا الدور.",
+  "That role is not meant for this kind of account.": "هذا الدور غير مخصص لهذا النوع من الحسابات.",
   "You cannot change your own access — ask someone else.": "لا يمكنك تعديل صلاحياتك بنفسك — اطلب ذلك من شخص آخر.",
   "That permission can't be granted to anyone.": "لا يمكن منح هذه الصلاحية لأي شخص.",
   "That person or role no longer exists.": "هذا الشخص أو الدور لم يعد موجودًا.",
@@ -105,8 +106,8 @@ export const AR_ACCESS: Phrases = {
 
   // ── Competition and studio screens ─────────────────────────────────────────
   "Only BFT MENA manages sponsors.": "بي إف تي مينا وحدها تدير الرعاة.",
-  "Assign teams to their waves from the Waves screen; put judges on the floor from Score entry.":
-    "وزّع الفرق على موجاتها من شاشة الموجات، وضع الحكام على الأرض من شاشة إدخال الدرجات.",
+  "Assign teams to their waves from the Waves screen; put judges on zones and pick zone leaders from Wave control.":
+    "وزّع الفرق على موجاتها من شاشة الموجات، وضع الحكام على المناطق واختر قادة المناطق من شاشة التحكم في الموجات.",
   "Scores are entered by the judges on the floor. Ask BFT MENA for any correction.":
     "يُدخل الحكام الدرجات على أرض البطولة. اطلب أي تصحيح من بي إف تي مينا.",
   "Scores are entered by the judges on the floor. Yours appear here as they are recorded.":

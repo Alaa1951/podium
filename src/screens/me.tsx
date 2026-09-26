@@ -153,11 +153,13 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
 
   // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
-  const canEditTeam = teamEditOpen({
-    competitionDate: series.competitionDate,
-    teamEditCloseHours: series.teamEditCloseHours,
-    now: new Date(),
-  }).open;
+  const canEditTeam =
+    can(user, "athleteHome.editTeam") &&
+    teamEditOpen({
+      competitionDate: series.competitionDate,
+      teamEditCloseHours: series.teamEditCloseHours,
+      now: new Date(),
+    }).open;
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.

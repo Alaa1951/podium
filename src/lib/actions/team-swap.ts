@@ -12,6 +12,7 @@ import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { normalizeName } from "@/lib/scoring";
 import { isValidEmail, normalizeEmail } from "@/lib/security";
 import { isStudio, requireAccess, teamScope } from "@/lib/session";
+import { registrationOpen } from "@/lib/visibility";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SWAPPING SOMEBODY ON A REGISTERED TEAM.
@@ -82,7 +83,7 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
           waveId: true,
           waveRef: { select: { status: true } },
           score: { select: { id: true } },
-          series: { select: { status: true } },
+          series: { select: { status: true, registrationClosesAt: true } },
           competitors: { select: { id: true, userId: true } },
         },
       },
@@ -98,6 +99,10 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
   if (team.waveId && team.waveRef?.status !== "pending") {
     return { ok: false, error: "WAVE_STARTED" };
   }
+  // After registration closes, who is on a team is BFT MENA's to change — the
+  // same rule as editing the registration (readSwapSeat shows it closed).
+  const deadline = registrationOpen({ role: actor.role, registrationClosesAt: team.series.registrationClosesAt, now: new Date() });
+  if (!deadline.open) return { ok: false, error: deadline.reason };
 
   // The other half of the pair, whose partner link has to follow this change.
   const otherUserId =

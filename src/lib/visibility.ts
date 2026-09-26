@@ -1,4 +1,5 @@
 import type { Role } from "@/generated/prisma/enums";
+import { can, type CurrentUser } from "@/lib/access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT AN EVENT SHOWS, AND WHEN.
@@ -118,6 +119,18 @@ export function boardAccess(role: Role | "anonymous", phase: EventPhase): BoardA
     case "public":
       return { canSeeBoard: true, scope: "all", canSeeResults: true, isPublic: phase === "public" };
   }
+}
+
+/**
+ * Whether this person reads the WHOLE field's board payload — what the rig
+ * screens and the board's poll carry. boardAccess's "all" scope, or the floor
+ * supervisor (waveControl.view): they open the rig screens from Wave control
+ * and have to see them working before the doors open, not after.
+ */
+export function readsWholeBoard(user: Pick<CurrentUser, "role" | "permissions">, phase: EventPhase): boolean {
+  const access = boardAccess(user.role, phase);
+  if (access.canSeeBoard && access.scope === "all") return true;
+  return user.role !== "studio" && user.role !== "competitor" && can(user, "waveControl.view");
 }
 
 // ── Deadlines ────────────────────────────────────────────────────────────────

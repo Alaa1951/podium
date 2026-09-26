@@ -156,6 +156,9 @@ export default async function CompetitionLayout({
   return (
     <ConsoleShell
       groups={groups}
+      // The logo leads where this person belongs — "/" is BFT MENA's platform,
+      // which would only bounce an organiser back to /home.
+      homeHref={await homeForUser(user)}
       crumbs={
         can(user, "competitions.view")
           ? [{ href: "/series", label: t("Competitions") }]

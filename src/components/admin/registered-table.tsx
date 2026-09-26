@@ -67,6 +67,8 @@ export function RegisteredTable({
   canArchive,
   canWaitlist,
   canOverridePayment = false,
+  canEdit = false,
+  canRestore = false,
   detailId,
   readOnly = false,
 }: {
@@ -83,7 +85,12 @@ export function RegisteredTable({
    * question as `readOnly` — the CRM owns the money whoever is looking.
    */
   canOverridePayment?: boolean;
+  /** registrations.edit — the Edit link on a registration. */
+  canEdit?: boolean;
+  /** Restoring a withdrawn registration — BFT MENA with registrations.archive. */
+  canRestore?: boolean;
   detailId?: string;
+  /** No check-in: without registrations.attendance (or .payment), or previewing. */
   readOnly?: boolean;
 }) {
   const t = useT();
@@ -104,6 +111,10 @@ export function RegisteredTable({
     setMessage(
       result.error === "EVENT_RUNNING"
         ? t("The event is running — nothing can be removed from it right now.")
+        : result.error === "ALREADY_ENTERED"
+          ? t("One of this pair has entered again since — restoring would make a second entry.")
+          : result.error === "WAVE_STARTED"
+            ? t("This team's wave has started — it is competing, not waiting.")
         : result.error === "EVENT_FINISHED"
           ? t("The event is finished — its registrations are part of the record.")
           : t("Something went wrong. Try again.")
@@ -169,7 +180,7 @@ export function RegisteredTable({
       <h1>{row.name}</h1>
       {message ? <div className="notice" role="status">{message}</div> : null}
       <p>{t(row.category)} · {t(row.division)}</p>
-      {!readOnly ? <DetailLink href={`${path}/edit`} className="btn btn-secondary">{t("Edit")}</DetailLink> : null}
+      {canEdit ? <DetailLink href={`${path}/edit`} className="btn btn-secondary">{t("Edit")}</DetailLink> : null}
       <RowPair readOnly={readOnly} row={row} detailOnly open pending={pending} onToggle={() => {}} onAttendance={attendance} canOverridePayment={canOverridePayment} onOverridePayment={overridePayment} onArchive={canArchive ? archive : undefined} onWaitlist={canWaitlist ? waitlist : undefined} />
       <button type="button" className="btn btn-secondary mobile-action-bar" disabled={pending || readOnly} onClick={() => attendance(row)}>{row.attended ? t("Checked in") : t("Check in")}</button>
     </div>;
@@ -267,7 +278,7 @@ export function RegisteredTable({
                         <button
                           type="button"
                           className="btn btn-sm btn-secondary"
-                          disabled={pending}
+                          disabled={pending || !canRestore}
                           onClick={() => restore(row.id)}
                         >
                           {t("Restore")}

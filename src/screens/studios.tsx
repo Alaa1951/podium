@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { StudioDirectory, type DirectoryRow } from "@/components/series/studio-directory";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
+import { can } from "@/lib/access";
 import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
  * — this is only the list they are chosen from.
  */
 export default async function StudiosPage(detailId?: string, editMode = false) {
-  await requireAccess("studios.view");
+  const user = await requireAccess(editMode ? "studios.edit" : "studios.view");
+  const live = !user.viewAs;
   const { t } = await getTranslator();
 
   const studios = await prisma.studio.findMany({
@@ -48,7 +50,13 @@ export default async function StudiosPage(detailId?: string, editMode = false) {
         </div>
       </div>
 
-      <StudioDirectory studios={rows} detailId={detailId} editMode={editMode} />
+      <StudioDirectory
+        studios={rows}
+        detailId={detailId}
+        editMode={editMode}
+        canCreate={live && can(user, "studios.create")}
+        canEdit={live && can(user, "studios.edit")}
+      />
     </div>
   );
 }

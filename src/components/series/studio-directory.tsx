@@ -27,7 +27,21 @@ export type DirectoryRow = {
  * Retiring is not deleting. A studio that has run competitions keeps its
  * history — it simply stops being offered when the next one is set up.
  */
-export function StudioDirectory({ studios, detailId, editMode = false }: { studios: DirectoryRow[]; detailId?: string; editMode?: boolean }) {
+export function StudioDirectory({
+  studios,
+  detailId,
+  editMode = false,
+  canCreate = false,
+  canEdit = false,
+}: {
+  studios: DirectoryRow[];
+  detailId?: string;
+  editMode?: boolean;
+  /** studios.create — the "Add a studio" form. */
+  canCreate?: boolean;
+  /** studios.edit — rename, retire and reactivate. */
+  canEdit?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -85,10 +99,10 @@ export function StudioDirectory({ studios, detailId, editMode = false }: { studi
     });
   }
 
-  if (selected) return <section className="detail-screen"><h2>{selected.name}</h2>{message ? <div role="alert" className="notice-error">{message}</div> : null}{editMode ? <form onSubmit={event => {event.preventDefault(); rename(selected);}}><label className="field-label">{t("Name")}<input className="input" value={draft} onChange={event=>setDraft(event.target.value)} required /></label><div className="mobile-action-bar"><button className="btn btn-primary" disabled={pending || draft.trim().length < 2}>{t("Save")}</button></div></form> : <><dl className="detail-facts">{[["Competitions",selected.competitions],["Teams",selected.teams],["Members",selected.members],["Accounts",selected.accounts],["Status",t(selected.isActive?"Active":"Retired")]].map(([label,value])=><div key={label}><dt>{t(String(label))}</dt><dd>{value}</dd></div>)}</dl><div className="mobile-action-bar"><Link className="btn btn-primary" href={`/studios/${selected.id}/edit`}>{t("Edit")}</Link><button className="btn btn-secondary" disabled={pending} onClick={()=>toggle(selected)}>{t(selected.isActive?"Retire":"Activate")}</button></div></>}</section>;
+  if (selected) return <section className="detail-screen"><h2>{selected.name}</h2>{message ? <div role="alert" className="notice-error">{message}</div> : null}{editMode ? <form onSubmit={event => {event.preventDefault(); rename(selected);}}><label className="field-label">{t("Name")}<input className="input" value={draft} onChange={event=>setDraft(event.target.value)} required /></label><div className="mobile-action-bar"><button className="btn btn-primary" disabled={pending || draft.trim().length < 2}>{t("Save")}</button></div></form> : <><dl className="detail-facts">{[["Competitions",selected.competitions],["Teams",selected.teams],["Members",selected.members],["Accounts",selected.accounts],["Status",t(selected.isActive?"Active":"Retired")]].map(([label,value])=><div key={label}><dt>{t(String(label))}</dt><dd>{value}</dd></div>)}</dl>{canEdit ? <div className="mobile-action-bar"><Link className="btn btn-primary" href={`/studios/${selected.id}/edit`}>{t("Edit")}</Link><button className="btn btn-secondary" disabled={pending} onClick={()=>toggle(selected)}>{t(selected.isActive?"Retire":"Activate")}</button></div> : null}</>}</section>;
   return (
     <>
-      <section className="form-block">
+      {canCreate ? <section className="form-block">
         <h2 className="section-title">{t("Add a studio")}</h2>
         <div className="form-row">
           <label style={{ flex: "2 1 260px" }}>
@@ -113,7 +127,7 @@ export function StudioDirectory({ studios, detailId, editMode = false }: { studi
             {t("Add")}
           </button>
         </div>
-      </section>
+      </section> : null}
 
       {message ? (
         <div className="notice-error" role="alert" style={{ marginBottom: 12 }}>
@@ -177,7 +191,7 @@ export function StudioDirectory({ studios, detailId, editMode = false }: { studi
                           setEditing(studio.id);
                           setDraft(studio.name);
                         }}
-                        disabled={pending}
+                        disabled={pending || !canEdit}
                       >
                         <strong>{studio.name}</strong>
                       </button>
@@ -200,7 +214,7 @@ export function StudioDirectory({ studios, detailId, editMode = false }: { studi
                       type="button"
                       className="chip-sm"
                       data-active={studio.isActive || undefined}
-                      disabled={pending}
+                      disabled={pending || !canEdit}
                       onClick={() => toggle(studio)}
                     >
                       {studio.isActive ? t("Active") : t("Retired")}

@@ -27,12 +27,24 @@ export default async function HomePage() {
   if (user.role === "admin") redirect("/");
   const { t } = await getTranslator();
 
-  const competitions = await prisma.series.findMany({
-    where: { archivedAt: null, status: { in: ["scheduled", "live", "final"] } },
-    orderBy: [{ competitionDate: "desc" }],
-    take: 12,
-    select: { id: true, slug: true, name: true, status: true, competitionDate: true },
-  });
+  // Every competition that is coming up or running — the ones there is work
+  // in — and the most recent finished ones. A flat "newest twelve" dropped a
+  // scheduled competition off the page once a dozen newer ones existed.
+  const select = { id: true, slug: true, name: true, status: true, competitionDate: true } as const;
+  const [upcoming, finished] = await Promise.all([
+    prisma.series.findMany({
+      where: { archivedAt: null, status: { in: ["scheduled", "live"] } },
+      orderBy: [{ competitionDate: "desc" }],
+      select,
+    }),
+    prisma.series.findMany({
+      where: { archivedAt: null, status: "final" },
+      orderBy: [{ competitionDate: "desc" }],
+      take: 6,
+      select,
+    }),
+  ]);
+  const competitions = [...upcoming, ...finished];
 
   const platform: Door[] = [
     { href: "/", label: t("Dashboard"), key: "dashboard.view" },
@@ -56,7 +68,9 @@ export default async function HomePage() {
   ];
 
   const open = (doors: Door[]) => doors.filter((door) => can(user, door.key));
-  const platformDoors = open(platform);
+  // The platform is BFT MENA's (see its layout): an organiser holding one of
+  // these keys would be sent back here from every one of them.
+  const platformDoors = user.role === "staff" ? open(platform) : [];
   const grant = await prisma.zoneStaff.findFirst({
     where: { userId: user.id, series: { status: { in: ["scheduled", "live"] } } },
     select: { id: true },

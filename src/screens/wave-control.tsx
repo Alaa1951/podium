@@ -3,12 +3,13 @@ import Link from "next/link";
 import type { SeriesScreenProps } from "@/screens/types";
 
 import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
+import { StartDayButton } from "@/components/floor/start-day-button";
 import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { requireAccess } from "@/lib/session";
+import { requireConsoleAccess } from "@/lib/session";
 import { judgeCandidates, listZoneStaff } from "@/lib/zone-staff";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
  * elsewhere: the judges have their own sheet.
  */
 export default async function WaveControlPage(props: SeriesScreenProps) {
-  const user = await requireAccess("waveControl.view");
+  const user = await requireConsoleAccess("waveControl.view");
   const { t } = await getTranslator();
   const { series, waves } = await requireSeries(props.params);
   const live = !user.viewAs;
@@ -69,9 +70,20 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
         </div>
       </div>
 
-      {series.status !== "live" ? (
+      {series.status === "scheduled" ? (
         <div className="notice" style={{ marginBottom: 16 }}>
-          {t("Waves can only be started while the competition is running. Set it to Running in Settings first.")}
+          {t("Waves can only be started while the competition is running.")}
+          {canControl ? (
+            <div>
+              <StartDayButton seriesId={series.id} />
+            </div>
+          ) : (
+            <> {t("The supervisor starts it here, or BFT MENA from Settings.")}</>
+          )}
+        </div>
+      ) : series.status === "final" ? (
+        <div className="notice" style={{ marginBottom: 16 }}>
+          {t("This competition is finished. Its waves can no longer be changed.")}
         </div>
       ) : null}
 

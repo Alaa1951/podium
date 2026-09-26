@@ -6,7 +6,8 @@ import { getTranslator } from "@/lib/i18n/server";
 import { getSeriesTeams, getSeriesZones, podiums, rankBracket } from "@/lib/queries";
 import { requireSeries } from "@/lib/require-series";
 import { bracketLabel } from "@/lib/scoring";
-import { requireAccess } from "@/lib/session";
+import { can } from "@/lib/access";
+import { requireConsoleAccess } from "@/lib/session";
 import { isCompeting } from "@/lib/team-status";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  * by category and division, so totals are only comparable within one.
  */
 export default async function ResultsPage(props: SeriesScreenProps, detailId?: string) {
-  await requireAccess("results.view");
+  const user = await requireConsoleAccess("results.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
@@ -90,7 +91,7 @@ export default async function ResultsPage(props: SeriesScreenProps, detailId?: s
 
   if (detailId && !rows.some((team) => team.id === detailId)) notFound();
 
-  if (detailId) return <div className="screen"><ResultsTable podiums={[]} rows={rows.filter(team => team.id === detailId)} brackets={[]} studios={[]} zoneNames={zones.map((zone) => ({number:zone.number,name:zone.name}))} exportHref={`/api/series/${series.slug}/export`} detailId={detailId} /></div>;
+  if (detailId) return <div className="screen"><ResultsTable podiums={[]} rows={rows.filter(team => team.id === detailId)} brackets={[]} studios={[]} zoneNames={zones.map((zone) => ({number:zone.number,name:zone.name}))} exportHref={can(user, "registrations.export") ? `/api/series/${series.slug}/export` : null} detailId={detailId} /></div>;
 
   return (
     <div className="screen">
@@ -105,7 +106,8 @@ export default async function ResultsPage(props: SeriesScreenProps, detailId?: s
         </div>
       </div>
 
-      {series.status === "final" ? (
+      {/* Publishing is results.publish (BFT MENA); everyone else sees the page only. */}
+      {series.status === "final" && can(user, "results.publish") && !user.viewAs ? (
         <div style={{ marginBottom: 18 }}>
           <PublishToggle seriesId={series.id} published={published} publicUrl={publicUrl} />
         </div>
@@ -123,7 +125,7 @@ export default async function ResultsPage(props: SeriesScreenProps, detailId?: s
           brackets={podiumBlocks.map((block) => block.label)}
           studios={studios}
           zoneNames={zones.map((zone) => ({ number: zone.number, name: zone.name }))}
-          exportHref={`/api/series/${series.slug}/export`}
+          exportHref={can(user, "registrations.export") ? `/api/series/${series.slug}/export` : null}
         />
       )}
     </div>

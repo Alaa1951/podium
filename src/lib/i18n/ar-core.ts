@@ -268,10 +268,26 @@ export const AR_CORE: Phrases = {
   "In the ranking": "داخل الترتيب",
   "The wave clock has ended — this score is locked.":
     "ساعة الموجة خلصت — التعديل على النتيجة مقفول.",
+  "A judge has already submitted that zone, so it is locked. Only BFT MENA Full access can correct it.":
+    "الحكم سلّم الزون دي خلاص فهي مقفولة. التصحيح من BFT MENA Full access بس.",
   "Stopped with {time} left on the clock": "اتوقفت وباقي {time} على الساعة",
   "Record the wave's remaining time for this team": "سجل الوقت المتبقي من الموجة للفريق ده",
   Stop: "إيقاف",
   "Wave clock finished": "ساعة الموجة خلصت",
   "Finisher not started": "الفنيشر لم يبدأ بعد",
+  "Start the competition now? Waves can then be started and judges can score.": "تبدأ البطولة دلوقتي؟ بعدها تقدر تبدأ الموجات والحكام يقدروا يسجلوا الدرجات.",
+  "Start the competition": "ابدأ البطولة",
+  "The competition is not waiting to start any more — reload the page.": "البطولة مابقتش مستنية تبدأ — حدّث الصفحة.",
+  "Waves can only be started while the competition is running.": "الموجات تبدأ بس والبطولة شغالة.",
+  "The supervisor starts it here, or BFT MENA from Settings.": "المشرف يبدأها من هنا، أو BFT MENA من الإعدادات.",
+  "This competition is finished. Its waves can no longer be changed.": "البطولة خلصت. موجاتها ماينفعش تتغير.",
+  "That wave does not exist yet. Waves are added by whoever builds the running order.": "الموجة دي لسه مش موجودة. الموجات بيضيفها اللي بيبني ترتيب الموجات.",
+  "That movement already has scores recorded — the competition has started, so it cannot be removed.": "الحركة دي عليها درجات متسجلة — البطولة بدأت، فماينفعش تتشال.",
+  "One of this pair has entered again since — restoring would make a second entry.": "واحد من الثنائي ده سجّل تاني من ساعتها — الاسترجاع هيعمل تسجيل مكرر.",
+  "This team's wave has started — it is competing, not waiting.": "موجة الفريق ده بدأت — هو بيتنافس، مش في قائمة الانتظار.",
+  "Registration has closed. Ask BFT MENA to change who is on this team.": "التسجيل اتقفل. اطلب من BFT MENA تغيير أعضاء الفريق ده.",
+  "This competition is finished. Nobody can be added to it.": "البطولة خلصت. ماينفعش حد يتضاف لها.",
+  "As zone leader you can start the next wave once Zone 1 is free. Ending or resetting a wave is the supervisor's, on Wave control.":
+    "كقائد زون تقدر تبدأ الموجة الجاية أول ما زون 1 تفضى. إنهاء الموجة أو إرجاعها من صلاحية المشرف من شاشة التحكم في الموجات.",
   "Not in the ranking": "خارج الترتيب",
 };

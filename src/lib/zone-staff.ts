@@ -28,6 +28,9 @@ export async function judgeCandidates() {
     where: {
       status: "active",
       archivedAt: null,
+      // A sign-up still waiting holds only the general pages, so putting it on
+      // a zone would fail (NOT_A_JUDGE) — leave it off the list until approved.
+      approvalStatus: "approved",
       accessRoles: { some: { accessRoleId: { in: judging } } },
     },
     orderBy: [{ name: "asc" }, { email: "asc" }],

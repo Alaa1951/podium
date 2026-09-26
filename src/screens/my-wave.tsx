@@ -6,13 +6,14 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { SheetRefresher } from "@/components/floor/sheet-refresher";
 import { ZoneEntryCard, type ZoneEntryTeam } from "@/components/floor/zone-entry-card";
 import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
+import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { hasReachedZone, waveInZone, wavePosition, type FloorTiming } from "@/lib/floor";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
-import { getSeriesZones } from "@/lib/queries";
-import { requireUser } from "@/lib/session";
+import { getSeriesWaves, getSeriesZones } from "@/lib/queries";
+import { homeFor, requireUser } from "@/lib/session";
 import { judgePostsFor, listZoneStaff } from "@/lib/zone-staff";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,9 @@ function clock(ms: number | null) {
 export default async function MyWavePage(detailId?: string, requestedSeries?: string) {
   const user = await requireUser();
   const { t } = await getTranslator();
-  const posts = await judgePostsFor(user.id);
+  // Posts are worked through the Judge sheet: without it (the Judge role
+  // taken away) a leftover ZoneStaff row opens nothing.
+  const posts = can(user, "judgeSheet.view") ? await judgePostsFor(user.id) : [];
 
   if (posts.length === 0 && user.role === "competitor" && !detailId) {
     const selected = await resolveMySeries(user.id, requestedSeries);
@@ -103,6 +106,11 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       </div>
     );
   }
+
+  // Where this person works when they are not on the floor, and each
+  // competition's board — the links at the top of the sheet.
+  const otherHome = user.role === "staff" && can(user, "dashboard.view") ? "/" : homeFor(user.role);
+  const boards = [...new Map(posts.map((post) => [post.series.slug, { slug: post.series.slug, name: post.series.name }])).values()];
 
   const now = new Date();
   const panels = await Promise.all(
@@ -191,6 +199,37 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
       const staff = leader ? (await listZoneStaff(post.seriesId)).filter((row) => row.id === post.zone.id) : [];
 
+      // A zone leader sends the next wave onto the floor from here (Start
+      // only — canControlWave). Shown: the waves on the floor and the next
+      // one to go, which is all a leader decides about.
+      const leaderFloor =
+        leader && post.series.status === "live"
+          ? await (async () => {
+              const all = await getSeriesWaves(post.seriesId);
+              const next = all
+                .filter((wave) => wave.status === "pending")
+                .sort((a, b) => a.number - b.number)[0];
+              const floorWaves = all.filter((wave) => wave.status === "running" || wave.id === next?.id);
+              const floorTeams = floorWaves.length
+                ? await prisma.team.findMany({
+                    where: { seriesId: post.seriesId, archivedAt: null, waveId: { in: floorWaves.map((wave) => wave.id) } },
+                    orderBy: [{ station: "asc" }, { number: "asc" }],
+                    select: { id: true, number: true, name: true, station: true, waveId: true },
+                  })
+                : [];
+              const teamsByWave: Record<string, FloorTeam[]> = {};
+              for (const team of floorTeams) {
+                if (!team.waveId) continue;
+                (teamsByWave[team.waveId] ??= []).push({ id: team.id, number: team.number, name: team.name, station: team.station });
+              }
+              return {
+                waves: floorWaves,
+                teamsByWave,
+                zones: ordered.map((row) => ({ id: row.id, number: row.number, name: row.name })),
+              };
+            })()
+          : null;
+
       return {
         post,
         zone,
@@ -207,6 +246,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
           .map(toEntry)
           .filter((team) => !team.locked || !!detailId),
         staff,
+        leaderFloor,
+        timing,
       };
     })
   );
@@ -224,7 +265,24 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
         </div>
       </div>
 
-      {panels.map(({ post, zone, current, earlier, staff }) => (
+      {/* A live post makes this sheet the person's home (homeForUser), so it
+          must lead back to the rest of their work — an organiser's console, a
+          gym's area — and to the live board of each competition they work. */}
+      <div className="me-links" style={{ marginBottom: 18 }}>
+        {user.role !== "competitor" ? (
+          <Link href={otherHome} className="btn btn-secondary">
+            {t("Home")}
+          </Link>
+        ) : null}
+        {boards.map((board) => (
+          <Link key={board.slug} href={`/series/${board.slug}/board`} className="btn btn-secondary">
+            {t("Live board")}
+            {boards.length > 1 ? ` · ${board.name}` : ""}
+          </Link>
+        ))}
+      </div>
+
+      {panels.map(({ post, zone, current, earlier, staff, leaderFloor, timing }) => (
         <section key={post.id} style={{ marginBottom: 34 }}>
           <h2 className="section-title" style={{ marginTop: 0 }}>
             {post.series.name} · {t("Zone")} {post.zone.number} {"///"} {t(post.zone.name)} ·{" "}
@@ -265,6 +323,23 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                 ))}
               </div>
             </>
+          ) : null}
+
+          {leaderFloor ? (
+            <div style={{ marginTop: 18 }}>
+              <h3 style={{ marginTop: 0 }}>{t("Waves")}</h3>
+              <p className="reg-sub">
+                {t("As zone leader you can start the next wave once Zone 1 is free. Ending or resetting a wave is the supervisor's, on Wave control.")}
+              </p>
+              <WaveFloor
+                waves={leaderFloor.waves}
+                teamsByWave={leaderFloor.teamsByWave}
+                zones={leaderFloor.zones}
+                timing={timing}
+                canControl={!user.viewAs}
+                startOnly
+              />
+            </div>
           ) : null}
 
           {post.position === "leader" && staff.length ? (

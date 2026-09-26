@@ -32,8 +32,13 @@ export async function BoardFrame({
   const contextual = user?.role === "admin" || user?.role === "staff" || user?.role === "organiser" || studioMember;
   const base = `${studioMember ? "/studio" : "/series"}/${seriesSlug}`;
   const homeHref = user ? await homeForUser(user) : back;
+  // The competition's overview is overview.view in the console (a gym's own
+  // area is always open to it). Offering it to a judge or a volunteer only
+  // bounced them back home, so they get their home instead.
+  const canOverview = studioMember || (!!user && user.role !== "studio" && user.role !== "competitor" && can(user, "overview.view"));
+  const backHref = !user ? back : canOverview ? base : homeHref;
   const groups: NavGroup[] = contextual && user ? [
-    { title: "", items: [{ href: base, label: t("Overview") }, { href: `/series/${seriesSlug}/board`, label: t("Live board") }] },
+    { title: "", items: [...(canOverview ? [{ href: base, label: t("Overview") }] : []), { href: `/series/${seriesSlug}/board`, label: t("Live board") }] },
     { title: t("Sections"), items: [
       { href: `${base}/${studioMember ? "teams" : "registrations"}`, label: t(studioMember ? "Teams" : "Athletes"), permission: "registrations.view" as const },
       { href: `${base}/waves`, label: t("Waves"), permission: "waves.view" as const },
@@ -45,10 +50,10 @@ export async function BoardFrame({
     ].filter(item => can(user, item.permission)).map(({ href, label }) => ({ href, label })) },
   ] : [];
   return (
-    <MobileBoardShell groups={groups} role={user?.role ?? "competitor"} name={name} title={t("Live board")} homeHref={homeHref} overviewHref={base} utilities={<><ThemeToggle current={theme} /><LanguageSwitch /></>}>
+    <MobileBoardShell groups={groups} role={user?.role ?? "competitor"} name={name} title={t("Live board")} homeHref={homeHref} overviewHref={canOverview ? base : homeHref} utilities={<><ThemeToggle current={theme} /><LanguageSwitch /></>}>
     <div className="board-frame">
       <div className="board-frame-bar">
-        <Link href={back} className="board-frame-mark" aria-label={`${name} — back to the menu`}>
+        <Link href={backHref} className="board-frame-mark" aria-label={`${name} — back to the menu`}>
           <BoardBrand size="sm" align="start" />
           <span className="board-frame-hint">‹ Menu</span>
         </Link>

@@ -49,9 +49,11 @@ export async function pairAthletes(input: unknown): Promise<PairResult> {
       archivedAt: null,
       ...(isStudio(actor) ? { studios: { some: { studioId: actor.studioId! } } } : {}),
     },
-    select: { id: true, name: true, registrationClosesAt: true },
+    select: { id: true, name: true, registrationClosesAt: true, status: true },
   });
   if (!series) return { ok: false, error: "NOT_FOUND" };
+  // A finished competition's field is the record: nobody is added to it.
+  if (series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
   const open = registrationOpen({ role: actor.role, registrationClosesAt: series.registrationClosesAt, now: new Date() });
   if (!open.open) return { ok: false, error: open.reason };
 

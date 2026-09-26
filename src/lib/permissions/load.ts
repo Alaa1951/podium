@@ -51,3 +51,15 @@ export async function loadPermissions(userId: string, accountType: Role): Promis
   if (accountType === "admin") return ["*"];
   return resolveEffectivePermissions(await loadAccessInputs(userId, accountType));
 }
+
+/**
+ * A target account as canManageTarget (grant-policy.ts) needs it: a BFT MENA
+ * Partial target carries its effective permissions, so a Partial actor can be
+ * held to "only manage what you hold". Other targets pass through unchanged.
+ */
+export async function targetWithPermissions<T extends { id: string; role: Role }>(
+  target: T
+): Promise<T & { permissions?: string[] }> {
+  if (target.role !== "staff") return target;
+  return { ...target, permissions: await loadPermissions(target.id, target.role) };
+}

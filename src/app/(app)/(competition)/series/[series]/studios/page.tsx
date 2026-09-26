@@ -4,7 +4,8 @@ import { StudioPicker, type StudioRow } from "@/components/series/studio-picker"
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireSeries } from "@/lib/require-series";
-import { requireAccess } from "@/lib/session";
+import { can } from "@/lib/access";
+import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,10 @@ export const dynamic = "force-dynamic";
  * a competition had no idea which of them it concerned.
  */
 export default async function SeriesStudiosPage(props: PageProps<"/series/[series]/studios">) {
-  await requireAccess("competitionStudios.view");
+  const user = await requireConsoleAccess("competitionStudios.view");
+  const canPick = can(user, "competitionStudios.edit") && !user.viewAs;
+  // The directory itself (/studios) is studios.view — BFT MENA only.
+  const canOpenDirectory = can(user, "studios.view");
   const { t } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
@@ -59,22 +63,26 @@ export default async function SeriesStudiosPage(props: PageProps<"/series/[serie
             )}
           </p>
         </div>
-        <div className="screen-head-actions">
-          <Link href="/studios" className="btn btn-secondary">
-            {t("Manage the directory")}
-          </Link>
-        </div>
+        {canOpenDirectory ? (
+          <div className="screen-head-actions">
+            <Link href="/studios" className="btn btn-secondary">
+              {t("Manage the directory")}
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       {rows.length === 0 ? (
         <div className="notice">
           <strong>{t("No studios in the directory.")}</strong>{" "}
-          <Link href="/studios" className="linkish">
-            {t("Add one first.")}
-          </Link>
+          {canOpenDirectory ? (
+            <Link href="/studios" className="linkish">
+              {t("Add one first.")}
+            </Link>
+          ) : null}
         </div>
       ) : (
-        <StudioPicker seriesId={series.id} studios={rows} />
+        <StudioPicker seriesId={series.id} studios={rows} readOnly={!canPick} />
       )}
 
       <div className="notice" style={{ marginTop: 20 }}>

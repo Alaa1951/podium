@@ -6,7 +6,8 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { finisherRemainingMs, MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireAccess } from "@/lib/session";
+import { can, canControlWave } from "@/lib/access";
+import { getCurrentUser, requireAccess } from "@/lib/session";
 import { ScheduleError, scheduledTime, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
 import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
 import { deletionGuard } from "@/lib/series-guard";
@@ -29,16 +30,27 @@ const waveSchema = z.object({
 });
 
 /**
- * The supervisor's buttons. Gated by `waveControl.control` — the supervisor
- * permission — and re-checked against the database on every press.
+ * The wave buttons. The supervisor (`waveControl.control`) presses all three;
+ * a zone leader of the wave's competition presses Start (canControlWave,
+ * access.ts). Re-checked against the database on every press.
  */
 export async function controlWave(input: unknown): Promise<ActionResult> {
-  const actor = await requireAccess("waveControl.control");
+  // Not requireAccess: an action answers a refusal, it never redirects the
+  // fetch — and a zone leader has no waveControl key to be let in by.
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
   if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
   const parsed = waveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const found = await prisma.wave.findUnique({ where: { id: parsed.data.waveId }, select: { seriesId: true } });
   if (!found) return { ok: false, error: "NOT_FOUND" };
+  // A post is worked through the Judge sheet: a leader whose Judge role was
+  // taken away keeps the ZoneStaff row, but not the powers that come with it.
+  const leadsAZone =
+    parsed.data.action === "start" &&
+    can(actor, "judgeSheet.view") &&
+    (await prisma.zoneStaff.count({ where: { seriesId: found.seriesId, userId: actor.id, position: "leader" } })) > 0;
+  if (!canControlWave(actor, parsed.data.action, leadsAZone)) return { ok: false, error: "FORBIDDEN" };
   const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data));
   if (!result.ok) return result;
   await recordAudit({ actorId: actor.id, action: AUDIT.waveControlled, targetType: "event", targetId: found.seriesId,
@@ -70,6 +82,8 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
       break;
     }
     case "finish": {
+      // A finished competition's floor is history: its results stand on it.
+      if (wave.series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
       if (wave.status !== "running") return { ok: false, error: "NOT_RUNNING" };
       // Only what the LAST zone had left counts — ending the wave before its
       // finisher began records 0:00, never the rest of the whole wave clock.
@@ -80,9 +94,49 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
       break;
     }
     case "reset":
+      if (wave.series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
       await tx.wave.update({ where: { id: wave.id }, data: { status: "pending", startedAt: null, endsAt: null } });
       break;
   }
+  return { ok: true };
+}
+
+/**
+ * START THE DAY — the one status change the floor makes itself. No wave can
+ * start and no judge can score until the competition is Running, and the
+ * people running the floor are not always the ones who hold Settings
+ * (settings.edit is BFT MENA's). So the supervisor (waveControl.control)
+ * sets a SCHEDULED competition to Running from Wave control. Nothing else:
+ * back to scheduled, or finished, stays in Settings.
+ */
+export async function startCompetitionDay(input: unknown): Promise<ActionResult> {
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
+  if (actor.viewAs || !can(actor, "waveControl.control")) return { ok: false, error: "FORBIDDEN" };
+  const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+
+  const series = await prisma.series.findUnique({
+    where: { id: parsed.data.seriesId },
+    select: { id: true, status: true, archivedAt: true },
+  });
+  if (!series || series.archivedAt) return { ok: false, error: "NOT_FOUND" };
+  if (series.status !== "scheduled") return { ok: false, error: "NOT_SCHEDULED" };
+  // Conditional, so two supervisors pressing at once start it only once.
+  const started = await prisma.series.updateMany({
+    where: { id: series.id, status: "scheduled" },
+    data: { status: "live" },
+  });
+  if (started.count === 0) return { ok: false, error: "NOT_SCHEDULED" };
+
+  await recordAudit({
+    actorId: actor.id,
+    action: AUDIT.seriesStatusChanged,
+    targetType: "event",
+    targetId: series.id,
+    detail: "status=live (started from Wave control)",
+  });
+  revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -174,32 +228,8 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
       await tx.wave.delete({ where: { id: wave.id } });
     });
   } catch (error) { return scheduleError(error); }
-  revalidateCompetitionViews();
-  return { ok: true };
-}
-
-const scheduleSchema = z.object({
-  seriesId: z.string().min(1),
-  firstWaveTime: z.string().regex(TIME_PATTERN),
-  // One team per station: never more than nine.
-  waveCapacity: z.coerce.number().int().min(1).max(MAX_STATIONS),
-});
-
-export async function updateSchedule(input: unknown): Promise<ActionResult> {
-  const actor = await requireAccess("waves.edit");
-  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
-
-  const parsed = scheduleSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-
-  await prisma.series.update({
-    where: { id: parsed.data.seriesId },
-    data: {
-      firstWaveTime: parsed.data.firstWaveTime,
-      waveCapacity: parsed.data.waveCapacity,
-    },
-  });
-
+  await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: found.seriesId,
+    detail: "wave=" + parsed.data.waveId + " deleted" });
   revalidateCompetitionViews();
   return { ok: true };
 }

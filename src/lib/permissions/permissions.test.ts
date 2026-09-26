@@ -21,6 +21,8 @@ import {
 } from "@/lib/permissions/catalog";
 import {
   canAssignRole,
+  canGiveRole,
+  roleFitsAccount,
   canChangeOverrides,
   canEditRole,
   canManageTarget,
@@ -101,9 +103,10 @@ describe("the shipped roles", () => {
     }
   });
 
-  it("let studios give only Athlete, Organiser and Judge", () => {
+  it("let studios give only Athlete and Judge — the Organiser runs every competition's floor", () => {
     const studioGiven = SYSTEM_ROLES.filter((def) => def.assignableBy === "bft_studio").map((def) => def.key);
-    expect(studioGiven.sort()).toEqual(["athlete", "judge", "organiser"]);
+    expect(studioGiven.sort()).toEqual(["athlete", "judge"]);
+    expect(systemRole("organiser")!.assignableBy).toBe("bft");
   });
 
   it("keep organisers out of team edits and score entry", () => {
@@ -285,6 +288,22 @@ describe("grant policy — who may manage whom", () => {
     expect(canManageTarget(gym, athleteElsewhere)).toMatchObject({ allowed: false });
     expect(canManageTarget(gym, partialTarget)).toMatchObject({ allowed: false });
   });
+
+  it("lets a Partial account manage another only when it holds all that account holds", () => {
+    // Otherwise: change the stronger colleague's email, send the reset link
+    // there, sign in as them.
+    const weaker = { ...partialTarget, permissions: ["waves.view"] };
+    const stronger = { ...partialTarget, permissions: ["waves.view", "audit.view"] };
+    expect(canManageTarget(partial, weaker)).toEqual({ allowed: true });
+    expect(canManageTarget(partial, stronger)).toMatchObject({ allowed: false, reason: "NOT_HELD", keys: ["audit.view"] });
+    expect(canManageTarget(fullAdmin, stronger)).toEqual({ allowed: true });
+  });
+
+  it("fails closed when a Partial target's permissions were not loaded", () => {
+    expect(canManageTarget(partial, partialTarget)).toMatchObject({ allowed: false, reason: "FORBIDDEN" });
+    // Other account types never needed them.
+    expect(canManageTarget(partial, athleteAtWest)).toEqual({ allowed: true });
+  });
 });
 
 describe("grant policy — giving roles", () => {
@@ -315,6 +334,17 @@ describe("grant policy — giving roles", () => {
 
   it("never lets anyone give themselves a role", () => {
     expect(canAssignRole(fullAdmin, { id: "a", role: "admin", studioId: null }, hq)).toMatchObject({ allowed: false });
+  });
+
+  it("gives a role only to the account types it is meant for — and always lets it be taken away", () => {
+    const judgeRole = { ...judge, accountTypes: ["organiser", "studio", "staff"] };
+    const athlete = { id: "x", role: "competitor" as const, studioId: "west" };
+    expect(canGiveRole(gym, target, judgeRole)).toEqual({ allowed: true });
+    expect(canGiveRole(gym, athlete, judgeRole)).toMatchObject({ allowed: false, reason: "ROLE_NOT_FOR_ACCOUNT_TYPE" });
+    expect(canAssignRole(gym, athlete, judgeRole)).toEqual({ allowed: true }); // removal
+    expect(canGiveRole(fullAdmin, athlete, judgeRole)).toEqual({ allowed: true }); // Full access decides
+    expect(roleFitsAccount({ accountTypes: [] }, "competitor")).toBe(true);
+    expect(roleFitsAccount({ accountTypes: null }, "competitor")).toBe(true);
   });
 });
 

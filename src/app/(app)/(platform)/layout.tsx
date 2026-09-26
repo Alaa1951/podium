@@ -20,10 +20,10 @@ export const dynamic = "force-dynamic";
  * the studios that take part in them, and the people who sign in. Nothing on
  * this level belongs to one competition — that is the level below.
  *
- * BFT MENA Full sees all of it. BFT MENA Partial staff and organisers pass
- * when their roles carry at least one platform permission, and the navigation
- * is filtered to exactly that — each item checks the same key as the screen
- * behind it. Studios and athletes have areas of their own.
+ * BFT MENA Full sees all of it. BFT MENA Partial staff pass when their roles
+ * carry at least one platform permission, and the navigation is filtered to
+ * exactly that — each item checks the same key as the screen behind it.
+ * Organisers, studios and athletes have homes of their own (/home, /studio, /me).
  */
 export default async function PlatformLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
@@ -40,9 +40,11 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
     "audit.view",
     "announcements.send",
   ];
-  const onPlatform =
-    user.role === "admin" ||
-    ((user.role === "staff" || user.role === "organiser") && canAny(user, platformViews));
+  // BFT MENA's level. Organisers used to be let in on any of these keys and
+  // then found nothing: Users showed only themselves, Approvals was always
+  // empty (approvalScope), Announcements refused them (canComposeAnnouncements)
+  // — every other platform key is BFT MENA only. Their home is /home.
+  const onPlatform = user.role === "admin" || (user.role === "staff" && canAny(user, platformViews));
   if (!onPlatform) redirect(await homeForUser(user));
 
   const [competitions, studios, invited, waiting] = await Promise.all([

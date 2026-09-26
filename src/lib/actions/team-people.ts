@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { alreadyEntered } from "@/lib/one-entry";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { isBft, requireAccess, teamScope } from "@/lib/session";
@@ -132,16 +133,38 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
   return { ok: true, message: "Registration archived." };
 }
 
-/** Bring an archived registration back — admin only. */
+/**
+ * Bring an archived registration back — BFT MENA only, and only while the
+ * competition has not started (the same window archiving has). A withdrawn
+ * pair may have entered again since: restoring would then make them a
+ * second entry, so that is refused.
+ */
 export async function restoreTeam(seriesId: string, teamId: string): Promise<ActionResult> {
   const actor = await requireAccess("registrations.archive");
-  if (!isBft(actor)) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isBft(actor)) return { ok: false, error: "FORBIDDEN" };
 
   const team = await prisma.team.findFirst({
     where: { id: teamId, seriesId, NOT: { archivedAt: null } },
-    select: { id: true, seriesId: true, number: true, name: true },
+    select: {
+      id: true,
+      seriesId: true,
+      number: true,
+      name: true,
+      series: { select: { status: true } },
+      competitors: { select: { userId: true, email: true } },
+    },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
+
+  const phase = deletionGuard(team.series.status);
+  if (!phase.allowed) return { ok: false, error: phase.reason };
+
+  const again = await alreadyEntered({
+    seriesId: team.seriesId,
+    userIds: team.competitors.map((person) => person.userId),
+    emails: team.competitors.map((person) => person.email),
+  });
+  if (again) return { ok: false, error: "ALREADY_ENTERED" };
 
   await prisma.team.update({ where: { id: team.id }, data: { archivedAt: null } });
 
