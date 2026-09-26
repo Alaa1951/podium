@@ -91,8 +91,10 @@ async function audit(actor, action, target, detail) {
 
 async function provision(actor) {
   const passwordHash = await bcrypt.hash(password, 12);
+  // Active or retired alike: retiring only hides a studio from the pickers,
+  // which suits a sandbox — its account signs in and is scoped the same.
   const sandbox = await prisma.studio.findFirst({
-    where: { name: SANDBOX_STUDIO_NAME, isActive: true },
+    where: { name: SANDBOX_STUDIO_NAME },
     select: { id: true, _count: { select: { teams: true } } },
   });
   const rows = [];
