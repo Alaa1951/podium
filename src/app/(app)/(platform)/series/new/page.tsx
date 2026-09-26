@@ -3,6 +3,7 @@ import { DraftGuard } from "@/components/app/draft-guard";
 
 import { getTranslator } from "@/lib/i18n/server";
 import { createSeries } from "@/lib/actions/series";
+import { formatQatarDayKey } from "@/lib/qatar-time";
 import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,8 @@ export default async function NewCompetitionPage() {
   await requireAccess("competitions.create");
   const { t } = await getTranslator();
 
-  const today = new Date();
-  const suggested = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
-    today.getDate()
-  ).padStart(2, "0")}T09:00`;
+  // Today on the competition's clock (Qatar), not the server's.
+  const suggested = `${formatQatarDayKey(new Date())}T09:00`;
 
   return (
     <div className="screen" style={{ maxWidth: 720 }}>

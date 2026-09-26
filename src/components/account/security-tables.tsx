@@ -1,6 +1,7 @@
 "use client";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { formatQatarDateTime, formatQatarDayKey } from "@/lib/qatar-time";
 
 // The two tables on the security screen: which browsers skip the emailed code,
 // and what has happened on this account lately. Read-only apart from one
@@ -31,8 +32,7 @@ export type SignInEvent = {
 
 /** "2026-10-03 09:20" — short, sortable, and the same in every locale. */
 export function formatWhen(iso: string) {
-  const date = new Date(iso);
-  return `${date.toISOString().slice(0, 10)} ${date.toISOString().slice(11, 16)}`;
+  return formatQatarDateTime(iso);
 }
 
 export function DeviceTable({
@@ -67,7 +67,7 @@ export function DeviceTable({
                 {device.deviceLabel || `${device.os ?? "—"} · ${device.browser ?? "—"}`}
               </td>
               <td className="pd-num">{formatWhen(device.lastUsedAt)}</td>
-              <td className="pd-num">{device.trustExpiresAt.slice(0, 10)}</td>
+              <td className="pd-num">{formatQatarDayKey(device.trustExpiresAt)}</td>
               <td className="pd-num" style={{ fontSize: 13 }}>
                 {device.lastIp ?? "—"}
               </td>

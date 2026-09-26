@@ -5,6 +5,7 @@ import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { competitionChoices, completedCompetitions } from "@/lib/competition-choice";
+import { formatQatarDayKey } from "@/lib/qatar-time";
 import { meHref } from "@/lib/participation";
 
 export default async function MyCompetitions() {
@@ -24,15 +25,15 @@ export default async function MyCompetitions() {
     <div style={{ display: "grid", gap: 16 }}>
       {competitionChoices(mine).map(series => <article className="card" key={series.id}>
         <h2>{series.name} {series.isTraining && <span className="tag">{t("Training")}</span>}</h2>
-        <p>{t(series.status)} · {series.competitionDate.toISOString().slice(0, 10)}</p>
+        <p>{t(series.status)} · {formatQatarDayKey(series.competitionDate)}</p>
         <Link className="btn btn-primary" href={meHref(series.id)}>{t("Open competition")}</Link>
       </article>)}
       {!mine.length && <p className="notice">{t("No entry found for you yet.")}</p>}
     </div>
     {!user.viewAs && competitionChoices(open).filter(series => !mine.some(entry => entry.id === series.id)).map(series => <article className="card" key={series.id} style={{ marginTop: 16 }}>
-      <h2>{series.name}</h2><p>{series.competitionDate.toISOString().slice(0, 10)}</p><JoinSeries seriesId={series.id} />
+      <h2>{series.name}</h2><p>{formatQatarDayKey(series.competitionDate)}</p><JoinSeries seriesId={series.id} />
     </article>)}
-    {completedCompetitions(mine).length > 0 && <section className="card" style={{ marginTop: 16 }}><h2>{t("Already completed")}</h2>{completedCompetitions(mine).map(s => <p key={s.id}>{s.name} · {s.competitionDate.toISOString().slice(0, 10)} — {t("Already completed")}</p>)}</section>}
+    {completedCompetitions(mine).length > 0 && <section className="card" style={{ marginTop: 16 }}><h2>{t("Already completed")}</h2>{completedCompetitions(mine).map(s => <p key={s.id}>{s.name} · {formatQatarDayKey(s.competitionDate)} — {t("Already completed")}</p>)}</section>}
     {!user.viewAs && <AthleteIdentity name={identity?.name ?? ""} phone={identity?.phone ?? ""} />}
   </div>;
 }

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
+import { formatQatarDateTime } from "@/lib/qatar-time";
 import { accountScope, type CurrentUser } from "@/lib/session";
 import { wavePosition, type FloorTiming } from "@/lib/floor";
 import { fillFinisherTimes } from "@/lib/wave-clock";
@@ -97,7 +98,7 @@ export async function getSeriesScoreAudit(seriesId: string, perTeam = 8, teamId?
       field: row.field,
       oldValue: row.oldValue,
       newValue: row.newValue,
-      at: row.createdAt.toISOString().slice(0, 16).replace("T", " "),
+      at: formatQatarDateTime(row.createdAt),
       operator: row.operator?.name ?? row.operator?.email ?? "—",
     });
     byTeam.set(row.score.teamId, list);

@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { can, isBft, isStudio, type CurrentUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
+import { formatQatarDayKey } from "@/lib/qatar-time";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE APPROVAL QUEUE.
@@ -61,7 +62,7 @@ export type PendingSignup = {
   } | null;
 };
 
-const day = (date: Date | null | undefined) => (date ? date.toISOString().slice(0, 10) : null);
+const day = (date: Date | null | undefined) => (date ? formatQatarDayKey(date) : null);
 
 /** Every request waiting on this viewer, oldest first. */
 export async function listPendingSignups(user: CurrentUser): Promise<PendingSignup[]> {

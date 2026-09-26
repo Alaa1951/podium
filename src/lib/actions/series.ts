@@ -7,6 +7,7 @@ import { ScheduleError, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule"
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { waveLengthMinutes } from "@/lib/floor";
+import { parseQatarWallTime } from "@/lib/qatar-time";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireAccess } from "@/lib/session";
@@ -78,8 +79,8 @@ export async function createSeries(formData: FormData): Promise<void> {
   });
   if (!parsed.success) redirect("/series/new?error=details");
 
-  const date = new Date(parsed.data.competitionDate);
-  if (Number.isNaN(date.getTime())) redirect("/series/new?error=date");
+  const date = parseQatarWallTime(parsed.data.competitionDate);
+  if (!date) redirect("/series/new?error=date");
 
   const series = await prisma.series.create({
     data: {
@@ -139,11 +140,9 @@ const settingsSchema = z.object({
   showStudioColumn: z.coerce.boolean().default(true),
 });
 
-const whenever = (value: string | undefined) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+// A naive form value is what the admin saw on the clock in Qatar, never a
+// time in the server's own zone.
+const whenever = (value: string | undefined) => parseQatarWallTime(value);
 
 /** Everything about a competition that is a setting rather than a fact. */
 export async function updateSeriesSettings(input: unknown): Promise<ActionResult> {

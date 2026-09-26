@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { DetailLink } from "@/components/app/detail-link";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
+import { formatQatarDateTime } from "@/lib/qatar-time";
 import { requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function AuditPage(props: {searchParams:Promise<Record<stri
   const pages = Math.max(1, Math.ceil(total / perPage));
 
   if (detailId && !entries.length) notFound();
-  if(detailId){const entry=entries[0];return <div className="screen mobile-detail"><h1>{t("Audit log")}</h1><h2>{entry.targetLabel ?? entry.action}</h2><dl><dt>{t("Time")}</dt><dd>{entry.createdAt.toISOString()}</dd><dt>{t("Who")}</dt><dd>{entry.actor?.name ?? entry.actor?.email ?? "—"}</dd><dt>{t("Action")}</dt><dd>{entry.action}</dd><dt>{t("Detail")}</dt><dd>{entry.detail}</dd></dl></div>;}
+  if(detailId){const entry=entries[0];return <div className="screen mobile-detail"><h1>{t("Audit log")}</h1><h2>{entry.targetLabel ?? entry.action}</h2><dl><dt>{t("Time")}</dt><dd>{formatQatarDateTime(entry.createdAt)}</dd><dt>{t("Who")}</dt><dd>{entry.actor?.name ?? entry.actor?.email ?? "—"}</dd><dt>{t("Action")}</dt><dd>{entry.action}</dd><dt>{t("Detail")}</dt><dd>{entry.detail}</dd></dl></div>;}
   return (
     <div className="screen">
       <div className="screen-head">
@@ -67,7 +68,7 @@ export default async function AuditPage(props: {searchParams:Promise<Record<stri
               entries.map((entry) => (
                 <tr key={entry.id}>
                   <td className="pd-num">
-                    {entry.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                    {formatQatarDateTime(entry.createdAt)}
                   </td>
                   <td>{entry.actor?.name ?? entry.actor?.email ?? "—"}</td>
                   <td>

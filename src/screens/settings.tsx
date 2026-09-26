@@ -9,19 +9,14 @@ import { ArchiveSeriesButton } from "@/components/admin/series-archive";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { getSeriesZones } from "@/lib/queries";
+import { formatQatarForInput } from "@/lib/qatar-time";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { can, requireAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-/** A datetime-local input wants "YYYY-MM-DDTHH:mm" and nothing else. */
-function forInput(date: Date | null) {
-  if (!date) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
-}
+/** A datetime-local input wants "YYYY-MM-DDTHH:mm" — as Qatar wall time. */
+const forInput = formatQatarForInput;
 
 /**
  * EVERY SETTING THIS COMPETITION HAS.

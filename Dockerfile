@@ -1,6 +1,10 @@
 FROM node:24-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache openssl
+# The competition runs on Qatar time, so the process itself does too — the
+# schedule code is explicit about it, this keeps everything else aligned.
+# tzdata lets the C library resolve the named zone, not just Node's ICU.
+ENV TZ=Asia/Qatar
+RUN apk add --no-cache openssl tzdata
 
 # ── Dependencies ────────────────────────────────────────────────────────────
 FROM base AS deps

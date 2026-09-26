@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 export default async function NotificationsScreen(detailId?:string,cursor?:string) {
   const user=await getNotificationUser();if(!user)redirect("/login");
   const {t,locale}=await getTranslator();
-  const format=(value:string)=>new Intl.DateTimeFormat(locale,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
+  const format=(value:string)=>new Intl.DateTimeFormat(locale,{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Qatar"}).format(new Date(value));
   if(detailId){
     const item=await prisma.notification.findFirst({where:{AND:[notificationScope(user),{id:detailId}]},include:{reads:{where:{userId:user.id},select:{userId:true}}}});
     if(!item)notFound();
