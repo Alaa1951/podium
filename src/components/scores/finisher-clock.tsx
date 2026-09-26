@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { finisherRemainingMs, remainingClock } from "@/lib/floor";
 
 /**
  * THE FINISHER STOP — one press per finished team.
@@ -15,11 +16,14 @@ import { useT } from "@/components/i18n/locale-provider";
  */
 export function FinisherStop({
   endsAt,
+  workMinutes,
   disabled,
   onCapture,
 }: {
   /** When the team's wave clock runs out. */
   endsAt: string;
+  /** One zone's work — the finisher is the last this many minutes of the wave. */
+  workMinutes: number;
   disabled: boolean;
   /** Called with the remaining minutes and seconds at the moment of the stop. */
   onCapture: (remaining: { minutes: number; seconds: number }) => void;
@@ -38,23 +42,31 @@ export function FinisherStop({
     return () => { active = false; clearInterval(id); };
   }, []);
 
-  const remainingMs = now === null ? 0 : Math.max(0, new Date(endsAt).getTime() - now);
-  const minutes = Math.floor(remainingMs / 60_000);
-  const seconds = Math.floor((remainingMs % 60_000) / 1000);
+  // Null until the wave reaches the last zone: before that there is no
+  // finisher running, and the wave clock still holds the other zones' time.
+  const remainingMs = now === null ? null : finisherRemainingMs(new Date(endsAt).getTime() - now, workMinutes);
+  const { minutes, seconds } = remainingClock(remainingMs ?? 0);
   const over = now !== null && remainingMs === 0;
+  const early = now !== null && remainingMs === null;
 
   return (
     <button
       type="button"
       className="btn btn-sm btn-cyan"
-      disabled={disabled || now === null || over}
+      disabled={disabled || now === null || over || early}
       title={t("Record the wave's remaining time for this team")}
       onClick={() => {
-        const captured = Math.max(0, new Date(endsAt).getTime() - Date.now());
-        onCapture({ minutes: Math.floor(captured / 60_000), seconds: Math.floor((captured % 60_000) / 1000) });
+        const captured = finisherRemainingMs(new Date(endsAt).getTime() - Date.now(), workMinutes);
+        if (captured !== null) onCapture(remainingClock(captured));
       }}
     >
-      {now === null ? `${t("Stop")} · --:--` : over ? t("Wave clock finished") : `${t("Stop")} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
+      {now === null
+        ? `${t("Stop")} · --:--`
+        : over
+          ? t("Wave clock finished")
+          : early
+            ? t("Finisher not started")
+            : `${t("Stop")} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`}
     </button>
   );
 }

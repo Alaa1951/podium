@@ -40,6 +40,7 @@ export function ScoreTeamEntry({
   budgetApplies = false,
   frozen,
   waveEndsAt,
+  finisherWorkMinutes = 15,
   waveEnded = false,
   canEditAfterClose = false,
   onBack,
@@ -53,6 +54,8 @@ export function ScoreTeamEntry({
   frozen: boolean;
   /** When this team's wave clock runs out — the finisher stop reads it. */
   waveEndsAt?: string | null;
+  /** One zone's work in minutes — the finisher is the wave's last this-many. */
+  finisherWorkMinutes?: number;
   /** True once that clock has run out. */
   waveEnded?: boolean;
   /** Full admins, and accounts granted the after-close permission. */
@@ -168,6 +171,7 @@ export function ScoreTeamEntry({
                 {waveEndsAt ? (
                   <FinisherStop
                     endsAt={waveEndsAt}
+                    workMinutes={finisherWorkMinutes}
                     disabled={locked || pending}
                     onCapture={({ minutes, seconds }) => {
                       const next = {

@@ -103,6 +103,7 @@ export function ScoreGrid({
             canEditAfterClose={canEditAfterClose}
             frozen={frozen}
             waveEndsAt={openTeam.waveEndsAt}
+            finisherWorkMinutes={openTeam.finisherWorkMinutes}
             waveEnded={openTeam.waveEnded}
             onBack={() => {
               if (readNavigationTrail().length > 1) { approveHistoryBack(); router.back(); }

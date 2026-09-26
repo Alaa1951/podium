@@ -168,6 +168,7 @@ export function ScoreGridRow({
                     {team.waveEndsAt ? (
                       <FinisherStop
                         endsAt={team.waveEndsAt}
+                        workMinutes={team.finisherWorkMinutes}
                         disabled={locked || pending}
                         onCapture={({ minutes, seconds }) => {
                           const next = { ...draft, [group.minutes.id]: minutes, [group.seconds.id]: seconds };
@@ -294,6 +295,7 @@ export function ScoreGridRow({
               isAdmin={isAdmin}
               editBudget={frozen ? 0 : editBudget}
               waveEndsAt={team.waveEndsAt}
+              finisherWorkMinutes={team.finisherWorkMinutes}
               waveEnded={team.waveEnded}
             />
 

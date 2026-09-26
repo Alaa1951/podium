@@ -178,6 +178,21 @@ export function stationSlots(capacity: number, occupied: (number | null)[]): num
   return Math.min(MAX_STATIONS, Math.max(1, capacity, highest));
 }
 
+/**
+ * The finisher record, from the time left on the whole wave clock.
+ *
+ * The last zone is the last `workMinutes` of the wave, so what a team can
+ * have left there is never more than one zone's work: with 15-minute zones a
+ * 75-minute wave stopped at 72:00 leaves 3:00. More than that on the wave
+ * clock means the wave has not reached the last zone yet, so there is no
+ * finisher to record — null. Callers ending a wave treat that as 0:00: a team
+ * that never ran the finisher did not finish it.
+ */
+export function finisherRemainingMs(waveRemainingMs: number, workMinutes: number): number | null {
+  const remaining = Math.max(0, waveRemainingMs);
+  return remaining > workMinutes * 60_000 ? null : remaining;
+}
+
 /** Minutes and seconds of a remaining time — the finisher record. */
 export function remainingClock(ms: number): { minutes: number; seconds: number } {
   const clamped = Math.max(0, ms);

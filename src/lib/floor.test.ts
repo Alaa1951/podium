@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  finisherRemainingMs,
   hasReachedZone,
   lowestFreeStation,
   stationSlots,
@@ -153,5 +154,26 @@ describe("the finisher record", () => {
   it("splits remaining time into minutes and seconds", () => {
     expect(remainingClock(5 * 60_000 + 7_900)).toEqual({ minutes: 5, seconds: 7 });
     expect(remainingClock(-100)).toEqual({ minutes: 0, seconds: 0 });
+  });
+
+  // A 75-minute wave: the finisher is its last 15 minutes, 60:00 to 75:00.
+  const left = (minutes: number, seconds = 0) => 75 * 60_000 - (minutes * 60_000 + seconds * 1000);
+
+  it("is what the wave had left when a team stops inside the last zone", () => {
+    expect(finisherRemainingMs(left(72), 15)).toBe(3 * 60_000);
+    expect(finisherRemainingMs(left(68), 15)).toBe(7 * 60_000);
+    expect(finisherRemainingMs(left(60), 15)).toBe(15 * 60_000);
+  });
+
+  it("is never the rest of the whole wave clock before the last zone began", () => {
+    // Stopped three seconds into the wave: 74:57 is left on the WAVE, but
+    // nobody has started the finisher yet.
+    expect(finisherRemainingMs(left(0, 3), 15)).toBeNull();
+    expect(finisherRemainingMs(left(59, 59), 15)).toBeNull();
+  });
+
+  it("is 0:00 once the clock has run out", () => {
+    expect(finisherRemainingMs(left(75), 15)).toBe(0);
+    expect(finisherRemainingMs(left(80), 15)).toBe(0);
   });
 });

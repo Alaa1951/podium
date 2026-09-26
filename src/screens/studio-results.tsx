@@ -67,6 +67,7 @@ export default async function StudioResultsPage(props: SeriesScreenProps, detail
       .map((other) => other.total),
     audit: audit.get(team.id) ?? [],
     waveEndsAt: null,
+    finisherWorkMinutes: 0, // No wave clock on a studio sheet, so no finisher stop.
     waveEnded: false,
   }));
 

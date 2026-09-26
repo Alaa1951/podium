@@ -271,5 +271,6 @@ export const AR_CORE: Phrases = {
   "Record the wave's remaining time for this team": "سجل الوقت المتبقي من الموجة للفريق ده",
   Stop: "إيقاف",
   "Wave clock finished": "ساعة الموجة خلصت",
+  "Finisher not started": "الفنيشر لم يبدأ بعد",
   "Not in the ranking": "خارج الترتيب",
 };

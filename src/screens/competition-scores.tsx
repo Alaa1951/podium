@@ -80,6 +80,7 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
     lockedZones: team.lockedZones,
     scoreEdits: team.scoreEdits,
     waveEndsAt: waveEndsAt[team.wave] ?? null,
+    finisherWorkMinutes: series.zoneWorkMinutes,
     waveEnded: waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
     paymentStatus: team.paymentStatus,
     waitlistedAt: team.waitlistedAt,

@@ -185,6 +185,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
           values: Object.fromEntries((team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value])),
           locked: (team.score?.zones.length ?? 0) > 0,
           waveEndsAt: wave.endsAt?.toISOString() ?? null,
+          finisherWorkMinutes: timing.workMinutes,
         };
       };
 

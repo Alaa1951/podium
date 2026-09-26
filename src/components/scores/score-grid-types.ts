@@ -32,6 +32,8 @@ export type GridTeam = {
   audit: ScoreAuditLine[];
   /** When this team's own wave clock runs out — the finisher stop reads it. */
   waveEndsAt: string | null;
+  /** One zone's work in minutes — the finisher is the wave's last this-many. */
+  finisherWorkMinutes: number;
   /** True once that clock has run out: the wave's scores are closed. */
   waveEnded: boolean;
   /** Zones the zone judge has submitted — each one locked on its own. */

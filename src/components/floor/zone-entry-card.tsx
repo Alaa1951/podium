@@ -32,6 +32,8 @@ export type ZoneEntryTeam = {
   locked: boolean;
   /** The wave clock's end — the finisher's clock in the last zone. */
   waveEndsAt: string | null;
+  /** One zone's work in minutes — the finisher is the wave's last this-many. */
+  finisherWorkMinutes: number;
 };
 
 const ERRORS: Record<string, string> = {
@@ -127,6 +129,7 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
             {team.waveEndsAt && !locked ? (
               <FinisherStop
                 endsAt={team.waveEndsAt}
+                workMinutes={team.finisherWorkMinutes}
                 disabled={pending}
                 onCapture={({ minutes, seconds }) => {
                   const next = { ...draft, [group.minutes.id]: minutes, [group.seconds.id]: seconds };

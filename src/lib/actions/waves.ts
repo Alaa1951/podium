@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
+import { finisherRemainingMs, MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireAccess } from "@/lib/session";
@@ -71,7 +71,10 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
     }
     case "finish": {
       if (wave.status !== "running") return { ok: false, error: "NOT_RUNNING" };
-      const remaining = Math.max(0, (wave.endsAt?.getTime() ?? now.getTime()) - now.getTime());
+      // Only what the LAST zone had left counts — ending the wave before its
+      // finisher began records 0:00, never the rest of the whole wave clock.
+      const waveRemaining = (wave.endsAt?.getTime() ?? now.getTime()) - now.getTime();
+      const remaining = finisherRemainingMs(waveRemaining, wave.series.zoneWorkMinutes) ?? 0;
       await tx.wave.update({ where: { id: wave.id }, data: { status: "complete", endsAt: now } });
       await fillFinisherTimes(tx, wave, remaining);
       break;
