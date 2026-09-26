@@ -4,7 +4,7 @@ import type { Category, Division, SeriesStatus } from "@/generated/prisma/enums"
 import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import type { BoardDisplay } from "@/lib/visibility";
-import { summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
+import { nextWaveStart, summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { athletePhoto } from "@/lib/athlete-photo";
 import { isCompeting } from "@/lib/team-status";
 
@@ -48,6 +48,12 @@ export type BoardPayload = {
   /** Every wave, each with its own clock, capacity and length. */
   waves: WaveState[];
   waveSummary: WaveSummary;
+  /**
+   * The wave the floor is waiting for when none is running, with the time to
+   * its scheduled start as a duration (negative once due). Null when every
+   * wave has been run.
+   */
+  nextWave: { number: number; startsInMs: number | null } | null;
   /** The series' zone definition, so the board can label its own columns. */
   zoneDefs: { id: string; number: number; name: string }[];
   /** Default length for a new wave; each wave carries its own. */
@@ -114,6 +120,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     status: series.status,
     waves,
     waveSummary: summariseWaves(waves),
+    nextWave: nextWaveStart(waves, series.competitionDate, now),
     zoneDefs: zones.map((zone) => ({ id: zone.id, number: zone.number, name: zone.name })),
     waveMinutes: series.waveMinutes,
     boardOpensInMs: series.boardOpensAt ? series.boardOpensAt.getTime() - now : null,

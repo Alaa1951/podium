@@ -110,6 +110,7 @@ export const AR_CORE: Phrases = {
   Wave: "موجة",
   "on floor": "على الأرض",
   "On the floor now": "على الأرض الآن",
+  "Up next": "الموجة التالية",
   "Teams scored": "فرق مسجّلة النتائج",
   "Bracket progress": "تقدّم الفئة",
   scored: "مسجّلة",

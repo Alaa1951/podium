@@ -99,14 +99,15 @@ export function scopeTitle(params: {
 export function waveStateLabel(params: {
   t: Translate;
   teamCount: number;
-  reached: number;
   summary: { total: number; running: number; complete: number };
 }) {
-  const { t, teamCount, reached, summary } = params;
+  const { t, teamCount, summary } = params;
 
   if (!teamCount) return t("Awaiting teams");
   if (summary.running > 1) return t("{n} waves on the floor", { n: summary.running });
   if (summary.running === 1) return t("On the floor now");
   if (summary.total > 0 && summary.complete >= summary.total) return t("All waves complete");
-  return reached === 0 ? t("Not started") : t("Between waves");
+  // Nothing running and a wave still to go: the floor is waiting for it, and
+  // the clock beside this counts down to its scheduled start.
+  return t("Up next");
 }

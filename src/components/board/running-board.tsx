@@ -96,8 +96,14 @@ export function RunningBoard({
     return () => clearInterval(id);
   }, [runningNumbers.length]);
 
-  /** The wave the floor panel and the header clock are currently showing. */
-  const focusNumber = floorRotation(runningNumbers, floorTick) ?? summary.reached;
+  /**
+   * The wave the floor panel and the header clock are currently showing: a
+   * running wave (turning between them when there are several), else the one
+   * the floor is waiting for, else — every wave run — the last of the day.
+   */
+  const idle = runningNumbers.length === 0;
+  const nextWave = idle ? data.nextWave : null;
+  const focusNumber = floorRotation(runningNumbers, floorTick) ?? nextWave?.number ?? summary.lastNumber;
   const focusWave = data.waves.find((wave) => wave.number === focusNumber) ?? null;
 
   // "The field so far" is every wave that has been started at all. A team in a
@@ -155,13 +161,20 @@ export function RunningBoard({
       ? markedBracketsLabel(marks, t)
       : scopeTitle({ t, selection: ALL_TEAMS, reached, runningNumbers });
 
-  // Each wave carries its own length, so the fallback is that wave's rather
-  // than one number standing in for the whole day.
+  // The clock always counts something real. On the floor: the time left on
+  // that wave. Between waves: the time to the next wave's scheduled start
+  // ("--:--" once it is due and waiting for START). Every wave run: 00:00.
+  // It used to fall back to the wave's full length, which froze at 75:00
+  // the moment the floor emptied.
   const focusRemaining = remainingFor(focusWave, elapsedMs);
-  const waveClock =
-    focusRemaining === null
-      ? `${String(focusWave?.durationMinutes ?? data.waveMinutes).padStart(2, "0")}:00`
-      : clockFromMs(focusRemaining);
+  const nextStartsIn = nextWave?.startsInMs == null ? null : nextWave.startsInMs - elapsedMs;
+  const waveClock = !idle
+    ? clockFromMs(focusRemaining ?? 0)
+    : nextWave
+      ? nextStartsIn !== null && nextStartsIn > 0
+        ? clockFromMs(nextStartsIn)
+        : "--:--"
+      : clockFromMs(0);
 
   // Where the wave in focus is in its rotation: "Zone 3", or changing zones.
   const focusFloor = focusWave?.status === "running" ? focusWave.floor : null;
@@ -174,7 +187,6 @@ export function RunningBoard({
     waveStateLabel({
       t,
       teamCount: data.teams.length,
-      reached,
       summary,
     }),
     zoneState,
@@ -303,6 +315,8 @@ export function RunningBoard({
 
         <FloorPanel
           focusNumber={focusNumber}
+          kicker={idle ? (nextWave ? t("Up next") : t("All waves complete")) : t("On the floor now")}
+          idle={idle}
           waveClock={waveClock}
           floor={floor}
           runningNumbers={runningNumbers}

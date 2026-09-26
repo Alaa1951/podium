@@ -59,7 +59,7 @@ export function BoardHeader({
         <Stat label={t("Teams scored")} value={String(scored)} />
         <div className="board-head-clock" data-idle={running === 0 || undefined}>
           <div style={statLabel}>
-            {t("Wave")} {focusNumber || "—"} / {lastWaveNumber} · {waveState}
+            {t("Wave")} {focusNumber || "—"} {t("of")} {lastWaveNumber} · {waveState}
           </div>
           <div className="display num">{waveClock}</div>
         </div>
@@ -69,12 +69,18 @@ export function BoardHeader({
 }
 
 export function FloorPanel({
+  kicker,
+  idle,
   focusNumber,
   waveClock,
   floor,
   runningNumbers,
   display,
 }: {
+  /** "On the floor now", "Up next" or "All waves complete". */
+  kicker: string;
+  /** Nothing running: the clock is a countdown to a start, not a wave. */
+  idle: boolean;
   focusNumber: number;
   waveClock: string;
   floor: {
@@ -88,9 +94,9 @@ export function FloorPanel({
   const t = useT();
 
   return (
-    <aside className="floor-panel">
+    <aside className="floor-panel" data-idle={idle || undefined}>
       <div className="floor-panel-head">
-        <div className="floor-panel-kicker">{t("On the floor now")}</div>
+        <div className="floor-panel-kicker">{kicker}</div>
 
         <div className="floor-panel-wave">
           <div className="display">

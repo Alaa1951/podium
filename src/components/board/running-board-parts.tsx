@@ -3,6 +3,7 @@
 import type { BoardTeam } from "@/lib/board";
 import { fmt } from "@/lib/scoring";
 import { teamLabel, type BoardDisplay } from "@/lib/visibility";
+import { Medal } from "@/components/board/medal";
 
 // The pieces the running board is assembled from: its grid, its figures, a
 // scored row, a zone cell, and a row of the floor panel. Separated from the
@@ -153,17 +154,18 @@ export function FloorRow({
         gridTemplateColumns: "28px minmax(0,1fr) auto",
         alignItems: "center",
         gap: 10,
-        padding: "9px 14px",
+        padding: "10px 14px",
         borderTop: "1px solid var(--board-border)",
-        background: position === 1 ? "rgba(232,185,49,0.10)" : "transparent",
+        // The leader carries on the panel head's blue, as on the reference board.
+        background: position === 1 ? "var(--podium-blue-deep)" : "transparent",
         opacity: position === null ? 0.45 : 1,
       }}
     >
       <div
         className="display num"
         style={{
-          fontSize: 15,
-          color: position === 1 ? "var(--gold)" : "var(--board-text-muted)",
+          fontSize: 18,
+          color: position === 1 ? "#fff" : "var(--board-text-muted)",
         }}
       >
         {position ?? "·"}
@@ -174,19 +176,30 @@ export function FloorRow({
           style={{
             fontFamily: "var(--font-heading), sans-serif",
             fontWeight: 700,
-            fontSize: 13,
-            color: "var(--board-text)",
+            fontSize: 15,
+            color: position === 1 ? "#fff" : "var(--board-text)",
           }}
         >
           {label.primary}
         </div>
-        <div className="truncate" style={{ fontSize: 11, color: "var(--board-text-muted)" }}>
+        <div
+          className="truncate"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: position === 1 ? "rgba(255,255,255,0.8)" : "var(--board-text-muted)",
+          }}
+        >
+          {position !== null && position <= 3 ? <Medal rank={position} size={18} /> : null}
           {team.category} {team.division}
         </div>
       </div>
       <div
         className="display num"
-        style={{ fontSize: 15, color: "var(--board-text)", whiteSpace: "nowrap" }}
+        style={{ fontSize: 17, color: position === 1 ? "#fff" : "var(--board-text)", whiteSpace: "nowrap" }}
       >
         {team.submitted ? fmt(team.total, 2) : "—"}
       </div>

@@ -1,4 +1,5 @@
 import type { WaveStatus } from "@/generated/prisma/enums";
+import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVES.
@@ -147,4 +148,23 @@ export function waveClockSweep(rows: WaveClockRow[], now: Date): WaveClockSweep 
       .filter((row) => row.status === "running" && row.endsAt !== null && row.endsAt <= now)
       .map((row) => row.id),
   };
+}
+
+/**
+ * The wave the floor is waiting for when nothing is running: the lowest-numbered
+ * wave nobody has started, and how long until its scheduled start. The start
+ * is Qatar wall time on the competition's day; negative once it is due. Null
+ * when every wave has been run.
+ */
+export function nextWaveStart(
+  waves: Pick<WaveState, "number" | "status" | "startTime">[],
+  competitionDate: Date,
+  now: number
+): { number: number; startsInMs: number | null } | null {
+  const next = waves
+    .filter((wave) => wave.status === "pending")
+    .sort((a, b) => a.number - b.number)[0];
+  if (!next) return null;
+  const at = parseQatarWallTime(`${formatQatarDayKey(competitionDate)}T${next.startTime}`);
+  return { number: next.number, startsInMs: at ? at.getTime() - now : null };
 }

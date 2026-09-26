@@ -138,7 +138,7 @@ describe("waveWindowLabel", () => {
 // next one is the supervisor's: waves overlap one zone apart, so the sweep
 // never chains a start.
 
-import { waveClockSweep, type WaveClockRow } from "@/lib/waves";
+import { nextWaveStart, waveClockSweep, type WaveClockRow } from "@/lib/waves";
 
 const SWEEP_NOW = new Date("2026-09-12T09:00:00Z");
 const sweepMinutes = (m: number) => new Date(SWEEP_NOW.getTime() + m * 60_000);
@@ -193,5 +193,22 @@ describe("waveClockSweep", () => {
       SWEEP_NOW
     );
     expect(sweep).toEqual({ finish: [] });
+  });
+});
+
+describe("the wave the floor is waiting for", () => {
+  const day = new Date("2026-09-26T00:00:00+03:00");
+  const row = (number: number, status: "pending" | "running" | "complete", startTime: string) => ({ number, status, startTime });
+
+  it("is the lowest pending wave, counted to its Qatar start", () => {
+    const now = new Date("2026-09-26T14:30:00+03:00").getTime();
+    const next = nextWaveStart([row(1, "complete", "14:00"), row(3, "pending", "14:50"), row(2, "pending", "14:40")], day, now);
+    expect(next).toEqual({ number: 2, startsInMs: 10 * 60_000 });
+  });
+
+  it("goes negative once the start is due, and is null when every wave has run", () => {
+    const now = new Date("2026-09-26T15:00:00+03:00").getTime();
+    expect(nextWaveStart([row(2, "pending", "14:40")], day, now)?.startsInMs).toBe(-20 * 60_000);
+    expect(nextWaveStart([row(1, "complete", "14:00")], day, now)).toBeNull();
   });
 });
