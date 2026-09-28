@@ -50,6 +50,12 @@ export type CompetitorRow = {
   userId: string | null;
   /** Stored portrait path, or null for the shared default (athlete-photo.ts). */
   photoPath: string | null;
+  /**
+   * The seat as it was REGISTERED (by the CRM, a gym or pairing), which can
+   * differ from the linked account's name, email and phone shown above. A
+   * search has to find a person by either.
+   */
+  registered?: { name: string; email: string | null; phone: string | null };
 };
 
 /**
@@ -136,6 +142,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
       studioName: c.studio?.name ?? null,
       userId: c.userId,
       photoPath: c.photoPath,
+      registered: { name: c.fullName, email: c.email, phone: c.phone },
     })),
 
     paymentStatus: team.paymentStatus,

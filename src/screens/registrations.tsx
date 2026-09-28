@@ -16,7 +16,7 @@ import { crmIntakeFor, lastCrmSync } from "@/lib/crm/intake";
 import { CrmSyncBar } from "@/components/admin/crm-sync-bar";
 import { CrmIntakeList } from "@/components/admin/crm-intake-list";
 import { requireSeries, seriesHref } from "@/lib/require-series";
-import { normalizeName } from "@/lib/scoring";
+import { matchesSearch } from "@/lib/search";
 import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -55,8 +55,6 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   const category = typeof searchParams.category === "string" ? searchParams.category : "all";
   const division = typeof searchParams.division === "string" ? searchParams.division : "all";
 
-  const needle = normalizeName(query);
-
   const filtered = teams.filter((team) => {
     if (category !== "all" && team.category !== category) return false;
     if (division !== "all" && team.division !== division) return false;
@@ -68,18 +66,24 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     if (membership === "non-members" && team.competitors.every((c) => c.studioId)) return false;
     if (waveFilter === "unassigned" && team.waveId !== null) return false;
     if (waveFilter === "assigned" && team.waveId === null) return false;
-    if (!needle) return true;
-
-    return (
-      normalizeName(team.name).includes(needle) ||
-      String(team.number) === query.trim() ||
-      team.competitors.some(
-        (person) =>
-          normalizeName(person.fullName).includes(needle) ||
-          (person.email ?? "").toLowerCase().includes(query.toLowerCase()) ||
-          (person.phone ?? "").replace(/\s/g, "").includes(query.replace(/\s/g, ""))
-      )
-    );
+    // Every word, in any order, across the team and both athletes; Arabic
+    // spelling variants forgiven; phones by digits; a number on its own is
+    // the team number exactly (src/lib/search.ts).
+    return matchesSearch(query, {
+      text: [
+        team.name,
+        team.studioName,
+        ...team.competitors.flatMap((person) => [
+          person.fullName,
+          person.email,
+          person.studioName,
+          person.registered?.name,
+          person.registered?.email,
+        ]),
+      ],
+      phones: team.competitors.flatMap((person) => [person.phone, person.registered?.phone]),
+      exact: [team.number],
+    });
   });
 
   const rows: RegisteredRow[] = (detailId ? teams.filter((team) => team.id === detailId) : filtered).map(

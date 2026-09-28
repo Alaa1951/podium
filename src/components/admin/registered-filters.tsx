@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { FilterSheet } from "@/components/app/filter-sheet";
+import { SearchBox } from "@/components/app/search-box";
 import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 
 /**
@@ -73,14 +74,11 @@ export function RegisteredFilters({
 
   return (
     <div className="reg-filters">
-      <input
-        className="input"
-        type="search"
+      <SearchBox
         value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={t("Search team name, competitor, email, phone or number…")}
-        aria-label={t("Search registrations")}
-        style={{ flex: "1 1 260px", minWidth: 0 }}
+        onChange={setText}
+        placeholder={t("Search athlete, team, email, phone, gym or team number…")}
+        label={t("Search registrations")}
       />
 
       <FilterSheet>

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useDeferredValue, useState, useTransition } from "react";
 
 import { AccountEditor } from "@/components/accounts/account-editor";
 import { ACCOUNT_TYPE_LABEL, type AccountType } from "@/components/accounts/account-types";
 import { DetailLink } from "@/components/app/detail-link";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { BlueprintCard } from "@/components/app/page-shell";
+import { SearchBox, useUrlFilters } from "@/components/app/search-box";
+import { matchesSearch } from "@/lib/search";
 import { useIsMobile } from "@/components/app/use-mobile";
 import { useLocale } from "@/components/i18n/locale-provider";
 import { archiveAccount, inviteAccount, resendInvite, restoreAccount, setAccountStatus } from "@/lib/actions/accounts";
@@ -28,6 +30,11 @@ export type AccountRow = {
   roles: { id: string; name: string; nameAr: string | null }[];
   lastLoginAt: string | null;
 };
+
+/** The list's search and filters, kept in the address (useUrlFilters). */
+const FILTER_KEYS = ["q", "type", "status", "role"] as const;
+/** The role filter's value for "holds no role" (the account type's default applies). */
+const NO_ROLE = "none";
 
 const ERRORS: Record<string, string> = {
   EMAIL_ALREADY_REGISTERED: "An account with that email already exists.",
@@ -95,6 +102,13 @@ export function AccountsPanel({
   // two chances to save the wrong person.
   const [editing, setEditing] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // On a wide screen the invite form opens on demand: the list — and its
+  // search — is what this page is mostly for.
+  const [inviting, setInviting] = useState(false);
+  const [filters, setFilters] = useUrlFilters(FILTER_KEYS);
+  // The box answers every key press; the list filters a beat behind it, so
+  // typing stays smooth over a long list.
+  const query = useDeferredValue(filters.q);
   const [dirty, setDirty] = useState(false);
   useUnsavedChanges(dirty);
 
@@ -152,6 +166,34 @@ export function AccountsPanel({
   const typeLabel = (type: AccountType) => t(ACCOUNT_TYPE_LABEL[type]);
   const roleNames = (account: AccountRow) =>
     account.roles.map((item) => (ar && item.nameAr ? item.nameAr : item.name));
+  // SEARCH: name, email, gym, account type and roles (in both languages),
+  // every word in any order (src/lib/search.ts). Then the three filters.
+  const found = (account: AccountRow) =>
+    matchesSearch(query, {
+      text: [
+        account.name,
+        account.email,
+        account.studioName,
+        typeLabel(account.role),
+        ACCOUNT_TYPE_LABEL[account.role],
+        ...account.roles.flatMap((item) => [item.name, item.nameAr]),
+      ],
+    });
+  const visible = accounts.filter(
+    (account) =>
+      found(account) &&
+      (!filters.type || account.role === filters.type) &&
+      (!filters.status || account.status === filters.status) &&
+      (!filters.role ||
+        (filters.role === NO_ROLE ? account.roles.length === 0 : account.roles.some((item) => item.id === filters.role)))
+  );
+  const visibleArchived = archivedAccounts.filter(found);
+  const filtering = !!(filters.q || filters.type || filters.status || filters.role);
+  const typesHere = [...new Set(accounts.map((account) => account.role))];
+  const rolesHere = [
+    ...new Map(accounts.flatMap((account) => account.roles).map((item) => [item.id, item])).values(),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
   const inviteTypes: AccountType[] = canInviteBft
     ? ["organiser", "studio", "competitor", "staff", "admin"]
     : ["competitor", "organiser"];
@@ -254,7 +296,57 @@ export function AccountsPanel({
 
   return (
     <>
-      {canInvite && (!mobile || compose) ? (
+      {!compose ? (
+        <div className="list-toolbar">
+          <SearchBox
+            value={filters.q}
+            onChange={(q) => setFilters({ q })}
+            placeholder={t("Search name, email, gym or role…")}
+            label={t("Search accounts")}
+            shown={visible.length}
+            total={accounts.length}
+          />
+          <div className="list-toolbar-filters">
+            <select className="input" value={filters.type} onChange={(event) => setFilters({ type: event.target.value })} aria-label={t("Account type")}>
+              <option value="">{t("Every account type")}</option>
+              {typesHere.map((type) => (
+                <option key={type} value={type}>
+                  {typeLabel(type)}
+                </option>
+              ))}
+            </select>
+            <select className="input" value={filters.status} onChange={(event) => setFilters({ status: event.target.value })} aria-label={t("Status")}>
+              <option value="">{t("Any status")}</option>
+              <option value="active">{t("Active")}</option>
+              <option value="invited">{t("Invited")}</option>
+              <option value="disabled">{t("Disabled")}</option>
+            </select>
+            {rolesHere.length ? (
+              <select className="input" value={filters.role} onChange={(event) => setFilters({ role: event.target.value })} aria-label={t("Role")}>
+                <option value="">{t("Any role")}</option>
+                {rolesHere.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {ar && item.nameAr ? item.nameAr : item.name}
+                  </option>
+                ))}
+                <option value={NO_ROLE}>{t("No role (default)")}</option>
+              </select>
+            ) : null}
+            {filtering ? (
+              <button type="button" className="btn btn-ghost" onClick={() => setFilters({ q: "", type: "", status: "", role: "" })}>
+                {t("Clear filters")}
+              </button>
+            ) : null}
+          </div>
+          {canInvite && !mobile ? (
+            <button type="button" className="btn btn-primary" onClick={() => setInviting((open) => !open)} aria-expanded={inviting}>
+              {inviting ? t("Close") : t("Create an account")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {canInvite && (compose || (!mobile && inviting)) ? (
         <BlueprintCard style={{ padding: "20px 22px", marginTop: 22, maxWidth: 560, gap: 10 }}>
           <div className="card-kicker">{t("Create an account")}</div>
 
@@ -321,7 +413,7 @@ export function AccountsPanel({
             </p>
           </form>
         </BlueprintCard>
-      ) : canInvite && !compose ? (
+      ) : canInvite && !compose && mobile ? (
         <Link href={`${basePath}/new`} className="btn btn-primary">
           {t("Create an account")}
         </Link>
@@ -339,7 +431,7 @@ export function AccountsPanel({
           <h2 className="section-title">{t("Active accounts")}</h2>
           {mobile ? (
             <div className="mobile-list">
-              {accounts.map((account) => (
+              {visible.map((account) => (
                 <DetailLink key={account.id} href={`${basePath}/${account.id}`}>
                   <div>
                     <strong>{account.name ?? account.email}</strong>
@@ -350,6 +442,9 @@ export function AccountsPanel({
                   <span aria-hidden="true">›</span>
                 </DetailLink>
               ))}
+              {visible.length === 0 && accounts.length > 0 ? (
+                <p className="reg-sub">{t("No account matches this search.")}</p>
+              ) : null}
             </div>
           ) : (
             <div className="table-scroll">
@@ -366,7 +461,7 @@ export function AccountsPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {accounts.flatMap((account) => [
+                  {visible.flatMap((account) => [
                     <tr key={account.id}>
                       <td style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>{account.name ?? "—"}</td>
                       <td style={{ fontSize: 13 }}>{account.email}</td>
@@ -425,10 +520,10 @@ export function AccountsPanel({
                       </tr>
                     ) : null,
                   ])}
-                  {accounts.length === 0 ? (
+                  {visible.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ color: "var(--text-secondary)" }}>
-                        {t("No accounts yet.")}
+                        {accounts.length === 0 ? t("No accounts yet.") : t("No account matches this search.")}
                       </td>
                     </tr>
                   ) : null}
@@ -437,10 +532,10 @@ export function AccountsPanel({
             </div>
           )}
 
-          {canRemove && archivedAccounts.length > 0 ? (
+          {canRemove && visibleArchived.length > 0 ? (
             <div style={{ marginTop: 16 }}>
               <button type="button" className="linkish" style={{ fontSize: 13 }} onClick={() => setShowArchived((v) => !v)}>
-                {showArchived ? t("Hide archived") : t("Archived accounts ({n})", { n: archivedAccounts.length })}
+                {showArchived ? t("Hide archived") : t("Archived accounts ({n})", { n: visibleArchived.length })}
               </button>
               {showArchived ? (
                 <div className="table-scroll" style={{ marginTop: 10 }}>
@@ -454,7 +549,7 @@ export function AccountsPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {archivedAccounts.map((account) => (
+                      {visibleArchived.map((account) => (
                         <tr key={account.id}>
                           <td>{account.name ?? "—"}</td>
                           <td style={{ fontSize: 13 }}>{account.email}</td>

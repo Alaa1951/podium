@@ -42,6 +42,36 @@ function clock(ms: number | null) {
  * left open, places the judges and reserves on stations, and starts the next
  * wave. An athlete with no post sees their own wave.
  */
+type Post = Awaited<ReturnType<typeof judgePostsFor>>[number];
+
+/** Whether a scoring card is on this post's sheet right now. */
+function scoringNow(post: Post, current: { phase: string | null; teams: unknown[] } | null) {
+  if (post.series.status !== "live" || !current || current.teams.length === 0) return false;
+  return post.position === "leader" || !!post.station;
+}
+
+/** The day's list for a post, and the link to the screen over their rig or zone. */
+function dayAhead(post: Post, day: Parameters<typeof JudgeDay>[0]["day"] | null, t: (key: string) => string) {
+  return (
+    <>
+      {day ? <JudgeDay day={day} /> : null}
+      {post.series.status === "live" && post.position !== "leader" && post.station ? (
+        <p style={{ marginTop: -6, marginBottom: 14 }}>
+          <Link href={`/series/${post.series.slug}/station/${post.zone.number}/${post.station}`} className="linkish">
+            {t("Open the screen for my rig")} →
+          </Link>
+        </p>
+      ) : post.series.status === "live" ? (
+        <p style={{ marginTop: -6, marginBottom: 14 }}>
+          <Link href={`/series/${post.series.slug}/zone/${post.zone.number}/stations`} className="linkish">
+            {t("Open the screen for my zone")} →
+          </Link>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export default async function MyWavePage(detailId?: string, requestedSeries?: string) {
   const user = await requireUser();
   const { t } = await getTranslator();
@@ -322,20 +352,10 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                 : t("No station yet")}
           </h2>
 
-          {day ? <JudgeDay day={day} /> : null}
-          {post.series.status === "live" && post.position !== "leader" && post.station ? (
-            <p style={{ marginTop: -6, marginBottom: 14 }}>
-              <Link href={`/series/${post.series.slug}/station/${post.zone.number}/${post.station}`} className="linkish">
-                {t("Open the screen for my rig")} →
-              </Link>
-            </p>
-          ) : post.series.status === "live" ? (
-            <p style={{ marginTop: -6, marginBottom: 14 }}>
-              <Link href={`/series/${post.series.slug}/zone/${post.zone.number}/stations`} className="linkish">
-                {t("Open the screen for my zone")} →
-              </Link>
-            </p>
-          ) : null}
+          {/* The day ahead leads while there is nobody to score; once a team
+              is in front of the judge, their card comes first and the day
+              follows it (below). */}
+          {!scoringNow(post, current) ? dayAhead(post, day, t) : null}
 
           {post.series.status !== "live" ? (
             <div className="notice">{t("The competition has not started yet. Scoring opens when it does — the waves coming to you are listed above.")}</div>
@@ -383,6 +403,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                 : t("A team appears here by itself when a wave that has started reaches Zone {zone}.", { zone: post.zone.number })}
             </div>
           )}
+
+          {scoringNow(post, current) ? <div style={{ marginTop: 18 }}>{dayAhead(post, day, t)}</div> : null}
 
           {earlier.length ? (
             <>

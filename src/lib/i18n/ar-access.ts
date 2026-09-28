@@ -115,4 +115,17 @@ export const AR_ACCESS: Phrases = {
   "Studios register and pair their own athletes, place their teams in waves, and follow their own results. Scores are entered by the judges on the floor.":
     "تسجل الاستوديوهات رياضييها وتجمعهم في فرق، وتوزع فرقها على الموجات، وتتابع نتائجها. ويُدخل الحكام الدرجات على أرض البطولة.",
   "Team changes": "تعديلات الفرق",
+
+  // ── Searching long lists ───────────────────────────────────────────────────
+  "Clear search": "مسح البحث",
+  "{count} shown": "{count} معروض",
+  "Search name, email, gym or role…": "ابحث بالاسم أو البريد أو الجيم أو الدور…",
+  "Search accounts": "البحث في الحسابات",
+  "Every account type": "كل أنواع الحسابات",
+  "Any status": "أي حالة",
+  "Any role": "أي دور",
+  "No role (default)": "بدون دور (الافتراضي)",
+  "Clear filters": "مسح الفلاتر",
+  "No account matches this search.": "لا يوجد حساب يطابق هذا البحث.",
+  "Search athlete, team, email, phone, gym or team number…": "ابحث باسم الرياضي أو الفريق أو البريد أو الهاتف أو الجيم أو رقم الفريق…",
 };
