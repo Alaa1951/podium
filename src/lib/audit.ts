@@ -73,6 +73,8 @@ export const AUDIT = {
   waitlistAdmitted: "registration.waitlist_admitted",
   waitlistReturned: "registration.waitlist_returned",
   announcementSent: "notification.sent",
+  /** A roster or T-shirt list downloaded: a file of people leaving the app. */
+  rosterExported: "registration.exported",
 } as const;
 
 export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];

@@ -94,8 +94,8 @@ export const AR_ACCESS: Phrases = {
   "No studio": "بدون استوديو",
   "The account is created with no password. They receive a link by email and choose one themselves. Give them roles from their Access panel once it exists.":
     "يُنشأ الحساب بدون كلمة مرور. يصلهم رابط بالبريد ويختارون كلمة المرور بأنفسهم. امنحهم الأدوار من لوحة الصلاحيات بعد إنشاء الحساب.",
-  "Everyone in {studio}. Open a person to give them the Athlete, Organiser or Judge role, or to take one away.":
-    "كل الأشخاص في {studio}. افتح أي شخص لتمنحه دور رياضي أو منظم أو حكم، أو لتسحبه.",
+  "Everyone in {studio}. Open a person to give them the Athlete or Judge role, or to take one away.":
+    "كل الأشخاص في {studio}. افتح أي شخص لتمنحه دور رياضي أو حكم، أو لتسحبه.",
   "your studio": "الاستوديو الخاص بك",
 
   // ── Home ───────────────────────────────────────────────────────────────────

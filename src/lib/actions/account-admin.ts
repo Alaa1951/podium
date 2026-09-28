@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { canManageTarget } from "@/lib/permissions/grant-policy";
+import { canManageTarget, canTakeOverTarget } from "@/lib/permissions/grant-policy";
 import { targetWithPermissions } from "@/lib/permissions/load";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
@@ -64,21 +64,28 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
   });
   if (!before) return { ok: false, error: "NOT_FOUND" };
 
-  // Only BFT MENA Full access makes (or unmakes) BFT MENA Full access.
-  const manage = canManageTarget(actor, await targetWithPermissions(before));
+  const target = await targetWithPermissions(before, { always: true });
+  const manage = canManageTarget(actor, target);
   if (!manage.allowed) return { ok: false, error: manage.reason };
-  if (actor.role !== "admin" && (role === "admin" || before.role === "admin")) {
-    return { ok: false, error: "FORBIDDEN" };
+  // The account type, and which gym a gym account runs, are BFT MENA Full
+  // access's alone: turning an athlete into BFT MENA staff lifts every
+  // ceiling, and moving a gym account to another gym hands over that gym.
+  const studioId = parsed.data.studioId || null;
+  if (actor.role !== "admin") {
+    if (role !== before.role) return { ok: false, error: "FORBIDDEN" };
+    if (before.role === "studio" && studioId !== before.studioId) return { ok: false, error: "FORBIDDEN" };
   }
 
   if (email !== before.email) {
+    // A new email is a new way in (see canTakeOverTarget).
+    const takeOver = canTakeOverTarget(actor, target);
+    if (!takeOver.allowed) return { ok: false, error: takeOver.reason };
     const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (taken) return { ok: false, error: "EMAIL_ALREADY_REGISTERED" };
   }
 
   // A studio account without a studio can see nothing, which looks like a bug
   // rather than a setting. Anyone else is simply not scoped to one.
-  const studioId = parsed.data.studioId || null;
   if (role === "studio" && !studioId) return { ok: false, error: "STUDIO_REQUIRED" };
 
   if (role === "competitor" && parsed.data.requestedSeriesId) {
@@ -144,8 +151,8 @@ export async function sendResetLink(input: unknown): Promise<ActionResult> {
     select: { id: true, email: true, status: true, role: true, studioId: true },
   });
   if (!user) return { ok: false, error: "NOT_FOUND" };
-  // The same authority as editing the account: a reset link is a way in.
-  const manage = canManageTarget(actor, await targetWithPermissions(user));
+  // A reset link is a way in: the same authority as changing the email.
+  const manage = canTakeOverTarget(actor, await targetWithPermissions(user, { always: true }));
   if (!manage.allowed) return { ok: false, error: manage.reason };
   if (user.status === "disabled") return { ok: false, error: "ACCOUNT_DISABLED" };
 

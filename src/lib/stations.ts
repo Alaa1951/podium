@@ -110,3 +110,22 @@ export function zoneStations(params: {
     };
   });
 }
+
+/**
+ * Who comes onto this rig next, for a screen with nobody on it: the next
+ * wave to reach the zone (BoardPayload.upNext) and its team on this station.
+ * `team` is null when that wave has nobody on this rig. `inMs` is counted
+ * off the payload's age, like every other clock on the board.
+ */
+export function nextOnStation(params: {
+  upNext: { zoneNumber: number; wave: number; inMs: number; estimated: boolean }[];
+  teams: BoardTeam[];
+  zoneNumber: number;
+  station: number;
+  elapsedMs: number;
+}): { wave: number; inMs: number; estimated: boolean; team: BoardTeam | null } | null {
+  const next = params.upNext.find((row) => row.zoneNumber === params.zoneNumber);
+  if (!next) return null;
+  const team = params.teams.find((one) => one.wave === next.wave && one.station === params.station) ?? null;
+  return { wave: next.wave, inMs: Math.max(0, next.inMs - params.elapsedMs), estimated: next.estimated, team };
+}

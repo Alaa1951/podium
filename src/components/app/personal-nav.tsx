@@ -16,15 +16,17 @@ import {
 } from "@/lib/personal-navigation";
 
 /**
- * A COMPETITOR'S NAVIGATION ON A WIDE SCREEN.
+ * THE PERSONAL BAR ON A WIDE SCREEN, for every screen with no sidebar of its
+ * own.
  *
- * Everybody else gets the console's sidebar, which carries its own links and
- * its own way out. A competitor never does — all three console layouts turn
- * the role away — so until now their entire navigation was the phone's tab
- * bar, and CSS deletes that above 900px. On a laptop, "Partner requests" had
- * no way back to anything.
+ * Inside a console (the platform, a competition, a gym's area) the sidebar
+ * carries the links and the way out, and this stays away. Everywhere else —
+ * an athlete's pages, and Home, the judge sheet and Account for everybody —
+ * the phone's tab bar was the only navigation, and CSS deletes it above
+ * 900px: on a laptop a judge's sheet had no way to Results, and "Partner
+ * requests" had no way back to anything.
  *
- * Same four destinations as the tab bar, from the same list
+ * Same destinations as the tab bar, from the same list
  * (personal-navigation.ts), so the two can no longer drift apart.
  */
 export function PersonalDesktopNavigation({ role, homeHref }: { role: string; homeHref?: string }) {
@@ -32,10 +34,8 @@ export function PersonalDesktopNavigation({ role, homeHref }: { role: string; ho
   const seriesId = useSearchParams().get("series");
   const t = useT();
 
-  // Staff and studios have the sidebar; this must not add a second bar to it.
-  if (role !== "competitor") return null;
-  // A screen with its own context navigation, and the wall board, both keep
-  // the full-screen frame they were designed with.
+  // A screen with its own context navigation (the console sidebar), and the
+  // wall board, both keep the frame they were designed with.
   if (hasContextNavigation(path)) return null;
   if (/^\/series\/[^/]+\/board$/.test(path)) return null;
 

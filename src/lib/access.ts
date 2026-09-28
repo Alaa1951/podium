@@ -138,10 +138,40 @@ export function canWriteScore(
 }
 
 /**
+ * The accounts that run a floor: BFT MENA and event staff. A gym or an
+ * athlete never starts, ends or rebuilds anything on it, whatever a role
+ * they hold lists — a gym's own account pressing End now on another gym's
+ * wave is not a thing a checkbox should be able to allow.
+ */
+export const isFloorAccount = (user: Pick<CurrentUser, "role">) =>
+  user.role === "admin" || user.role === "staff" || user.role === "organiser";
+
+export type WaveButton = "startDay" | "start" | "end" | "reset";
+
+/**
+ * Which wave buttons this person holds by their permissions: every one with
+ * `waveControl.control` (the Organiser role), or each one given on its own.
+ * Only on a floor account (isFloorAccount).
+ */
+export function waveButtons(user: Pick<CurrentUser, "role" | "permissions">): Record<WaveButton, boolean> {
+  const floor = isFloorAccount(user);
+  const all = floor && can(user, "waveControl.control");
+  const one = (key: PermissionKey) => all || (floor && can(user, key));
+  return {
+    startDay: one("waveControl.startDay"),
+    start: one("waveControl.start"),
+    end: one("waveControl.end"),
+    reset: one("waveControl.reset"),
+  };
+}
+
+/**
  * WHO MAY PRESS THE WAVE BUTTONS.
  *
  *   waveControl.control  (the supervisor: Organiser role, BFT MENA)
  *                        Start, End now and Reset.
+ *   waveControl.start / .end / .reset
+ *                        One button each, for someone given only that.
  *   Zone leader          Start only, for a competition they lead a zone of.
  *                        Sending the next wave onto the floor is a floor
  *                        call; stopping or rewinding one is the supervisor's.
@@ -154,14 +184,18 @@ export function canControlWave(
   action: "start" | "finish" | "reset",
   leadsAZone: boolean
 ): boolean {
-  if (can(user, "waveControl.control")) return true;
-  return action === "start" && leadsAZone;
+  const buttons = waveButtons(user);
+  if (action === "start") return buttons.start || leadsAZone;
+  return action === "finish" ? buttons.end : buttons.reset;
 }
 
 /**
  * Who a given account may create, and under which studio. BFT MENA Full issues
- * anything; BFT MENA Partial anything but Full access; a studio issues athletes
- * and organisers, always into its own studio whatever was submitted.
+ * anything. BFT MENA Partial issues athletes and event staff only: a new BFT
+ * MENA account would carry the whole default Partial role whatever the
+ * inviter holds, and a new gym account (at an address they control) would
+ * run that gym's people and teams. A studio issues athletes and organisers,
+ * always into its own studio whatever was submitted.
  */
 export function canCreateAccount(
   actor: Pick<CurrentUser, "role" | "permissions" | "studioId">,
@@ -173,7 +207,7 @@ export function canCreateAccount(
   if (actor.role === "admin") return { allowed: true, studioId: requestedStudioId };
   if (!can(actor, "users.invite")) return { allowed: false, reason: "FORBIDDEN" };
   if (actor.role === "staff") {
-    if (role === "admin") return { allowed: false, reason: "FORBIDDEN" };
+    if (role !== "competitor" && role !== "organiser") return { allowed: false, reason: "FORBIDDEN" };
     return { allowed: true, studioId: requestedStudioId };
   }
   if (actor.role !== "studio") return { allowed: false, reason: "FORBIDDEN" };

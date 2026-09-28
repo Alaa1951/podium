@@ -1,6 +1,7 @@
 import "server-only";
 
 import { normalizeStoredPermissions } from "@/lib/permissions/catalog";
+import { formatQatarDayKey } from "@/lib/qatar-time";
 import { prisma } from "@/lib/prisma";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,11 +77,17 @@ export async function judgePostsFor(userId: string) {
   });
 }
 
-/** Whether a person works a zone of a running competition — their home is then the judge sheet. */
-export async function hasLiveZonePost(userId: string): Promise<boolean> {
-  const post = await prisma.zoneStaff.findFirst({
-    where: { userId, series: { status: "live" } },
-    select: { id: true },
+/**
+ * Whether a person works a zone of a running competition — or of one whose
+ * day is today (Qatar) and has not been started yet. Their home is then the
+ * judge sheet, where the day's waves are waiting for them before the first
+ * one goes.
+ */
+export async function hasLiveZonePost(userId: string, now = new Date()): Promise<boolean> {
+  const posts = await prisma.zoneStaff.findMany({
+    where: { userId, series: { status: { in: ["live", "scheduled"] }, archivedAt: null } },
+    select: { series: { select: { status: true, competitionDate: true } } },
   });
-  return !!post;
+  const today = formatQatarDayKey(now);
+  return posts.some(({ series }) => series.status === "live" || formatQatarDayKey(series.competitionDate) === today);
 }

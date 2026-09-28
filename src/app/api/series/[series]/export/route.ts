@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { AUDIT, recordAudit } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesZones, getScopedTeams } from "@/lib/queries";
-import { can, getCurrentUser } from "@/lib/session";
+import { can, getCurrentUser, isBft } from "@/lib/session";
 import { allInputs, zonePoints } from "@/lib/zones";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,12 @@ export const dynamic = "force-dynamic";
 // without this file knowing anything about the movements. Raw values come
 // first so the file can be re-imported or re-scored; derived points follow for
 // reading. Scoped like every other read: a studio exports its own teams.
+//
+// WHAT LEAVES IN THE FILE follows what the person may otherwise see. Money
+// (payment, amounts, billing) only for whoever confirms payment. Phone and
+// email only for BFT MENA, and for a gym about its own people: an organiser
+// running the floor needs names, stations and sizes, not every athlete's
+// contact details in a spreadsheet. Every download is in the audit log.
 
 /** A column name a spreadsheet will not fight you over. */
 function slugify(value: string) {
@@ -41,6 +49,16 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
     getScopedTeams(competition.id, user),
     getSeriesZones(competition.id),
   ]);
+  const money = can(user, "registrations.payment");
+  const contact = isBft(user) || user.role === "studio";
+  const shirts = new Map(
+    (
+      await prisma.competitor.findMany({
+        where: { teamId: { in: teams.map((team) => team.id) } },
+        select: { id: true, shirtSize: true },
+      })
+    ).map((row) => [row.id, row.shirtSize])
+  );
   const inputs = allInputs(zones);
 
   const header = [
@@ -64,10 +82,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
     "competitor_1_phone",
     "competitor_1_email",
     "competitor_1_studio",
+    "competitor_1_shirt",
     "competitor_2",
     "competitor_2_phone",
     "competitor_2_email",
     "competitor_2_studio",
+    "competitor_2_shirt",
     // One raw column per movement, then one points column per zone.
     ...inputs.map((input) => `z${input.zone.number}_${slugify(input.label)}`),
     ...zones.map((zone) => `z${zone.number}_points`),
@@ -86,22 +106,24 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
       team.division,
       team.wave,
       team.studioName ?? "non-member",
-      team.paymentStatus,
+      money ? team.paymentStatus : "",
       iso(team.registeredAt),
-      iso(team.paidAt),
-      team.amountMinor === null ? "" : (team.amountMinor / 100).toFixed(2),
-      team.currency,
-      team.billingNumber ?? "",
+      money ? iso(team.paidAt) : "",
+      !money || team.amountMinor === null ? "" : (team.amountMinor / 100).toFixed(2),
+      money ? team.currency : "",
+      money ? team.billingNumber ?? "" : "",
       team.source,
       team.attendedAt ? "yes" : "no",
       first?.fullName ?? "",
-      first?.phone ?? "",
-      first?.email ?? "",
+      contact ? first?.phone ?? "" : "",
+      contact ? first?.email ?? "" : "",
       first?.studioName ?? "non-member",
+      (first && shirts.get(first.id)) ?? "",
       second?.fullName ?? "",
-      second?.phone ?? "",
-      second?.email ?? "",
+      contact ? second?.phone ?? "" : "",
+      contact ? second?.email ?? "" : "",
       second?.studioName ?? "non-member",
+      (second && shirts.get(second.id)) ?? "",
       ...inputs.map((input) => team.values[input.id] ?? ""),
       ...zones.map((zone) => zonePoints(zone, team.values)),
       team.total,
@@ -112,6 +134,14 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/series/[series]
   });
 
   const csv = [header.map(cell).join(","), ...rows].join("\r\n");
+  await recordAudit({
+    actorId: user.id,
+    action: AUDIT.rosterExported,
+    targetType: "event",
+    targetId: competition.id,
+    detail: `roster · ${teams.length} teams${money ? " · with payment" : ""}${contact ? " · with contact details" : ""}`,
+  });
+
   const slug = competition.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
   return new NextResponse(`﻿${csv}`, {

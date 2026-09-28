@@ -28,9 +28,10 @@ describe("who gets which bar", () => {
     expect(hrefs("competitor", "/my-wave")).toEqual(["/me", "/my-wave", "/results", "/account"]);
   });
 
-  it("gives anybody posted to a live zone the judge's bar", () => {
-    expect(hrefs("staff", "/my-wave")).toEqual(["/my-wave", "/results", "/account"]);
-    expect(hrefs("organiser", "/my-wave")).toEqual(["/my-wave", "/results", "/account"]);
+  it("gives anybody posted to a live zone the judge's bar, with the way back to their other screens", () => {
+    expect(hrefs("staff", "/my-wave")).toEqual(["/my-wave", "/home", "/results", "/account"]);
+    expect(hrefs("organiser", "/my-wave")).toEqual(["/my-wave", "/home", "/results", "/account"]);
+    expect(hrefs("studio", "/my-wave")).toEqual(["/my-wave", "/studio", "/results", "/account"]);
   });
 
   it("gives a studio its competitions", () => {

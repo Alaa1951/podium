@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { can } from "@/lib/access";
+import { can, isFloorAccount } from "@/lib/access";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { MAX_STATIONS } from "@/lib/floor";
 import { loadPermissions } from "@/lib/permissions/load";
@@ -33,7 +33,7 @@ const addSchema = z.object({
 /** Put a person on a zone (or change their position there). */
 export async function addZoneStaff(input: unknown): Promise<ZoneStaffResult> {
   const actor = await requireUser();
-  if (actor.viewAs || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor) || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = addSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -103,7 +103,7 @@ export async function setZoneStaffStation(input: unknown): Promise<ZoneStaffResu
   });
   if (!row) return { ok: false, error: "NOT_FOUND" };
 
-  let allowed = can(actor, "zoneStaff.assign");
+  let allowed = isFloorAccount(actor) && can(actor, "zoneStaff.assign");
   // A leader places their own zone's judges — while they still hold the sheet.
   if (!allowed && can(actor, "judgeSheet.view")) {
     const leads = await prisma.zoneStaff.count({
@@ -130,7 +130,7 @@ export async function setZoneStaffStation(input: unknown): Promise<ZoneStaffResu
 /** Take a person off a zone. */
 export async function removeZoneStaff(input: unknown): Promise<ZoneStaffResult> {
   const actor = await requireUser();
-  if (actor.viewAs || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor) || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = z.object({ staffId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };

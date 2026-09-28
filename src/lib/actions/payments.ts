@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { requireAccess, requireAnyAccess } from "@/lib/session";
+import { canAny, getCurrentUser, requireAccess, teamScope } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -33,6 +33,7 @@ const paymentSchema = z.object({
  */
 export async function setPayment(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("registrations.payment");
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = paymentSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -74,21 +75,29 @@ export async function setPayment(input: unknown): Promise<ActionResult> {
 
 /** Checked in on the day, or not after all. */
 export async function setAttendance(input: unknown): Promise<ActionResult> {
-  // Check-in is floor work (registrations.attendance, the Organiser's);
-  // whoever confirms payment may do it too.
-  const actor = await requireAnyAccess(["registrations.attendance", "registrations.payment"]);
-  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  // Check-in is floor work (registrations.attendance — the Organiser's, and
+  // a volunteer's when given it); whoever confirms payment may do it too.
+  // Answered, never redirected: it is pressed from the marshalling screen
+  // mid-call-up, and a redirect there loses the page.
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
+  if (actor.viewAs || !canAny(actor, ["registrations.attendance", "registrations.payment"])) {
+    return { ok: false, error: "FORBIDDEN" };
+  }
 
   const parsed = z
     .object({ teamId: z.string().min(1), attended: z.boolean() })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
-  const team = await prisma.team.findUnique({
-    where: { id: parsed.data.teamId },
-    select: { id: true, seriesId: true, number: true, name: true },
+  // Only a team this account may see: a gym given check-in checks in its own.
+  const team = await prisma.team.findFirst({
+    where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(actor) },
+    select: { id: true, seriesId: true, number: true, name: true, attendedAt: true },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
+  // Two volunteers pressing at once: the first check-in time stands.
+  if (parsed.data.attended && team.attendedAt) return { ok: true };
 
   await prisma.team.update({
     where: { id: team.id },

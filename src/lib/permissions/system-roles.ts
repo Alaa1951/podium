@@ -82,12 +82,14 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Organiser",
     nameAr: "منظم",
     description:
-      "Runs the floor of every competition: builds the waves and places teams, starts the day, starts/ends/resets waves on Wave control, puts judges on zones and picks zone leaders, checks teams in. Sees the entry list, scores and results. Does not edit teams, enter scores or change settings.",
+      "Runs the floor of every competition: builds the waves and places teams, starts the day, starts/ends/resets waves on Wave control, puts judges on zones and picks zone leaders, checks teams in on Marshalling. Sees the entry list, T-shirt counts, scores and results. Does not edit teams, enter scores or change settings.",
     // BFT MENA only: the role runs the floor of EVERY competition (Wave
     // control, zone teams), so a gym handing it out would hand one of its own
-    // people control of rival gyms' waves and judges.
+    // people control of rival gyms' waves and judges. For the same reason it
+    // is never meant for a gym's own account — and the floor actions refuse
+    // a gym account whatever it holds (isFloorAccount, access.ts).
     assignableBy: "bft",
-    accountTypes: ["organiser", "studio", "staff"],
+    accountTypes: ["organiser", "staff"],
     sortOrder: 30,
     permissions: [
       "overview.view",
@@ -101,6 +103,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "waves.edit",
       "waveControl.view",
       "waveControl.control",
+      "marshalling.view",
+      "shirts.view",
       "zoneStaff.view",
       "zoneStaff.assign",
       "scores.view",
@@ -123,11 +127,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     key: "volunteer",
     name: "Volunteer",
     nameAr: "متطوع",
-    description: "Sees the wave schedule and the live board.",
+    description:
+      "Moves athletes on the floor: sees Marshalling (where each wave is, where it goes next, who to call up), the wave schedule and the live board. Checking teams in is given on top, per person, when needed.",
     assignableBy: "bft",
     accountTypes: ["organiser"],
     sortOrder: 50,
-    permissions: ["waves.view"],
+    permissions: ["waves.view", "marshalling.view"],
   },
   {
     key: "coach",

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  requireRole: vi.fn(), requireAccess: vi.fn(), requireAnyAccess: vi.fn(), requireUser: vi.fn(), findTeam: vi.fn(), updateTeam: vi.fn(),
+  requireRole: vi.fn(), requireAccess: vi.fn(), requireAnyAccess: vi.fn(), requireUser: vi.fn(), getCurrentUser: vi.fn(), findTeam: vi.fn(), updateTeam: vi.fn(),
   updateScore: vi.fn(), scoreAudit: vi.fn(), transaction: vi.fn(), zoneScores: vi.fn(),
   audit: vi.fn(), revalidate: vi.fn(),
 }));
@@ -11,11 +11,14 @@ vi.mock("@/lib/session", () => ({
   requireAccess: mocks.requireAccess,
   requireAnyAccess: mocks.requireAnyAccess,
   requireUser: mocks.requireUser,
+  getCurrentUser: mocks.getCurrentUser,
   canWriteScore: vi.fn(),
   can: (user: { role: string }) => user.role === "admin",
+  canAny: (user: { role: string }) => user.role === "admin",
+  teamScope: () => ({}),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
-  team: { findUnique: mocks.findTeam, update: mocks.updateTeam },
+  team: { findUnique: mocks.findTeam, findFirst: mocks.findTeam, update: mocks.updateTeam },
   score: { update: mocks.updateScore }, scoreAudit: { create: mocks.scoreAudit },
   zoneScore: { updateMany: mocks.zoneScores },
   $transaction: mocks.transaction,
@@ -33,6 +36,7 @@ beforeEach(() => {
   mocks.requireAccess.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.requireAnyAccess.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.requireUser.mockResolvedValue({ id: "admin", role: "admin" });
+  mocks.getCurrentUser.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" } });
   mocks.transaction.mockImplementation(async (writes: Promise<unknown>[]) => Promise.all(writes));
 });
@@ -52,8 +56,9 @@ describe("prefetched competition data after writes", () => {
     expect(await mutate()).toEqual({ ok: true });
     expect(events).toEqual(["write", "audit", "invalidate"]);
     if (_name === "score correction") expect(mocks.requireUser).toHaveBeenCalled();
-    // Check-in is the Organiser's floor key, or payment for whoever holds that.
-    else if (_name === "attendance") expect(mocks.requireAnyAccess).toHaveBeenCalledWith(["registrations.attendance", "registrations.payment"]);
+    // Check-in answers a refusal rather than redirecting (it is pressed from
+    // the marshalling screen), so it reads the user and checks the keys itself.
+    else if (_name === "attendance") expect(mocks.getCurrentUser).toHaveBeenCalled();
     else expect(mocks.requireAccess).toHaveBeenCalledWith("registrations.payment");
   });
 

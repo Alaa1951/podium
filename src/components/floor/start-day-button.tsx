@@ -9,6 +9,7 @@ import { startCompetitionDay } from "@/lib/actions/waves";
 const ERRORS: Record<string, string> = {
   NOT_SCHEDULED: "The competition is not waiting to start any more — reload the page.",
   FORBIDDEN: "You are not allowed to do that.",
+  NOT_TODAY: "The competition can only be started on its own day. BFT MENA can start it early from Settings.",
 };
 
 /**

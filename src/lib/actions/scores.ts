@@ -177,6 +177,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
     onDuty,
     zoneSubmitted: team.score?.zones.some((row) => row.zoneId === zoneId && row.status === "submitted") ?? false,
     entryClosed: !!team.series.scoreEntryClosesAt && now >= team.series.scoreEntryClosesAt,
+    waveEnded: !!wave?.endsAt && wave.endsAt <= now,
   });
   if (!decision.allowed) return { ok: false, error: decision.reason };
   if (decision.as === "console" && !inScope) return { ok: false, error: "FORBIDDEN" };

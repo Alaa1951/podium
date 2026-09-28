@@ -21,6 +21,8 @@ import { isCompeting, teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/
 import { eventPhase, teamEditOpen } from "@/lib/visibility";
 import { summariseWaves } from "@/lib/waves";
 import { getSeriesWaves } from "@/lib/queries";
+import { waveZoneTimes, type PlannedWave } from "@/lib/floor";
+import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +153,36 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   const wave = !team.waitlistedAt && team.waveId ? waves.find((one) => one.id === team.waveId) ?? null : null;
   const status = teamStatus(team);
 
+  // YOUR DAY: when the pair is in each zone — estimated until their wave
+  // starts, then the real clock — and the things to have sorted at the door.
+  const now = new Date();
+  const orderedZones = [...zones].sort((a, b) => a.number - b.number);
+  const day = formatQatarDayKey(series.competitionDate);
+  const planned: PlannedWave[] = waves.map((one) => ({
+    id: one.id,
+    number: one.number,
+    status: one.status,
+    startedAt: one.startedAt ? new Date(one.startedAt) : null,
+    endsAt: one.endsAt ? new Date(one.endsAt) : null,
+    plannedStart: parseQatarWallTime(`${day}T${one.startTime}`),
+    hasTeams: one.teamCount > 0,
+  }));
+  const zoneTimes = wave
+    ? waveZoneTimes(
+        planned,
+        wave.id,
+        { workMinutes: series.zoneWorkMinutes, breakMinutes: series.zoneBreakMinutes, zoneCount: orderedZones.length },
+        now
+      )
+    : [];
+  const clockTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Qatar", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const shirts = new Map(
+    (await prisma.competitor.findMany({ where: { teamId: team.id }, select: { id: true, shirtSize: true } })).map((row) => [
+      row.id,
+      row.shirtSize,
+    ])
+  );
+
   // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
   const canEditTeam =
@@ -278,6 +310,52 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         </div>
       </div>
 
+      {wave ? (
+        <section className="card" style={{ marginTop: 18 }}>
+          <div className="card-kicker">{t("Your day")}</div>
+          <div className="chip-row" style={{ marginBottom: 10 }}>
+            <span className="badge badge-blue">{t("Station {station}", { station: team.station ?? "—" })}</span>
+            {team.attendedAt ? (
+              <span className="badge badge-ok">{t("Checked in")}</span>
+            ) : (
+              <span className="badge badge-warn">{t("Not checked in yet")}</span>
+            )}
+          </div>
+          <p className="reg-sub">
+            {t("You keep the same station in every zone. Be at Zone 1 before your wave starts.")}
+          </p>
+          {zoneTimes.length ? (
+            <div className="table-scroll" style={{ marginTop: 8 }}>
+              <table className="table">
+                <tbody>
+                  {zoneTimes.map((slot) => {
+                    const zone = orderedZones[slot.zoneIndex];
+                    return (
+                      <tr key={slot.zoneIndex}>
+                        <td>
+                          {t("Zone")} {zone?.number} · {t(zone?.name ?? "")}
+                        </td>
+                        <td className="pd-num">
+                          {clockTime.format(slot.workStartsAt)}–{clockTime.format(slot.workEndsAt)}
+                          {slot.estimated ? ` (${t("estimated")})` : ""}
+                        </td>
+                        <td>
+                          {slot.state === "here" ? (
+                            <span className="badge badge-live">{t("Now")}</span>
+                          ) : slot.state === "done" ? (
+                            <span className="badge badge-neutral">{t("Done")}</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <WaveChangePanel teamId={team.id} userId={user.id} readOnly={!!user.viewAs || !can(user, "athleteHome.view")}
         eligible={wave?.status === "pending" && series.status !== "final" && !series.archivedAt} />
 
@@ -293,6 +371,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
                   <strong>{person.fullName}</strong>
                 </td>
                 <td>{person.studioName ?? t("Non-member")}</td>
+                <td>{t("T-shirt: {size}", { size: shirts.get(person.id) ?? "—" })}</td>
               </tr>
             ))}
           </tbody>

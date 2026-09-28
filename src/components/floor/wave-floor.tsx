@@ -38,6 +38,7 @@ const ERRORS: Record<string, string> = {
   SERIES_FINISHED: "This competition is finished. Its waves can no longer be changed.",
   NOT_RUNNING: "This wave is not on the floor.",
   FORBIDDEN: "You are not allowed to do that.",
+  WAVE_HAS_SCORES: "Scores from this wave have already been submitted, so it can no longer be reset. Ask BFT MENA.",
 };
 
 function clock(ms: number | null) {
@@ -53,6 +54,7 @@ export function WaveFloor({
   timing,
   canControl,
   startOnly = false,
+  buttons,
   poll = true,
 }: {
   waves: WaveState[];
@@ -62,6 +64,8 @@ export function WaveFloor({
   canControl: boolean;
   /** A zone leader's view: Start only — End now and Reset are the supervisor's. */
   startOnly?: boolean;
+  /** Each button on its own (waveButtons, access.ts); overrides canControl/startOnly when given. */
+  buttons?: { start: boolean; end: boolean; reset: boolean };
   /**
    * Re-read the page while a wave runs. Off inside the judge sheet, which
    * re-reads itself (SheetRefresher) — two timers there refreshed twice as
@@ -100,6 +104,7 @@ export function WaveFloor({
     return () => clearInterval(id);
   }, [anyRunning, poll, router]);
 
+  const allow = buttons ?? { start: canControl, end: canControl && !startOnly, reset: canControl && !startOnly };
   const at = now === null ? null : new Date(now);
   const started = (wave: WaveState) => (wave.startedAt ? new Date(wave.startedAt) : null);
   const runningStarts = waves.filter((wave) => wave.status === "running").map((wave) => ({ startedAt: started(wave) }));
@@ -270,9 +275,9 @@ export function WaveFloor({
                 </p>
               ) : null}
 
-              {canControl ? (
+              {allow.start || allow.end || allow.reset ? (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                  {wave.status === "pending" ? (
+                  {wave.status === "pending" && allow.start ? (
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -282,12 +287,12 @@ export function WaveFloor({
                       {freeInMs > 0 ? t("Start · Zone 1 free in {time}", { time: clock(freeInMs) }) : t("Start wave")}
                     </button>
                   ) : null}
-                  {wave.status === "running" && !startOnly ? (
+                  {wave.status === "running" && allow.end ? (
                     <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => run(wave.id, "finish")}>
                       {t("End now")}
                     </button>
                   ) : null}
-                  {wave.status !== "pending" && !startOnly ? (
+                  {wave.status !== "pending" && allow.reset ? (
                     <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => run(wave.id, "reset")}>
                       {t("Reset")}
                     </button>

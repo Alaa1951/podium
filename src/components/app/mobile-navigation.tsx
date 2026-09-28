@@ -25,6 +25,9 @@ export function MobileIcon({ href }: { href: string }) {
     results: "M8 3h8v7a4 4 0 0 1-8 0ZM8 5H3v3a4 4 0 0 0 5 4m8-7h5v3a4 4 0 0 1-5 4M12 14v6m-4 1h8",
     account: "M20 21a8 8 0 0 0-16 0M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
     more: "M4 6h16M4 12h16M4 18h16",
+    // A flag on a route: where to send people next.
+    marshalling: "M5 21V4m0 0h11l-2 4 2 4H5",
+    shirts: "M8 3 3 6l2 4 3-1v12h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0Z",
   };
   const aliases: Record<string, string> = { registrations: "users", teams: "users", me: "users", "my-wave": "waves" };
   return <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[aliases[kind] ?? kind] ?? paths.home} /></svg>;

@@ -1149,3 +1149,31 @@ select.input { cursor: pointer; }
   .wave-request-filters > *, .wave-request-actions .btn { width: 100%; }
   .wave-request-card { padding: 16px; }
 }
+
+/* ── The judge's day (judge sheet) and marshalling ─────────────────────────── */
+.judge-day { display: grid; gap: 12px; margin-bottom: 18px; }
+.judge-day-post {
+  font-size: 18px; font-weight: 700; padding: 10px 14px; border-radius: 12px;
+  background: var(--bft-cyan-soft, var(--surface-sunken)); color: var(--bft-cyan-text, var(--text));
+  overflow-wrap: anywhere;
+}
+.judge-day-next { display: grid; gap: 8px; border-color: var(--bft-cyan); }
+.judge-day-next-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; }
+.judge-day-team { border-top: 1px solid var(--border); padding-top: 8px; min-width: 0; }
+.judge-day-team-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.judge-day-list summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.judge-day-list ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.judge-day-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.judge-day-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.judge-day-row.is-done { opacity: 0.55; }
+.judge-day-row.is-here, .judge-day-row.is-next { border-color: var(--bft-cyan); box-shadow: 0 0 0 1px var(--bft-cyan) inset; }
+.marshal-zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin-bottom: 18px; }
+.marshal-zone { display: grid; gap: 4px; min-width: 0; }
+.marshal-zone[data-busy] { border-color: var(--bft-cyan); }
+.marshal-move { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; font-size: 16px; margin-bottom: 4px; }
+.marshal-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 8px; }
+.marshal-cell { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.marshal-cell[data-empty] { opacity: 0.5; }
+.marshal-cell-body { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.marshal-rigs { display: grid; gap: 10px; }
+.marshal-rig-zone { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

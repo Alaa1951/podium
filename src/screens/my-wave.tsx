@@ -7,10 +7,12 @@ import { SheetRefresher } from "@/components/floor/sheet-refresher";
 import { ZoneEntryCard, type ZoneEntryTeam } from "@/components/floor/zone-entry-card";
 import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
 import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
+import { JudgeDay } from "@/components/floor/judge-day";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { zoneArrival, zoneDuty, type FloorTiming } from "@/lib/floor";
 import { getTranslator } from "@/lib/i18n/server";
+import { loadJudgeDay } from "@/lib/judge-day";
 import { prisma } from "@/lib/prisma";
 import { getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import { homeFor, requireUser } from "@/lib/session";
@@ -192,6 +194,27 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
       const staff = leader ? (await listZoneStaff(post.seriesId)).filter((row) => row.id === post.zone.id) : [];
 
+      // The day ahead: every wave coming through this zone and the team it
+      // brings to this station — shown before it arrives, even before the
+      // competition starts. Read-only; scoring above waits for arrival.
+      const day =
+        zoneIndex >= 0
+          ? await loadJudgeDay({
+              seriesId: post.seriesId,
+              zoneIndex,
+              zoneNumber: post.zone.number,
+              station: post.station,
+              leader,
+              viewerRole: user.role,
+              timing,
+              now,
+            })
+          : null;
+      const nextArrivalMs = day?.rows
+        .filter((row) => row.state === "coming" && !row.estimated)
+        .map((row) => new Date(row.workStartsAt).getTime() - now.getTime())
+        .find((ms) => ms > 0);
+
       // A zone leader sends the next wave onto the floor from here (Start
       // only — canControlWave). Shown: the waves on the floor and the next
       // one to go, which is all a leader decides about.
@@ -249,7 +272,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
           : [],
         // When this panel next changes by the clock alone — the sheet
         // re-reads itself right then, not up to a poll later.
-        changeInMs: Math.min(duty.phaseRemainingMs ?? Infinity, duty.next?.inMs ?? Infinity),
+        changeInMs: Math.min(duty.phaseRemainingMs ?? Infinity, duty.next?.inMs ?? Infinity, nextArrivalMs ?? Infinity),
+        day,
         staff,
         leaderFloor,
         timing,
@@ -287,7 +311,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
         ))}
       </div>
 
-      {panels.map(({ post, zone, current, next, earlier, staff, leaderFloor, timing }) => (
+      {panels.map(({ post, zone, current, next, earlier, staff, leaderFloor, timing, day }) => (
         <section key={post.id} style={{ marginBottom: 34 }}>
           <h2 className="section-title" style={{ marginTop: 0 }}>
             {post.series.name} · {t("Zone")} {post.zone.number} {"///"} {t(post.zone.name)} ·{" "}
@@ -298,10 +322,25 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                 : t("No station yet")}
           </h2>
 
+          {day ? <JudgeDay day={day} /> : null}
+          {post.series.status === "live" && post.position !== "leader" && post.station ? (
+            <p style={{ marginTop: -6, marginBottom: 14 }}>
+              <Link href={`/series/${post.series.slug}/station/${post.zone.number}/${post.station}`} className="linkish">
+                {t("Open the screen for my rig")} →
+              </Link>
+            </p>
+          ) : post.series.status === "live" ? (
+            <p style={{ marginTop: -6, marginBottom: 14 }}>
+              <Link href={`/series/${post.series.slug}/zone/${post.zone.number}/stations`} className="linkish">
+                {t("Open the screen for my zone")} →
+              </Link>
+            </p>
+          ) : null}
+
           {post.series.status !== "live" ? (
-            <div className="notice">{t("The competition has not started yet. Your sheet opens when it does.")}</div>
+            <div className="notice">{t("The competition has not started yet. Scoring opens when it does — the waves coming to you are listed above.")}</div>
           ) : post.position !== "leader" && !post.station ? (
-            <div className="notice">{t("Waiting for your zone leader to place you on a station.")}</div>
+            <div className="notice">{t("Waiting for your zone leader to place you on a station. Until then you see every station of your zone.")}</div>
           ) : current && (current.phase !== "left" || current.teams.length > 0) ? (
             <>
               <p className="reg-sub pd-num">

@@ -163,7 +163,7 @@ export const CATALOG = {
           // built on it. `bftOnly`, like payment, because deciding how many
           // people the floor can hold is not a studio's call.
           waitlist: act("Admit entries from the waiting list", "قبول التسجيلات من قائمة الانتظار", "bftOnly"),
-          payment: act("Confirm payment and attendance", "تأكيد الدفع والحضور", "bftOnly"),
+          payment: act("Confirm payment", "تأكيد الدفع", "bftOnly"),
           // Checking a team in at the door is floor work, not money: split from
           // `payment` (BFT MENA only) so the Organiser can run check-in on the
           // day. `payment` still covers it for whoever holds that.
@@ -185,8 +185,31 @@ export const CATALOG = {
         labelAr: "التحكم في الموجات",
         actions: {
           view: view(),
-          control: act("Start and end waves (supervisor)", "بدء الموجات وإنهاؤها (المشرف)"),
+          // Every wave button at once — what the Organiser role has always
+          // carried. The four below are the same buttons one at a time, so a
+          // person can be given Start without End now or Reset. Either opens
+          // the button (canControlWave).
+          control: act("All wave buttons (start the day, start, end, reset)", "كل أزرار الموجات (بدء اليوم، البدء، الإنهاء، إعادة الضبط)"),
+          startDay: act("Start the competition day", "بدء يوم البطولة"),
+          start: act("Start a wave", "بدء موجة"),
+          end: act("End a wave early (End now)", "إنهاء موجة مبكرًا (إنهاء الآن)"),
+          reset: act("Reset a wave to not started", "إرجاع موجة إلى «لم تبدأ»"),
         },
+      },
+      // The floor for the people who move athletes: where each wave is, which
+      // zone it goes to next, and who to call up for the next wave. Also open
+      // to anyone who can see Wave control.
+      marshalling: {
+        label: "Marshalling",
+        labelAr: "توجيه الفرق",
+        actions: { view: view() },
+      },
+      // How many T-shirts of each size, and who wears which. Also open to
+      // anyone who can see the entry list (a gym sees its own).
+      shirts: {
+        label: "T-shirts",
+        labelAr: "التيشيرتات",
+        actions: { view: view() },
       },
       zoneStaff: {
         label: "Zone teams",

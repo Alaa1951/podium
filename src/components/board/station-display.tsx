@@ -7,7 +7,15 @@ import { useBoardClock } from "@/components/board/use-board-clock";
 import type { BoardPayload } from "@/lib/board";
 import { DEFAULT_ATHLETE_PHOTO } from "@/lib/athlete-photo";
 import { remainingClock } from "@/lib/floor";
-import { stationView, zoneStations, type StationView } from "@/lib/stations";
+import { nextOnStation, stationView, zoneStations, type StationView } from "@/lib/stations";
+
+type UpNext = ReturnType<typeof nextOnStation>;
+
+/** "12:05" for a countdown on a wall screen. */
+function countdown(ms: number) {
+  const { minutes, seconds } = remainingClock(ms);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SCREEN OVER A RIG.
@@ -42,8 +50,14 @@ export function StationDisplay({
     setData(initial);
   }
 
-  useBoardClock(data, initial.seriesId, setData);
+  const { elapsedMs } = useBoardClock(data, initial.seriesId, setData);
   const view = stationView({ waves: data.waves, teams: data.teams, zoneNumber, station });
+  // Nobody on the rig: say who is coming, so the pair can be called over
+  // before their clock starts. Older payloads (a cached page) have no list.
+  const next =
+    view.state === "idle"
+      ? nextOnStation({ upNext: data.upNext ?? [], teams: data.teams, zoneNumber, station, elapsedMs })
+      : null;
 
   return (
     <div className="station-screen">
@@ -54,7 +68,7 @@ export function StationDisplay({
         </span>
         <span className="station-screen-rig display">{station}</span>
       </div>
-      <StationBody view={view} />
+      <StationBody view={view} next={next} />
     </div>
   );
 }
@@ -76,9 +90,13 @@ export function ZoneStationsDisplay({
     setLastProp(initial);
     setData(initial);
   }
-  useBoardClock(data, initial.seriesId, setData);
+  const { elapsedMs } = useBoardClock(data, initial.seriesId, setData);
 
   const rigs = zoneStations({ waves: data.waves, teams: data.teams, zoneNumber });
+  const coming = (data.upNext ?? []).find((row) => row.zoneNumber === zoneNumber) ?? null;
+  const comingTeams = coming
+    ? data.teams.filter((team) => team.wave === coming.wave && team.station !== null).sort((a, b) => a.station! - b.station!)
+    : [];
 
   return (
     <div className="station-screen">
@@ -89,7 +107,25 @@ export function ZoneStationsDisplay({
         </span>
       </div>
       {rigs.length === 0 ? (
-        <p className="station-screen-idle">{t("No wave in this zone right now.")}</p>
+        <>
+          <p className="station-screen-idle">{t("No wave in this zone right now.")}</p>
+          {coming ? (
+            <>
+              <p className="station-screen-wave">
+                {t("Up next")} · {t("Wave")} {coming.wave} · {countdown(coming.inMs - elapsedMs)}
+                {coming.estimated ? ` (${t("estimated")})` : ""}
+              </p>
+              <div className="station-grid">
+                {comingTeams.map((team) => (
+                  <div className="station-card" key={team.id}>
+                    <span className="station-card-rig display">{team.station}</span>
+                    <span className="station-card-team">{team.name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </>
       ) : (
         <div className="station-grid">
           {rigs.map((rig) => (
@@ -106,10 +142,24 @@ export function ZoneStationsDisplay({
   );
 }
 
-function StationBody({ view }: { view: StationView }) {
+function StationBody({ view, next }: { view: StationView; next: UpNext }) {
   const t = useT();
 
   if (view.state === "idle") {
+    if (next?.team) {
+      return (
+        <div className="station-screen-body">
+          <span className="station-screen-wave">
+            {t("Up next")} · {t("Wave")} {next.wave}
+          </span>
+          <h1 className="station-screen-team display">{next.team.name}</h1>
+          <p className="station-screen-idle">
+            {t("in {time}", { time: countdown(next.inMs) })}
+            {next.estimated ? ` (${t("estimated")})` : ""}
+          </p>
+        </div>
+      );
+    }
     return <p className="station-screen-idle">{t("No wave in this zone right now.")}</p>;
   }
 

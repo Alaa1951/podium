@@ -15,6 +15,8 @@ import {
   canCreateAccount,
   canControlWave,
   canWriteScore,
+  isFloorAccount,
+  waveButtons,
   isAdmin,
   isBft,
   isCompetitor,
@@ -199,11 +201,19 @@ describe("canCreateAccount — who may issue an account to whom", () => {
     expect(canCreateAccount(admin, "competitor", "studio-the-pearl").allowed).toBe(true);
   });
 
-  it("lets BFT MENA Partial create anything but Full access — and only with users.invite", () => {
+  it("lets BFT MENA Partial create athletes and event staff — and only with users.invite", () => {
     expect(canCreateAccount(staff, "organiser", null).allowed).toBe(true);
-    expect(canCreateAccount(staff, "staff", null).allowed).toBe(true);
-    expect(canCreateAccount(staff, "admin", null).allowed).toBe(false);
+    expect(canCreateAccount(staff, "competitor", "studio-the-pearl").allowed).toBe(true);
     expect(canCreateAccount({ ...staff, permissions: [] }, "organiser", null).allowed).toBe(false);
+  });
+
+  it("never lets BFT MENA Partial create a BFT MENA or gym account", () => {
+    // A new Partial account carries the whole default Partial role, whatever
+    // the inviter holds; a new gym account at an address they control runs
+    // that gym. Both are BFT MENA Full's.
+    expect(canCreateAccount(staff, "staff", null).allowed).toBe(false);
+    expect(canCreateAccount(staff, "studio", "studio-the-pearl").allowed).toBe(false);
+    expect(canCreateAccount(staff, "admin", null).allowed).toBe(false);
   });
 
   it("lets a studio create athletes and organisers only", () => {
@@ -271,5 +281,28 @@ describe("canControlWave — who presses the wave buttons", () => {
 
   it("refuses a judge who leads no zone of that competition", () => {
     expect(canControlWave(judge, "start", false)).toBe(false);
+  });
+
+  it("opens each button on its own key", () => {
+    const starter: CurrentUser = { ...organiser, permissions: ["waveControl.view", "waveControl.start"] };
+    expect(canControlWave(starter, "start", false)).toBe(true);
+    expect(canControlWave(starter, "finish", false)).toBe(false);
+    expect(canControlWave(starter, "reset", false)).toBe(false);
+    const ender: CurrentUser = { ...organiser, permissions: ["waveControl.end"] };
+    expect(canControlWave(ender, "finish", false)).toBe(true);
+    expect(canControlWave(ender, "reset", false)).toBe(false);
+    expect(waveButtons(ender)).toEqual({ startDay: false, start: false, end: true, reset: false });
+    expect(waveButtons(supervisor)).toEqual({ startDay: true, start: true, end: true, reset: true });
+  });
+
+  it("never lets a gym or athlete account press them, whatever its roles list", () => {
+    const gym: CurrentUser = { ...studio, permissions: ["waveControl.control", "waveControl.start"] };
+    for (const action of ["start", "finish", "reset"] as const) {
+      expect(canControlWave(gym, action, false)).toBe(false);
+    }
+    expect(isFloorAccount(gym)).toBe(false);
+    expect(isFloorAccount(competitor)).toBe(false);
+    expect(isFloorAccount(organiser)).toBe(true);
+    expect(isFloorAccount(staff)).toBe(true);
   });
 });

@@ -26,6 +26,7 @@ import {
   canChangeOverrides,
   canEditRole,
   canManageTarget,
+  canTakeOverTarget,
   mergeScoped,
   roleRowLock,
   validateRoleContents,
@@ -303,6 +304,40 @@ describe("grant policy — who may manage whom", () => {
     expect(canManageTarget(partial, partialTarget)).toMatchObject({ allowed: false, reason: "FORBIDDEN" });
     // Other account types never needed them.
     expect(canManageTarget(partial, athleteAtWest)).toEqual({ allowed: true });
+  });
+});
+
+describe("grant policy — taking the way into an account", () => {
+  const organiser = {
+    id: "o1",
+    role: "organiser" as const,
+    studioId: null,
+    permissions: ["waveControl.view", "waveControl.control", "home.view"],
+  };
+  const athlete = {
+    id: "a1",
+    role: "competitor" as const,
+    studioId: "west",
+    permissions: ["athleteHome.view", "partner.edit", "home.view"],
+  };
+
+  it("refuses a Partial account an Organiser's email or reset link when it lacks the floor", () => {
+    // Otherwise: point the email at an address of its own, reset the
+    // password, and start and end waves as the Organiser.
+    expect(canManageTarget(partial, organiser)).toEqual({ allowed: true });
+    expect(canTakeOverTarget(partial, organiser)).toMatchObject({ allowed: false, reason: "NOT_HELD" });
+    expect(canTakeOverTarget(fullAdmin, organiser)).toEqual({ allowed: true });
+  });
+
+  it("lets a Partial account help an athlete back in — an athlete's own pages are not powers", () => {
+    expect(canTakeOverTarget(partial, athlete)).toEqual({ allowed: true });
+  });
+
+  it("fails closed when the target's permissions were not loaded", () => {
+    expect(canTakeOverTarget(partial, { id: "o2", role: "organiser", studioId: null })).toMatchObject({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
   });
 });
 

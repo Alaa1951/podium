@@ -10,6 +10,12 @@ describe("mobile navigation boundaries",()=>{
     const groups=[{title:"",items:[{href:"/series/test",label:"Overview"},{href:"/series/test/registrations",label:"Competitors"},{href:"/series/test/waves",label:"Waves",locked:true},{href:"/series/test/scores",label:"Scores"},{href:"/results",label:"Public"}]}];
     expect(mobileTabs(groups).map(item=>item.href)).toEqual(["/series/test/registrations","/series/test/scores"]);
   });
+  it("gives a volunteer Marshalling as a tab without moving an organiser's four",()=>{
+    const volunteer=[{title:"",items:[{href:"/series/test/board",label:"Live board"},{href:"/series/test/waves",label:"Waves"},{href:"/series/test/marshalling",label:"Marshalling"}]}];
+    expect(mobileTabs(volunteer).map(item=>item.href)).toEqual(["/series/test/waves","/series/test/marshalling"]);
+    const organiser=[{title:"",items:["registrations","waves","wave-control","marshalling","shirts","scores","results"].map(section=>({href:`/series/test/${section}`,label:section}))}];
+    expect(mobileTabs(organiser).map(item=>item.href)).toEqual(["/series/test/registrations","/series/test/waves","/series/test/scores","/series/test/results"]);
+  });
   it("does not highlight a sibling whose name shares a prefix",()=>{
     expect(matchesRoute("/users/abc/edit","/users")).toBe(true);
     expect(matchesRoute("/users-old","/users")).toBe(false);

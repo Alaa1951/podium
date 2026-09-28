@@ -58,8 +58,10 @@ export async function loadPermissions(userId: string, accountType: Role): Promis
  * held to "only manage what you hold". Other targets pass through unchanged.
  */
 export async function targetWithPermissions<T extends { id: string; role: Role }>(
-  target: T
+  target: T,
+  /** Load them for every account type, not only Partial staff — see canTakeOverTarget. */
+  options: { always?: boolean } = {}
 ): Promise<T & { permissions?: string[] }> {
-  if (target.role !== "staff") return target;
+  if (target.role !== "staff" && !options.always) return target;
   return { ...target, permissions: await loadPermissions(target.id, target.role) };
 }

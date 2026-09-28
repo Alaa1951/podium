@@ -113,4 +113,77 @@ export const AR_FLOOR: Phrases = {
   Changeover: "فترة التبديل",
   "No wave in this zone right now.": "لا توجد موجة في هذه المنطقة الآن.",
   "This rig is not in use for this wave.": "هذه المحطة غير مستخدمة في هذه الموجة.",
+  "Open the screen for my rig": "افتح شاشة محطتي",
+  "My score sheet": "ورقة درجاتي",
+  "Open the screen for my zone": "افتح شاشة منطقتي",
+
+  // ── The judge's day ────────────────────────────────────────────────────────
+  "You are on Zone {zone} · Station {station}": "أنت في المنطقة {zone} · المحطة {station}",
+  "You are on Zone {zone} · every station": "أنت في المنطقة {zone} · كل المحطات",
+  "Coming to you next": "القادم إليك",
+  "After this wave": "بعد هذه الموجة",
+  "about {time}": "حوالي {time}",
+  "about {time} · behind schedule": "حوالي {time} · متأخرة عن الموعد",
+  "behind schedule": "متأخرة عن الموعد",
+  "in {time}": "بعد {time}",
+  "Estimated: the wave has not started. It moves if the floor runs late.":
+    "وقت تقديري: الموجة لم تبدأ بعد، ويتأخر إذا تأخر سير البطولة.",
+  "No team in this wave.": "لا يوجد فريق في هذه الموجة.",
+  "No more waves are coming to your zone today.": "لا توجد موجات أخرى قادمة إلى منطقتك اليوم.",
+  "Team names appear here once the competition starts.": "تظهر أسماء الفرق هنا عند بدء البطولة.",
+  "Your day · {count} waves": "يومك · {count} موجات",
+  "In your zone": "في منطقتك",
+  Later: "لاحقًا",
+  "Not checked in": "لم يسجّل حضوره",
+  "Unpaid — not on the rig screen": "غير مدفوع — لا يظهر على شاشة المحطة",
+  "The competition has not started yet. Scoring opens when it does — the waves coming to you are listed above.":
+    "البطولة لم تبدأ بعد. يُفتح إدخال الدرجات عند بدئها — الموجات القادمة إليك معروضة في الأعلى.",
+  "Waiting for your zone leader to place you on a station. Until then you see every station of your zone.":
+    "بانتظار أن يضعك قائد منطقتك على محطة. حتى ذلك الحين تظهر لك كل محطات منطقتك.",
+  "Scores from this wave have already been submitted, so it can no longer be reset. Ask BFT MENA.":
+    "تم إرسال درجات من هذه الموجة، لذلك لم يعد ممكنًا إعادة ضبطها. تواصل مع BFT MENA.",
+  "The competition can only be started on its own day. BFT MENA can start it early from Settings.":
+    "لا يمكن بدء البطولة إلا في يومها. يمكن لـ BFT MENA بدؤها مبكرًا من الإعدادات.",
+
+  // ── Marshalling ────────────────────────────────────────────────────────────
+  Marshalling: "توجيه الفرق",
+  "Where every wave is, where it goes next, and who to call up for the next start. Times for a wave that has not started are estimates.":
+    "أين كل موجة الآن، وإلى أين تتجه بعدها، ومن يجب استدعاؤه للبداية القادمة. أوقات الموجة التي لم تبدأ تقديرية.",
+  "The competition has not started yet. The call-up below follows the planned start times.":
+    "البطولة لم تبدأ بعد. الاستدعاء أدناه يتبع مواعيد البداية المخططة.",
+  "Zones now": "المناطق الآن",
+  "Next in: {wave} at {time}": "التالية: {wave} الساعة {time}",
+  "Moving next": "الانتقال القادم",
+  "finishes at {time}": "تنتهي الساعة {time}",
+  "→ {zone} at {time}": "← {zone} الساعة {time}",
+  Stations: "المحطات",
+  "Call-up": "الاستدعاء",
+  "No more waves to call up.": "لا توجد موجات أخرى للاستدعاء.",
+  "starts about {time} — gather at Zone 1": "تبدأ حوالي {time} — التجمع عند المنطقة 1",
+  "{checked} of {total} checked in": "سجّل {checked} من {total} حضورهم",
+  "Undo check-in": "إلغاء تسجيل الحضور",
+
+  // ── T-shirts ───────────────────────────────────────────────────────────────
+  "T-shirts": "التيشيرتات",
+  "One shirt per athlete on an entered team. The waiting list is counted apart, not in the order.":
+    "تيشيرت واحد لكل رياضي في فريق مسجّل. قائمة الانتظار تُحسب منفصلة وليست ضمن الطلب.",
+  "Download CSV": "تنزيل ملف CSV",
+  "To order": "المطلوب طباعته",
+  "Entered teams": "الفرق المسجّلة",
+  "{count} athletes have no size yet — see the list below.": "{count} رياضيين بلا مقاس حتى الآن — راجع القائمة أدناه.",
+  "By gym": "حسب الجيم",
+  Gym: "الجيم",
+  "By category and level": "حسب الفئة والمستوى",
+  "No size given": "بدون مقاس",
+  "Signed up, not on a team yet": "مسجّلون ولم ينضموا إلى فريق بعد",
+  "Not counted in the order until they are on a team.": "لا يُحسبون في الطلب حتى ينضموا إلى فريق.",
+  Size: "المقاس",
+
+  // ── The athlete's day ──────────────────────────────────────────────────────
+  "Your day": "يومك",
+  "Not checked in yet": "لم يُسجَّل حضوركم بعد",
+  "You keep the same station in every zone. Be at Zone 1 before your wave starts.":
+    "تبقون على نفس المحطة في كل المناطق. كونوا عند المنطقة 1 قبل بدء موجتكم.",
+  Now: "الآن",
+  "T-shirt: {size}": "التيشيرت: {size}",
 };

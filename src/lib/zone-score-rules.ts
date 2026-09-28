@@ -9,7 +9,11 @@ import { can, type CurrentUser } from "@/lib/access";
 //   Entry closed      once the competition's score-entry cut-off has passed,
 //                     for everyone but Full access — judges included.
 //   BFT MENA Partial  with scores.enter: any zone, from the console, until
-//                     it is submitted.
+//                     it is submitted — and not once the team's wave clock
+//                     has run out (the same rule as canWriteScore).
+//   Posts             a leader, judge or reserve writes only while they
+//                     hold the judge sheet (the Judge role): a post left
+//                     behind when the role is taken away opens nothing.
 //   Zone leader       any station of their own zone, for any wave that has
 //                     reached it, while the competition is running — the
 //                     zone's safety valve for a sheet a judge left open.
@@ -37,6 +41,8 @@ export type ZoneWriteFacts = {
   zoneSubmitted: boolean;
   /** The competition's score-entry cut-off has passed. */
   entryClosed?: boolean;
+  /** The team's wave clock has run out (or the wave was ended). */
+  waveEnded?: boolean;
 };
 
 export type ZoneWriteDecision =
@@ -47,6 +53,7 @@ export type ZoneWriteDecision =
         | "FORBIDDEN"
         | "SCORE_LOCKED"
         | "SCORE_ENTRY_CLOSED"
+        | "WAVE_CLOCK_ENDED"
         | "SERIES_NOT_LIVE"
         | "WAVE_NOT_HERE"
         | "WAVE_MOVED_ON"
@@ -62,9 +69,14 @@ export function canWriteZoneScore(facts: ZoneWriteFacts): ZoneWriteDecision {
   }
   if (!can(user, "scores.enter")) return { allowed: false, reason: "FORBIDDEN" };
   if (facts.entryClosed) return { allowed: false, reason: "SCORE_ENTRY_CLOSED" };
-  if (user.role === "staff") return { allowed: true, as: "console" };
+  if (user.role === "staff") {
+    if (!facts.waveEnded) return { allowed: true, as: "console" };
+    // After the clock the console is closed; a Partial account that also
+    // works a zone still has its post, by the post's rules below.
+    if (!post) return { allowed: false, reason: "WAVE_CLOCK_ENDED" };
+  }
 
-  if (!post) return { allowed: false, reason: "FORBIDDEN" };
+  if (!post || !can(user, "judgeSheet.view")) return { allowed: false, reason: "FORBIDDEN" };
   if (facts.seriesStatus !== "live") return { allowed: false, reason: "SERIES_NOT_LIVE" };
   if (!facts.reached) return { allowed: false, reason: "WAVE_NOT_HERE" };
   if (post.position === "leader") return { allowed: true, as: "leader" };

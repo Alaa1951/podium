@@ -220,6 +220,11 @@ export async function assignStudio(input: unknown): Promise<ActionResult> {
   if (!current) return { ok: false, error: "NOT_FOUND" };
   const manage = canManageTarget(actor, await targetWithPermissions(current));
   if (!manage.allowed) return { ok: false, error: manage.reason };
+  // Which gym a GYM account runs is BFT MENA Full access's call: moving one
+  // hands its holder that gym's people and teams.
+  if (current.role === "studio" && actor.role !== "admin" && parsed.data.studioId !== current.studioId) {
+    return { ok: false, error: "FORBIDDEN" };
+  }
 
   const moved = await prisma.user.update({
     where: { id: parsed.data.userId },

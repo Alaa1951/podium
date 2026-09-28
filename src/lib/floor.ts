@@ -229,6 +229,156 @@ export function zoneDuty<W extends FloorWave>(
   return { wave, phase, phaseRemainingMs, next };
 }
 
+// ── The day ahead: when each wave reaches each zone ─────────────────────────
+//
+// A judge must see the team walking towards their station BEFORE its clock
+// starts — not the second it does. Nothing about a wave that has not started
+// is known for certain, so its times are an ESTIMATE, always shown as one:
+// its scheduled start, pushed later when the floor runs behind (a wave can
+// only start once Zone 1 is free, one zone-slot after the wave before it).
+// A started wave's times are exact. Nothing here gates a write — scoring
+// still waits for the wave to actually reach the zone (zoneArrival).
+
+/** A wave with what the estimate needs: its place in the order and its planned start. */
+export type PlannedWave = FloorWave & {
+  number: number;
+  /** The scheduled start as an instant (Qatar wall time on the day), or null if unknown. */
+  plannedStart: Date | null;
+  /** Whether any team is on it — an empty pending wave can never start. */
+  hasTeams: boolean;
+};
+
+export type ProjectedStart = {
+  startsAt: Date;
+  /** True until the wave has actually started. */
+  estimated: boolean;
+  /** A pending wave whose scheduled start has already passed. */
+  overdue: boolean;
+};
+
+/**
+ * When every wave starts (or started). Started waves keep their real start.
+ * Pending waves with teams follow in wave-number order: each at its planned
+ * start, or as soon as Zone 1 is free after the one before it — whichever is
+ * later, and never in the past. A pending wave with no team is left out: it
+ * cannot start, and counting it would push every later wave back.
+ */
+export function projectWaveStarts(
+  waves: PlannedWave[],
+  timing: FloorTiming,
+  now: Date
+): Map<string, ProjectedStart> {
+  const result = new Map<string, ProjectedStart>();
+  const slotMs = (timing.workMinutes + (timing.zoneCount > 1 ? timing.breakMinutes : 0)) * 60_000;
+  const running: { startedAt: Date | null }[] = [];
+  for (const wave of waves) {
+    if (wave.status === "pending" || !wave.startedAt) continue;
+    result.set(wave.id, { startsAt: wave.startedAt, estimated: false, overdue: false });
+    if (wave.status === "running") running.push(wave);
+  }
+  let cursor = Math.max(now.getTime(), zoneOneFreeAt(running, timing, now)?.getTime() ?? 0);
+  const pending = waves
+    .filter((wave) => (wave.status === "pending" || !wave.startedAt) && wave.hasTeams)
+    .sort((a, b) => a.number - b.number);
+  for (const wave of pending) {
+    const planned = wave.plannedStart?.getTime() ?? null;
+    const start = Math.max(cursor, planned ?? cursor);
+    result.set(wave.id, { startsAt: new Date(start), estimated: true, overdue: planned !== null && planned < now.getTime() });
+    cursor = start + slotMs;
+  }
+  return result;
+}
+
+/** One wave's visit to one zone. */
+export type ZoneVisit = {
+  waveId: string;
+  number: number;
+  /** done: gone through (or ended); here: working or changing over in it; coming: still to arrive. */
+  state: "done" | "here" | "coming";
+  workStartsAt: Date;
+  workEndsAt: Date;
+  /** True while the wave has not started — the times are an estimate. */
+  estimated: boolean;
+  overdue: boolean;
+};
+
+/**
+ * Every wave's visit to one zone across the day, in the order they reach it.
+ * A wave ended before it got to the zone never visits it.
+ */
+export function zoneSchedule(waves: PlannedWave[], zoneIndex: number, timing: FloorTiming, now: Date): ZoneVisit[] {
+  const window = zoneWindows(timing)[zoneIndex];
+  if (!window) return [];
+  const starts = projectWaveStarts(waves, timing, now);
+  const visits: ZoneVisit[] = [];
+  for (const wave of waves) {
+    const start = starts.get(wave.id);
+    if (!start) continue;
+    const base = start.startsAt.getTime();
+    const workStart = base + window.workStartMs;
+    let state: ZoneVisit["state"];
+    if (wave.status === "complete") {
+      // Ended before this zone's work began: it never came here.
+      if (wave.endsAt && workStart >= wave.endsAt.getTime()) continue;
+      state = "done";
+    } else if (start.estimated || now.getTime() < workStart) {
+      state = "coming";
+    } else if (now.getTime() < base + window.breakEndMs) {
+      state = "here";
+    } else {
+      state = "done";
+    }
+    visits.push({
+      waveId: wave.id,
+      number: wave.number,
+      state,
+      workStartsAt: new Date(workStart),
+      workEndsAt: new Date(base + window.workEndMs),
+      estimated: start.estimated,
+      overdue: start.overdue,
+    });
+  }
+  return visits.sort((a, b) => a.workStartsAt.getTime() - b.workStartsAt.getTime() || a.number - b.number);
+}
+
+/** One wave's time in each zone, in running order — what an athlete is told about their day. */
+export type ZoneSlot = {
+  zoneIndex: number;
+  workStartsAt: Date;
+  workEndsAt: Date;
+  state: "done" | "here" | "coming";
+  estimated: boolean;
+};
+
+export function waveZoneTimes(waves: PlannedWave[], waveId: string, timing: FloorTiming, now: Date): ZoneSlot[] {
+  const wave = waves.find((one) => one.id === waveId);
+  const start = projectWaveStarts(waves, timing, now).get(waveId);
+  if (!wave || !start) return [];
+  const base = start.startsAt.getTime();
+  const slots: ZoneSlot[] = [];
+  for (const window of zoneWindows(timing)) {
+    const workStart = base + window.workStartMs;
+    // An ended wave never reached the zones after it ended.
+    if (wave.status === "complete" && wave.endsAt && workStart >= wave.endsAt.getTime()) break;
+    const state: ZoneSlot["state"] =
+      wave.status === "complete"
+        ? "done"
+        : start.estimated || now.getTime() < workStart
+          ? "coming"
+          : now.getTime() < base + window.breakEndMs
+            ? "here"
+            : "done";
+    slots.push({
+      zoneIndex: window.index,
+      workStartsAt: new Date(workStart),
+      workEndsAt: new Date(base + window.workEndMs),
+      state,
+      estimated: start.estimated,
+    });
+  }
+  return slots;
+}
+
 /** The lowest free station in a wave, or null when all nine are taken. */
 export function lowestFreeStation(taken: (number | null)[], capacity = MAX_STATIONS): number | null {
   const used = new Set(taken.filter((station): station is number => station !== null));

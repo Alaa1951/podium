@@ -148,6 +148,13 @@ export async function requireConsoleAccess(permission: PermissionKey): Promise<C
   return user;
 }
 
+/** requireConsoleAccess, passing when the user holds any one of the keys. */
+export async function requireConsoleAnyAccess(permissions: PermissionKey[]): Promise<CurrentUser> {
+  const user = await requireAnyAccess(permissions);
+  if (user.role === "studio" || user.role === "competitor") redirect(await homeForUser(user));
+  return user;
+}
+
 /** Same as requireAccess, passing when the user holds any one of the keys. */
 export async function requireAnyAccess(permissions: PermissionKey[]): Promise<CurrentUser> {
   const user = await requireUser();

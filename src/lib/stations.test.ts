@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BoardTeam } from "@/lib/board";
-import { stationView, zoneStations } from "@/lib/stations";
+import { nextOnStation, stationView, zoneStations } from "@/lib/stations";
 import type { WaveState } from "@/lib/waves";
 
 function wave(
@@ -156,5 +156,26 @@ describe("a whole zone at once", () => {
 
   it("shows nothing at all when no wave is in the zone", () => {
     expect(zoneStations({ waves, teams, zoneNumber: 7 })).toEqual([]);
+  });
+});
+
+describe("up next, on a rig with nobody on it", () => {
+  const upNext = [{ zoneNumber: 3, wave: 1, inMs: 90_000, estimated: false }];
+
+  it("names the pair coming onto this rig, and counts down from the payload's age", () => {
+    const next = nextOnStation({ upNext, teams, zoneNumber: 3, station: 4, elapsedMs: 30_000 });
+    expect(next).toMatchObject({ wave: 1, inMs: 60_000, estimated: false, team: { number: 102 } });
+  });
+
+  it("says the wave with nobody on this rig when it has none here", () => {
+    expect(nextOnStation({ upNext, teams, zoneNumber: 3, station: 9, elapsedMs: 0 })).toMatchObject({ wave: 1, team: null });
+  });
+
+  it("has nothing when no wave is coming to the zone", () => {
+    expect(nextOnStation({ upNext, teams, zoneNumber: 4, station: 3, elapsedMs: 0 })).toBeNull();
+  });
+
+  it("never counts below zero", () => {
+    expect(nextOnStation({ upNext, teams, zoneNumber: 3, station: 3, elapsedMs: 500_000 })?.inMs).toBe(0);
   });
 });

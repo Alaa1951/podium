@@ -135,3 +135,31 @@ describe("only the wave the zone is on", () => {
     expect(canWriteZoneScore({ ...base, reached: false, onDuty: false })).toMatchObject({ reason: "WAVE_NOT_HERE" });
   });
 });
+
+describe("after the wave clock", () => {
+  const staff = { role: "staff" as const, permissions: ["scores.enter"] };
+
+  it("closes the console for Partial staff, as canWriteScore does", () => {
+    expect(canWriteZoneScore({ ...base, user: staff, post: null, waveEnded: true })).toMatchObject({
+      reason: "WAVE_CLOCK_ENDED",
+    });
+  });
+
+  it("leaves a Partial account's own zone post working by the post's rules", () => {
+    const judging = { role: "staff" as const, permissions: ["scores.enter", "judgeSheet.view"] };
+    expect(canWriteZoneScore({ ...base, user: judging, waveEnded: true })).toEqual({ allowed: true, as: "judge" });
+  });
+
+  it("lets a judge still submit the last wave's sheet until the next one arrives", () => {
+    expect(canWriteZoneScore({ ...base, waveEnded: true })).toEqual({ allowed: true, as: "judge" });
+  });
+});
+
+describe("a post without the judge sheet", () => {
+  it("opens nothing once the Judge role is taken away", () => {
+    const noSheet = { role: "organiser" as const, permissions: ["scores.enter"] };
+    expect(canWriteZoneScore({ ...base, user: noSheet })).toMatchObject({ reason: "FORBIDDEN" });
+    const leader = { ...base, user: noSheet, post: { position: "leader" as const, station: null } };
+    expect(canWriteZoneScore(leader)).toMatchObject({ reason: "FORBIDDEN" });
+  });
+});

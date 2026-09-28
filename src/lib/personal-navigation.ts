@@ -27,8 +27,14 @@ export function personalNavItems(role: string, homeHref?: string): PersonalNavIt
     ];
   }
   if (homeHref === "/my-wave") {
+    // The judge sheet leads, but a judge is often more than a judge — a gym
+    // owner, an organiser, BFT MENA staff, or somebody given T-shirts or
+    // check-in on top. Home is where every other screen they hold is, so it
+    // is a tab here, not only a button inside the sheet.
+    const home = role === "studio" ? "/studio" : role === "admin" ? "/" : "/home";
     return [
       { href: "/my-wave", label: "My wave" },
+      { href: home, label: "Home" },
       { href: "/results", label: "Results" },
       { href: "/account", label: "Account" },
     ];

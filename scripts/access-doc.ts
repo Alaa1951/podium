@@ -78,8 +78,29 @@ out(
     ? "**This copy shows the roles as they are in the live database** (BFT MENA edits them on the Roles screen). It is not committed."
     : "The roles below are the ones PODIUM **ships with**. BFT MENA can change them on the Roles screen, so a running system may differ — `npm run docs:access -- --live` (with the database's environment loaded) writes the live picture.",
   "",
-  "Contents: [How access is decided](#how-access-is-decided) · [Account types](#account-types) · [The roles](#the-roles) · [On the floor](#on-the-floor-zone-posts) · [Scores](#scores) · [Wave control](#wave-control) · [Test accounts](#test-accounts) · [Known limits](#known-limits) · [Permission matrix](#permission-matrix) · [Who may give each role](#who-may-give-each-role)",
+  "Contents: [Who does what, in plain words](#who-does-what-in-plain-words) · [How access is decided](#how-access-is-decided) · [Account types](#account-types) · [The roles](#the-roles) · [On the floor](#on-the-floor-zone-posts) · [Scores](#scores) · [Wave control](#wave-control) · [Test accounts](#test-accounts) · [Known limits](#known-limits) · [Permission matrix](#permission-matrix) · [Who may give each role](#who-may-give-each-role)",
   ""
+);
+
+// ── Who does what, in plain words ────────────────────────────────────────────
+out(
+  "## Who does what, in plain words",
+  "",
+  "A **role** says what a person can do; a **post** (Zone leader / Judge / Reserve, set on Wave control → Zone teams) says where they stand on the floor of one competition. One person can hold several roles; they add up.",
+  "",
+  "| Who | Screens, and what they can do there | Cannot |",
+  "| --- | --- | --- |",
+  "| **BFT MENA Full access** | Everything. The only one who corrects or unlocks a submitted score, changes an account type or which gym a gym account runs, creates BFT MENA or gym accounts, and decides who may give a role. | — |",
+  "| **BFT MENA Partial** | By default, views every console screen. Anything more comes from extra roles (e.g. Organiser). | Correct scores; change account types; create BFT MENA or gym accounts; change a stronger person's email or send them a reset link |",
+  "| **Gym / Studio** | **Users:** invite its athletes and event staff, approve sign-ups that name it, give Athlete / Judge to its own people. **Registrations:** its own teams (edit, withdraw, pair). **Waves:** view. **Scores / Results:** its own teams. **Announcements:** to its own people. | Wave control, Marshalling, payment, other gyms' data before the day; any floor button even if a role lists it |",
+  "| **Organiser** (floor supervisor) | **Wave control:** start the day (on the competition's date), Start / End now / Reset a wave (Reset is refused once a zone of that wave is submitted); rig-screen links. **Marshalling:** view, check teams in. **Waves:** create, set times, place teams, auto-assign. **Zone teams:** put judges on zones, pick leaders, place stations. **Registrations:** view, check in, export (no money, no phone or email). **T-shirts:** counts and list. **Scores / Results / Settings:** view. | Edit teams, payment, settings, the score console, corrections |",
+  "| **Zone leader** (post) | **Judge sheet:** the zone's whole day, every station; scores any station once the wave reaches the zone; submits sheets a judge left open; places the zone's judges on stations; **Start** the next wave when Zone 1 is free. | End now / Reset; other zones |",
+  "| **Judge** (post) | **Judge sheet:** \"You are on Zone Y · Station X\"; every wave coming to that station today with the team, the athletes and whether they checked in; the next one highlighted with a countdown — before it starts. Scores **only** that station, only while the wave is in the zone. | Score before the wave arrives, after the next one comes, or another station; the console |",
+  "| **Reserve** (post) | Until placed: the zone's whole day, every station, read-only. Once placed on a station: the same as a Judge. | Score before being placed |",
+  "| **Volunteer** | **Marshalling:** where each wave is, where it goes next, who to call up — station by station, with names. **Waves:** view. Live board. Given per person on top: **Check teams in** (`registrations.attendance`). | Start or stop waves, score, change anything else |",
+  "| **Coach** | **Waves** and **Results**: view. Live board. | Everything else |",
+  "| **Athlete** | **My team (`/me`):** team, partner, wave, **station**, **time in each zone** (estimated until the wave starts), check-in status, T-shirt size of each seat; ask for a morning / midday / evening wave. **My wave**, Results, Live board, Find a partner. | See other teams before the day; anything on the staff side |",
+  "",
 );
 
 // ── How access is decided ────────────────────────────────────────────────────
@@ -108,6 +129,8 @@ out(
   "- **Anti-escalation** (`src/lib/permissions/grant-policy.ts`):",
   "  - you can only hand out what you hold (Full access exempt), and nobody changes their own access;",
   "  - a BFT MENA Limited account manages another Limited account only if it holds everything that account holds — otherwise changing a stronger colleague's email and sending a reset link would take their account over;",
+  "  - changing **anyone's** email or sending them a reset link needs every competition and platform power that person holds (`canTakeOverTarget`) — an athlete's own pages don't count;",
+  "  - only Full access changes an account type, moves a gym account to another gym, creates a BFT MENA or gym account, or changes who may give a role and to which account types;",
   "  - a gym gives only roles marked \"BFT MENA and studios\" (Athlete, Judge), only to its own people;",
   "  - a role is given only to the account types it is meant for (the Judge role to an organiser account, never to an athlete); it can always be taken away;",
   "  - `src/lib/access.ts` is where the scope rules live (`teamScope`, `accountScope`, `canWriteScore`, `canControlWave`).",
@@ -185,12 +208,14 @@ out(
   "",
   "### What a judge sees, and when",
   "",
-  "The judge sheet (`/my-wave`) shows **one team**: the one on the judge's station, in the wave the judge's zone is **on** — the last wave that has reached that zone (`floor.ts › waveOnDuty`). The screen and the server use the same rule, so nothing can be written that the sheet does not show.",
+  "At the top the sheet says where the judge stands (\"You are on Zone Y · Station X\") and lists **their day**: every wave that will come through the zone, the team it brings to their station, the athletes' names, whether the pair checked in, and roughly when it arrives — the next one highlighted with a countdown (`judge-day.ts`, `floor.ts › zoneSchedule`). It is there **before a wave starts, and before the competition starts**, so the judge can call the pair over during the changeover. Times of a wave not started yet are estimates: its planned start, pushed later when the floor runs behind. A gym's own account judging sees team numbers but not names until the competition is Running. A leader, or a judge not yet placed on a station, sees every station of the zone.",
+  "",
+  "Below that, the **scoring card** shows **one team**: the one on the judge's station, in the wave the judge's zone is **on** — the last wave that has reached that zone (`floor.ts › waveOnDuty`). The screen and the server use the same rule, so nothing can be written that the sheet does not show.",
   "",
   "| Moment (Zone N) | The judge sees |",
   "| --- | --- |",
-  "| Competition not Running | \"The competition has not started yet.\" |",
-  "| Not placed on a station | \"Waiting for your zone leader to place you on a station.\" |",
+  "| Competition not Running | the day's list; scoring \"opens when the competition starts\". |",
+  "| Not placed on a station | every station of the zone in the day's list; \"Waiting for your zone leader to place you on a station.\" |",
   "| No wave has reached Zone N | \"No team on your zone or station right now\" — and, if a wave is on the floor, which one and **when it reaches Zone N** (a countdown). |",
   "| A wave is working in Zone N, or changing zones after it | the station's team, with the zone timer. \"No team on your station in this wave\" if the wave has none there. |",
   "| That wave has moved on, sheet not submitted | the team stays, marked \"has left your zone — submit before the next wave arrives\". |",
@@ -232,14 +257,16 @@ out(
   "",
   "| Button | Who | Rule in |",
   "| --- | --- | --- |",
-  "| **Start the competition** (Scheduled → Running) | the supervisor: `waveControl.control` (Organiser role, BFT MENA) — or BFT MENA from Settings | `actions/waves.ts › startCompetitionDay` |",
-  "| **Start wave** | the supervisor, or any **zone leader** of that competition | `access.ts › canControlWave` |",
-  "| **End now** / **Reset** | the supervisor only | `access.ts › canControlWave` |",
+  "| **Start the competition** (Scheduled → Running) | `waveControl.control` (Organiser role) or `waveControl.startDay` — **only on the competition's date** unless BFT MENA; BFT MENA also from Settings | `actions/waves.ts › startCompetitionDay` |",
+  "| **Start wave** | `waveControl.control` or `waveControl.start`, or any **zone leader** of that competition | `access.ts › canControlWave` |",
+  "| **End now** | `waveControl.control` or `waveControl.end` | `access.ts › canControlWave` |",
+  "| **Reset** | `waveControl.control` or `waveControl.reset` — refused once any zone of that wave is **submitted**, except for Full access | `access.ts › canControlWave`, `actions/waves.ts` |",
+  "| **Marshalling** (`/series/…/marshalling`) | `marshalling.view` (Volunteer), or anyone who sees Wave control; the Check in button needs `registrations.attendance` | `screens/marshalling.tsx`, `lib/marshalling.ts` |",
   "| Put judges on zones, pick leaders | `zoneStaff.assign` | `actions/zone-staff.ts` |",
   "| Place judges on stations | `zoneStaff.assign`, or that zone's leader | `actions/zone-staff.ts` |",
   "| Rig screens (`/series/…/zone/N/stations`) before the day | BFT MENA, and `waveControl.view` holders (to set them up) | `visibility.ts › readsWholeBoard` |",
   "",
-  "A new wave starts only once Zone 1 is free, so two waves never meet in a zone. Nothing changes the floor of a **finished** competition.",
+  "A new wave starts only once Zone 1 is free, so two waves never meet in a zone. Nothing changes the floor of a **finished** competition. Every wave button and every schedule change refuses a gym or athlete account, whatever a role they hold lists (`access.ts › isFloorAccount`). An idle rig screen shows who is **up next** on it, and when.",
   ""
 );
 
@@ -280,10 +307,10 @@ out(
   "",
   "Decisions the code makes on purpose, or has not made yet:",
   "",
-  "- **Organisers are not tied to one competition.** An organiser account's roles apply to every competition. Give the Organiser role only to people who run the floor for BFT MENA; it is BFT-MENA-only to hand out.",
+  "- **Organisers are not tied to one competition yet.** An organiser account's roles apply to every competition (per-competition roles are the next step). Until then: give floor roles only to this event's staff and take them away after, and an organiser can start a competition's day only on its date. Judges already are per competition — through their post.",
   "- **An organiser can put themselves on a zone** (they hold `zoneStaff.assign`). Every change is in the audit log.",
   "- **Going Running is the only status change the floor makes.** Back to Scheduled, and Finished, stay in Settings (`settings.edit`, BFT MENA).",
-  "- **Payment** stays BFT MENA's (`registrations.payment`); check-in is its own key, `registrations.attendance`, which the Organiser role carries.",
+  "- **Payment** stays BFT MENA's (`registrations.payment`); check-in is its own key, `registrations.attendance`, which the Organiser role carries and a Volunteer can be given. The roster export leaves out money unless you hold `registrations.payment`, and phone / email unless you are BFT MENA or the athletes' own gym; every download is in the audit log.",
   "- **Registering a pair by hand** and **restoring a withdrawn team** are BFT MENA's (the CRM is where entries come from).",
   "- **The live roles can differ** from the shipped ones above — BFT MENA edits them on the Roles screen. Run with `--live` to see them.",
   ""

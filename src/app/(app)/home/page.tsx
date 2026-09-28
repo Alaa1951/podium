@@ -4,14 +4,15 @@ import { redirect } from "next/navigation";
 import { ACCOUNT_TYPE_LABEL } from "@/components/accounts/account-types";
 import { ApprovalBanner } from "@/components/app/approval-banner";
 import { PlainHeader } from "@/components/app/plain-header";
-import { can, type PermissionKey } from "@/lib/access";
+import { can, canAny, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { homeForUser, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-type Door = { href: string; label: string; key: PermissionKey };
+/** A door opens for whoever holds any one of its keys — the same rule as the screen behind it. */
+type Door = { href: string; label: string; key: PermissionKey; also?: PermissionKey[] };
 
 /**
  * HOME for everyone without a console of their own — organisers, BFT MENA
@@ -61,20 +62,26 @@ export default async function HomePage() {
     { href: `/series/${slug}/registrations`, label: t("Athletes"), key: "registrations.view" },
     { href: `/series/${slug}/waves`, label: t("Waves"), key: "waves.view" },
     { href: `/series/${slug}/wave-control`, label: t("Wave control"), key: "waveControl.view" },
+    { href: `/series/${slug}/marshalling`, label: t("Marshalling"), key: "marshalling.view", also: ["waveControl.view"] },
+    { href: `/series/${slug}/shirts`, label: t("T-shirts"), key: "shirts.view", also: ["registrations.view"] },
     { href: `/series/${slug}/scores`, label: t("Score entry"), key: "scores.view" },
     { href: `/series/${slug}/results`, label: t("Results"), key: "results.view" },
     { href: `/series/${slug}/settings`, label: t("Settings"), key: "settings.view" },
     { href: `/series/${slug}/board`, label: t("Live board"), key: "board.view" },
   ];
 
-  const open = (doors: Door[]) => doors.filter((door) => can(user, door.key));
+  const open = (doors: Door[]) => doors.filter((door) => canAny(user, [door.key, ...(door.also ?? [])]));
   // The platform is BFT MENA's (see its layout): an organiser holding one of
   // these keys would be sent back here from every one of them.
   const platformDoors = user.role === "staff" ? open(platform) : [];
-  const grant = await prisma.zoneStaff.findFirst({
-    where: { userId: user.id, series: { status: { in: ["scheduled", "live"] } } },
-    select: { id: true },
-  });
+  // A post is worked through the judge sheet: without it (the Judge role
+  // taken away) a leftover post opens nothing, so it offers nothing either.
+  const grant = can(user, "judgeSheet.view")
+    ? await prisma.zoneStaff.findFirst({
+        where: { userId: user.id, series: { status: { in: ["scheduled", "live"] } } },
+        select: { id: true },
+      })
+    : null;
 
   const dateFormat = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",

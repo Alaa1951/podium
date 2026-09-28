@@ -1,4 +1,4 @@
-import { isPermissionKey, normalizeStoredPermissions, policyOf } from "@/lib/permissions/catalog";
+import { isPermissionKey, normalizeStoredPermissions, permissionEntry, policyOf } from "@/lib/permissions/catalog";
 import type { AccountType, RoleAssigner } from "@/lib/permissions/system-roles";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +134,33 @@ export function canManageTarget(actor: Actor, target: TargetAccount): Decision {
     return { allowed: true };
   }
   return { allowed: false, reason: "FORBIDDEN" };
+}
+
+/**
+ * Whether the actor may take the WAY IN to this account: change its email,
+ * or send it a password-reset link. Whoever controls the inbox controls the
+ * account, so this asks more than canManageTarget does.
+ *
+ * BFT MENA Partial: only over an account whose competition and platform
+ * powers they hold themselves. Otherwise a Partial account without the floor
+ * could point an Organiser's email at an address of its own, reset the
+ * password, and start and end waves as them. An athlete's personal pages
+ * (their own team, their partner, the judge sheet a post opens) don't count:
+ * those are the athlete's, not powers over anyone. Without the target's
+ * permissions the answer is no: fail closed.
+ */
+export function canTakeOverTarget(actor: Actor, target: TargetAccount): Decision {
+  const manage = canManageTarget(actor, target);
+  if (!manage.allowed) return manage;
+  if (actor.role === "admin") return { allowed: true };
+  if (!target.permissions) return { allowed: false, reason: "FORBIDDEN" };
+  const notHeld = target.permissions.filter((key) => {
+    const entry = permissionEntry(key);
+    if (!entry || entry.policy === "general" || entry.module === "personal") return false;
+    return !holds(actor, key);
+  });
+  if (notHeld.length) return { allowed: false, reason: "NOT_HELD", keys: notHeld };
+  return { allowed: true };
 }
 
 /** Giving a role to (or taking it from) a person. */

@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
 import { can } from "@/lib/access";
 import { countPendingSignups } from "@/lib/approvals";
+import { prisma } from "@/lib/prisma";
 import { getTranslator } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
@@ -42,6 +43,11 @@ export default async function StudioSeriesLayout({
   const teamCount = series.teamCount;
   // Sign-ups naming this studio, waiting for it (or BFT MENA) to decide.
   const waiting = await countPendingSignups(user);
+  // A gym owner who also judges this competition: the sheet is theirs to
+  // reach from here, not only from the link they land on.
+  const judging =
+    can(user, "judgeSheet.view") &&
+    (await prisma.zoneStaff.count({ where: { userId: user.id, seriesId: series.id } })) > 0;
 
   const at = (section: string) => `/studio/${series.slug}/${section}`;
 
@@ -49,6 +55,10 @@ export default async function StudioSeriesLayout({
     {
       title: "",
       items: [
+        // The room's board — before the day it counts down and shows the
+        // gym's own teams, on the day everyone's.
+        { href: `/series/${series.slug}/board`, label: t("Live board") },
+        ...(judging ? [{ href: "/my-wave", label: t("My score sheet") }] : []),
         ...(can(user, "registrations.view") ? [{ href: at("teams"), label: t("Teams"), badge: teamCount }] : []),
         ...(can(user, "registrations.partners")
           ? [{ href: at("partners"), label: t("Partner watch") }]

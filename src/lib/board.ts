@@ -7,6 +7,8 @@ import type { BoardDisplay } from "@/lib/visibility";
 import { nextWaveStart, summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { athletePhoto } from "@/lib/athlete-photo";
 import { isCompeting } from "@/lib/team-status";
+import { zoneSchedule, type PlannedWave } from "@/lib/floor";
+import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
 // One payload shape for the board, built once on the server and reused by the
 // page's first render and by the polling endpoint that keeps it fresh. Only
@@ -78,6 +80,12 @@ export type BoardPayload = {
   /** Whether the sponsor rail shows at all; off means brand-only screens. */
   sponsorsEnabled: boolean;
   teams: BoardTeam[];
+  /**
+   * For each zone, the next wave to reach it and how long until it does —
+   * a duration, like every other time here. What an idle rig screen shows
+   * ("Up next"). An estimate while that wave has not started.
+   */
+  upNext: { zoneNumber: number; wave: number; inMs: number; estimated: boolean }[];
 };
 
 /**
@@ -113,6 +121,25 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
   // which is why it is a status on the row and not a missing row.
   const onBoard = teams.filter(isCompeting);
 
+  // Up next, per zone: the same arithmetic as the judge sheet (floor.ts).
+  const ordered = [...zones].sort((a, b) => a.number - b.number);
+  const timing = { workMinutes: series.zoneWorkMinutes, breakMinutes: series.zoneBreakMinutes, zoneCount: ordered.length };
+  const day = formatQatarDayKey(series.competitionDate);
+  const planned: PlannedWave[] = waves.map((wave) => ({
+    id: wave.id,
+    number: wave.number,
+    status: wave.status,
+    startedAt: wave.startedAt ? new Date(wave.startedAt) : null,
+    endsAt: wave.endsAt ? new Date(wave.endsAt) : null,
+    plannedStart: parseQatarWallTime(`${day}T${wave.startTime}`),
+    hasTeams: wave.teamCount > 0,
+  }));
+  const at = new Date(now);
+  const upNext = ordered.flatMap((zone, index) => {
+    const visit = zoneSchedule(planned, index, timing, at).find((row) => row.state === "coming");
+    return visit ? [{ zoneNumber: zone.number, wave: visit.number, inMs: visit.workStartsAt.getTime() - now, estimated: visit.estimated }] : [];
+  });
+
   return {
     seriesId: series.id,
     seriesName: series.name,
@@ -135,6 +162,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
       alt: sponsor.alt,
     })),
     sponsorsEnabled: series.sponsorsEnabled,
+    upNext,
     teams: onBoard.map((team) => {
       return {
         id: team.id,

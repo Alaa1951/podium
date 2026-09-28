@@ -59,7 +59,10 @@ export async function createAccessRole(input: unknown): Promise<ActionResult> {
 
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { name, nameAr, description, assignableBy, accountTypes, permissions } = parsed.data;
+  const { name, nameAr, description, accountTypes, permissions } = parsed.data;
+  // Letting studios hand a role out is BFT MENA Full access's decision; a
+  // role anyone else creates is BFT MENA's to give.
+  const assignableBy = actor.role === "admin" ? parsed.data.assignableBy : "bft";
 
   const valid = validateRoleContents(permissions, assignableBy);
   if (!valid.allowed) return { ok: false, error: valid.reason, keys: valid.keys };
@@ -115,20 +118,29 @@ export async function updateAccessRole(input: unknown): Promise<ActionResult> {
 
   const role = await prisma.accessRole.findUnique({
     where: { id: data.roleId },
-    select: { id: true, name: true, permissions: true, updatedAt: true },
+    select: { id: true, name: true, permissions: true, updatedAt: true, assignableBy: true },
   });
   if (!role) return { ok: false, error: "NOT_FOUND" };
   if (role.updatedAt.toISOString() !== data.loadedAt) return { ok: false, error: "STALE" };
+
+  // WHO MAY GIVE THIS ROLE, AND TO WHICH ACCOUNT TYPES, is BFT MENA Full
+  // access's alone. Only permission changes are checked against what the
+  // editor holds, so without this anyone with roles.edit could switch the
+  // Organiser role to "BFT MENA and studios" — and every gym could then
+  // hand out the floor.
+  const full = actor.role === "admin";
+  const assignableBy = full ? data.assignableBy : role.assignableBy;
+  const accountTypes = full ? data.accountTypes : undefined;
 
   // Whatever this editor could not change keeps its stored state.
   const stored: string[] = normalizeStoredPermissions(role.permissions);
   const next = mergeScoped(
     stored,
     data.permissions,
-    (key) => roleRowLock(actor, key, { assignableBy: data.assignableBy }) === null
+    (key) => roleRowLock(actor, key, { assignableBy }) === null
   );
 
-  const valid = validateRoleContents(next, data.assignableBy);
+  const valid = validateRoleContents(next, assignableBy);
   if (!valid.allowed) return { ok: false, error: valid.reason, keys: valid.keys };
   const edit = canEditRole(actor, stored, next);
   if (!edit.allowed) return { ok: false, error: edit.reason, keys: edit.keys };
@@ -141,12 +153,12 @@ export async function updateAccessRole(input: unknown): Promise<ActionResult> {
       name: data.name,
       nameAr: data.nameAr || null,
       description: data.description || null,
-      assignableBy: data.assignableBy,
+      assignableBy,
       accountTypes:
-        data.accountTypes === undefined
+        accountTypes === undefined
           ? undefined
-          : data.accountTypes.length
-            ? data.accountTypes
+          : accountTypes.length
+            ? accountTypes
             : Prisma.DbNull,
       permissions: next,
     },

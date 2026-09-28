@@ -116,7 +116,7 @@ export default async function StudioPeoplePage(detailId?: string, compose = fals
             <h1>{t("People")}</h1>
             <p>
               {t(
-                "Everyone in {studio}. Open a person to give them the Athlete, Organiser or Judge role, or to take one away.",
+                "Everyone in {studio}. Open a person to give them the Athlete or Judge role, or to take one away.",
                 { studio: studio?.name ?? t("your studio") }
               )}
             </p>

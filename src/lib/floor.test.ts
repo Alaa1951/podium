@@ -17,7 +17,11 @@ import {
   wavePosition,
   zoneOneFreeAt,
   zoneWindows,
+  projectWaveStarts,
+  zoneSchedule,
+  waveZoneTimes,
   type FloorTiming,
+  type PlannedWave,
 } from "@/lib/floor";
 
 const FOUR: FloorTiming = { workMinutes: 15, breakMinutes: 5, zoneCount: 4 };
@@ -245,5 +249,130 @@ describe("the finisher record", () => {
   it("is 0:00 once the clock has run out", () => {
     expect(finisherRemainingMs(left(75), 15)).toBe(0);
     expect(finisherRemainingMs(left(80), 15)).toBe(0);
+  });
+});
+
+describe("the day ahead (estimated arrivals)", () => {
+  const planned = (
+    id: string,
+    number: number,
+    plannedMinutes: number | null,
+    extra: Partial<PlannedWave> = {}
+  ): PlannedWave => ({
+    id,
+    number,
+    status: "pending",
+    startedAt: null,
+    endsAt: null,
+    plannedStart: plannedMinutes === null ? null : at(plannedMinutes),
+    hasTeams: true,
+    ...extra,
+  });
+
+  it("uses each wave's planned start before the day begins", () => {
+    const starts = projectWaveStarts([planned("w1", 1, 60), planned("w2", 2, 80)], FOUR, at(0));
+    expect(starts.get("w1")).toEqual({ startsAt: at(60), estimated: true, overdue: false });
+    expect(starts.get("w2")?.startsAt).toEqual(at(80));
+  });
+
+  it("slides later waves back when the floor runs behind", () => {
+    // Wave 1 was due at 0 and has not started at 10: it is due now, and
+    // wave 2 cannot start until Zone 1 is free one slot after it.
+    const starts = projectWaveStarts([planned("w1", 1, 0), planned("w2", 2, 20)], FOUR, at(10));
+    expect(starts.get("w1")).toEqual({ startsAt: at(10), estimated: true, overdue: true });
+    expect(starts.get("w2")?.startsAt).toEqual(at(30));
+  });
+
+  it("waits for Zone 1 to be free of a running wave", () => {
+    const running = planned("w1", 1, 0, { status: "running", startedAt: at(0), endsAt: at(75) });
+    const starts = projectWaveStarts([running, planned("w2", 2, 5)], FOUR, at(3));
+    expect(starts.get("w1")).toEqual({ startsAt: at(0), estimated: false, overdue: false });
+    expect(starts.get("w2")?.startsAt).toEqual(at(20));
+  });
+
+  it("skips a pending wave with no team", () => {
+    const starts = projectWaveStarts([planned("w1", 1, 0, { hasTeams: false }), planned("w2", 2, 0)], FOUR, at(0));
+    expect(starts.has("w1")).toBe(false);
+    expect(starts.get("w2")?.startsAt).toEqual(at(0));
+  });
+
+  it("follows wave numbers for pending waves even when one was started out of order", () => {
+    const three = planned("w3", 3, 0, { status: "running", startedAt: at(0), endsAt: at(75) });
+    const starts = projectWaveStarts([planned("w2", 2, 0), three, planned("w4", 4, 0)], FOUR, at(1));
+    expect(starts.get("w2")?.startsAt).toEqual(at(20));
+    expect(starts.get("w4")?.startsAt).toEqual(at(40));
+  });
+
+  it("treats a reset wave as not started", () => {
+    const reset = planned("w1", 1, 30);
+    expect(projectWaveStarts([reset], FOUR, at(0)).get("w1")?.estimated).toBe(true);
+  });
+
+  it("lists every wave's visit to a zone, with the state of each", () => {
+    const one = planned("w1", 1, 0, { status: "running", startedAt: at(0), endsAt: at(75) });
+    const two = planned("w2", 2, 30);
+    // At 25: wave 1 works Zone 2 (20–35); wave 2 is still to come.
+    const visits = zoneSchedule([two, one], 1, FOUR, at(25));
+    expect(visits.map((v) => [v.number, v.state, v.estimated])).toEqual([
+      [1, "here", false],
+      [2, "coming", true],
+    ]);
+    expect(visits[0].workStartsAt).toEqual(at(20));
+    expect(visits[1].workStartsAt).toEqual(at(50));
+  });
+
+  it("shows a wave as coming during the changeover before it reaches the zone", () => {
+    const one = planned("w1", 1, 0, { status: "running", startedAt: at(0), endsAt: at(75) });
+    expect(zoneSchedule([one], 1, FOUR, at(17))[0].state).toBe("coming");
+    expect(zoneSchedule([one], 1, FOUR, at(41))[0].state).toBe("done");
+  });
+
+  it("drops a zone a wave ended early never reached", () => {
+    const ended = planned("w1", 1, 0, { status: "complete", startedAt: at(0), endsAt: at(10) });
+    expect(zoneSchedule([ended], 1, FOUR, at(30))).toEqual([]);
+    expect(zoneSchedule([ended], 0, FOUR, at(30)).map((v) => v.state)).toEqual(["done"]);
+  });
+
+  it("has nothing for a zone that does not exist", () => {
+    expect(zoneSchedule([planned("w1", 1, 0)], 7, FOUR, at(0))).toEqual([]);
+  });
+});
+
+describe("an athlete's day: their wave in each zone", () => {
+  const pendingWave = (id: string, number: number, plannedMinutes: number): PlannedWave => ({
+    id,
+    number,
+    status: "pending",
+    startedAt: null,
+    endsAt: null,
+    plannedStart: at(plannedMinutes),
+    hasTeams: true,
+  });
+
+  it("gives every zone an estimated time before the wave starts", () => {
+    const slots = waveZoneTimes([pendingWave("w1", 1, 60)], "w1", FOUR, at(0));
+    expect(slots.map((slot) => [slot.zoneIndex, slot.workStartsAt, slot.state, slot.estimated])).toEqual([
+      [0, at(60), "coming", true],
+      [1, at(80), "coming", true],
+      [2, at(100), "coming", true],
+      [3, at(120), "coming", true],
+    ]);
+  });
+
+  it("follows the real clock once the wave runs", () => {
+    const running: PlannedWave = { ...pendingWave("w1", 1, 0), status: "running", startedAt: at(0), endsAt: at(75) };
+    const slots = waveZoneTimes([running], "w1", FOUR, at(25));
+    expect(slots.map((slot) => slot.state)).toEqual(["done", "here", "coming", "coming"]);
+    expect(slots.every((slot) => !slot.estimated)).toBe(true);
+  });
+
+  it("stops at the zone a wave was ended in", () => {
+    const ended: PlannedWave = { ...pendingWave("w1", 1, 0), status: "complete", startedAt: at(0), endsAt: at(30) };
+    expect(waveZoneTimes([ended], "w1", FOUR, at(40)).map((slot) => slot.zoneIndex)).toEqual([0, 1]);
+  });
+
+  it("has nothing for a wave with no team, or no such wave", () => {
+    expect(waveZoneTimes([{ ...pendingWave("w1", 1, 0), hasTeams: false }], "w1", FOUR, at(0))).toEqual([]);
+    expect(waveZoneTimes([], "w9", FOUR, at(0))).toEqual([]);
   });
 });

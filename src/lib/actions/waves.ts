@@ -6,7 +6,8 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { finisherRemainingMs, MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { can, canControlWave } from "@/lib/access";
+import { can, canControlWave, isFloorAccount, waveButtons } from "@/lib/access";
+import { formatQatarDayKey } from "@/lib/qatar-time";
 import { getCurrentUser, requireAccess } from "@/lib/session";
 import { ScheduleError, scheduledTime, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
 import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
@@ -30,7 +31,8 @@ const waveSchema = z.object({
 });
 
 /**
- * The wave buttons. The supervisor (`waveControl.control`) presses all three;
+ * The wave buttons. The supervisor (`waveControl.control`) presses all three,
+ * or someone given one button on its own (waveControl.start / .end / .reset);
  * a zone leader of the wave's competition presses Start (canControlWave,
  * access.ts). Re-checked against the database on every press.
  */
@@ -51,7 +53,7 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
     can(actor, "judgeSheet.view") &&
     (await prisma.zoneStaff.count({ where: { seriesId: found.seriesId, userId: actor.id, position: "leader" } })) > 0;
   if (!canControlWave(actor, parsed.data.action, leadsAZone)) return { ok: false, error: "FORBIDDEN" };
-  const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data));
+  const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data, actor.role === "admin"));
   if (!result.ok) return result;
   await recordAudit({ actorId: actor.id, action: AUDIT.waveControlled, targetType: "event", targetId: found.seriesId,
     detail: "wave=" + parsed.data.waveId + " action=" + parsed.data.action });
@@ -59,7 +61,7 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof waveSchema>): Promise<ActionResult> {
+async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof waveSchema>, fullAccess: boolean): Promise<ActionResult> {
   const wave = await tx.wave.findUnique({ where: { id: input.waveId }, include: {
     series: true, teams: { where: { archivedAt: null, waitlistedAt: null }, select: { station: true } },
   } });
@@ -95,6 +97,16 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
     }
     case "reset":
       if (wave.series.status === "final") return { ok: false, error: "SERIES_FINISHED" };
+      // Reset puts the wave back to "not started": its clock is gone, judges'
+      // open sheets for it disappear, and it can be run again over what was
+      // recorded. Once any zone of it has been SUBMITTED that rewrites
+      // results, which is BFT MENA Full access's call alone.
+      if (!fullAccess) {
+        const submitted = await tx.zoneScore.count({
+          where: { status: "submitted", score: { team: { waveId: wave.id } } },
+        });
+        if (submitted > 0) return { ok: false, error: "WAVE_HAS_SCORES" };
+      }
       await tx.wave.update({ where: { id: wave.id }, data: { status: "pending", startedAt: null, endsAt: null } });
       break;
   }
@@ -105,23 +117,33 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
  * START THE DAY — the one status change the floor makes itself. No wave can
  * start and no judge can score until the competition is Running, and the
  * people running the floor are not always the ones who hold Settings
- * (settings.edit is BFT MENA's). So the supervisor (waveControl.control)
- * sets a SCHEDULED competition to Running from Wave control. Nothing else:
- * back to scheduled, or finished, stays in Settings.
+ * (settings.edit is BFT MENA's). So the supervisor (waveControl.control, or
+ * waveControl.startDay alone) sets a SCHEDULED competition to Running from
+ * Wave control. Nothing else: back to scheduled, or finished, stays in
+ * Settings.
+ *
+ * Only ON the competition's day for anyone outside BFT MENA. Roles are not
+ * tied to one competition yet, so an organiser holds this button for every
+ * competition — and starting next month's by mistake opens its judge sheets
+ * and its board today.
  */
 export async function startCompetitionDay(input: unknown): Promise<ActionResult> {
   const actor = await getCurrentUser();
   if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
-  if (actor.viewAs || !can(actor, "waveControl.control")) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !waveButtons(actor).startDay) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const series = await prisma.series.findUnique({
     where: { id: parsed.data.seriesId },
-    select: { id: true, status: true, archivedAt: true },
+    select: { id: true, status: true, archivedAt: true, competitionDate: true },
   });
   if (!series || series.archivedAt) return { ok: false, error: "NOT_FOUND" };
   if (series.status !== "scheduled") return { ok: false, error: "NOT_SCHEDULED" };
+  const bft = actor.role === "admin" || actor.role === "staff";
+  if (!bft && formatQatarDayKey(series.competitionDate) !== formatQatarDayKey(new Date())) {
+    return { ok: false, error: "NOT_TODAY" };
+  }
   // Conditional, so two supervisors pressing at once start it only once.
   const started = await prisma.series.updateMany({
     where: { id: series.id, status: "scheduled" },
@@ -155,7 +177,7 @@ const waveSaveSchema = z.object({
  */
 export async function saveWave(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = waveSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId, waveId, number, startTime } = parsed.data;
@@ -187,7 +209,7 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
 
 export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId } = parsed.data;
@@ -212,7 +234,7 @@ export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
  */
 export async function deleteWave(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ waveId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const found = await prisma.wave.findUnique({ where: { id: parsed.data.waveId }, select: { seriesId: true } });

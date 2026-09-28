@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { assignmentPlan, ScheduleError, scheduleError } from "@/lib/wave-schedule";
 import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
+import { isFloorAccount } from "@/lib/access";
 import { can, requireAccess, teamScope } from "@/lib/session";
 
 export type ActionResult<T = undefined> =
@@ -110,7 +111,8 @@ const autoAssignSchema = z.object({
 /** Rebuild the whole pre-event field in category, level, then team-number order. */
 export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
   const user = await requireAccess("waves.edit");
-  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
+  // Rebuilds every gym's placements: a floor account's job, never a gym's.
+  if (user.viewAs || !isFloorAccount(user)) return { ok: false, error: "FORBIDDEN" };
   const parsed = autoAssignSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId, perWave } = parsed.data;

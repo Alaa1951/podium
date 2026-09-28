@@ -5,7 +5,7 @@ import type { SeriesScreenProps } from "@/screens/types";
 import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
 import { StartDayButton } from "@/components/floor/start-day-button";
 import { ZoneStaffPanel } from "@/components/floor/zone-staff-panel";
-import { can } from "@/lib/access";
+import { can, waveButtons } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireSeries, seriesHref } from "@/lib/require-series";
@@ -24,7 +24,9 @@ export const dynamic = "force-dynamic";
  * and reserves per zone — are assigned here for the whole competition.
  *
  * Gated by waveControl.view; the buttons need waveControl.control (the
- * supervisor permission) and the zone teams zoneStaff.assign. Score entry is
+ * supervisor permission, every button) or one button's own key
+ * (waveControl.startDay / .start / .end / .reset), and the zone teams
+ * zoneStaff.assign. Score entry is
  * elsewhere: the judges have their own sheet.
  */
 export default async function WaveControlPage(props: SeriesScreenProps) {
@@ -32,7 +34,9 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
   const { t } = await getTranslator();
   const { series, waves } = await requireSeries(props.params);
   const live = !user.viewAs;
-  const canControl = live && can(user, "waveControl.control");
+  const held = waveButtons(user);
+  const buttons = { start: live && held.start, end: live && held.end, reset: live && held.reset };
+  const canStartDay = live && held.startDay;
   const canAssign = live && can(user, "zoneStaff.assign");
 
   const [teams, zones, staff, candidates] = await Promise.all([
@@ -73,7 +77,7 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
       {series.status === "scheduled" ? (
         <div className="notice" style={{ marginBottom: 16 }}>
           {t("Waves can only be started while the competition is running.")}
-          {canControl ? (
+          {canStartDay ? (
             <div>
               <StartDayButton seriesId={series.id} />
             </div>
@@ -118,7 +122,8 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
         teamsByWave={byWave}
         zones={zones}
         timing={{ workMinutes: series.zoneWorkMinutes, breakMinutes: series.zoneBreakMinutes, zoneCount: zones.length }}
-        canControl={canControl && series.status === "live"}
+        canControl={false}
+        buttons={series.status === "live" ? buttons : { start: false, end: false, reset: false }}
       />
 
       {can(user, "zoneStaff.view") ? (

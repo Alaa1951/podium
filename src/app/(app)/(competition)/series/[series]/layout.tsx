@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ConsoleShell, type NavGroup } from "@/components/app/console-shell";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
-import { can, isBft, teamScope, type PermissionKey } from "@/lib/access";
+import { can, canAny, isBft, teamScope, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { countPairedNotRegistered } from "@/lib/partner-watch";
 import { prisma } from "@/lib/prisma";
@@ -47,13 +47,16 @@ export default async function CompetitionLayout({
   // it could not go below for as long as anybody was waiting.
   const onTheField = { seriesId: series.id, archivedAt: null, waitlistedAt: null };
 
-  const [awaitingPayment, unassigned, waitingPairs, waiting] = await Promise.all([
+  const [awaitingPayment, unassigned, waitingPairs, waiting, posts] = await Promise.all([
     prisma.team.count({ where: { ...onTheField, paymentStatus: "pending" } }),
     prisma.team.count({ where: { ...onTheField, waveId: null } }),
     countPairedNotRegistered(series.id),
     // Scoped the way the screen is: a studio counts its own waiting teams and
     // never the CRM half, which is BFT MENA's alone.
     countWaitingList(series.id, { includeIntake: isBft(user), scope: teamScope(user) }),
+    // Somebody who also works a zone of this competition: their sheet is one
+    // press away from the console, not only from the page they landed on.
+    can(user, "judgeSheet.view") ? prisma.zoneStaff.count({ where: { userId: user.id, seriesId: series.id } }) : Promise.resolve(0),
   ]);
 
   // The public results item mirrors what a stranger sees at /results: it only
@@ -64,16 +67,18 @@ export default async function CompetitionLayout({
     series.resultsPublicAt !== null &&
     series.resultsPublicAt <= new Date();
 
-  // Each item names the key its screen checks. `null` means open to everyone
-  // who reaches the console (the public results page is public).
-  const allowed = <T extends { key: PermissionKey | null }>(items: T[]) =>
-    items.filter((item) => item.key === null || can(user, item.key));
+  // Each item names the key its screen checks (`also`: other keys its screen
+  // accepts). `null` means open to everyone who reaches the console (the
+  // public results page is public).
+  const allowed = <T extends { key: PermissionKey | null; also?: PermissionKey[] }>(items: T[]) =>
+    items.filter((item) => item.key === null || canAny(user, [item.key, ...(item.also ?? [])]));
 
   const groups: NavGroup[] = [
     {
       title: "",
       items: allowed([
         { href: at("board"), label: t("Live board"), key: "board.view" },
+        ...(posts > 0 ? [{ href: "/my-wave", label: t("My score sheet"), key: "judgeSheet.view" as const }] : []),
         { href: at(), label: t("Overview"), key: "overview.view" },
       ]),
     },
@@ -121,8 +126,10 @@ export default async function CompetitionLayout({
     },
     {
       title: t("On the day"),
-      items: allowed<{ key: PermissionKey | null; href: string; label: string; title?: string }>([
+      items: allowed<{ key: PermissionKey | null; also?: PermissionKey[]; href: string; label: string; title?: string }>([
         { href: at("wave-control"), label: t("Wave control"), key: "waveControl.view" },
+        { href: at("marshalling"), label: t("Marshalling"), key: "marshalling.view", also: ["waveControl.view"] },
+        { href: at("shirts"), label: t("T-shirts"), key: "shirts.view", also: ["registrations.view"] },
         { href: at("scores"), label: t("Score entry"), key: "scores.view" },
         { href: at("results"), label: t("Results"), key: "results.view" },
         {
