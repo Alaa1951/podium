@@ -21,6 +21,10 @@ export default async function AccountPage() {
   const { t } = await getTranslator();
   const [homeHref, theme] = await Promise.all([homeForUser(user),getTheme()]);
 
+  // Read from the row: whether a password exists is not in the session.
+  const credentials = await prisma.user.findUnique({ where: { id: user.id }, select: { passwordHash: true } });
+  const hasPassword = Boolean(credentials?.passwordHash);
+
   const studio = user.studioId
     ? await prisma.studio.findUnique({ where: { id: user.studioId }, select: { name: true } })
     : null;
@@ -45,7 +49,7 @@ export default async function AccountPage() {
           </p>
         </div>
 
-        <SecurityPanel email={user.email} />
+        <SecurityPanel email={user.email} hasPassword={hasPassword} />
         {user.viewAs ? null : <DeleteAccountPanel />}
         <div className="mobile-only"><p>{roleLabel}</p><div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:24}}><LanguageSwitch /><ThemeToggle current={theme} /></div><div className="mobile-action-bar"><SignOutButton /></div></div>
       </div>

@@ -12,7 +12,7 @@ export type DevicePayload = {
 // decide whether to challenge with a code. The raw value never leaves as-is:
 // the server stores an HMAC of it, so the database holds no reusable token.
 
-function parseBrowser(ua: string) {
+export function parseBrowser(ua: string) {
   if (ua.includes("Edg/")) return "Edge";
   if (ua.includes("Chrome/")) return "Chrome";
   if (ua.includes("Firefox/")) return "Firefox";
@@ -20,11 +20,13 @@ function parseBrowser(ua: string) {
   return "Unknown";
 }
 
-function parseOs(ua: string) {
+export function parseOs(ua: string) {
+  // iPhone user agents say "like Mac OS X", so iOS must be tested BEFORE
+  // macOS — with the old order every iPhone was logged as a Mac.
+  if (ua.includes("iPhone") || ua.includes("iPad") || ua.includes("iPod")) return "iOS";
   if (ua.includes("Windows")) return "Windows";
   if (ua.includes("Mac OS X")) return "macOS";
   if (ua.includes("Android")) return "Android";
-  if (ua.includes("iPhone") || ua.includes("iPad")) return "iOS";
   if (ua.includes("Linux")) return "Linux";
   return "Unknown";
 }

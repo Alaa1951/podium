@@ -27,6 +27,12 @@ export const AUTH_ERRORS = {
   accountDisabled: "ACCOUNT_DISABLED",
   notActivated: "ACCOUNT_NOT_ACTIVATED",
   tooManyAttempts: "TOO_MANY_ATTEMPTS",
+  /**
+   * The code was right but cannot be used: it was sent to an address the
+   * account no longer has, or it predates recipient records. The person
+   * asks for a new one (competitor-login-form.tsx › refused screen).
+   */
+  codeRefused: "CODE_REFUSED",
 } as const;
 
 export type DevicePayload = {
@@ -101,6 +107,7 @@ export async function challengeDevice(params: {
   const { code } = await createOtpChallenge({
     userId: params.userId,
     purpose: "login",
+    sentTo: params.email,
     deviceFingerprint: params.deviceFingerprint || null,
     ip: params.ip,
   });

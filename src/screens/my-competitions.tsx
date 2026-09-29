@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlainHeader } from "@/components/app/plain-header";
 import { AthleteIdentity, JoinSeries } from "@/components/me/participation-controls";
+import { VerifyEmailCard } from "@/components/me/verify-email-card";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -17,8 +18,13 @@ export default async function MyCompetitions() {
       { teams: { some: { archivedAt: null, competitors: { some: { userId: user.id } } } } },
     ] }, orderBy: { competitionDate: "desc" } }),
     prisma.series.findMany({ where: { archivedAt: null, isActive: true, signupOpen: true, isTraining: false, status: { in: ["scheduled", "live"] } }, orderBy: { competitionDate: "asc" } }),
-    prisma.user.findUnique({ where: { id: user.id }, select: { name: true, phone: true } }),
+    prisma.user.findUnique({ where: { id: user.id }, select: { name: true, phone: true, email: true, verifiedEmail: true } }),
   ]);
+  // Until the account proves its current address no registration can
+  // follow it — so the way to prove it is offered here too, not only on a
+  // competition's page (an athlete with no entry never reaches one).
+  const email = identity?.email ?? user.email;
+  const unproven = !user.viewAs && identity?.verifiedEmail !== email;
   return <div className="screen"><PlainHeader roleLabel={identity?.name ?? t("Athlete")} />
     <div className="screen-head"><h1>{t("My competitions")}</h1></div>
     <p className="reg-sub">{t("One account. A separate team and result in each competition.")}</p>
@@ -30,6 +36,7 @@ export default async function MyCompetitions() {
       </article>)}
       {!mine.length && <p className="notice">{t("No entry found for you yet.")}</p>}
     </div>
+    {unproven && <VerifyEmailCard email={email} />}
     {!user.viewAs && competitionChoices(open).filter(series => !mine.some(entry => entry.id === series.id)).map(series => <article className="card" key={series.id} style={{ marginTop: 16 }}>
       <h2>{series.name}</h2><p>{formatQatarDayKey(series.competitionDate)}</p><JoinSeries seriesId={series.id} />
     </article>)}

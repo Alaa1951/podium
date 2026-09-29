@@ -105,6 +105,30 @@ export async function recordAudit(entry: {
   }
 }
 
+/**
+ * The same line, written INSIDE a caller's transaction and never swallowed:
+ * for changes that must not exist without their audit line (an account's
+ * email, above all — the trail is what proves an address was or was not
+ * changed). A failed write rolls the caller's change back.
+ */
+export async function recordAuditIn(
+  tx: Pick<typeof prisma, "adminAuditLog">,
+  entry: Parameters<typeof recordAudit>[0]
+) {
+  const requestHeaders = await headers();
+  await tx.adminAuditLog.create({
+    data: {
+      actorId: entry.actorId,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      targetLabel: entry.targetLabel ?? null,
+      detail: entry.detail ?? null,
+      ip: getIpFromHeaders(requestHeaders),
+    },
+  });
+}
+
 export async function listAudit(limit = 50) {
   return prisma.adminAuditLog.findMany({
     orderBy: { createdAt: "desc" },

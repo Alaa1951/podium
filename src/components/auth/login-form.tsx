@@ -94,6 +94,12 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
 
   return (
     <form method="post" onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* The phone apps open here, and most people opening them are athletes
+          with no password: their door is a code. On a phone it comes first,
+          as a button, not a footnote. */}
+      <Link href="/athlete" className="btn btn-block btn-primary-outline mobile-only" style={{ marginBottom: 4 }}>
+        {t("Athlete? Sign in with a code")}
+      </Link>
       <div>
         <label className="field-label-dark" htmlFor="email">
           {t("Email")}
@@ -165,8 +171,8 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         {loading ? t("Signing in…") : t("Sign in")}
       </button>
 
-      {/* Athletes do not have a password and never will — they arrive by
-          code. Sending them through the staff form is how they get stuck. */}
+      {/* Athletes arrive by code; a password is optional for them. Sending
+          them through this form first is how they get stuck. */}
       <p className="auth-note">
         {t("Competing in PODIUM?")}{" "}
         <Link href="/athlete" style={{ color: "var(--bft-cyan)" }}>

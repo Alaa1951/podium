@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { getDevicePayload } from "@/lib/device-client";
 
@@ -21,6 +22,7 @@ export function VerifyForm({
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [refused, setRefused] = useState(false);
   const [notice, setNotice] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
@@ -54,6 +56,10 @@ export function VerifyForm({
         callbackUrl,
       });
 
+      if (res?.error === "CODE_REFUSED") {
+        setRefused(true);
+        return;
+      }
       if (res?.error) {
         setError(t("That code is not valid or has expired."));
         return;
@@ -123,6 +129,7 @@ export function VerifyForm({
         ) : null}
       </div>
 
+      {refused ? <RefusedCodeNotice kind="code" /> : null}
       {error ? (
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--danger-bright)" }}>
           {error}

@@ -1,5 +1,6 @@
 import { homeForUser, requireUser } from "@/lib/session";
 import { ViewAsBanner } from "@/components/app/view-as-banner";
+import { BfcacheRefresh } from "@/components/app/bfcache-refresh";
 import { PersonalMobileNavigation } from "@/components/app/mobile-navigation";
 import { PersonalDesktopNavigation } from "@/components/app/personal-nav";
 
@@ -23,6 +24,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <PersonalDesktopNavigation role={user.role} homeHref={home} />
       {children}
       <PersonalMobileNavigation role={user.role} homeHref={home} />
+      <BfcacheRefresh />
     </>
   );
 }

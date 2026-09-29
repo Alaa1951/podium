@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 
+import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { resendSignupCode, startSignup } from "@/lib/actions/signup";
 import {
@@ -75,6 +76,7 @@ export function SignupForm({
   const [note, setNote] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refused, setRefused] = useState(false);
 
   const [kind, setKind] = useState<Kind>(initialType ?? "athlete");
   const [roleKey, setRoleKey] = useState<OrganiserRole>("organiser");
@@ -170,6 +172,10 @@ export function SignupForm({
     let result = await attempt();
     if (result?.url?.includes("csrf=true")) result = await attempt();
     setBusy(false);
+    if (result?.error === "CODE_REFUSED") {
+      setRefused(true);
+      return;
+    }
     if (!result || result.error || result.url?.includes("csrf=true")) {
       setError(t("That code is not valid or has expired."));
       return;
@@ -249,6 +255,7 @@ export function SignupForm({
       >
         <h2 className="auth-title">{t("Check your email")}</h2>
         <p className="auth-sub">{t("We sent a six-digit code to {email}. Type it in to confirm your address.", { email: form.email })}</p>
+        {refused ? <RefusedCodeNotice kind="code" /> : null}
         {error ? (
           <div className="notice-error" role="alert" style={{ marginBottom: 14 }}>
             {error}
@@ -357,13 +364,14 @@ export function SignupForm({
           )
         : null}
 
-      {/* Everybody sets one. A credential belongs with the identity fields,
-          above the competing details, not after a T-shirt size. */}
+      {/* An athlete may leave it empty and sign in with emailed codes;
+          everyone else sets one. A credential belongs with the identity
+          fields, above the competing details, not after a T-shirt size. */}
       {field(
-        t("Password"),
-        <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={200} />,
+        athlete ? t("Password (optional)") : t("Password"),
+        <input className="input" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} autoComplete="new-password" required={!athlete} minLength={athlete && !form.password ? undefined : MIN_PASSWORD_LENGTH} maxLength={200} />,
         athlete
-          ? t("You can sign in with this or with an emailed code — whichever you prefer.")
+          ? t("Leave it empty to sign in with a code we email you. You can create a password any time from Account.")
           : t(PASSWORD_RULES_SHORT, PASSWORD_RULE_VALUES)
       )}
 

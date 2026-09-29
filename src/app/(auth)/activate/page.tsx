@@ -1,6 +1,7 @@
 import { AuthShell } from "@/components/auth/auth-shell";
+import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { SetPasswordForm } from "@/components/auth/set-password-form";
-import { consumeAuthToken } from "@/lib/auth-tokens";
+import { peekAuthLink } from "@/lib/auth-tokens";
 import { getTranslator } from "@/lib/i18n/server";
 
 /**
@@ -13,14 +14,15 @@ export default async function ActivatePage(props: PageProps<"/activate">) {
   const token = typeof params.token === "string" ? params.token : "";
   const { t } = await getTranslator();
 
-  const record = token ? await consumeAuthToken({ token, purpose: "invite" }) : null;
+  const record = token ? await peekAuthLink({ token, purpose: "invite" }) : null;
 
   if (!record) {
     return (
       <AuthShell title={t("Set your password")}>
-        <p style={{ color: "var(--danger-bright)", fontSize: 14, textAlign: "center" }}>
-          {t("That link is invalid or has expired.")}
-        </p>
+        {/* Used, expired, sent to an address the account no longer has, or
+            older than recipient records: whichever it was, a new one to the
+            current address is one tap away (both answer the same way). */}
+        <RefusedCodeNotice kind="link" />
       </AuthShell>
     );
   }

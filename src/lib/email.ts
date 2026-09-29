@@ -355,6 +355,25 @@ export async function sendAlreadyRegisteredEmail(params: { email: string; url: s
   await sendMail({ to: params.email, subject, text, html });
 }
 
+/**
+ * Somebody asked for a sign-in code for an address that is on a
+ * registration but has no account yet, and no entry that opens the code door
+ * by itself. The way in is Sign up with the same address.
+ */
+export async function sendSignUpPointerEmail(params: { email: string; url: string }) {
+  const subject = `Create your ${BRAND} account`;
+  const text = `Someone asked for a ${BRAND} sign-in code for this email. There is no account for it yet. Create one with this same email — you will get a code to confirm it, and your registration will show on your page: ${params.url}\n\nIf this was not you, ignore this email.`;
+  const html = shell(
+    "Create your account",
+    `<p style="text-align:center;margin:0 0 8px">There is no account for this email yet. Create one with this same email — you will get a code to confirm it, and your registration will show on your page.</p>
+     <div style="text-align:center;margin:24px 0">
+       <a href="${params.url}" style="display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none">Sign up</a>
+     </div>
+     <p style="color:#9a9aff;font-size:12px;text-align:center;margin:0">If this was not you, ignore this email.</p>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }

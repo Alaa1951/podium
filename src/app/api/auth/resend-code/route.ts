@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, cooldownSeconds: resend.cooldownSeconds });
     }
 
-    const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", ip });
+    const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", sentTo: user.email, ip });
     await sendOtpEmail({ email, code, ttlMinutes: getOtpConfig().ttlMinutes });
 
     return NextResponse.json({

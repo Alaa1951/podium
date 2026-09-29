@@ -14,9 +14,11 @@ const mocks = vi.hoisted(() => ({
   issue: vi.fn(),
   send: vi.fn(),
   audit: vi.fn(),
+  row: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ getCurrentUser: mocks.user }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mocks.row } } }));
 vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate }));
 vi.mock("@/lib/auth-tokens", () => ({ issueAuthToken: mocks.issue }));
 vi.mock("@/lib/email", () => ({ sendPasswordResetEmail: mocks.send }));
@@ -36,6 +38,7 @@ beforeEach(() => {
   mocks.issue.mockResolvedValue({ token: "t", url: "https://podium.test/reset-password?token=t" });
   mocks.send.mockResolvedValue(undefined);
   mocks.audit.mockResolvedValue(undefined);
+  mocks.row.mockResolvedValue({ email: "coach@studio.com", status: "active", archivedAt: null });
 });
 
 describe("requesting a password reset from inside a session", () => {
@@ -46,7 +49,7 @@ describe("requesting a password reset from inside a session", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
-    expect(mocks.issue).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", purpose: "reset" }));
+    expect(mocks.issue).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", purpose: "reset", sentTo: "coach@studio.com" }));
     expect(mocks.send).toHaveBeenCalledWith({
       email: "coach@studio.com",
       url: "https://podium.test/reset-password?token=t",
@@ -54,6 +57,17 @@ describe("requesting a password reset from inside a session", () => {
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: "u1", action: "security.password_reset_requested" })
     );
+  });
+
+  it("sends to the address on the row, not the session's stale copy of it", async () => {
+    mocks.user.mockResolvedValue({ id: "u1", email: "old@studio.com" });
+    mocks.row.mockResolvedValue({ email: "new@studio.com", status: "active", archivedAt: null });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(mocks.issue).toHaveBeenCalledWith(expect.objectContaining({ sentTo: "new@studio.com" }));
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ email: "new@studio.com" }));
   });
 
   it("refuses a caller with no session before issuing anything", async () => {

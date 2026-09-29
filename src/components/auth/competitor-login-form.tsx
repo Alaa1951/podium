@@ -4,16 +4,16 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { requestCompetitorCode } from "@/lib/actions/competitor-login";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIGNING IN AS AN ATHLETE.
 //
-// No password, because there never was one: they gave an email when they
-// registered, and that is the credential. Ask for a code, type it in, done —
-// and they stay in for a day, which is how long a competition and the evening
-// of arguing about it actually lasts.
+// A code by email is the whole sign-in: they gave an email when they
+// registered, and that is the credential. A password is theirs to add later
+// from Account if they want one; it is never required.
 //
 // The screen says the same thing whether or not the address competed. Whether
 // somebody is in PODIUM is not a fact a stranger gets to test with a form.
@@ -28,6 +28,7 @@ export function CompetitorLoginForm() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
 
   function ask() {
@@ -58,6 +59,10 @@ export function CompetitorLoginForm() {
 
     setBusy(false);
 
+    if (result?.error === "CODE_REFUSED") {
+      setRefused(true);
+      return;
+    }
     if (!result || result.error || result.url?.includes("csrf=true")) {
       setError(t("That code is not valid or has expired."));
       return;
@@ -125,6 +130,7 @@ export function CompetitorLoginForm() {
         {t("If {email} has a PODIUM entry or account, a six-digit code is on its way.", { email })}
       </p>
 
+      {refused ? <RefusedCodeNotice kind="code" /> : null}
       {error ? (
         <div className="notice-error" role="alert" style={{ marginBottom: 14 }}>
           {error}

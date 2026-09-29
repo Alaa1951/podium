@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
+import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { PASSWORD_RULES, PASSWORD_RULE_VALUES } from "@/lib/password-rules";
 
@@ -24,6 +25,7 @@ export function SetPasswordForm({
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [refused, setRefused] = useState(false);
   const [done, setDone] = useState(false);
   useUnsavedChanges(!done && (!!password || !!confirm));
 
@@ -48,6 +50,7 @@ export function SetPasswordForm({
       if (!res.ok || !data.ok) {
         if (data.error?.startsWith("PASSWORD_")) setError(t(RULES_MESSAGE, PASSWORD_RULE_VALUES));
         else if (data.error === "PASSWORDS_DO_NOT_MATCH") setError(t("Passwords do not match."));
+        else if (data.error === "LINK_REFUSED") setRefused(true);
         else if (data.error === "INVALID_TOKEN") setError(t("That link is invalid or has expired."));
         else setError(t("Something went wrong. Try again."));
         return;
@@ -108,6 +111,8 @@ export function SetPasswordForm({
       </div>
 
       <p style={{ margin: 0, fontSize: 12, color: "var(--on-navy-muted)" }}>{t(RULES_MESSAGE, PASSWORD_RULE_VALUES)}</p>
+
+      {refused ? <RefusedCodeNotice kind="link" /> : null}
 
       {error ? (
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--danger-bright)" }}>

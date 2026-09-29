@@ -128,15 +128,18 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   const perIp = checkRate(`signup:ip:${ip ?? "unknown"}`, 40, 15 * MINUTE_MS);
   if (!perEmail.ok || !perIp.ok) return { ok: false, error: "TOO_MANY" };
 
-  // EVERYBODY sets a password, athletes included.
-  //
-  // A code-only account works, but almost nobody believes it: people look for
-  // the password field, do not find one, and assume they have not finished
-  // signing up. So both doors are real from the start — the emailed code
-  // stays, and it is still what proves the address the first time.
-  const strength = checkPasswordStrength(data.password ?? "");
-  if (!strength.ok) return { ok: false, error: strength.reason };
-  const passwordHash = await hashPassword(data.password!);
+  // An ATHLETE may leave the password empty: the emailed code is a complete
+  // way in, now and later (/athlete), and a password can be created any time
+  // from Account. Everyone else sets one. A password that IS given must be a
+  // good one. Either way the code is what proves the address the first time.
+  const athleteSignup = data.type === "athlete";
+  const password = data.password ?? "";
+  let passwordHash: string | null = null;
+  if (password || !athleteSignup) {
+    const strength = checkPasswordStrength(password);
+    if (!strength.ok) return { ok: false, error: strength.reason };
+    passwordHash = await hashPassword(password);
+  }
 
   const studioId = data.studioId
     ? (await prisma.studio.findFirst({ where: { id: data.studioId, isActive: true }, select: { id: true } }))?.id ?? null
@@ -145,7 +148,6 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   // WHICH COMPETITION. Validated here rather than in the schema, because only
   // the server knows whether any are on offer: with none open the field is
   // not rendered and must not be demanded.
-  const athleteSignup = data.type === "athlete";
   const requestedSeries = data.seriesId ? await prisma.series.findFirst({
     where: { id: data.seriesId, signupOpen: true, isTraining: false, status: { in: ["scheduled", "live"] }, archivedAt: null, isActive: true },
   }) : null;
@@ -159,7 +161,15 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
     select: { id: true, role: true, status: true, signupType: true, approvalStatus: true },
   });
 
-  // An address that already has an account is told so by email, not here.
+  // An address that already has an account is told so BY EMAIL, never on
+  // screen (the screen must not confirm that an address is registered).
+  //
+  // An address that sits on a team's seat but has no account signs up like
+  // anybody else: the account waits for approval, and once the code proves
+  // the address the seat links to it (link-seats.ts) — a paid entry approves
+  // it, an unpaid, waiting-list or training one does not. The code door
+  // mints accounts only for competing entries, so turning the others away
+  // here too would leave them no way in at all.
   const unfinished = existing && existing.signupType && existing.status === "invited";
   if (existing && !unfinished) {
     try {
@@ -239,7 +249,7 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   }
 
   // The code is a sign-in code: typing it in proves the address and signs in.
-  const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", ip });
+  const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", sentTo: email, ip });
   try {
     await sendOtpEmail({ email, code, ttlMinutes: getOtpConfig().ttlMinutes });
   } catch {
@@ -258,7 +268,7 @@ export async function resendSignupCode(input: unknown): Promise<SignupResult> {
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true, signupType: true } });
   if (user?.signupType && user.status === "invited") {
-    const { code } = await createOtpChallenge({ userId: user.id, purpose: "login" });
+    const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", sentTo: email });
     try {
       await sendOtpEmail({ email, code, ttlMinutes: getOtpConfig().ttlMinutes });
     } catch {

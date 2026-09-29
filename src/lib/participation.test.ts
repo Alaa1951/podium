@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ user: vi.fn(), upsert: vi.fn(), entry: vi.fn(), series: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mocks.user }, seriesParticipant: { upsert: mocks.upsert, findUnique: mocks.entry }, series: { findMany: mocks.series } } }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), upsert: vi.fn(), entry: vi.fn(), series: vi.fn(), seats: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mocks.user }, seriesParticipant: { upsert: mocks.upsert, findUnique: mocks.entry }, series: { findMany: mocks.series }, competitor: { findMany: mocks.seats } } }));
 import { ensureParticipation, loadSeriesAthlete, resolveMySeries } from "./participation";
 beforeEach(() => { vi.resetAllMocks(); });
 describe("shared account, independent entries", () => {
@@ -21,7 +21,18 @@ describe("shared account, independent entries", () => {
     expect(a?.athleteProfile.partnerUserId).toBe("b"); expect(b?.athleteProfile.partnerUserId).toBe("c");
     expect(a?.athleteProfile.division).toBe("Open"); expect(b?.athleteProfile.division).toBe("Rookie");
   });
+  it("lands on the competition the athlete holds a seat in — a real one before a training one — before falling back to running", async () => {
+    mocks.series.mockResolvedValue([
+      { id: "training", name: "Training", status: "live", isTraining: true, competitionDate: new Date() },
+      { id: "real", name: "Series 1", status: "scheduled", isTraining: false, competitionDate: new Date("2099-01-01") },
+    ]);
+    mocks.seats.mockResolvedValue([{ team: { seriesId: "training" } }, { team: { seriesId: "real" } }]);
+    expect((await resolveMySeries("same"))?.id).toBe("real");
+    mocks.seats.mockResolvedValue([{ team: { seriesId: "training" } }]);
+    expect((await resolveMySeries("same"))?.id).toBe("training");
+  });
   it("cannot select somebody else's event; root defaults to running and excludes completed", async () => {
+    mocks.seats.mockResolvedValue([]);
     mocks.series.mockResolvedValue([{ id: "upcoming", name: "Next", status: "scheduled", competitionDate: new Date("2099-01-01") }, { id: "running", name: "Now", status: "live", competitionDate: new Date() }, { id: "done", name: "Done", status: "final", competitionDate: new Date() }]);
     expect((await resolveMySeries("same"))?.id).toBe("running");
     expect(await resolveMySeries("same", "somebody-else")).toBeNull(); expect(await resolveMySeries("same", "done")).toBeNull();

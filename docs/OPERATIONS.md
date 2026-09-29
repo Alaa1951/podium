@@ -130,6 +130,30 @@ the new commit is checked out, so this order matters):
 cd /opt/podium && npx prisma migrate deploy
 ```
 
+**Additive migrations: migrate before the restart.** Every migration since
+`20260928120000_address_bound_auth` only adds nullable columns or tables, so
+the running build keeps working while it is applied. Apply it between the
+checkout and the restart — either by editing `/root/scripts/deploy.sh` to run
+`npx prisma migrate deploy` after `git checkout` and before the build, or by
+hand: `git -C /opt/podium fetch && git -C /opt/podium checkout origin/main`,
+`npx prisma migrate deploy`, then `/root/scripts/deploy.sh`. That way the new
+code never takes a request before its columns exist.
+
+**Rolling back past the address-bound sign-in rule.** Sign-in codes and
+emailed links now record the address they went to and are accepted only while
+the account still has that address (`src/lib/auth-proof.ts`). A build from
+before that rule does not check it. If the automatic health-check rollback, or
+a manual one, ever restores such a build, spend every open code and link first
+so nothing issued under the new rule can be accepted by the old code:
+
+```bash
+cd /opt/podium && node --env-file=/opt/podium/.env scripts/spend-open-auth-tokens.mjs --apply
+```
+
+People then request a new code or link. The intended rollback point after
+that release is the same build with `ATHLETE_SEAT_LINKING=off` in `.env`
+(links no seats, keeps the rule), not an older build.
+
 Backups run nightly at 03:00 via root cron → `/opt/backups` (keeps 14).
 Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 

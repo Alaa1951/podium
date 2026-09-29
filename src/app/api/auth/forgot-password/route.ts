@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     // An invited account that never set a password gets its invitation again
     // rather than a reset link into nothing.
     const purpose = user.status === "invited" ? "invite" : "reset";
-    const { url } = await issueAuthToken({ userId: user.id, purpose, req });
+    const { url } = await issueAuthToken({ userId: user.id, purpose, sentTo: user.email, req });
 
     if (purpose === "reset") {
       await sendPasswordResetEmail({ email, url });

@@ -6,6 +6,9 @@ import { competitionChoices } from "@/lib/competition-choice";
 import { listMySeries, resolveMySeries, meHref } from "@/lib/participation";
 
 import { ApprovalBanner } from "@/components/app/approval-banner";
+import { SignOutButton } from "@/components/app/sign-out-button";
+import { VerifyEmailCard } from "@/components/me/verify-email-card";
+import { linkSeatsForUser } from "@/lib/link-seats";
 import { PlainHeader } from "@/components/app/plain-header";
 import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
 import { PortraitUpload } from "@/components/me/portrait-upload";
@@ -39,6 +42,21 @@ export const dynamic = "force-dynamic";
 export default async function MyPage(editMode = false, requestedSeries?: string) {
   const user = await requireRole("competitor");
   const { t, locale } = await getTranslator();
+
+  // An entry registered under this address follows the account once the
+  // address is proven — checked on the row itself, not the session, so an
+  // athlete already signed in gets their team without signing out and in.
+  const account = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, verifiedEmail: true, approvalStatus: true },
+  });
+  if (!user.viewAs) {
+    await linkSeatsForUser(prisma, user.id).catch((error) =>
+      console.error("[LINK-SEATS]", error instanceof Error ? error.message : error)
+    );
+  }
+  const currentEmail = account?.email ?? user.email;
+  const addressProven = !!account?.verifiedEmail && account.verifiedEmail === currentEmail;
 
   if (requestedSeries === "all") return <MyCompetitions />;
   const series = await resolveMySeries(user.id, requestedSeries);
@@ -145,7 +163,17 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         <ApprovalBanner userId={user.id} />
         {picker}
         {profileCard}
-        <div className="notice">{t("No entry found for you yet.")}</div>
+        <div className="notice">
+          <strong>{t("No entry found for you yet.")}</strong>
+          <p style={{ margin: "6px 0 0" }}>
+            {t("Signed in as {email}.", { email: currentEmail })}{" "}
+            {t("Registered with another email? Sign out and use Athlete sign-in with that email. If your registration uses this email, ask your gym or BFT MENA to check it.")}
+          </p>
+          <div style={{ marginTop: 10 }}>
+            <SignOutButton />
+          </div>
+        </div>
+        {!addressProven && !user.viewAs ? <VerifyEmailCard email={currentEmail} /> : null}
       </div>
     );
   }

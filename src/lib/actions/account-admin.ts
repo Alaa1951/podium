@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { AUDIT, recordAudit } from "@/lib/audit";
+import { AUDIT, recordAudit, recordAuditIn } from "@/lib/audit";
+import { forgetAddressProof } from "@/lib/auth-proof";
 import { canManageTarget, canTakeOverTarget } from "@/lib/permissions/grant-policy";
 import { targetWithPermissions } from "@/lib/permissions/load";
 import { issueAuthToken } from "@/lib/auth-tokens";
@@ -93,22 +94,6 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
     if (!event || !competitionChoices([event]).length) return { ok: false, error: "NOT_FOUND" };
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      name,
-      email,
-      role,
-      studioId: role === "admin" || role === "staff" ? null : studioId,
-      // Membership is additive; never overwrite the original signup choice.
-      permissionsUpdatedAt: before.role !== role ? new Date() : undefined,
-    },
-  });
-
-  if (role === "competitor" && parsed.data.requestedSeriesId) {
-    await ensureParticipation(userId, parsed.data.requestedSeriesId);
-  }
-
   // What actually changed, in words — an audit line has to be readable a year
   // later by somebody who was not in the room.
   const changes = [
@@ -118,13 +103,36 @@ export async function updateAccount(input: unknown): Promise<ActionResult> {
     before.studioId !== studioId && `studio changed`,
   ].filter(Boolean);
 
-  await recordAudit({
-    actorId: actor.id,
-    action: AUDIT.accountUpdated,
-    targetType: "user",
-    targetId: userId,
-    targetLabel: email,
-    detail: changes.length ? changes.join(" · ") : "no change",
+  // ONE TRANSACTION, ROW LOCKED. A change of email must not race a code or a
+  // link being spent (auth-proof.ts locks the same row), it spends every
+  // outstanding code and link (they went to the old address) and drops the
+  // old proof — and its audit line is written inside, so an email that was
+  // changed is an email whose change is on record, or the change is undone.
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM User WHERE id = ${userId} FOR UPDATE`;
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        email,
+        role,
+        studioId: role === "admin" || role === "staff" ? null : studioId,
+        // Membership is additive; never overwrite the original signup choice.
+        permissionsUpdatedAt: before.role !== role ? new Date() : undefined,
+      },
+    });
+    if (email !== before.email) await forgetAddressProof(tx, userId);
+    if (role === "competitor" && parsed.data.requestedSeriesId) {
+      await ensureParticipation(userId, parsed.data.requestedSeriesId, tx);
+    }
+    await recordAuditIn(tx, {
+      actorId: actor.id,
+      action: AUDIT.accountUpdated,
+      targetType: "user",
+      targetId: userId,
+      targetLabel: email,
+      detail: changes.length ? changes.join(" · ") : "no change",
+    });
   });
 
   revalidatePath("/(app)", "layout");
@@ -156,7 +164,7 @@ export async function sendResetLink(input: unknown): Promise<ActionResult> {
   if (!manage.allowed) return { ok: false, error: manage.reason };
   if (user.status === "disabled") return { ok: false, error: "ACCOUNT_DISABLED" };
 
-  const { url } = await issueAuthToken({ userId: user.id, purpose: "reset" });
+  const { url } = await issueAuthToken({ userId: user.id, purpose: "reset", sentTo: user.email });
   await sendPasswordResetEmail({ email: user.email, url });
 
   await recordAudit({

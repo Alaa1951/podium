@@ -123,6 +123,12 @@ model User {
   requestedCity       String?
   passwordHash        String?
   emailVerified       DateTime?
+  /// THE ADDRESS THAT WAS PROVEN — the exact, normalised email a code or link
+  /// was sent to and then used from. `emailVerified` above is only a
+  /// timestamp and says nothing about which address it was. Cleared whenever
+  /// `email` changes, so an old proof never covers a new address. A seat is
+  /// linked to this account only while `verifiedEmail = email`.
+  verifiedEmail       String?
   locale              String         @default("en")
 
   // A studio user manages this studio; a competitor competes under it.
@@ -352,6 +358,10 @@ model OtpChallenge {
   consumedAt        DateTime?
   deviceFingerprint String?
   ip                String?
+  /// The address this code was emailed to. A code is accepted only while the
+  /// account's email is still this address; null (issued before the column
+  /// existed) is never accepted.
+  sentTo            String?
   createdAt         DateTime   @default(now())
   user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -370,6 +380,8 @@ model AuthToken {
   purpose   TokenPurpose
   expiresAt DateTime
   usedAt    DateTime?
+  /// The address this link was emailed to — same rule as OtpChallenge.sentTo.
+  sentTo    String?
   createdAt DateTime     @default(now())
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 

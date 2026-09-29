@@ -15,7 +15,7 @@ const ERRORS: Record<string, string> = {
   TOO_MANY_ATTEMPTS: "Too many attempts. Try again shortly.",
 };
 
-export function SecurityPanel({ email }: { email: string }) {
+export function SecurityPanel({ email, hasPassword }: { email: string; hasPassword: boolean }) {
   const t = useT();
   const [devices, setDevices] = useState<Device[]>([]);
   const [events, setEvents] = useState<SignInEvent[]>([]);
@@ -102,7 +102,7 @@ export function SecurityPanel({ email }: { email: string }) {
         </div>
       ) : null}
 
-      <h2 className="section-title">{t("Change password")}</h2>
+      <h2 className="section-title">{hasPassword ? t("Change password") : t("Create a password")}</h2>
       <BlueprintCard style={{ padding: "20px 22px", maxWidth: 520, gap: 10 }}>
         {sent ? (
           <p style={{ margin: 0, fontSize: 14 }} role="status">
@@ -111,9 +111,15 @@ export function SecurityPanel({ email }: { email: string }) {
         ) : (
           <>
             <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
-              {t(
-                "We email you a link to set a new one — there is no old password to remember. The link is good for 30 minutes, and using it signs every device out."
-              )}
+              {hasPassword
+                ? t("We email you a link to set a new one — there is no old password to remember. The link is good for 30 minutes.")
+                : t("You sign in with a code we email you. If you would also like a password, we email you a link to create one — the link is good for 30 minutes. Codes keep working either way.")}
+            </p>
+            {/* True of a JWT session: setting a password does not end the
+                sessions already open, it makes every trusted browser ask for
+                a code at its next sign-in (set-password/route.ts). */}
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
+              {t("Devices already signed in stay signed in. Every trusted browser will be asked for a code the next time it signs in; to end a session now, sign out on that device.")}
             </p>
             <button
               type="button"

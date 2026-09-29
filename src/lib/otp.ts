@@ -1,8 +1,10 @@
 import "server-only";
 
 import type { OtpPurpose } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
+import { consumeLoginCode, type ProofResult, type ProvenUser } from "@/lib/auth-proof";
 import { prisma } from "@/lib/prisma";
-import { generateOtp, hashSecret, safeEqual } from "@/lib/security";
+import { generateOtp, hashSecret, normalizeEmail } from "@/lib/security";
 
 const TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
@@ -19,10 +21,15 @@ export function getOtpConfig() {
 /**
  * Issues a fresh code and consumes any outstanding challenge for the same
  * purpose, so an older code left in an inbox can never be replayed.
+ *
+ * `sentTo` is the address the caller is about to email the code to. It is
+ * what the code will prove (auth-proof.ts), so it is required — a code with
+ * no recipient on record is never accepted.
  */
 export async function createOtpChallenge(params: {
   userId: string;
   purpose: OtpPurpose;
+  sentTo: string;
   deviceFingerprint?: string | null;
   ip?: string | null;
 }) {
@@ -41,48 +48,34 @@ export async function createOtpChallenge(params: {
       expiresAt: new Date(Date.now() + TTL_MINUTES * 60_000),
       deviceFingerprint: params.deviceFingerprint || null,
       ip: params.ip || null,
+      sentTo: normalizeEmail(params.sentTo),
     },
   });
 
   return { code };
 }
 
-export type OtpVerification =
-  | { ok: true }
-  | { ok: false; reason: "expired" | "attempts" | "invalid" };
+export type OtpVerification = ProofResult;
 
+/**
+ * Spend a code. Accepted only while the account's email is still the address
+ * the code went to; `onProven` runs inside the same transaction (that is
+ * where a competitor's seats get linked).
+ */
 export async function verifyOtpChallenge(params: {
   userId: string;
   code: string;
   purpose: OtpPurpose;
+  onProven?: (tx: Prisma.TransactionClient, user: ProvenUser) => Promise<void>;
 }): Promise<OtpVerification> {
-  const challenge = await prisma.otpChallenge.findFirst({
-    where: {
-      userId: params.userId,
-      purpose: params.purpose,
-      consumedAt: null,
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: { createdAt: "desc" },
+  return consumeLoginCode({
+    db: prisma,
+    userId: params.userId,
+    code: params.code,
+    purpose: params.purpose,
+    maxAttempts: MAX_ATTEMPTS,
+    onProven: params.onProven,
   });
-
-  if (!challenge) return { ok: false, reason: "expired" };
-  if (challenge.attempts >= MAX_ATTEMPTS) return { ok: false, reason: "attempts" };
-
-  if (!safeEqual(challenge.codeHash, hashSecret(params.code))) {
-    await prisma.otpChallenge.update({
-      where: { id: challenge.id },
-      data: { attempts: { increment: 1 } },
-    });
-    return { ok: false, reason: "invalid" };
-  }
-
-  await prisma.otpChallenge.update({
-    where: { id: challenge.id },
-    data: { consumedAt: new Date() },
-  });
-
-  return { ok: true };
 }
 
 export async function canResendOtp(params: { userId: string; purpose: OtpPurpose }) {

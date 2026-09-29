@@ -100,7 +100,7 @@ export async function inviteAccount(input: unknown): Promise<ActionResult> {
     });
   }
 
-  const { url } = await issueAuthToken({ userId: created.id, purpose: "invite" });
+  const { url } = await issueAuthToken({ userId: created.id, purpose: "invite", sentTo: email });
   await sendInviteEmail({
     email,
     url,
@@ -131,7 +131,7 @@ export async function resendInvite(userId: string): Promise<ActionResult> {
   if (!target) return { ok: false, error: "NOT_FOUND" };
   if (target.role === "admin" && actor.role !== "admin") return { ok: false, error: "FORBIDDEN" };
 
-  const { url } = await issueAuthToken({ userId: target.id, purpose: "invite" });
+  const { url } = await issueAuthToken({ userId: target.id, purpose: "invite", sentTo: target.email });
   await sendInviteEmail({
     email: target.email,
     url,

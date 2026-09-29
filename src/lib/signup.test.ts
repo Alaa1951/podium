@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     sendOtp: vi.fn(),
     alreadyRegistered: vi.fn(),
     rate: vi.fn(),
+    seatCount: vi.fn(),
   };
 });
 
@@ -31,6 +32,7 @@ vi.mock("@/lib/prisma", () => ({
     athleteProfile: { upsert: mocks.upsertProfile, deleteMany: mocks.deleteProfiles },
     studio: { findFirst: mocks.findStudio },
     series: { findFirst: mocks.findSeries, findMany: mocks.listSeries },
+    competitor: { count: mocks.seatCount },
   },
 }));
 vi.mock("@/lib/otp", () => ({ createOtpChallenge: mocks.otp, getOtpConfig: () => ({ ttlMinutes: 10 }) }));
@@ -70,12 +72,44 @@ const pair = {
 // hash would be the other fix, and it would quietly stop proving that signing
 // up actually sets a password.
 describe("startSignup", { timeout: 30_000 }, () => {
+  it("lets a seat holder with no account sign up like anybody else — waiting for approval, code to that address", async () => {
+    // Already on a team's seat (unpaid, waiting list or training — the code
+    // door mints no account for those), no account yet. Turning them away
+    // here too left them no way in at all. The seat links once the code
+    // proves the address (link-seats.ts); approval follows only a paid entry.
+    mocks.seatCount.mockResolvedValue(1);
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(mocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: "sara@example.com", approvalStatus: "pending", status: "invited" }) }));
+    expect(mocks.otp).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", sentTo: "sara@example.com" }));
+    expect(mocks.alreadyRegistered).not.toHaveBeenCalled();
+  });
+
+  it("lets an ATHLETE sign up with no password — codes are the way in — but not an organiser", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup({ ...athlete, password: "" })).toEqual({ ok: true });
+    expect(mocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ passwordHash: null }) }));
+    expect(mocks.otp).toHaveBeenCalled();
+
+    mocks.createUser.mockClear();
+    const organiser = { type: "organiser", roleKey: "judge", name: "Omar", email: "omar@example.com", phone: "+97455500000", password: "" };
+    expect(await startSignup(organiser)).toEqual({ ok: false, error: expect.stringMatching(/^PASSWORD_/) });
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("still refuses a weak password when an athlete does choose one", async () => {
+    const { startSignup } = await import("@/lib/actions/signup");
+    expect(await startSignup({ ...athlete, password: "abc" })).toEqual({ ok: false, error: expect.stringMatching(/^PASSWORD_/) });
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.rate.mockReturnValue({ ok: true });
     mocks.findUser.mockResolvedValue(null);
     mocks.createUser.mockResolvedValue({ id: "u1" });
     mocks.otp.mockResolvedValue({ code: "123456" });
+    mocks.seatCount.mockResolvedValue(0);
     // No competition is open for sign-up unless a test says otherwise, so the
     // field is not demanded.
     mocks.listSeries.mockResolvedValue([]);

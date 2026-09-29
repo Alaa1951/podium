@@ -4,7 +4,8 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 import { sendSecurityAlertEmail } from "@/lib/email";
-import { verifyOtpChallenge } from "@/lib/otp";
+import { linkSeatsForUser } from "@/lib/link-seats";
+import { verifyOtpChallenge, type OtpVerification } from "@/lib/otp";
 import { onAthleteVerified } from "@/lib/partners";
 import { otpDevBypassEnabled, staffOtpExempt } from "@/lib/otp-bypass";
 import { isTestAccount } from "@/lib/test-accounts";
@@ -44,6 +45,29 @@ import {
  * The decision lives in otp-bypass.ts, pinned by its own tests.
  */
 const OTP_DEV_BYPASS = otpDevBypassEnabled(process.env);
+
+/**
+ * A right code that cannot be used — sent to an address the account no
+ * longer has, or issued before recipients were recorded — is refused as a
+ * whole: no session, nothing changed. The form tells the person to ask for a
+ * new one. Other refusals stay silent (`null`), like a wrong code.
+ */
+function refuseIfAddressStale(verification: OtpVerification): void {
+  if (verification.ok) return;
+  if (verification.reason === "no_recipient" || verification.reason === "address_changed") {
+    throw new Error(AUTH_ERRORS.codeRefused);
+  }
+}
+
+/**
+ * What a proven address does for a competitor: their seats follow — in a
+ * transaction of their own, once the proof has committed (link-seats.ts
+ * re-checks the proof under lock and never throws; a failed link is simply
+ * retried on the next visit).
+ */
+async function linkAfterProof(user: { id: string; role: string }): Promise<void> {
+  if (user.role === "competitor") await linkSeatsForUser(prisma, user.id);
+}
 
 export const passwordProviders: NextAuthOptions["providers"] = [
   CredentialsProvider({
@@ -127,6 +151,15 @@ export const passwordProviders: NextAuthOptions["providers"] = [
         isTrustedDevice: Boolean(trusted),
       });
 
+      // A password proves nothing about the mailbox. Seats follow only an
+      // address this account has already proven (link-seats.ts checks that
+      // on the row itself); a failure here must never cost the sign-in.
+      if (user.role === "competitor") {
+        await linkSeatsForUser(prisma, user.id).catch((error) =>
+          console.error("[LINK-SEATS]", error instanceof Error ? error.message : error)
+        );
+      }
+
       return toSessionUser(user);
     },
   }),
@@ -161,11 +194,12 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       if (user.status === "disabled") throw new Error(AUTH_ERRORS.accountDisabled);
       if (user.status === "invited") throw new Error(AUTH_ERRORS.notActivated);
 
-      const verification = OTP_DEV_BYPASS
-        ? { ok: true }
+      const verification: OtpVerification = OTP_DEV_BYPASS
+        ? { ok: true, user: { ...user, signupType: user.signupType ?? null }, verifiedEmail: email }
         : await verifyOtpChallenge({ userId: user.id, code, purpose: "login" });
       if (!verification.ok) {
         await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
+        refuseIfAddressStale(verification);
         return null;
       }
 
@@ -190,12 +224,15 @@ export const passwordProviders: NextAuthOptions["providers"] = [
         });
       }
 
+      // The proof itself (`verifiedEmail`, `emailVerified`) was recorded by
+      // verifyOtpChallenge, in the transaction that spent the code; the seats
+      // follow it now, in their own.
+      await linkAfterProof(user);
       await prisma.user.update({
         where: { id: user.id },
         data: {
           lastLoginAt: new Date(),
           forceOtpNextLogin: false,
-          emailVerified: user.emailVerified ?? new Date(),
           ...(ip ? { lastIp: ip } : {}),
         },
       });
@@ -249,31 +286,42 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       if (!user) return null;
       if (user.status === "disabled") throw new Error(AUTH_ERRORS.accountDisabled);
 
-      const verification = OTP_DEV_BYPASS
-        ? { ok: true }
-        : await verifyOtpChallenge({ userId: user.id, code, purpose: "login" });
+      // Signing in this way proves the address — the address the code was
+      // SENT TO, checked under lock as the code is spent. Activation and the
+      // proof are one transaction: a refused code changes nothing at all.
+      // An athlete's seats follow once it has committed.
+      const verification: OtpVerification = OTP_DEV_BYPASS
+        ? { ok: true, user: { ...user, signupType: user.signupType ?? null }, verifiedEmail: email }
+        : await verifyOtpChallenge({
+            userId: user.id,
+            code,
+            purpose: "login",
+            onProven: async (tx, proven) => {
+              await tx.user.update({ where: { id: proven.id }, data: { status: "active" } });
+            },
+          });
       if (!verification.ok) {
         await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
+        refuseIfAddressStale(verification);
         return null;
       }
 
-      // Signing in this way proves the address, which is the only thing an
-      // invitation would have proved.
       await prisma.user.update({
         where: { id: user.id },
         data: {
           status: "active",
           lastLoginAt: new Date(),
-          emailVerified: user.emailVerified ?? new Date(),
           ...(ip ? { lastIp: ip } : {}),
         },
       });
+      // The proof has committed (and activated the account): the seats follow.
+      await linkAfterProof(user);
 
       await logLoginEvent({ userId: user.id, eventType: "COMPETITOR_OTP_VERIFIED", ip });
 
       // An athlete who signed up proves their address for the first time:
       // link their partner, or invite them (partners.ts).
-      if (!user.emailVerified && user.signupType === "athlete") {
+      if (!user.emailVerified && user.signupType === "athlete" && user.role === "competitor") {
         await onAthleteVerified(user.id, user.email).catch(() => undefined);
       }
 

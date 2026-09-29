@@ -303,4 +303,32 @@ export const AR_SIGNUP: Phrases = {
   "Athlete 1": "الرياضي ١",
   "Athlete 2": "الرياضي ٢",
   "Athlete names": "أسماء الرياضيين",
+
+  // ── A code or link that cannot be used any more ────────────────────────────
+  "This code can't be used any more.": "لم يعد من الممكن استخدام هذا الكود.",
+  "This link can't be used any more.": "لم يعد من الممكن استخدام هذا الرابط.",
+  "It was sent to an address this account no longer uses, or it is too old. Nothing has changed on the account. Ask for a new one:":
+    "أُرسل إلى بريد لم يعد هذا الحساب يستخدمه، أو أنه قديم جدًا. لم يتغير شيء في الحساب. اطلب واحدًا جديدًا:",
+  "Send me a sign-in code": "أرسل لي كود دخول",
+  "Send me a link to set a password": "أرسل لي رابطًا لتعيين كلمة مرور",
+  "Athlete? Sign in with a code": "رياضي؟ سجّل الدخول بكود",
+  "Verify your email": "تأكيد بريدك الإلكتروني",
+  "Your entry is linked to the email it was registered with. Verify {email} to see it here.":
+    "تسجيلك مرتبط بالبريد الذي سُجّل به. أكّد {email} لتراه هنا.",
+  Verify: "تأكيد",
+
+  // ── Password optional for athletes; Create / Change password ──────────────
+  "Password (optional)": "كلمة المرور (اختيارية)",
+  "Leave it empty to sign in with a code we email you. You can create a password any time from Account.":
+    "اتركها فارغة لتسجّل الدخول بكود نرسله إلى بريدك. يمكنك إنشاء كلمة مرور في أي وقت من صفحة الحساب.",
+  "Create a password": "إنشاء كلمة مرور",
+  "We email you a link to set a new one — there is no old password to remember. The link is good for 30 minutes.":
+    "نرسل إليك رابطًا لتعيين كلمة جديدة — لا حاجة لتذكّر القديمة. الرابط صالح لمدة 30 دقيقة.",
+  "You sign in with a code we email you. If you would also like a password, we email you a link to create one — the link is good for 30 minutes. Codes keep working either way.":
+    "تسجّل الدخول بكود نرسله إلى بريدك. إن أردت كلمة مرور أيضًا، نرسل إليك رابطًا لإنشائها — الرابط صالح لمدة 30 دقيقة. وتبقى الأكواد تعمل في الحالتين.",
+  "Devices already signed in stay signed in. Every trusted browser will be asked for a code the next time it signs in; to end a session now, sign out on that device.":
+    "الأجهزة المسجّلة الدخول حاليًا تبقى كذلك. سيُطلب كود من كل متصفح موثوق عند دخوله التالي؛ ولإنهاء جلسة الآن سجّل الخروج من ذلك الجهاز.",
+  "Signed in as {email}.": "مسجّل الدخول باسم {email}.",
+  "Registered with another email? Sign out and use Athlete sign-in with that email. If your registration uses this email, ask your gym or BFT MENA to check it.":
+    "سجّلت ببريد آخر؟ سجّل الخروج واستخدم دخول الرياضي بذلك البريد. وإن كان تسجيلك بهذا البريد، اطلب من صالتك أو BFT MENA التحقق منه.",
 };

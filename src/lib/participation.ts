@@ -50,10 +50,22 @@ export async function listMySeries(userId: string) {
   });
  }
 
-/** Explicit writes always supply an id. Landing pages default to running, then upcoming. */
+/**
+ * Explicit writes always supply an id. Landing pages default to the
+ * competition the athlete actually holds a seat in (a real one before a
+ * training one), and only then to "running, then upcoming" — a training
+ * event left running must not hide the entry they came to see.
+ */
 export async function resolveMySeries(userId: string, requested?: string) {
   const series = competitionChoices(await listMySeries(userId));
-  return requested ? series.find(s => s.id === requested || s.slug === requested) ?? null : series[0] ?? null;
+  if (requested) return series.find(s => s.id === requested || s.slug === requested) ?? null;
+  const seated = new Set(
+    (await prisma.competitor.findMany({
+      where: { userId, team: { archivedAt: null, series: { archivedAt: null } } },
+      select: { team: { select: { seriesId: true } } },
+    })).map((row) => row.team.seriesId)
+  );
+  return series.find(s => seated.has(s.id) && !s.isTraining) ?? series.find(s => seated.has(s.id)) ?? series[0] ?? null;
 }
 
 export function meHref(seriesId: string, suffix = "") {

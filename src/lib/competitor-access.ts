@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { unambiguousSeats } from "@/lib/link-seats";
 import { isCompeting } from "@/lib/team-status";
 import { createOtpChallenge } from "@/lib/otp";
 import { normalizeEmail } from "@/lib/security";
@@ -8,14 +9,16 @@ import { normalizeEmail } from "@/lib/security";
 // ─────────────────────────────────────────────────────────────────────────────
 // LETTING A COMPETITOR IN.
 //
-// A registered competitor has no password and never will: they gave an email
-// when they entered, and that is the whole credential. They ask for a code, it
-// arrives, and they are in — for a day, which is how long a competition and the
-// evening of arguing about the results actually lasts.
+// A registered competitor gave an email when they entered, and that is their
+// credential: they ask for a code, it arrives, and they are in. Setting a
+// password is theirs to choose later (Account), never required.
 //
-// The account is created on the way through rather than up front. Registering
-// 216 people would otherwise mean 216 dormant logins, most of which are never
-// used, and every one of them a thing that can be attacked.
+// ASKING FOR A CODE PROVES NOTHING. Anyone can type an address into the form.
+// So this file only decides whether a code goes out, and — for a competing
+// entry with no account yet — mints the row it will be checked against, as
+// `invited`, unverified, linked to no seat. Linking, activation and approval all happen when the code is TYPED
+// (auth-password.ts › competitor, through auth-proof.ts and link-seats.ts),
+// under lock, against the address the code was sent to.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** How long a competitor stays signed in, in hours. */
@@ -41,6 +44,7 @@ export async function findRegistrations(rawEmail: string) {
       team: {
         select: {
           id: true,
+          seriesId: true,
           name: true,
           paymentStatus: true,
           waitlistedAt: true,
@@ -51,121 +55,54 @@ export async function findRegistrations(rawEmail: string) {
   });
 }
 
-/**
- * The account this competitor signs in as, created the first time they ask.
- *
- * Each unambiguous registration carrying the same email is linked to it, so a competitor
- * who has entered three PODIUMs sees all three under one login rather than
- * needing a different way in for each.
- */
-export async function accountForCompetitor(rawEmail: string, fullName: string) {
-  const email = normalizeEmail(rawEmail);
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    if (existing.status === "disabled" || existing.archivedAt) return null;
-    await linkRegistrations(existing.id, email);
-    // A paid entry is all the approval an athlete needs: someone who signed
-    // up and then registered and paid is not left waiting on a queue.
-    if (existing.role === "competitor" && existing.approvalStatus !== "approved") {
-      return prisma.user.update({
-        where: { id: existing.id },
-        data: { approvalStatus: "approved", approvedAt: new Date(), rejectionReason: null },
-      });
-    }
-    return existing;
-  }
-
-  // Active immediately: the emailed code IS the verification, so there is
-  // nothing further for an invitation to prove.
-  const created = await prisma.user.create({
-    data: {
-      email,
-      name: fullName,
-      role: "competitor",
-      status: "active",
-      emailVerified: new Date(),
-    },
-  });
-
-  await linkRegistrations(created.id, email);
-  return created;
-}
-
-/** A shared purchaser email cannot claim multiple athletes in one event. */
-function unambiguousRegistrations<T extends { id: string; team: { series: { id: string } } }>(rows: T[]): T[] {
-  const bySeries = new Map<string, Set<string>>();
-  for (const row of rows) {
-    const ids = bySeries.get(row.team.series.id) ?? new Set<string>();
-    ids.add(row.id); bySeries.set(row.team.series.id, ids);
-  }
-  return rows.filter(row => bySeries.get(row.team.series.id)?.size === 1);
-}
-
-/** Link only a single proven seat per competition, preserving ambiguous imports. */
-async function linkRegistrations(userId: string, email: string) {
-  const matches = await prisma.competitor.findMany({
-    where: { email, team: { archivedAt: null, series: { archivedAt: null } } }, include: { team: { include: { series: { select: { id: true } } } } },
-  });
-  for (const seat of unambiguousRegistrations(matches)) {
-    if (seat.userId && seat.userId !== userId) continue;
-    if (!seat.userId) {
-      const claimed = await prisma.competitor.updateMany({ where: { id: seat.id, email, userId: null }, data: { userId } });
-      if (claimed.count !== 1) continue;
-    }
-    await prisma.seriesParticipant.upsert({
-      where: { seriesId_userId: { seriesId: seat.team.seriesId, userId } }, update: {},
-      create: { seriesId: seat.team.seriesId, userId, signedUpAt: seat.team.createdAt,
-        division: seat.team.division, category: seat.team.category, shirtSize: seat.shirtSize,
-        bftMember: seat.bftMember, lookingForPartner: false, teamName: seat.team.name },
-    });
-  }
-}
-
 export type CodeRequest =
   | { ok: true; code: string; name: string }
-  /** No registration, unpaid, or a disabled account — all silent to the caller. */
-  | { ok: false };
+  /**
+   * No code. `signup`: the address is on a registration but has no account
+   * and no entry that opens this door by itself — the owner is told BY EMAIL
+   * to create their account with Sign up (the screen says the same thing
+   * either way).
+   */
+  | { ok: false; signup?: true };
 
 /**
- * Issue a sign-in code for a registered competitor.
+ * Issue a sign-in code.
  *
  * The caller is told nothing about why it failed. Whether an address competed
  * in PODIUM is not something a stranger gets to test, so the screen says the
  * same thing either way.
  */
 export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest> {
-  const registrations = await findRegistrations(rawEmail);
-
-  // Only a COMPETING entry is a competitor — paid, and holding a place. An
-  // unpaid registration has not been confirmed by anybody yet, and one on the
-  // waiting list has not been let in, however much money has arrived against
-  // it: paying is not how somebody joins a competition that is full.
-  //
-  // Either way an athlete who signed up has an account of their own, approved
-  // or waiting, so they are not locked out — they just do not come in through
-  // this door, which is the one that carries automatic approval with it.
-  const paid = unambiguousRegistrations(registrations).filter((one) => !one.team.series.isTraining && isCompeting(one.team));
-  if (paid.length === 0) return issueSignedUpAthleteCode(rawEmail);
-
-  const account = await accountForCompetitor(rawEmail, paid[0].fullName);
-  if (!account) return { ok: false };
-
-  const { code } = await createOtpChallenge({ userId: account.id, purpose: "login" });
-  return { ok: true, code, name: paid[0].fullName };
-}
-
-/** A code for an athlete who signed up themselves, whatever their approval. */
-async function issueSignedUpAthleteCode(rawEmail: string): Promise<CodeRequest> {
   const email = normalizeEmail(rawEmail);
   if (!email) return { ok: false };
-  const user = await prisma.user.findUnique({
+
+  // ANY ATHLETE ACCOUNT gets a code: it is their way in whether or not they
+  // ever set a password, whatever their approval or entry. A code grants
+  // nothing by itself — approval and seats follow their own rules once the
+  // address is proven. Staff accounts never come in this way.
+  const existing = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, name: true, role: true, status: true, signupType: true },
+    select: { id: true, email: true, name: true, role: true, status: true, archivedAt: true },
   });
-  if (!user || user.role !== "competitor" || !user.signupType || user.status === "disabled") {
-    return { ok: false };
+  if (existing) {
+    if (existing.role !== "competitor" || existing.status === "disabled" || existing.archivedAt) return { ok: false };
+    const { code } = await createOtpChallenge({ userId: existing.id, purpose: "login", sentTo: existing.email });
+    return { ok: true, code, name: existing.name ?? email };
   }
-  const { code } = await createOtpChallenge({ userId: user.id, purpose: "login" });
-  return { ok: true, code, name: user.name ?? email };
+
+  // NO ACCOUNT YET. Only a COMPETING entry (paid, holding a place, not a
+  // training run) mints one here, as `invited` with nothing proven. Whether
+  // any seat should do so is an open product decision (D4); until it is
+  // made, the holder of another seat is pointed at Sign up, which creates
+  // their account waiting for approval and links the seat once the address
+  // is proven — visible with its true state, approving nothing.
+  const registrations = await findRegistrations(email);
+  const paid = unambiguousSeats(registrations).filter((one) => !one.team.series.isTraining && isCompeting(one.team));
+  if (paid.length === 0) return registrations.length > 0 ? { ok: false, signup: true } : { ok: false };
+
+  const account = await prisma.user.create({
+    data: { email, name: paid[0].fullName, role: "competitor", status: "invited" },
+  });
+  const { code } = await createOtpChallenge({ userId: account.id, purpose: "login", sentTo: account.email });
+  return { ok: true, code, name: paid[0].fullName };
 }
