@@ -13,8 +13,10 @@ import { isCompeting } from "@/lib/team-status";
 //   registrant — one person manages who is on the team.
 //   joint      — two independent registrants, equal rights; nobody owns the
 //                other's seat.
-//   unknown    — nobody has confirmed it. Grants nothing to anybody; BFT MENA
-//                sets it.
+//   unknown    — BFT MENA has not confirmed it. Until they do, the team is
+//                managed by an AUTOMATIC registrant (provisionalRegistrantSeat)
+//                when one follows from the facts; BFT MENA can set it at any
+//                time, and what they set wins.
 //
 // Pure functions only: safe on the server and in the browser.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,10 +29,50 @@ export type OwnedTeam = {
   ownership: Ownership;
   registrantEmail: string | null;
   registrantUserId: string | null;
+  /** The CRM payer's email (crmPayerEmail), when the team came from the CRM. */
+  payerEmail?: string | null;
   competitors: SeatRef[];
 };
 
 const clean = (email: string | null | undefined) => (email ?? "").trim().toLowerCase() || null;
+
+/** The payer's email on a CRM team: the contact the CRM sent with it. */
+export function crmPayerEmail(team: { source: string; rawPayload: unknown }): string | null {
+  if (team.source !== "ghl") return null;
+  const raw = team.rawPayload;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const email = (raw as Record<string, unknown>).email;
+  return typeof email === "string" ? clean(email) : null;
+}
+
+/**
+ * WHO MANAGES A TEAM BFT MENA HAS NOT CONFIRMED (`unknown`) — decided the same
+ * way every time, from facts nobody on the team can fake:
+ *
+ *   1. the CRM payer, when the payer's email is on exactly one seat (the
+ *      rule the CRM sync and the backfill use: ownershipFromContact);
+ *   2. otherwise the ONE member who has signed in, while the other seat has
+ *      nobody signed in (or there is no other seat).
+ *
+ * Nobody when both have signed in and the CRM does not say who paid: that is
+ * BFT MENA's to choose. So a person who has signed in is never taken off the
+ * team by a partner BFT MENA has not confirmed — unless that partner paid.
+ */
+export function provisionalRegistrantSeat<T extends SeatRef>(team: Omit<OwnedTeam, "competitors"> & { competitors: T[] }): T | null {
+  if (team.ownership !== "unknown") return null;
+  const payer = clean(team.payerEmail);
+  if (payer) {
+    const paid = team.competitors.filter((seat) => clean(seat.email) === payer);
+    if (paid.length === 1) return paid[0];
+  }
+  const signedIn = team.competitors.filter((seat) => seat.userId);
+  return signedIn.length === 1 ? signedIn[0] : null;
+}
+
+/** Who manages the team now: the confirmed registrant, or — unconfirmed — the automatic one. */
+export function managingSeat<T extends SeatRef>(team: Omit<OwnedTeam, "competitors"> & { competitors: T[] }): T | null {
+  return team.ownership === "unknown" ? provisionalRegistrantSeat(team) : registrantSeat(team);
+}
 
 /** The registrant's seat, or null (unknown or joint ownership, or no match). */
 export function registrantSeat<T extends SeatRef>(team: Omit<OwnedTeam, "competitors"> & { competitors: T[] }): T | null {
@@ -89,7 +131,9 @@ export function membershipChangesEnabled(env: NodeJS.ProcessEnv = process.env): 
 //                fill the empty seat; cannot leave (BFT MENA withdraws).
 //   the other member of a registrant's team — leave; nothing else.
 //   joint     — nobody replaces or fills alone; leaving is a split (R4b).
-//   unknown   — nothing, for anybody.
+//   unknown   — the automatic registrant (provisionalRegistrantSeat) acts as
+//               the registrant, the other member as the other member; when
+//               there is none, nothing for anybody until BFT MENA chooses.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RightsTeam = OwnedTeam & { competitors: (SeatRef & { position: number })[] };
@@ -103,23 +147,25 @@ export type MembershipRights = {
   canReplace: string | null;
   canFill: boolean;
   canLeave: boolean;
+  /** The registrant is the automatic one: BFT MENA has not confirmed it. */
+  provisional: boolean;
 };
 
 export function membershipRights(team: RightsTeam, userId: string): MembershipRights {
   const mine = team.competitors.find((seat) => seat.userId === userId) ?? null;
   const nothing = (reason: MembershipRights["reason"]): MembershipRights => ({
-    mySeatId: mine?.id ?? null, role: "none", reason, canReplace: null, canFill: false, canLeave: false,
+    mySeatId: mine?.id ?? null, role: "none", reason, canReplace: null, canFill: false, canLeave: false, provisional: false,
   });
   if (!mine) return nothing("NOT_ON_TEAM");
-  if (team.ownership === "unknown") return nothing("OWNERSHIP_UNKNOWN");
   if (team.ownership === "joint") return nothing("JOINT_TEAM");
-  const registrant = registrantSeat(team);
-  if (!registrant) return nothing("REGISTRANT_UNRESOLVED");
+  const provisional = team.ownership === "unknown";
+  const registrant = managingSeat(team);
+  if (!registrant) return nothing(provisional ? "OWNERSHIP_UNKNOWN" : "REGISTRANT_UNRESOLVED");
   if (registrant.id === mine.id) {
     const other = team.competitors.find((seat) => seat.id !== mine.id) ?? null;
-    return { mySeatId: mine.id, role: "registrant", reason: null, canReplace: other?.id ?? null, canFill: team.competitors.length < 2, canLeave: false };
+    return { mySeatId: mine.id, role: "registrant", reason: null, canReplace: other?.id ?? null, canFill: team.competitors.length < 2, canLeave: false, provisional };
   }
-  return { mySeatId: mine.id, role: "member", reason: null, canReplace: null, canFill: false, canLeave: true };
+  return { mySeatId: mine.id, role: "member", reason: null, canReplace: null, canFill: false, canLeave: true, provisional };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

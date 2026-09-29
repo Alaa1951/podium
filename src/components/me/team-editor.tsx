@@ -22,7 +22,7 @@ const ERRORS: Record<string, string> = {
   FORBIDDEN: "You are not allowed to do that.",
   TEAM_EDIT_CLOSED: "Team changes are closed — the event starts in less than 24 hours.",
   NOT_REGISTRANT: "Only the person who registered the team can correct their partner's details.",
-  OWNERSHIP_UNKNOWN: "BFT MENA has not confirmed who registered this team yet. Ask them to change it.",
+  OWNERSHIP_UNKNOWN: "You have both signed in, and BFT MENA has not confirmed which of you registered the team. Ask BFT MENA to confirm it — then that person can change the team.",
   PERSON_CHANGED: "A new name and a new email is a different person. To put someone else in the team, use Replace my partner — or ask BFT MENA.",
   STALE_MEMBERSHIP: "Your team changed while this page was open. Reload to see who is on it now.",
   EMAIL_IS_A_NEW_PERSON: "A different email is a different person. To change it, use Replace my partner — or ask BFT MENA.",
@@ -110,7 +110,7 @@ export function TeamEditor({
         {closedReason === "registrant-only"
           ? t("Only the person who registered the team can correct their partner's details.")
           : closedReason === "not-confirmed"
-            ? t("BFT MENA has not confirmed who registered this team yet. Ask them to change it.")
+            ? t("You have both signed in, and BFT MENA has not confirmed which of you registered the team. Ask BFT MENA to confirm it — then that person can change the team.")
             : closesAt
               ? t("Team changes closed on {when} (Qatar time). Any change now goes through BFT MENA.", { when: closesAt })
               : t("Team changes are closed — the event starts in less than 24 hours.")}

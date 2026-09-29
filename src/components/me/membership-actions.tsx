@@ -50,7 +50,7 @@ const CLOSED: Record<string, string> = {
 };
 
 const NOBODY: Record<string, string> = {
-  OWNERSHIP_UNKNOWN: "BFT MENA has not confirmed who registered this team yet. Until then, changes to the team go through them.",
+  OWNERSHIP_UNKNOWN: "You have both signed in, and BFT MENA has not confirmed which of you registered the team. Ask BFT MENA to confirm it — then that person can change the team.",
   REGISTRANT_UNRESOLVED: "BFT MENA has not confirmed who registered this team yet. Until then, changes to the team go through them.",
   JOINT_TEAM: "You both registered separately, so neither of you can change the other's place. Changes to this team go through BFT MENA.",
 };

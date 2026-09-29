@@ -334,8 +334,21 @@ export const AR_SIGNUP: Phrases = {
   "Both registered separately": "كلاهما سجّل بشكل منفصل",
   "Not confirmed": "غير مؤكَّد",
   "Who registered this team": "من سجّل هذا الفريق",
-  "The person who registered manages who is on the team; the other member can only leave. Not confirmed gives nobody that right.":
-    "من سجّل الفريق يدير أعضاءه، والعضو الآخر يستطيع المغادرة فقط. \"غير مؤكَّد\" لا يعطي هذا الحق لأحد.",
+  "The person who registered manages who is on the team; the other member can only leave. Until you confirm, it is decided automatically: the CRM payer, or else the only one of the pair who has signed in.":
+    "من سجّل الفريق يدير أعضاءه، والعضو الآخر يستطيع المغادرة فقط. إلى أن تؤكّد، يُحدَّد ذلك تلقائيًا: من دفع في CRM، وإلا فالوحيد من الثنائي الذي سجّل الدخول.",
+  "Not confirmed yet. Until you choose, {name} manages the team — they paid in the CRM.":
+    "غير مؤكَّد بعد. إلى أن تختار، يدير {name} الفريق — فهو من دفع في CRM.",
+  "Not confirmed yet. Until you choose, {name} manages the team — the only one of the pair who has signed in.":
+    "غير مؤكَّد بعد. إلى أن تختار، يدير {name} الفريق — فهو الوحيد من الثنائي الذي سجّل الدخول.",
+  "Not confirmed, and both have signed in: nobody on the team can change it until you choose who registered it.":
+    "غير مؤكَّد، وكلاهما سجّل الدخول: لا يستطيع أحد في الفريق تغييره حتى تختار من سجّله.",
+  "Not confirmed yet. The first of the pair to sign in will manage the team, unless you choose now.":
+    "غير مؤكَّد بعد. أول من يسجّل الدخول من الثنائي سيدير الفريق، ما لم تختر الآن.",
+  "Who registered — waiting for you": "من سجّل الفريق — بانتظارك",
+  "Who registered — waiting for you ({count})": "من سجّل الفريق — بانتظارك ({count})",
+  "Nobody on these teams can change them until you choose who registered them. Open the team and choose under Who registered this team. Every other team is managed automatically: the CRM payer, or else the only one of the pair who has signed in.":
+    "لا يستطيع أحد في هذه الفرق تغييرها حتى تختار من سجّلها. افتح الفريق واختر تحت \"من سجّل هذا الفريق\". أما بقية الفرق فتُدار تلقائيًا: من دفع في CRM، وإلا فالوحيد من الثنائي الذي سجّل الدخول.",
+  "Manages the team": "يدير الفريق",
   "The registrant's email is no longer on either seat. Choose again.": "بريد المسجِّل لم يعد على أيّ من المقعدين. اختر من جديد.",
   "no email on the registration": "لا بريد في التسجيل",
   You: "أنت",
@@ -379,8 +392,8 @@ export const AR_SIGNUP: Phrases = {
   "Your team has a score, so it cannot change now.": "لفريقك نتيجة مسجّلة، فلا يمكن تغييره الآن.",
   "This competition is finished.": "انتهت هذه المسابقة.",
   "This team is no longer entered.": "هذا الفريق لم يعد مسجّلًا.",
-  "BFT MENA has not confirmed who registered this team yet. Until then, changes to the team go through them.":
-    "لم يؤكّد BFT MENA بعد من سجّل هذا الفريق. حتى ذلك الحين، تتم تغييرات الفريق عن طريقهم.",
+  "You have both signed in, and BFT MENA has not confirmed which of you registered the team. Ask BFT MENA to confirm it — then that person can change the team.":
+    "سجّل كلاكما الدخول، ولم يؤكّد BFT MENA بعد أيّكما سجّل الفريق. اطلب من BFT MENA تأكيد ذلك — وبعدها يستطيع هذا الشخص تغيير الفريق.",
   "You both registered separately, so neither of you can change the other's place. Changes to this team go through BFT MENA.":
     "سجّل كلٌّ منكما بشكل منفصل، فلا يستطيع أحدكما تغيير مكان الآخر. تتم تغييرات هذا الفريق عن طريق BFT MENA.",
   "Your team changed while this page was open. Reload to see who is on it now.":
@@ -396,8 +409,6 @@ export const AR_SIGNUP: Phrases = {
   "Team changes are not open yet.": "تغييرات الفريق غير متاحة بعد.",
   "Check the fields and try again.": "راجع الحقول وحاول مجددًا.",
   "Only the person who registered the team can correct their partner's details.": "من سجّل الفريق فقط يستطيع تصحيح بيانات شريكه.",
-  "BFT MENA has not confirmed who registered this team yet. Ask them to change it.":
-    "لم يؤكّد BFT MENA بعد من سجّل هذا الفريق. اطلب منهم التغيير.",
   "You can correct your partner's name or email — one at a time — until 24 hours before the event.":
     "يمكنك تصحيح اسم شريكك أو بريده — واحدًا في كل مرة — حتى 24 ساعة قبل الفعالية.",
   "You have unsaved changes. Leave this screen?": "لديك تغييرات غير محفوظة. هل تغادر هذه الشاشة؟",

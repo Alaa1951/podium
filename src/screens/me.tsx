@@ -15,7 +15,7 @@ import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
 import { PairCard } from "@/components/me/pair-card";
 import { MembershipActions } from "@/components/me/membership-actions";
-import { incompleteTeamPolicyEnabled, membershipChangesEnabled, membershipDoor, membershipRights, registrantSeat, teamChangeWindow, teamChangesCloseLabel } from "@/lib/ownership";
+import { crmPayerEmail, incompleteTeamPolicyEnabled, managingSeat, membershipChangesEnabled, membershipDoor, membershipRights, teamChangeWindow, teamChangesCloseLabel } from "@/lib/ownership";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -186,13 +186,17 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   const ownership = await prisma.team.findUnique({
     where: { id: team.id },
     select: {
-      ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true,
+      ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true, source: true, rawPayload: true,
       archivedAt: true, waveId: true, waveRef: { select: { status: true } }, score: { select: { id: true } },
     },
   });
   // What this athlete may change about the team, and whether it may change
-  // at all right now — the same rules the server applies (ownership.ts).
-  const owned = { ownership: ownership?.ownership ?? "unknown", registrantEmail: ownership?.registrantEmail ?? null, registrantUserId: ownership?.registrantUserId ?? null };
+  // at all right now — the same rules the server applies (ownership.ts),
+  // including the automatic registrant while BFT MENA has not confirmed one.
+  const owned = {
+    ownership: ownership?.ownership ?? "unknown" as const, registrantEmail: ownership?.registrantEmail ?? null, registrantUserId: ownership?.registrantUserId ?? null,
+    payerEmail: ownership ? crmPayerEmail(ownership) : null,
+  };
   const rights = membershipRights({ ...owned, competitors: team.competitors }, user.id);
   const door = membershipDoor({
     archivedAt: ownership?.archivedAt ?? null, waveId: ownership?.waveId ?? null, waveStatus: ownership?.waveRef?.status ?? null,
@@ -202,7 +206,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   // When changes close (D3a), said in Qatar time — the competition's own.
   const closesAtLabel = teamChangesCloseLabel(series.competitionDate, locale);
   const partnerSeat = rights.canReplace ? team.competitors.find((person) => person.id === rights.canReplace) ?? null : null;
-  const registrantName = registrantSeat({ ...owned, competitors: team.competitors })?.fullName ?? null;
+  const registrantName = managingSeat({ ...owned, competitors: team.competitors })?.fullName ?? null;
   const status = teamStatus(team);
 
   // YOUR DAY: when the pair is in each zone — estimated until their wave
@@ -241,7 +245,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   const editWindowOpen = teamChangeWindow(series.competitionDate, new Date(), false).open;
   // Correcting the partner's details is the registrant's (ownership.ts).
   const canEditTeam = can(user, "athleteHome.editTeam") && editWindowOpen && rights.role === "registrant";
-  const editClosedReason = !editWindowOpen ? "window" as const : rights.role === "member" ? "registrant-only" as const : "not-confirmed" as const;
+  const editClosedReason = !editWindowOpen ? "window" as const : rights.reason === "OWNERSHIP_UNKNOWN" ? "not-confirmed" as const : "registrant-only" as const;
+  // The membership panel already says why nobody can change the team: the
+  // editor's note would repeat it.
+  const membershipPanelShown = membershipChangesEnabled() && !user.viewAs;
+  const showTeamEditor = canEditTeam || !(membershipPanelShown && editWindowOpen && rights.role === "none");
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.
@@ -415,7 +423,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       <PairCard
         viewerId={user.id}
         viewerCanFill={membershipChangesEnabled() && !user.viewAs && rights.canFill && door.open}
-        ownership={ownership ?? { ownership: "unknown", registrantEmail: null, registrantUserId: null }}
+        ownership={owned}
         members={team.competitors.map((person) => ({
           id: person.id,
           fullName: person.fullName,
@@ -425,7 +433,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           shirt: shirts.get(person.id) ?? null,
         }))}
       />
-      {membershipChangesEnabled() && !user.viewAs ? (
+      {membershipPanelShown ? (
         <MembershipActions
           teamId={team.id}
           version={ownership?.membershipVersion ?? 0}
@@ -450,7 +458,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       <PortraitUpload seriesId={series.id} />
 
       {/* Correcting who stands on the team — the clock decided above. */}
-      <TeamEditor seriesId={series.id} teamId={team.id}
+      {showTeamEditor ? <TeamEditor seriesId={series.id} teamId={team.id}
         members={team.competitors.map((person) => ({
           position: person.position,
           fullName: person.fullName,
@@ -463,7 +471,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         replaceAvailable={membershipChangesEnabled()}
         viewerId={user.id}
         version={ownership?.membershipVersion ?? 0}
-      />
+      /> : null}
 
       {team.submitted ? (
         <>

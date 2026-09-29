@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { incompleteTeamPolicyEnabled, isComplete, isEligibleToCompete, membershipChangesEnabled, membershipDoor, membershipRights, onTheFloor, ownershipFromContact, registrantSeat, TEAM_CHANGES_CLOSE_HOURS, teamChangeWindow, teamChangesCloseAt, teamChangesCloseLabel } from "@/lib/ownership";
+import { crmPayerEmail, incompleteTeamPolicyEnabled, isComplete, isEligibleToCompete, managingSeat, membershipChangesEnabled, membershipDoor, membershipRights, onTheFloor, ownershipFromContact, provisionalRegistrantSeat, registrantSeat, TEAM_CHANGES_CLOSE_HOURS, teamChangeWindow, teamChangesCloseAt, teamChangesCloseLabel } from "@/lib/ownership";
 
 const seats = [
   { id: "a", userId: "u-mona", email: "mona@example.com" },
@@ -72,12 +72,70 @@ describe("who may change the team (R2b)", () => {
     expect(membershipRights(solo, "u-sara")).toMatchObject({ role: "registrant", canReplace: null, canFill: true });
   });
 
-  it("unknown and joint give nobody anything; a stranger is not on the team", () => {
+  it("unknown with both signed in and no CRM payer, and joint, give nobody anything; a stranger is not on the team", () => {
     expect(membershipRights(owned(seatsWith(1), "unknown"), "u-sara")).toMatchObject({ role: "none", reason: "OWNERSHIP_UNKNOWN", canLeave: false });
     expect(membershipRights(owned(seatsWith(1), "joint"), "u-mona")).toMatchObject({ role: "none", reason: "JOINT_TEAM", canLeave: false, canReplace: null });
     expect(membershipRights(owned(seatsWith(1)), "u-nour")).toMatchObject({ role: "none", reason: "NOT_ON_TEAM" });
   });
 
+  it("a registrant whose email is on neither seat any more is unresolved — for BFT MENA", () => {
+    expect(membershipRights({ ...owned(seatsWith(1)), registrantEmail: "gone@example.com" }, "u-sara")).toMatchObject({ role: "none", reason: "REGISTRANT_UNRESOLVED" });
+  });
+});
+
+describe("not confirmed by BFT MENA: the automatic registrant", () => {
+  const unknown = (competitors: { id: string; position: number; userId: string | null; email: string | null }[], payerEmail: string | null = null) => ({
+    ownership: "unknown" as const, registrantEmail: null, registrantUserId: null, payerEmail, competitors,
+  });
+  const ola = { id: "s1", position: 1, userId: "u-ola", email: "ola@example.com" };
+  const alicia = { id: "s2", position: 2, userId: null, email: "alicia@example.com" };
+
+  it("the only member signed in manages the team: replaces the partner who has not signed in, or fills the empty seat", () => {
+    expect(membershipRights(unknown([ola, alicia]), "u-ola")).toEqual({ mySeatId: "s1", role: "registrant", reason: null, canReplace: "s2", canFill: false, canLeave: false, provisional: true });
+    expect(membershipRights(unknown([ola]), "u-ola")).toMatchObject({ role: "registrant", canReplace: null, canFill: true, provisional: true });
+  });
+
+  it("in seat 1 or seat 2 alike", () => {
+    const signedInSeat2 = [{ ...alicia, position: 1 }, { ...ola, position: 2 }];
+    expect(membershipRights(unknown(signedInSeat2), "u-ola")).toMatchObject({ role: "registrant", canReplace: "s2" });
+  });
+
+  it("the CRM payer on exactly one seat comes first — even before signing in — and the other member may only leave", () => {
+    const team = unknown([ola, alicia], " Alicia@Example.com ");
+    expect(provisionalRegistrantSeat(team)?.id).toBe("s2");
+    expect(membershipRights(team, "u-ola")).toMatchObject({ role: "member", canReplace: null, canFill: false, canLeave: true, provisional: true });
+    const both = unknown([ola, { ...alicia, userId: "u-alicia" }], "alicia@example.com");
+    expect(membershipRights(both, "u-alicia")).toMatchObject({ role: "registrant", canReplace: "s1" });
+  });
+
+  it("a payer on no seat, or on both, decides nothing: the signed-in rule applies", () => {
+    expect(provisionalRegistrantSeat(unknown([ola, alicia], "payer@example.com"))?.id).toBe("s1");
+    expect(provisionalRegistrantSeat(unknown([ola, { ...alicia, email: "ola@example.com" }], "ola@example.com"))?.id).toBe("s1");
+  });
+
+  it("nobody when both have signed in and the CRM does not say, or when nobody has signed in", () => {
+    expect(provisionalRegistrantSeat(unknown([ola, { ...alicia, userId: "u-alicia" }]))).toBeNull();
+    expect(provisionalRegistrantSeat(unknown([{ ...ola, userId: null }, alicia]))).toBeNull();
+  });
+
+  it("a confirmed choice always wins over the automatic one", () => {
+    const confirmed = { ...unknown([ola, alicia], "ola@example.com"), ownership: "registrant" as const, registrantEmail: "alicia@example.com" };
+    expect(provisionalRegistrantSeat(confirmed)).toBeNull();
+    expect(managingSeat(confirmed)?.id).toBe("s2");
+    expect(membershipRights(confirmed, "u-ola")).toMatchObject({ role: "member", provisional: false });
+    expect(managingSeat({ ...confirmed, ownership: "joint" as const })).toBeNull();
+  });
+
+  it("the payer's email comes only from a CRM team's own record", () => {
+    expect(crmPayerEmail({ source: "ghl", rawPayload: { email: " Sara@Example.com " } })).toBe("sara@example.com");
+    expect(crmPayerEmail({ source: "manual", rawPayload: { email: "sara@example.com" } })).toBeNull();
+    expect(crmPayerEmail({ source: "ghl", rawPayload: null })).toBeNull();
+    expect(crmPayerEmail({ source: "ghl", rawPayload: { email: 42 } })).toBeNull();
+    expect(crmPayerEmail({ source: "ghl", rawPayload: ["sara@example.com"] })).toBeNull();
+  });
+});
+
+describe("when the team may change", () => {
   it("the door: finished, scored, wave started, edit window", () => {
     const open = { archivedAt: null, waveId: null, waveStatus: null, scored: false, seriesStatus: "scheduled", seriesArchived: false, competitionDate: new Date("2026-10-10T08:00:00Z") };
     const now = new Date("2026-10-01T08:00:00Z");

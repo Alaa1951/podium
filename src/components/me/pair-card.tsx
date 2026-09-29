@@ -1,5 +1,5 @@
 import { getTranslator } from "@/lib/i18n/server";
-import { registrantSeat, type Ownership } from "@/lib/ownership";
+import { managingSeat, type Ownership } from "@/lib/ownership";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YOUR PAIR — who is on the team, and where each of them stands.
@@ -47,10 +47,12 @@ export async function PairCard({
   viewerId: string;
   /** The viewer can add the partner themselves (the button follows the card). */
   viewerCanFill?: boolean;
-  ownership: { ownership: Ownership; registrantEmail: string | null; registrantUserId: string | null };
+  ownership: { ownership: Ownership; registrantEmail: string | null; registrantUserId: string | null; payerEmail?: string | null };
 }) {
   const { t } = await getTranslator();
-  const registrant = registrantSeat({ ...ownership, competitors: members });
+  // Confirmed by BFT MENA, or — until they do — the automatic registrant.
+  const registrant = managingSeat({ ...ownership, competitors: members });
+  const registrantLabel = ownership.ownership === "unknown" ? t("Manages the team") : t("Registered the team");
 
   const standing = (member: PairMember) =>
     member.userId === viewerId
@@ -69,7 +71,7 @@ export async function PairCard({
             <strong style={{ overflowWrap: "anywhere" }}>{member.fullName}</strong>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               <span style={label(false)}>{standing(member)}</span>
-              {registrant?.id === member.id ? <span style={label(true)}>{t("Registered the team")}</span> : null}
+              {registrant?.id === member.id ? <span style={label(true)}>{registrantLabel}</span> : null}
             </div>
             <span className="reg-sub" style={{ margin: 0 }}>
               {member.studioName ?? t("Non-member")} · {t("T-shirt: {size}", { size: member.shirt ?? "—" })}

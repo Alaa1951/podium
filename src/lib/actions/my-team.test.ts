@@ -78,7 +78,16 @@ describe("who may correct a name, and when", () => {
     expect(await updateMyTeam(mona("Mona S.", "mona@example.com"), "s1", "t1")).toEqual({ ok: false, error: "FORBIDDEN" });
   });
 
-  it("not the other member, and nobody when ownership is not confirmed", async () => {
+  it("not confirmed by BFT MENA: the only member signed in corrects the name; with both signed in, nobody", async () => {
+    mocks.tx.team.findFirst.mockResolvedValue(team({ ownership: "unknown", registrantEmail: null, registrantUserId: null }));
+    expect(await updateMyTeam(mona("Mona A. Saleh", "mona@example.com"), "s1", "t1", 3)).toEqual({ ok: true });
+    expect(state.fullName).toBe("Mona A. Saleh");
+    // The CRM payer comes first: Mona paid, so Sara is not the one who manages it.
+    mocks.tx.team.findFirst.mockResolvedValue(team({ ownership: "unknown", registrantEmail: null, registrantUserId: null, source: "ghl", rawPayload: { email: "mona@example.com" } }));
+    expect(await updateMyTeam(mona("Mona Saleh", "mona@example.com"), "s1", "t1", 3)).toEqual({ ok: false, error: "NOT_REGISTRANT" });
+  });
+
+  it("not the other member, and nobody when ownership is not confirmed and both have signed in", async () => {
     mocks.user.mockResolvedValue({ ...athlete, id: "u-mona" });
     mocks.tx.team.findFirst.mockResolvedValue(team({ registrantUserId: null, competitors: [
       { id: "seat-mona", position: 1, userId: "u-mona", fullName: "Mona Saleh", email: "mona@example.com" },
@@ -86,7 +95,10 @@ describe("who may correct a name, and when", () => {
     ] }));
     expect(await updateMyTeam([{ position: 1, fullName: "Mona Saleh", email: "mona@example.com" }, { position: 2, fullName: "Sara A.", email: "sara@example.com" }], "s1", "t1")).toEqual({ ok: false, error: "NOT_REGISTRANT" });
     mocks.user.mockResolvedValue(athlete);
-    mocks.tx.team.findFirst.mockResolvedValue(team({ ownership: "unknown", registrantEmail: null, registrantUserId: null }));
+    mocks.tx.team.findFirst.mockResolvedValue(team({ ownership: "unknown", registrantEmail: null, registrantUserId: null, competitors: [
+      { id: "seat-mona", position: 1, userId: "u-mona", fullName: "Mona Saleh", email: "mona@example.com" },
+      { id: "seat-sara", position: 2, userId: "u-sara", fullName: "Sara Ali", email: "sara@example.com" },
+    ] }));
     expect(await updateMyTeam(mona("Mona S.", "mona@example.com"), "s1", "t1")).toEqual({ ok: false, error: "OWNERSHIP_UNKNOWN" });
   });
 

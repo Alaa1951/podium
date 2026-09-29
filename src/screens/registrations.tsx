@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { OwnershipPanel } from "@/components/admin/ownership-panel";
-import { registrantSeat, teamChangesCloseLabel, teamChangeWindow } from "@/lib/ownership";
+import { OwnershipPanel, type AutomaticRegistrant } from "@/components/admin/ownership-panel";
+import { crmPayerEmail, managingSeat, provisionalRegistrantSeat, registrantSeat, teamChangesCloseLabel, teamChangeWindow, type SeatRef } from "@/lib/ownership";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -23,6 +23,17 @@ import { matchesSearch } from "@/lib/search";
 import { requireConsoleAccess } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+
+/** While BFT MENA has not confirmed who registered: who manages the team, and why. */
+function automaticRegistrant(team: {
+  ownership: "registrant" | "joint" | "unknown"; registrantEmail: string | null; registrantUserId: string | null;
+  source: string; rawPayload: unknown; competitors: (SeatRef & { fullName: string })[];
+}): AutomaticRegistrant {
+  const payerEmail = crmPayerEmail(team);
+  const seat = provisionalRegistrantSeat({ ...team, payerEmail });
+  if (!seat) return null;
+  return { name: seat.fullName, why: payerEmail && seat.email?.trim().toLowerCase() === payerEmail ? "payer" : "signed-in" };
+}
 
 /**
  * EVERYONE WHO ENTERED THIS COMPETITION.
@@ -101,7 +112,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   // Who registered the team — BFT MENA's to see and set (plan §4). Read
   // here rather than widening the roster every screen shares.
   const ownershipRow = detailId && isBft(user)
-    ? await prisma.team.findUnique({ where: { id: detailId }, select: { ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } } })
+    ? await prisma.team.findUnique({ where: { id: detailId }, select: { ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true, source: true, rawPayload: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } } })
     : null;
   const ownershipPanel = ownershipRow ? (
     <OwnershipPanel
@@ -111,8 +122,21 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       registrantSeatId={registrantSeat(ownershipRow)?.id ?? null}
       seats={ownershipRow.competitors.map((seat) => ({ id: seat.id, fullName: seat.fullName, email: seat.email }))}
       readOnly={!!user.viewAs || !can(user, "registrations.edit")}
+      automatic={automaticRegistrant(ownershipRow)}
+      bothSignedIn={ownershipRow.competitors.every((seat) => seat.userId)}
     />
   ) : null;
+  // The teams nobody on can change until BFT MENA says who registered them:
+  // not confirmed with both signed in and no CRM payer on a seat, or a
+  // registrant whose email is on neither seat any more.
+  const waitingForOwner = !detailId && isBft(user)
+    ? (await prisma.team.findMany({
+        where: { seriesId: series.id, archivedAt: null, ownership: { in: ["unknown", "registrant"] } },
+        orderBy: { number: "asc" },
+        select: { id: true, number: true, name: true, ownership: true, registrantEmail: true, registrantUserId: true, source: true, rawPayload: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } },
+      })).filter((team) => !managingSeat({ ...team, payerEmail: crmPayerEmail(team) }) && (team.ownership === "registrant" || team.competitors.every((seat) => seat.userId)))
+    : [];
+
   if (detailId) return <div className="screen"><RegisteredTable readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
               canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{ownershipPanel}</div>;
 
@@ -143,6 +167,25 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       </div>
 
       {crmStatus ? <CrmSyncBar status={crmStatus} /> : null}
+
+      {waitingForOwner.length ? (
+        <section className="card" style={{ marginBottom: 18 }} aria-label={t("Who registered — waiting for you")}>
+          <h2 style={{ margin: 0 }}>{t("Who registered — waiting for you ({count})", { count: waitingForOwner.length })}</h2>
+          <p className="reg-sub">
+            {t("Nobody on these teams can change them until you choose who registered them. Open the team and choose under Who registered this team. Every other team is managed automatically: the CRM payer, or else the only one of the pair who has signed in.")}
+          </p>
+          <ul style={{ margin: 0, paddingInlineStart: 18, display: "grid", gap: 6 }}>
+            {waitingForOwner.map((team) => (
+              <li key={team.id}>
+                <Link href={seriesHref(series.slug, `registrations/${team.id}`)} className="linkish">
+                  #{team.number} {team.name}
+                </Link>{" "}
+                <span className="reg-sub">— {team.competitors.map((seat) => seat.fullName).join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {isBft(user) && report ? <div className="stat-grid">
         <div className="stat-card">

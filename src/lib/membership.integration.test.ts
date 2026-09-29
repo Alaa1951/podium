@@ -189,6 +189,43 @@ describe.skipIf(!enabled)("team membership on a real database", { timeout: 60_00
     expect(await seat("seat-mona")).toMatchObject({ userId: "u-mona", email: "mona@example.com" });
   });
 
+  // ── Not confirmed by BFT MENA: the automatic registrant ───────────────────
+
+  it("not confirmed, only one signed in: she replaces her partner, becomes the registrant (audited), and keeps the team once the newcomer signs in", async () => {
+    await prisma.competitor.update({ where: { id: "seat-mona" }, data: { userId: null } });
+    await prisma.team.update({ where: { id: "t1" }, data: { ownership: "unknown", registrantEmail: null, registrantUserId: null } });
+    expect(await changeMembership(prisma, sara, replace({ expected: { userId: null, email: "mona@example.com" } }), { env: OFF })).toMatchObject({ ok: true, code: "REPLACED", version: 1 });
+    expect(await seat("seat-mona")).toMatchObject({ fullName: "Nour Hassan", email: "nour@example.com", userId: null });
+    expect(await teamRow()).toMatchObject({ membershipVersion: 1, ownership: "registrant", registrantEmail: "sara@example.com", registrantUserId: "u-sara" });
+    const claim = await prisma.adminAuditLog.findFirst({ where: { action: "team.ownership_changed", targetId: "t1" } });
+    expect(claim).toMatchObject({ actorId: "u-sara" });
+    expect(claim?.detail).toContain("the only member signed in");
+    expect(await prisma.adminAuditLog.count({ where: { action: "team.partner_replaced", targetId: "t1" } })).toBe(1);
+
+    // Nour signs in: both are signed in now, and the team is still Sara's.
+    expect(await linkSeatsForUser(prisma, "u-nour")).toMatchObject({ linked: 1 });
+    const nour = { id: "u-nour", email: "nour@example.com" };
+    const version = (await teamRow()).membershipVersion;
+    expect(await changeMembership(prisma, nour, replace({ expectedVersion: version, targetSeatId: "seat-sara", expected: { userId: "u-sara", email: "sara@example.com" }, fullName: "Lina Omar", email: "lina@example.com" }), { env: OFF })).toEqual({ ok: false, error: "NOT_ALLOWED" });
+    expect(await seat("seat-sara")).toMatchObject({ userId: "u-sara", email: "sara@example.com" });
+  });
+
+  it("not confirmed, a CRM team: the payer manages it — her partner cannot replace her, she can replace him", async () => {
+    await prisma.team.update({ where: { id: "t1" }, data: { ownership: "unknown", registrantEmail: null, registrantUserId: null, source: "ghl", externalId: "crm-1", rawPayload: { email: "Sara@Example.com" } } });
+    expect(await changeMembership(prisma, mona, replace({ targetSeatId: "seat-sara", expected: { userId: "u-sara", email: "sara@example.com" } }), { env: OFF })).toEqual({ ok: false, error: "NOT_ALLOWED" });
+    expect(await teamRow()).toMatchObject({ membershipVersion: 0, ownership: "unknown" });
+    expect(await changeMembership(prisma, sara, replace(), { env: OFF })).toMatchObject({ ok: true, code: "REPLACED", version: 1 });
+    expect(await teamRow()).toMatchObject({ ownership: "registrant", registrantEmail: "sara@example.com", registrantUserId: "u-sara" });
+    expect((await prisma.adminAuditLog.findFirst({ where: { action: "team.ownership_changed", targetId: "t1" } }))?.detail).toContain("the CRM payer");
+  });
+
+  it("not confirmed and both signed in, no payer: nobody — until BFT MENA chooses", async () => {
+    await prisma.team.update({ where: { id: "t1" }, data: { ownership: "unknown", registrantEmail: null, registrantUserId: null } });
+    expect(await changeMembership(prisma, sara, replace(), { env: OFF })).toEqual({ ok: false, error: "OWNERSHIP_UNKNOWN" });
+    expect(await changeMembership(prisma, mona, replace({ targetSeatId: "seat-sara", expected: { userId: "u-sara", email: "sara@example.com" } }), { env: OFF })).toEqual({ ok: false, error: "OWNERSHIP_UNKNOWN" });
+    expect(await teamRow()).toMatchObject({ membershipVersion: 0, ownership: "unknown" });
+  });
+
   it("refuses somebody already entered, yourself, and a page whose partner or version is out of date", async () => {
     await prisma.team.create({ data: { id: "t2", seriesId: "s1", number: 8, name: "OTHER", category: "Womens", division: "Open", competitors: { create: [{ position: 1, fullName: "Nour Hassan", normalizedName: "nour hassan", email: "nour@example.com" }] } } });
     expect(await changeMembership(prisma, sara, replace(), { env: OFF })).toEqual({ ok: false, error: "ALREADY_ENTERED" });

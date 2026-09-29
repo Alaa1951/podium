@@ -5,7 +5,7 @@ import { PROOF_TX } from "@/lib/auth-proof";
 import { AUDIT, recordAuditIn } from "@/lib/audit";
 import { syncAfterMembershipChange } from "@/lib/membership-sync";
 import { findEntryInSeries } from "@/lib/one-entry";
-import { incompleteTeamPolicyEnabled, membershipDoor, membershipRights, registrantSeat } from "@/lib/ownership";
+import { crmPayerEmail, incompleteTeamPolicyEnabled, managingSeat, membershipDoor, membershipRights } from "@/lib/ownership";
 import { normalizeName } from "@/lib/scoring";
 import { putPersonInSeat } from "@/lib/seat-identity";
 
@@ -24,9 +24,11 @@ import { putPersonInSeat } from "@/lib/seat-identity";
 //   2. the team as it is NOW (re-read after the lock), and STALENESS first:
 //      the page's membership version must still be the team's — a page that
 //      shows an older team is told so, whatever else is true;
-//   3. who may do what (ownership.ts: a registrant, found by identity; never
-//      `unknown`, never one side of a `joint` team), and the door
-//      (finished, scored, wave started, the edit window);
+//   3. who may do what (ownership.ts: a registrant, found by identity — or,
+//      while BFT MENA has not confirmed one, the automatic registrant, who
+//      becomes the registrant with their first change; never one side of a
+//      `joint` team), and the door (finished, scored, wave started, the
+//      edit window);
 //   4. for a replacement, the identity of the person being replaced must be
 //      what the page showed;
 //   5. the input (name, a valid email, not yourself, not already entered);
@@ -112,18 +114,20 @@ export async function changeMembership(
     const earlier = await replay(tx, seriesId);
     if (earlier) return earlier;
 
-    const team = await tx.team.findUnique({
+    const row = await tx.team.findUnique({
       where: { id: input.teamId },
       select: {
         id: true, seriesId: true, number: true, name: true, archivedAt: true, waveId: true,
         ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true,
+        source: true, rawPayload: true,
         waveRef: { select: { status: true } },
         score: { select: { id: true } },
         series: { select: { status: true, archivedAt: true, competitionDate: true } },
         competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, userId: true, email: true, fullName: true } },
       },
     });
-    if (!team || team.seriesId !== seriesId) throw new Refused("NOT_FOUND");
+    if (!row || row.seriesId !== seriesId) throw new Refused("NOT_FOUND");
+    const team = { ...row, payerEmail: crmPayerEmail(row) };
 
     // A page that no longer shows the team as it is gets one answer — "your
     // team changed, reload" — before any rule is applied to what it showed:
@@ -158,7 +162,7 @@ export async function changeMembership(
       code = "LEFT";
       action = AUDIT.teamMemberLeft;
       detail = `${me.fullName} <${me.email ?? "no email"}> left (position ${me.position})`;
-      const registrant = registrantSeat(team);
+      const registrant = managingSeat(team);
       if (registrant?.email) notices.push({ kind: "left", to: registrant.email, teamName: team.name, teamNumber: team.number, leaverName: me.fullName });
     } else {
       const fullName = input.fullName.trim();
@@ -200,16 +204,31 @@ export async function changeMembership(
       }
     }
 
+    // The automatic registrant (not confirmed by BFT MENA) who changes the
+    // team becomes its registrant: the partner they choose, once signed in,
+    // must not take the team from them. BFT MENA can still change it.
+    const claimed = code !== "NO_CHANGE" && rights.provisional && rights.role === "registrant" && input.kind !== "leave";
+    const registrantEmail = clean(me.email) || clean(actor.email);
+
     let version = team.membershipVersion;
     if (code !== "NO_CHANGE") {
       await syncAfterMembershipChange(tx, { teamId: team.id, seriesId: team.seriesId, departedUserIds: departed });
       const updated = await tx.team.update({
         where: { id: team.id },
         // The pair's composite portrait shows somebody who may be gone.
-        data: { membershipVersion: { increment: 1 }, groupPortraitPath: null },
+        data: {
+          membershipVersion: { increment: 1 }, groupPortraitPath: null,
+          ...(claimed ? { ownership: "registrant" as const, registrantEmail, registrantUserId: actor.id } : {}),
+        },
         select: { membershipVersion: true },
       });
       version = updated.membershipVersion;
+    }
+    if (claimed) {
+      await recordAuditIn(tx, {
+        actorId: actor.id, action: AUDIT.teamOwnershipChanged, targetType: "team", targetId: team.id, targetLabel: label,
+        detail: `unknown → registrant ${registrantEmail} (automatic: ${team.payerEmail && clean(team.payerEmail) === registrantEmail ? "the CRM payer" : "the only member signed in"}, on their first change)`,
+      });
     }
 
     await tx.membershipOperation.create({

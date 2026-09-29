@@ -6,7 +6,7 @@ import { can } from "@/lib/access";
 import { PROOF_TX } from "@/lib/auth-proof";
 import { AUDIT, recordAuditIn } from "@/lib/audit";
 import { syncAfterMembershipChange } from "@/lib/membership-sync";
-import { membershipRights, teamChangeWindow } from "@/lib/ownership";
+import { crmPayerEmail, membershipRights, teamChangeWindow } from "@/lib/ownership";
 import { prisma } from "@/lib/prisma";
 import { normalizeName } from "@/lib/scoring";
 import { normalizeEmail } from "@/lib/security";
@@ -60,7 +60,7 @@ export async function updateMyTeam(members: MyTeamMemberInput[], seriesId: strin
         where: { id: teamId, seriesId, archivedAt: null, series: { archivedAt: null }, competitors: { some: { userId: user.id } } },
         select: {
           id: true, number: true, name: true, membershipVersion: true,
-          ownership: true, registrantEmail: true, registrantUserId: true,
+          ownership: true, registrantEmail: true, registrantUserId: true, source: true, rawPayload: true,
           series: { select: { status: true, competitionDate: true } },
           competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, userId: true, fullName: true, email: true } },
         },
@@ -69,7 +69,8 @@ export async function updateMyTeam(members: MyTeamMemberInput[], seriesId: strin
       if (team.series.status === "final" || !teamChangeWindow(team.series.competitionDate, new Date(), false).open) throw new Refused("TEAM_EDIT_CLOSED");
       if (expectedVersion !== undefined && expectedVersion !== team.membershipVersion) throw new Refused("STALE_MEMBERSHIP");
 
-      const rights = membershipRights(team, user.id);
+      // Unconfirmed by BFT MENA: the automatic registrant (ownership.ts).
+      const rights = membershipRights({ ...team, payerEmail: crmPayerEmail(team) }, user.id);
       if (rights.reason === "OWNERSHIP_UNKNOWN" || rights.reason === "JOINT_TEAM" || rights.reason === "REGISTRANT_UNRESOLVED") throw new Refused("OWNERSHIP_UNKNOWN");
       if (rights.role !== "registrant") throw new Refused("NOT_REGISTRANT");
 
