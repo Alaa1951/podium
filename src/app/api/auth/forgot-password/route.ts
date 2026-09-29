@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { getIpFromHeaders, isValidEmail, normalizeEmail } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     // about which addresses exist.
     if (!email || !isValidEmail(email)) return NextResponse.json({ ok: true });
 
-    const rate = limitAuthAttempt({ scope: "forgot-password", ip, identifier: email, limit: 5 });
+    const rate = limitAuthAttempt({ scope: "forgot-password", ip, identifier: email, limit: 5, networkLimit: NETWORK_LIMITS.emailedLink });
     if (!rate.ok) return NextResponse.json({ ok: true });
 
     const user = await prisma.user.findUnique({ where: { email } });

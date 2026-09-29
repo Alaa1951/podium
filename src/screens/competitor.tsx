@@ -32,6 +32,7 @@ export default async function CompetitorScreen(params: Promise<{ series: string;
         fullName={seat.fullName}
         door={seat.door}
         candidates={candidates}
+        registrant={seat.registrant}
       />
     ) : null}
   </PageShell>;

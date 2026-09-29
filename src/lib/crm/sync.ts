@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ownershipFromContact } from "@/lib/ownership";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { createCrmClient, type CrmClient } from "@/lib/crm/client";
 import { admitIfRoom } from "@/lib/crm/admit";
@@ -258,7 +259,7 @@ async function apply(
   if (existing) {
     const mine = await db.team.findUnique({
       where: { id: existing.teamId },
-      select: { id: true, externalId: true, competitors: { select: { email: true } } },
+      select: { id: true, externalId: true, ownership: true, competitors: { select: { email: true } } },
     });
     const theirs = new Set(
       (mine?.competitors ?? []).map((seat) => seat.email).filter(Boolean) as string[]
@@ -266,11 +267,15 @@ async function apply(
     const bothMatch = seatEmails.length === 2 && seatEmails.every((email) => theirs.has(email));
 
     if (mine && !mine.externalId && bothMatch) {
+      const owner = ownershipFromContact(draft.raw.email, seatEmails);
       await db.team.update({
         where: { id: mine.id },
         data: {
           externalId: draft.externalId,
           source: "ghl",
+          // Adopting it makes the CRM's payer its registrant — unless BFT
+          // MENA already said who registered it.
+          ...(mine.ownership === "unknown" && owner.ownership === "registrant" ? owner : {}),
           rawPayload: draft.raw as never,
           paymentStatus: draft.paymentStatus,
           paidAt: draft.paymentStatus === "paid" ? now : null,
@@ -311,6 +316,8 @@ async function apply(
     externalId: draft.externalId,
     // Every field the CRM sent, mapped or not — see TeamDraft.raw.
     rawPayload: draft.raw,
+    // The contact is the payer; when the payer is on a seat, they registered it.
+    ...ownershipFromContact(draft.raw.email, seats.map((seat) => seat.email)),
     seats,
   });
 

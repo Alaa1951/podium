@@ -126,7 +126,7 @@ async function claimSeats(tx: Prisma.TransactionClient, userId: string): Promise
       team: {
         select: {
           id: true, seriesId: true, name: true, createdAt: true, division: true, category: true,
-          paymentStatus: true, waitlistedAt: true,
+          paymentStatus: true, waitlistedAt: true, registrantEmail: true, registrantUserId: true,
           series: { select: { isTraining: true } },
           competitors: { select: { id: true } },
         },
@@ -153,6 +153,11 @@ async function claimSeats(tx: Prisma.TransactionClient, userId: string): Promise
         bftMember: seat.bftMember, lookingForPartner: !complete, teamName: complete ? seat.team.name : null,
       },
     });
+    // The person who registered the team has just claimed their seat: the
+    // team now knows their account too (plan §3.3). Nothing else changes.
+    if (!seat.team.registrantUserId && seat.team.registrantEmail && normalizeEmail(seat.team.registrantEmail) === email) {
+      await tx.team.updateMany({ where: { id: seat.team.id, registrantUserId: null }, data: { registrantUserId: userId } });
+    }
     await reconcileDerivedLinks(tx, seat.team.id);
     // A training run is a rehearsal: its seat shows, it never approves.
     if (!seat.team.series.isTraining && isCompeting(seat.team)) paidEntry = true;

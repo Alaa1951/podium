@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/session", () => ({ getCurrentUser: mocks.user }));
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique: mocks.row } } }));
-vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate }));
+vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate, NETWORK_LIMITS: { codeRequest: 120, codeEntry: 300, passwordSignIn: 120, emailedLink: 60 } }));
 vi.mock("@/lib/auth-tokens", () => ({ issueAuthToken: mocks.issue }));
 vi.mock("@/lib/email", () => ({ sendPasswordResetEmail: mocks.send }));
 vi.mock("@/lib/audit", () => ({

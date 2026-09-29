@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { registrantSeat } from "@/lib/ownership";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { alreadyEntered } from "@/lib/one-entry";
@@ -138,14 +139,18 @@ export async function createRegistration(input: unknown): Promise<ActionResult<{
   return { ok: true, data: { id: team.id }, message: `Registered ${team.name} as team ${team.number}.` };
 }
 
+/** A person on the edit form, with the seat they already hold (if any). */
+const editPerson = personSchema.extend({ id: z.string().min(1).optional() });
+
 const editSchema = z.object({
   teamId: z.string().min(1),
   /** Open text, editable at any time — by BFT MENA or by the integration. */
   teamName: z.string().trim().min(1).max(120),
   category: z.enum(["Womens", "Mens", "Mixed"]),
   division: z.enum(["Rookie", "Open", "Pro"]),
-  one: personSchema,
-  two: personSchema,
+  one: editPerson,
+  /** Absent on a one-seat team — a team whose partner has not been named. */
+  two: editPerson.optional(),
 });
 
 /**
@@ -178,8 +183,11 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
       number: true,
       name: true,
       division: true,
+      ownership: true,
+      registrantEmail: true,
+      registrantUserId: true,
       series: { select: { registrationClosesAt: true } },
-      competitors: { orderBy: { position: "asc" }, select: { id: true, position: true } },
+      competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, email: true, userId: true } },
     },
   });
   if (!team) return { ok: false, error: "NOT_FOUND" };
@@ -195,9 +203,35 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
     return { ok: false, error: "DIVISION_LOCKED" };
   }
 
-  const people = [data.one, data.two];
+  // WHICH SEAT EACH PERSON IS. A form that sends seat ids is taken at its
+  // word: a person with an id is that seat, a person without one is a NEW
+  // seat. Only an older form that sends no ids at all is matched by position
+  // order. A new seat goes to whichever position is free. Nothing here
+  // assumes two seats, and nothing deletes one.
+  const people = [data.one, data.two].filter((person): person is NonNullable<typeof person> => Boolean(person));
+  const seats = team.competitors;
+  const byId = people.some((person) => person.id);
+  const targets = people.map((person, index) =>
+    byId
+      ? person.id ? seats.find((seat) => seat.id === person.id) ?? "unknown" : null
+      : seats[index] ?? null
+  );
+  if (targets.includes("unknown")) return { ok: false, error: "INVALID_INPUT" };
+  const held = targets.filter((target): target is (typeof seats)[number] => Boolean(target) && target !== "unknown");
+  if (new Set(held.map((seat) => seat.id)).size !== held.length) return { ok: false, error: "INVALID_INPUT" };
+  if (seats.length + targets.filter((target) => target === null).length > 2) return { ok: false, error: "INVALID_INPUT" };
+
+  // The person who registered the team is an identity: changing their email
+  // changes who that is, which is BFT MENA's to do (plan §4).
+  const registrant = registrantSeat(team);
+  const registrantIndex = registrant ? targets.findIndex((target) => target !== "unknown" && target?.id === registrant.id) : -1;
+  const newRegistrantEmail = registrantIndex >= 0 ? people[registrantIndex].email?.toLowerCase() ?? null : undefined;
+  const registrantMoves = registrant !== null && newRegistrantEmail !== undefined && newRegistrantEmail !== (registrant.email ?? "").toLowerCase();
+  if (registrantMoves && !isBft(actor)) return { ok: false, error: "REGISTRANT_EMAIL_LOCKED" };
 
   await prisma.$transaction(async (tx) => {
+    // Every writer of a team's seats takes the competition lock.
+    await tx.$queryRaw`SELECT id FROM Series WHERE id = ${team.seriesId} FOR UPDATE`;
     await tx.team.update({
       where: { id: team.id },
       data: {
@@ -211,8 +245,8 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
       },
     });
 
+    const taken = new Set(seats.map((seat) => seat.position));
     for (const [index, person] of people.entries()) {
-      const position = index + 1;
       const fields = {
         fullName: person.fullName,
         normalizedName: normalizeName(person.fullName),
@@ -221,14 +255,36 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
         dateOfBirth: toDate(person.dateOfBirth),
         studioId: person.studioId,
       };
+      const target = targets[index];
+      if (target && target !== "unknown") {
+        await tx.competitor.update({ where: { id: target.id }, data: fields });
+      } else {
+        const position = [1, 2].find((free) => !taken.has(free))!;
+        taken.add(position);
+        await tx.competitor.create({ data: { teamId: team.id, position, ...fields } });
+      }
+    }
 
-      await tx.competitor.upsert({
-        where: { teamId_position: { teamId: team.id, position } },
-        create: { teamId: team.id, position, ...fields },
-        update: fields,
+    if (registrantMoves) {
+      await tx.team.update({
+        where: { id: team.id },
+        data: newRegistrantEmail
+          ? { registrantEmail: newRegistrantEmail, registrantUserId: null }
+          : { ownership: "unknown", registrantEmail: null, registrantUserId: null },
       });
     }
   });
+
+  if (registrantMoves) {
+    await recordAudit({
+      actorId: actor.id,
+      action: AUDIT.teamOwnershipChanged,
+      targetType: "team",
+      targetId: team.id,
+      targetLabel: `${team.number} ${data.teamName}`,
+      detail: `registrant ${registrant?.email ?? "—"} → ${newRegistrantEmail ?? "unknown (no email)"} (registration edited)`,
+    });
+  }
 
   await recordAudit({
     actorId: actor.id,

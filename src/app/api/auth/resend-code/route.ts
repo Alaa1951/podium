@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { sendOtpEmail } from "@/lib/email";
 import { canResendOtp, createOtpChallenge, getOtpConfig } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { getIpFromHeaders, isValidEmail, normalizeEmail } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, cooldownSeconds: 60 });
     }
 
-    const rate = limitAuthAttempt({ scope: "resend-code", ip, identifier: email, limit: 5 });
+    const rate = limitAuthAttempt({ scope: "resend-code", ip, identifier: email, limit: 5, networkLimit: NETWORK_LIMITS.emailedLink });
     if (!rate.ok) {
       return NextResponse.json(
         { ok: true, cooldownSeconds: rate.retryAfter },

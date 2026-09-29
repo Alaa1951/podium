@@ -160,6 +160,7 @@ model User {
   competitors             Competitor[]
   submittedScores         Score[]            @relation("ScoreSubmittedBy")
   confirmedPayments       Team[]             @relation("PaymentConfirmedBy")
+  registeredTeams         Team[]             @relation("TeamRegistrant")
   scoreAudits             ScoreAudit[]
   adminAudits             AdminAuditLog[]    @relation("AuditActor")
   zoneStaff               ZoneStaff[]        @relation("ZoneStaffMember")
@@ -485,6 +486,22 @@ enum SeriesStatus {
   scheduled
   live
   final
+}
+
+/// Who manages a team's membership (plan v7 §4).
+enum TeamOwnership {
+  registrant
+  joint
+  unknown
+}
+
+/// A membership change an athlete asked for (plan v7 §5).
+enum MembershipOperationKind {
+  replace
+  fill
+  leave
+  combine
+  split
 }
 
 /// Where a registration's money stands. Only `paid` reaches the board.
@@ -954,6 +971,25 @@ model Team {
   /// contract as `Competitor.photoPath`. Null until one is generated.
   groupPortraitPath String?
 
+  // ── Who registered the team (plan v7 §4) ───────────────────────────────
+  /// Who manages the membership. `registrant`: one person, identified below.
+  /// `joint`: two independent registrants with equal rights. `unknown`:
+  /// nobody has confirmed it — grants nothing. Never inferred from seat
+  /// order, request direction or account order; set from the CRM payer's
+  /// email or by BFT MENA.
+  ownership         TeamOwnership @default(unknown)
+  /// The registrant's identity: an email (normalised). Their SEAT is found at
+  /// read time — the seat of `registrantUserId`, else the seat with this
+  /// email — never by position.
+  registrantEmail   String?       @db.VarChar(191)
+  /// Set when the registrant's account claims the seat with that email.
+  registrantUserId  String?
+  registrant        User?         @relation("TeamRegistrant", fields: [registrantUserId], references: [id], onDelete: SetNull)
+  /// Bumped by every membership CHANGE (replace, fill, leave, combine,
+  /// split) — never by a sign-in. A request carries the version it was made
+  /// against; a different version means somebody changed the team first.
+  membershipVersion Int           @default(0)
+
   competitors  Competitor[]
   score        Score?
   portraitJobs PortraitJob[]
@@ -969,6 +1005,7 @@ model Team {
   @@index([seriesId, waitlistedAt])
   @@index([studioId])
   @@index([waveId])
+  @@index([registrantUserId])
 }
 
 /// One of the two people on a team — a person, with the details the
@@ -1451,4 +1488,28 @@ model CrmRegistrationMerge {
   @@unique([seriesId, retiredExternalId])
   @@index([seriesId, canonicalExternalId])
   @@index([teamId])
+}
+
+/// One athlete-initiated membership change, kept so a retried request gets
+/// its first answer back and a different request under the same id is
+/// refused (plan v7 §5). Bound to WHO asked, WHAT and ON WHICH team: an id
+/// replayed by anybody else, or with other input, is OPERATION_MISMATCH.
+/// Plain ids, not relations: this is history and must outlive what it names.
+model MembershipOperation {
+  id            String                  @id @default(cuid())
+  /// Chosen by the client, once per submitted intent.
+  operationId   String                  @unique @db.VarChar(191)
+  actorId       String                  @db.VarChar(191)
+  kind          MembershipOperationKind
+  seriesId      String                  @db.VarChar(191)
+  teamId        String                  @db.VarChar(191)
+  /// SHA-256 of the canonical input.
+  inputHash     String                  @db.VarChar(64)
+  resultCode    String                  @db.VarChar(64)
+  resultPayload Json?
+  versionAfter  Int?
+  createdAt     DateTime                @default(now())
+
+  @@index([teamId])
+  @@index([actorId])
 }

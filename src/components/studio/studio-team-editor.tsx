@@ -57,7 +57,9 @@ export function StudioTeamEditor({
           category,
           division,
           one: toPerson(people[0]),
-          two: toPerson(people[1]),
+          // A team may have one seat (a partner not named yet): no second
+          // person is sent, and the server creates one only when added here.
+          ...(people[1] ? { two: toPerson(people[1]) } : {}),
         });
 
         if (!result.ok) {
@@ -66,6 +68,8 @@ export function StudioTeamEditor({
               ? t("A change of division comes from BFT MENA.")
               : result.error === "REGISTRATION_CLOSED"
                 ? t("Registrations have closed. Ask BFT MENA for any further change.")
+                : result.error === "REGISTRANT_EMAIL_LOCKED"
+                  ? t("The email of the person who registered the team is changed by BFT MENA.")
                 : result.error === "INVALID_INPUT"
                   ? t("Check the fields — a name is missing or an email is not valid.")
                   : t("Something went wrong. Try again.")
@@ -166,6 +170,20 @@ export function StudioTeamEditor({
         </div>
       ))}
 
+      {people.length < 2 ? (
+        <div className="notice" style={{ marginTop: 12 }}>
+          <strong>{t("Partner needed")}</strong>
+          <p style={{ margin: "6px 0 10px" }}>{t("This team has one athlete. Add the partner here when they are known.")}</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPeople((current) => [...current, { fullName: "", email: "", phone: "", dateOfBirth: "", studioId: null }])}
+          >
+            {t("Add partner")}
+          </button>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="notice-error" role="alert" style={{ marginTop: 12 }}>
           {error}
@@ -187,6 +205,7 @@ export function StudioTeamEditor({
 
 /** The shape the registration action's person schema expects. */
 const toPerson = (p: StudioTeamRow["people"][number]) => ({
+  ...(p.id ? { id: p.id } : {}),
   fullName: p.fullName,
   email: p.email ?? "",
   phone: p.phone ?? "",

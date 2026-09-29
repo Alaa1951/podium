@@ -7,7 +7,7 @@ import { sendOtpEmail, sendSignUpPointerEmail } from "@/lib/email";
 import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
 import { issueCompetitorCode } from "@/lib/competitor-access";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { getBaseUrl, getIpFromHeaders } from "@/lib/security";
 import { getCurrentUser } from "@/lib/session";
 
@@ -34,7 +34,7 @@ export async function requestCompetitorCode(input: unknown): Promise<RequestResu
   // be passed: without it every caller shares one "unknown" bucket, and five
   // requests from anyone would lock every athlete out of the code door.
   const ip = getIpFromHeaders(await headers());
-  const rate = limitAuthAttempt({ scope: "competitor-code", ip, identifier: email, limit: 5 });
+  const rate = limitAuthAttempt({ scope: "competitor-code", ip, identifier: email, limit: 5, networkLimit: NETWORK_LIMITS.codeRequest });
   if (!rate.ok) return { ok: false, error: "TOO_MANY" };
 
   const result = await issueCompetitorCode(email);
@@ -72,7 +72,7 @@ export async function requestMyVerificationCode(): Promise<RequestResult> {
   if (!account || account.status === "disabled" || account.archivedAt) return { ok: false, error: "INVALID_EMAIL" };
 
   const ip = getIpFromHeaders(await headers());
-  const rate = limitAuthAttempt({ scope: "competitor-code", ip, identifier: account.email, limit: 5 });
+  const rate = limitAuthAttempt({ scope: "competitor-code", ip, identifier: account.email, limit: 5, networkLimit: NETWORK_LIMITS.codeRequest });
   if (!rate.ok) return { ok: false, error: "TOO_MANY" };
 
   const { code } = await createOtpChallenge({ userId: account.id, purpose: "login", sentTo: account.email });

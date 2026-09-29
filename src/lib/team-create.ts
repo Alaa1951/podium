@@ -65,6 +65,9 @@ export type NewTeam = {
   externalId?: string | null;
   /** That record exactly as it arrived, so a dispute can be read back. */
   rawPayload?: unknown;
+  /** Who registered it (ownership.ts); `unknown` when not given. */
+  ownership?: "registrant" | "joint" | "unknown";
+  registrantEmail?: string | null;
   seats: NewSeat[];
 };
 
@@ -151,6 +154,7 @@ export async function createTeam(db: Db, input: NewTeam): Promise<CreateOutcome>
           billingNumber: input.billingNumber ?? null,
           paymentNote: input.paymentNote ?? null,
           externalId: input.externalId ?? null,
+          ...(input.ownership ? { ownership: input.ownership, registrantEmail: input.registrantEmail ?? null } : {}),
           ...(input.rawPayload === undefined
             ? {}
             : { rawPayload: input.rawPayload as never }),

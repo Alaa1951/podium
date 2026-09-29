@@ -13,6 +13,7 @@ import { PlainHeader } from "@/components/app/plain-header";
 import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
 import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
+import { PairCard } from "@/components/me/pair-card";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -166,7 +167,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         <div className="notice">
           <strong>{t("No entry found for you yet.")}</strong>
           <p style={{ margin: "6px 0 0" }}>
-            {t("Signed in as {email}.", { email: currentEmail })}{" "}
+            {t("Signed in as {email}.", { email: `\u2068${currentEmail}\u2069` })}{" "}
             {t("Registered with another email? Sign out and use Athlete sign-in with that email. If your registration uses this email, ask your gym or BFT MENA to check it.")}
           </p>
           <div style={{ marginTop: 10 }}>
@@ -179,6 +180,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   }
 
   const wave = !team.waitlistedAt && team.waveId ? waves.find((one) => one.id === team.waveId) ?? null : null;
+  // Who registered the team — for "Your pair" (not part of the shared roster row).
+  const ownership = await prisma.team.findUnique({
+    where: { id: team.id },
+    select: { ownership: true, registrantEmail: true, registrantUserId: true },
+  });
   const status = teamStatus(team);
 
   // YOUR DAY: when the pair is in each zone — estimated until their wave
@@ -390,21 +396,18 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       <div className="console-group-title" style={{ marginTop: 26 }}>
         {t("Your pair")}
       </div>
-      <div className="table-scroll" style={{ marginTop: 8 }}>
-        <table className="table">
-          <tbody>
-            {team.competitors.map((person) => (
-              <tr key={person.id}>
-                <td>
-                  <strong>{person.fullName}</strong>
-                </td>
-                <td>{person.studioName ?? t("Non-member")}</td>
-                <td>{t("T-shirt: {size}", { size: shirts.get(person.id) ?? "—" })}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PairCard
+        viewerId={user.id}
+        ownership={ownership ?? { ownership: "unknown", registrantEmail: null, registrantUserId: null }}
+        members={team.competitors.map((person) => ({
+          id: person.id,
+          fullName: person.fullName,
+          email: person.email,
+          userId: person.userId,
+          studioName: person.studioName,
+          shirt: shirts.get(person.id) ?? null,
+        }))}
+      />
 
       {profileCard}
 

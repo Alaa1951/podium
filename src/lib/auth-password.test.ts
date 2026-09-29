@@ -12,7 +12,7 @@ vi.mock("@/lib/security", () => ({ normalizeEmail: (email: string) => email.trim
 vi.mock("@/lib/otp", () => ({ verifyOtpChallenge: mocks.verifyOtp }));
 vi.mock("@/lib/link-seats", () => ({ linkSeatsForUser: mocks.link }));
 vi.mock("@/lib/email", () => ({ sendSecurityAlertEmail: vi.fn() }));
-vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate }));
+vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate, NETWORK_LIMITS: { codeRequest: 120, codeEntry: 300, passwordSignIn: 120, emailedLink: 60 } }));
 vi.mock("@/lib/trusted-device", () => ({
   getTrustedDevice: mocks.trusted, isSuspiciousLogin: mocks.suspicious,
   logLoginEvent: mocks.log, markTrustedDeviceUsed: vi.fn(), upsertTrustedDevice: vi.fn(),

@@ -1,3 +1,6 @@
+import { prisma } from "@/lib/prisma";
+import { OwnershipPanel } from "@/components/admin/ownership-panel";
+import { registrantSeat } from "@/lib/ownership";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -95,8 +98,22 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
   if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
+  // Who registered the team — BFT MENA's to see and set (plan §4). Read
+  // here rather than widening the roster every screen shares.
+  const ownershipRow = detailId && isBft(user)
+    ? await prisma.team.findUnique({ where: { id: detailId }, select: { ownership: true, registrantEmail: true, registrantUserId: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } } })
+    : null;
+  const ownershipPanel = ownershipRow ? (
+    <OwnershipPanel
+      teamId={detailId!}
+      ownership={ownershipRow.ownership}
+      registrantSeatId={registrantSeat(ownershipRow)?.id ?? null}
+      seats={ownershipRow.competitors.map((seat) => ({ id: seat.id, fullName: seat.fullName, email: seat.email }))}
+      readOnly={!!user.viewAs || !can(user, "registrations.edit")}
+    />
+  ) : null;
   if (detailId) return <div className="screen"><RegisteredTable readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
-              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} /></div>;
+              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{ownershipPanel}</div>;
 
   return (
     <div className="screen">

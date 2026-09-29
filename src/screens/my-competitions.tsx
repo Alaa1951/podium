@@ -9,6 +9,9 @@ import { competitionChoices, completedCompetitions } from "@/lib/competition-cho
 import { formatQatarDayKey } from "@/lib/qatar-time";
 import { meHref } from "@/lib/participation";
 
+/** What a competition's status means to an athlete (the enum is not a word to show). */
+const STATUS_LABEL = { scheduled: "Coming up", live: "Running now", final: "Finished" } as const;
+
 export default async function MyCompetitions() {
   const user = await requireRole("competitor");
   const { t } = await getTranslator();
@@ -31,7 +34,7 @@ export default async function MyCompetitions() {
     <div style={{ display: "grid", gap: 16 }}>
       {competitionChoices(mine).map(series => <article className="card" key={series.id}>
         <h2>{series.name} {series.isTraining && <span className="tag">{t("Training")}</span>}</h2>
-        <p>{t(series.status)} · {formatQatarDayKey(series.competitionDate)}</p>
+        <p>{t(STATUS_LABEL[series.status])} · {formatQatarDayKey(series.competitionDate)}</p>
         <Link className="btn btn-primary" href={meHref(series.id)}>{t("Open competition")}</Link>
       </article>)}
       {!mine.length && <p className="notice">{t("No entry found for you yet.")}</p>}

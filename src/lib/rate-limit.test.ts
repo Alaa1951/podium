@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { checkRate, limitAuthAttempt, MINUTE_MS } from "@/lib/rate-limit";
+import { checkRate, limitAuthAttempt, MINUTE_MS, NETWORK_LIMITS } from "@/lib/rate-limit";
 
 let counter = 0;
 const uniqueScope = () => `test-scope-${counter++}-${Math.random().toString(36).slice(2)}`;
@@ -114,5 +114,45 @@ describe("limitAuthAttempt", () => {
     expect(limitAuthAttempt({ scope: login, ip: "5.5.5.5", identifier: "x@x.com", limit: 1 }).ok).toBe(
       true
     );
+  });
+});
+
+describe("many athletes behind one network (a gym's Wi-Fi, the venue)", () => {
+  it("lets forty different athletes on one address each ask for a code — the network is not one person", () => {
+    const scope = uniqueScope();
+    for (let n = 0; n < 40; n += 1) {
+      expect(limitAuthAttempt({ scope, ip: "203.0.113.9", identifier: `athlete${n}@example.com`, limit: 5, networkLimit: NETWORK_LIMITS.codeRequest }).ok).toBe(true);
+    }
+  });
+
+  it("still holds each ACCOUNT to its own allowance on that shared network", () => {
+    const scope = uniqueScope();
+    const ask = (who: string) => limitAuthAttempt({ scope, ip: "203.0.113.9", identifier: who, limit: 5, networkLimit: NETWORK_LIMITS.codeRequest }).ok;
+    for (let n = 0; n < 5; n += 1) expect(ask("sara@example.com")).toBe(true);
+    expect(ask("sara@example.com")).toBe(false); // the sixth for the same address
+    expect(ask("mona@example.com")).toBe(true); // her neighbour on the same Wi-Fi is unaffected
+  });
+
+  it("…and the same account from ANOTHER network is still held to it (the address, not the network, is protected)", () => {
+    const scope = uniqueScope();
+    for (let n = 0; n < 5; n += 1) limitAuthAttempt({ scope, ip: `198.51.100.${n}`, identifier: "sara@example.com", limit: 5, networkLimit: 120 });
+    expect(limitAuthAttempt({ scope, ip: "198.51.100.99", identifier: "sara@example.com", limit: 5, networkLimit: 120 }).ok).toBe(false);
+  });
+
+  it("caps one network as a whole, so a single address cannot sweep a mailing list", () => {
+    const scope = uniqueScope();
+    let allowed = 0;
+    for (let n = 0; n < NETWORK_LIMITS.codeRequest + 10; n += 1) {
+      if (limitAuthAttempt({ scope, ip: "203.0.113.50", identifier: `list${n}@example.com`, limit: 5, networkLimit: NETWORK_LIMITS.codeRequest }).ok) allowed += 1;
+    }
+    expect(allowed).toBe(NETWORK_LIMITS.codeRequest);
+    // Another network is untouched.
+    expect(limitAuthAttempt({ scope, ip: "203.0.113.51", identifier: "list0@example.com", limit: 5, networkLimit: NETWORK_LIMITS.codeRequest }).ok).toBe(true);
+  });
+
+  it("keeps the old single-number behaviour where no network limit is given", () => {
+    const scope = uniqueScope();
+    for (let n = 0; n < 3; n += 1) expect(limitAuthAttempt({ scope, ip: "203.0.113.60", identifier: `x${n}@example.com`, limit: 3 }).ok).toBe(true);
+    expect(limitAuthAttempt({ scope, ip: "203.0.113.60", identifier: "x9@example.com", limit: 3 }).ok).toBe(false);
   });
 });

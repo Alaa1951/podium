@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { isBft } from "@/lib/access";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { alreadyEntered } from "@/lib/one-entry";
+import { registrantSeat } from "@/lib/ownership";
 import { linkPair, unlinkPair } from "@/lib/partners";
 import { ensureParticipation } from "@/lib/participation";
 import { prisma } from "@/lib/prisma";
@@ -50,6 +52,12 @@ const schema = z
     fullName: z.string().trim().max(120).optional(),
     email: z.string().trim().max(200).optional(),
     phone: z.string().trim().max(30).optional(),
+    /**
+     * Replacing the person who registered the team: the replacement becomes
+     * the registrant. Required, and BFT MENA's alone — a registrant is never
+     * replaced silently, and never by a gym.
+     */
+    transferOwnership: z.boolean().optional(),
   })
   .refine((data) => Boolean(data.replacementUserId) || Boolean(data.fullName), {
     message: "NAME_REQUIRED",
@@ -84,7 +92,10 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
           waveRef: { select: { status: true } },
           score: { select: { id: true } },
           series: { select: { status: true, registrationClosesAt: true } },
-          competitors: { select: { id: true, userId: true } },
+          ownership: true,
+          registrantEmail: true,
+          registrantUserId: true,
+          competitors: { select: { id: true, userId: true, email: true } },
         },
       },
     },
@@ -103,6 +114,11 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
   // same rule as editing the registration (readSwapSeat shows it closed).
   const deadline = registrationOpen({ role: actor.role, registrationClosesAt: team.series.registrationClosesAt, now: new Date() });
   if (!deadline.open) return { ok: false, error: deadline.reason };
+
+  // The registrant's seat moves only with an explicit transfer, by BFT MENA.
+  const onRegistrantSeat = registrantSeat(team)?.id === seat.id;
+  if (onRegistrantSeat && !isBft(actor)) return { ok: false, error: "REGISTRANT_SEAT" };
+  if (onRegistrantSeat && !data.transferOwnership) return { ok: false, error: "TRANSFER_REQUIRED" };
 
   // The other half of the pair, whose partner link has to follow this change.
   const otherUserId =
@@ -214,6 +230,16 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
         userId: replacement.userId,
       },
     });
+    if (onRegistrantSeat) {
+      // The replacement registers the team from now on — by their email, and
+      // their account if they have one. No email: nobody is confirmed.
+      await tx.team.update({
+        where: { id: team.id },
+        data: replacement.email
+          ? { ownership: "registrant", registrantEmail: replacement.email, registrantUserId: replacement.userId }
+          : { ownership: "unknown", registrantEmail: null, registrantUserId: null },
+      });
+    }
 
     // ── The part that must not be forgotten ──────────────────────────────────
     // A swap has to move the partner link with it. Leave it and
@@ -257,6 +283,16 @@ export async function swapTeamMember(input: unknown): Promise<SwapResult> {
     targetLabel: `${team.number} ${team.name}`,
     detail: `position ${seat.position}: ${outgoing.label} → ${replacement.fullName}`,
   });
+  if (onRegistrantSeat) {
+    await recordAudit({
+      actorId: actor.id,
+      action: AUDIT.teamOwnershipChanged,
+      targetType: "team",
+      targetId: team.id,
+      targetLabel: `${team.number} ${team.name}`,
+      detail: `registrant ${team.registrantEmail ?? "—"} → ${replacement.email ?? "unknown (no email)"} (swap)`,
+    });
+  }
 
   // No email to the person who left. On the day this is a substitution for
   // somebody who did not turn up, and "you are looking for a partner again"

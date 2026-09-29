@@ -109,7 +109,7 @@ export function SecurityPanel({ email, hasPassword }: { email: string; hasPasswo
             {t("A link is on its way to {email}. It is good for 30 minutes.", { email })}
           </p>
         ) : (
-          <>
+          <div style={{ display: "grid", gap: 10 }}>
             <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
               {hasPassword
                 ? t("We email you a link to set a new one — there is no old password to remember. The link is good for 30 minutes.")
@@ -130,7 +130,7 @@ export function SecurityPanel({ email, hasPassword }: { email: string; hasPasswo
               {pending ? <span className="spinner" /> : null}
               {t("Email me a link")}
             </button>
-          </>
+          </div>
         )}
       </BlueprintCard>
 

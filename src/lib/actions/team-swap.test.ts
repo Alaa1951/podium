@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => {
       user: { findFirst: findUser },
       seriesParticipant: { count: countProfiles },
       partnerRequest: { updateMany: cancelRequests },
+      team: { update: vi.fn() },
     },
   };
 });
@@ -55,7 +56,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { ...mocks.db, $transaction: mocks.transaction },
 }));
 vi.mock("@/lib/partners", () => ({ linkPair: mocks.linkPair, unlinkPair: mocks.unlinkPair }));
-vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit, AUDIT: { teamMemberSwapped: "swap" } }));
+vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit, AUDIT: { teamMemberSwapped: "swap", teamOwnershipChanged: "ownership" } }));
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: mocks.revalidate }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/scoring", () => ({ normalizeName: (n: string) => n.toLowerCase() }));
@@ -272,5 +273,58 @@ describe("a seat outside the actor's reach", () => {
       ok: false,
       error: "NOT_FOUND",
     });
+  });
+});
+
+describe("the person who registered the team (plan §4)", () => {
+  /** Sara registered FALCONS, from seat 1 — but position is not how it is known. */
+  const owned = (over: Record<string, unknown> = {}) =>
+    seat({
+      ownership: "registrant",
+      registrantEmail: "sara@example.com",
+      registrantUserId: "u-sara",
+      competitors: [
+        { id: "c1", userId: "u-sara", email: "sara@example.com" },
+        { id: "c2", userId: "u-mona", email: "mona@example.com" },
+      ],
+      ...over,
+    });
+  const onSeat = (team: ReturnType<typeof owned>, id = "c1") =>
+    mocks.findSeat.mockImplementation(async (args: { where: { id?: string } }) =>
+      args.where.id === id ? { ...team, id, email: id === "c1" ? "sara@example.com" : "mona@example.com", userId: id === "c1" ? "u-sara" : "u-mona" } : null
+    );
+
+  it("a gym cannot replace the registrant — only BFT MENA can", async () => {
+    mocks.requireAccess.mockResolvedValue({ id: "gym-1", role: "studio", studioId: "studio-a", email: "gym@example.com" });
+    onSeat(owned());
+    expect(await swapTeamMember({ competitorId: "c1", fullName: "Nour Hassan", email: "nour@example.com" })).toEqual({ ok: false, error: "REGISTRANT_SEAT" });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("BFT MENA must say, explicitly, that the replacement becomes the registrant", async () => {
+    onSeat(owned());
+    expect(await swapTeamMember({ competitorId: "c1", fullName: "Nour Hassan", email: "nour@example.com" })).toEqual({ ok: false, error: "TRANSFER_REQUIRED" });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("with the transfer, the replacement registers the team from now on — audited", async () => {
+    onSeat(owned());
+    expect(await swapTeamMember({ competitorId: "c1", fullName: "Nour Hassan", email: "Nour@Example.com", transferOwnership: true })).toMatchObject({ ok: true });
+    expect(mocks.db.team.update).toHaveBeenCalledWith({
+      where: { id: "t1" },
+      data: { ownership: "registrant", registrantEmail: "nour@example.com", registrantUserId: null },
+    });
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "ownership" }));
+  });
+
+  it("the registrant in seat 2 is protected the same way — position means nothing", async () => {
+    onSeat(owned({ registrantEmail: "mona@example.com", registrantUserId: "u-mona" }), "c2");
+    expect(await swapTeamMember({ competitorId: "c2", fullName: "Nour Hassan" })).toEqual({ ok: false, error: "TRANSFER_REQUIRED" });
+  });
+
+  it("swapping the OTHER member of a registrant's team needs nothing extra and leaves ownership alone", async () => {
+    onSeat(owned(), "c2");
+    expect(await swapTeamMember({ competitorId: "c2", fullName: "Nour Hassan", email: "nour@example.com" })).toMatchObject({ ok: true });
+    expect(mocks.db.team.update).not.toHaveBeenCalled();
   });
 });

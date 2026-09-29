@@ -11,7 +11,7 @@ vi.mock("@/lib/competitor-access", () => ({ issueCompetitorCode: mocks.issue }))
 vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendSignUpPointerEmail: mocks.pointer }));
 vi.mock("@/lib/otp", () => ({ createOtpChallenge: vi.fn(), getOtpConfig: () => ({ ttlMinutes: 10 }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
-vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate }));
+vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate, NETWORK_LIMITS: { codeRequest: 120, codeEntry: 300, passwordSignIn: 120, emailedLink: 60 } }));
 vi.mock("@/lib/session", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/security", () => ({ getBaseUrl: () => "https://podium.test", getIpFromHeaders: (h: Headers) => h.get("x-forwarded-for") }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "203.0.113.7" }) }));

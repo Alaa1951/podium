@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { CurrentUser } from "@/lib/session";
+import { isBft } from "@/lib/access";
+import { registrantSeat } from "@/lib/ownership";
 import { isStudio, teamScope } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { registrationOpen } from "@/lib/visibility";
@@ -19,13 +21,15 @@ import { registrationOpen } from "@/lib/visibility";
 
 export type SwapDoor =
   | { open: true }
-  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" };
+  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" | "REGISTRANT_SEAT" };
 
 export type SwapSeat = {
   competitorId: string;
   fullName: string;
   teamNumber: number;
   teamName: string;
+  /** This seat is the person who registered the team (ownership.ts). */
+  registrant: boolean;
   door: SwapDoor;
 };
 
@@ -43,6 +47,10 @@ export async function readSwapSeat(
         select: {
           number: true,
           name: true,
+          ownership: true,
+          registrantEmail: true,
+          registrantUserId: true,
+          competitors: { select: { id: true, userId: true, email: true } },
           waveId: true,
           waveRef: { select: { status: true } },
           score: { select: { id: true } },
@@ -57,6 +65,9 @@ export async function readSwapSeat(
   // Changing who is on a team after registration closes is BFT MENA's, the
   // same as editing the registration (registrationOpen).
   const closed = !registrationOpen({ role: user.role, registrationClosesAt: team.series.registrationClosesAt, now: new Date() }).open;
+  // The person who registered the team is replaced only by BFT MENA, and only
+  // together with a decision about who registers it from then on.
+  const registrant = registrantSeat(team)?.id === seat.id;
   const door: SwapDoor =
     team.series.status === "final"
       ? { open: false, reason: "SERIES_FINISHED" }
@@ -66,13 +77,16 @@ export async function readSwapSeat(
           ? { open: false, reason: "WAVE_STARTED" }
           : closed
             ? { open: false, reason: "REGISTRATION_CLOSED" }
-            : { open: true };
+            : registrant && !isBft(user)
+              ? { open: false, reason: "REGISTRANT_SEAT" }
+              : { open: true };
 
   return {
     competitorId: seat.id,
     fullName: seat.fullName,
     teamNumber: team.number,
     teamName: team.name,
+    registrant,
     door,
   };
 }

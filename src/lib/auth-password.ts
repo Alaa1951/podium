@@ -10,7 +10,7 @@ import { onAthleteVerified } from "@/lib/partners";
 import { otpDevBypassEnabled, staffOtpExempt } from "@/lib/otp-bypass";
 import { isTestAccount } from "@/lib/test-accounts";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { normalizeEmail, verifyPassword } from "@/lib/security";
 import {
   getTrustedDevice,
@@ -91,7 +91,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
 
       if (!email || !password) return null;
 
-      const rate = limitAuthAttempt({ scope: "login", ip, identifier: email, limit: 10 });
+      const rate = limitAuthAttempt({ scope: "login", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.passwordSignIn });
       if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
 
       const user = await prisma.user.findUnique({ where: { email } });
@@ -186,7 +186,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
 
       if (!email || !code) return null;
 
-      const rate = limitAuthAttempt({ scope: "otp", ip, identifier: email, limit: 10 });
+      const rate = limitAuthAttempt({ scope: "otp", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.passwordSignIn });
       if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
 
       const user = await prisma.user.findUnique({ where: { email } });
@@ -279,7 +279,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
 
       if (!email || !code) return null;
 
-      const rate = limitAuthAttempt({ scope: "competitor-otp", ip, identifier: email, limit: 10 });
+      const rate = limitAuthAttempt({ scope: "competitor-otp", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.codeEntry });
       if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
 
       const user = await prisma.user.findUnique({ where: { email } });

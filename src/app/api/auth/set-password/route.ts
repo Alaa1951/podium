@@ -4,7 +4,7 @@ import { consumeAuthToken } from "@/lib/auth-tokens";
 import { sendSecurityAlertEmail } from "@/lib/email";
 import { linkSeatsForUser } from "@/lib/link-seats";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { checkPasswordStrength, getIpFromHeaders, hashPassword } from "@/lib/security";
 import { revokeTrustedDevices } from "@/lib/trusted-device";
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const password = body.password || "";
     const confirmPassword = body.confirmPassword || "";
 
-    const rate = limitAuthAttempt({ scope: "set-password", ip, limit: 10 });
+    const rate = limitAuthAttempt({ scope: "set-password", ip, limit: 10, networkLimit: NETWORK_LIMITS.emailedLink });
     if (!rate.ok) {
       return NextResponse.json(
         { ok: false, error: "TOO_MANY_ATTEMPTS" },

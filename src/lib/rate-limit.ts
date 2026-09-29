@@ -44,21 +44,48 @@ const DEFAULT_WINDOW_MS = 15 * MINUTE_MS;
 const DEFAULT_LIMIT = 10;
 
 /**
+ * Per-network allowances, per 15 minutes. Sized for a crowd behind one
+ * address (a gym's members, the venue Wi-Fi at check-in); each person still
+ * gets only their own per-account allowance inside it.
+ */
+export const NETWORK_LIMITS = {
+  /** Asking for a sign-in code: at most 5 per address, 120 per network. */
+  codeRequest: 120,
+  /** Typing a sign-in code: at most 10 per address, 300 per network. */
+  codeEntry: 300,
+  /** Password sign-in and its emailed second step. */
+  passwordSignIn: 120,
+  /** Forgotten password, resend, "email me a link", set a password. */
+  emailedLink: 60,
+} as const;
+
+/**
  * Throttles per IP *and* per identifier, so neither one attacker address nor
  * one targeted account can be hammered.
+ *
+ * The two are separate numbers. `limit` guards ONE account (an address, an
+ * email): that is what stops a code being guessed or a mailbox being
+ * flooded. `networkLimit` guards one network, and a network is often many
+ * people — a gym's Wi-Fi, the venue on competition day, a mobile carrier's
+ * shared address — so it is set for a crowd, not a person. Without it the
+ * whole network would share one person's allowance.
  */
 export function limitAuthAttempt(opts: {
   scope: string;
   ip?: string | null;
   identifier?: string | null;
+  /** Per account (identifier). */
   limit?: number;
+  /** Per network (IP); defaults to `limit`. */
+  networkLimit?: number;
   windowMs?: number;
 }): RateResult {
   const limit = opts.limit ?? DEFAULT_LIMIT;
+  const networkLimit = opts.networkLimit ?? limit;
   const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
 
   const ip = (opts.ip || "").trim() || "unknown";
-  const byIp = checkRate(`auth:${opts.scope}:ip:${ip}`, limit, windowMs);
+  const byIp = checkRate(`auth:${opts.scope}:ip:${ip}`, networkLimit, windowMs);
   if (!byIp.ok) return byIp;
 
   const identifier = (opts.identifier || "").trim().toLowerCase();

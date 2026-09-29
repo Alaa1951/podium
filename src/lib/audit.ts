@@ -70,6 +70,7 @@ export const AUDIT = {
   partnerRequestWithdrawn: "partner.request_withdrawn",
   partnerUnlinked: "partner.unlinked",
   teamMemberSwapped: "team.member_swapped",
+  teamOwnershipChanged: "team.ownership_changed",
   waitlistAdmitted: "registration.waitlist_admitted",
   waitlistReturned: "registration.waitlist_returned",
   announcementSent: "notification.sent",

@@ -8,6 +8,9 @@ import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { requestMyVerificationCode } from "@/lib/actions/competitor-login";
 
+/** Keep an address in its own direction inside a sentence (bidi isolate). */
+const isolate = (text: string) => `\u2068${text}\u2069`;
+
 /**
  * Shown on My team when the signed-in athlete's account has not proven its
  * current address: until it does, no seat can be linked to it and no entry
@@ -59,7 +62,7 @@ export function VerifyEmailCard({ email }: { email: string }) {
     <section className="card" style={{ marginTop: 16 }}>
       <div className="card-kicker">{t("Verify your email")}</div>
       <p className="reg-sub">
-        {t("Your entry is linked to the email it was registered with. Verify {email} to see it here.", { email })}
+        {t("Your entry is linked to the email it was registered with. Verify {email} to see it here.", { email: isolate(email) })}
       </p>
       {refused ? <RefusedCodeNotice kind="code" /> : null}
       {error ? (

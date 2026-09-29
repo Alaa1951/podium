@@ -21,6 +21,7 @@ const CLOSED: Record<Extract<SwapDoor, { open: false }>["reason"], string> = {
   TEAM_ALREADY_SCORED: "This team has a score. Nobody can be swapped out of a scored team.",
   WAVE_STARTED: "This team's wave has started. Nobody can be swapped once they are on the floor.",
   REGISTRATION_CLOSED: "Registration has closed. Ask BFT MENA to change who is on this team.",
+  REGISTRANT_SEAT: "This person registered the team. Only BFT MENA can replace them.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -35,6 +36,8 @@ const ERRORS: Record<string, string> = {
   WAVE_STARTED: CLOSED.WAVE_STARTED,
   REGISTRATION_CLOSED: CLOSED.REGISTRATION_CLOSED,
   FORBIDDEN: "You cannot change this.",
+  REGISTRANT_SEAT: CLOSED.REGISTRANT_SEAT,
+  TRANSFER_REQUIRED: "Confirm that the replacement will be the one who registered the team.",
 };
 
 export function SwapMemberPanel({
@@ -42,11 +45,14 @@ export function SwapMemberPanel({
   fullName,
   door,
   candidates,
+  registrant = false,
 }: {
   competitorId: string;
   fullName: string;
   door: SwapDoor;
   candidates: SwapCandidate[];
+  /** This person registered the team: replacing them moves that too. */
+  registrant?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -55,6 +61,7 @@ export function SwapMemberPanel({
   const [typedIn, setTypedIn] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
+  const [transfer, setTransfer] = useState(false);
   const [form, setForm] = useState({
     replacementUserId: "",
     fullName: "",
@@ -83,8 +90,8 @@ export function SwapMemberPanel({
       try {
         const result = await swapTeamMember(
           typedIn
-            ? { competitorId, fullName: form.fullName, email: form.email, phone: form.phone }
-            : { competitorId, replacementUserId: form.replacementUserId }
+            ? { competitorId, fullName: form.fullName, email: form.email, phone: form.phone, transferOwnership: registrant ? transfer : undefined }
+            : { competitorId, replacementUserId: form.replacementUserId, transferOwnership: registrant ? transfer : undefined }
         );
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
@@ -186,6 +193,15 @@ export function SwapMemberPanel({
               </label>
             </div>
           )}
+
+          {registrant ? (
+            <label className="checkline" style={{ marginTop: 12 }}>
+              <input type="checkbox" checked={transfer} disabled={pending} onChange={(event) => setTransfer(event.target.checked)} />
+              <span>
+                {t("{name} registered this team. The replacement becomes the one who registered it, by their email.", { name: fullName })}
+              </span>
+            </label>
+          ) : null}
 
           {error ? (
             <div className="notice-error" role="alert" style={{ marginTop: 10 }}>

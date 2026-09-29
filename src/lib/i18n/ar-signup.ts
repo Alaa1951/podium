@@ -317,6 +317,38 @@ export const AR_SIGNUP: Phrases = {
     "تسجيلك مرتبط بالبريد الذي سُجّل به. أكّد {email} لتراه هنا.",
   Verify: "تأكيد",
 
+  // ── Who registered the team; a team of one ───────────────────────────────
+  "This person registered the team. Only BFT MENA can replace them.": "هذا الشخص هو من سجّل الفريق. لا يستبدله إلا BFT MENA.",
+  "Confirm that the replacement will be the one who registered the team.": "أكّد أن البديل سيصبح هو من سجّل الفريق.",
+  "{name} registered this team. The replacement becomes the one who registered it, by their email.":
+    "{name} هو من سجّل هذا الفريق. سيصبح البديل هو المسجِّل، ببريده الإلكتروني.",
+  "The email of the person who registered the team is changed by BFT MENA.": "بريد من سجّل الفريق يغيّره BFT MENA فقط.",
+  "Partner needed": "مطلوب شريك",
+  "This team has one athlete. Add the partner here when they are known.": "في هذا الفريق رياضي واحد. أضف الشريك هنا عندما يُعرف.",
+  "Add partner": "إضافة شريك",
+  "Choose the person who registered the team.": "اختر الشخص الذي سجّل الفريق.",
+  "That person has no email on the registration. Add one first.": "لا يوجد بريد لهذا الشخص في التسجيل. أضِف بريدًا أولًا.",
+  "That person is no longer on this team. Reload the page.": "هذا الشخص لم يعد في الفريق. أعد تحميل الصفحة.",
+  "That team could not be found.": "تعذّر العثور على هذا الفريق.",
+  "{name} registered the team": "{name} هو من سجّل الفريق",
+  "Both registered separately": "كلاهما سجّل بشكل منفصل",
+  "Not confirmed": "غير مؤكَّد",
+  "Who registered this team": "من سجّل هذا الفريق",
+  "The person who registered manages who is on the team; the other member can only leave. Not confirmed gives nobody that right.":
+    "من سجّل الفريق يدير أعضاءه، والعضو الآخر يستطيع المغادرة فقط. \"غير مؤكَّد\" لا يعطي هذا الحق لأحد.",
+  "The registrant's email is no longer on either seat. Choose again.": "بريد المسجِّل لم يعد على أيّ من المقعدين. اختر من جديد.",
+  "no email on the registration": "لا بريد في التسجيل",
+  You: "أنت",
+  "Signed in": "سجّل الدخول",
+  "Added — not signed in yet": "مُضاف — لم يسجّل الدخول بعد",
+  "No email — ask BFT MENA to add one": "بلا بريد — اطلب من BFT MENA إضافته",
+  "Registered the team": "سجّل الفريق",
+  "This team has one athlete so far. BFT MENA can add the partner.": "في هذا الفريق رياضي واحد حتى الآن. يستطيع BFT MENA إضافة الشريك.",
+
+  // ── A competition's status, as an athlete reads it ─────────────────────────
+  "Coming up": "قادمة",
+  "Running now": "جارية الآن",
+
   // ── Password optional for athletes; Create / Change password ──────────────
   "Password (optional)": "كلمة المرور (اختيارية)",
   "Leave it empty to sign in with a code we email you. You can create a password any time from Account.":

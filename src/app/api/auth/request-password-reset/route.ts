@@ -4,7 +4,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
-import { limitAuthAttempt } from "@/lib/rate-limit";
+import { limitAuthAttempt, NETWORK_LIMITS } from "@/lib/rate-limit";
 import { getIpFromHeaders } from "@/lib/security";
 import { getCurrentUser } from "@/lib/session";
 
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (user.viewAs) return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
 
   const ip = getIpFromHeaders(req.headers);
-  const rate = limitAuthAttempt({ scope: "request-password-reset", ip, identifier: user.email, limit: 5 });
+  const rate = limitAuthAttempt({ scope: "request-password-reset", ip, identifier: user.email, limit: 5, networkLimit: NETWORK_LIMITS.emailedLink });
   if (!rate.ok) {
     return NextResponse.json(
       { ok: false, error: "TOO_MANY_ATTEMPTS" },
