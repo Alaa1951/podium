@@ -344,6 +344,94 @@ export const AR_SIGNUP: Phrases = {
   "No email — ask BFT MENA to add one": "بلا بريد — اطلب من BFT MENA إضافته",
   "Registered the team": "سجّل الفريق",
   "This team has one athlete so far. BFT MENA can add the partner.": "في هذا الفريق رياضي واحد حتى الآن. يستطيع BFT MENA إضافة الشريك.",
+  "This team has one athlete so far. Add your partner with the button below.": "في هذا الفريق رياضي واحد حتى الآن. أضف شريكك بالزر أدناه.",
+
+  // ── Changing who is on the team (R2b) ─────────────────────────────────────
+  "No answer from the server. Check your connection and try again — it will not be done twice.":
+    "لم يصل رد من الخادم. تحقّق من الاتصال وأعد المحاولة — لن يُنفَّذ الطلب مرتين.",
+  "You have left the team.": "غادرتَ الفريق.",
+  "Your partner has been added. They can sign in with a code sent to their email.":
+    "أُضيف شريكك. يستطيع الدخول بكود يُرسَل إلى بريده.",
+  "Nothing to change — that is already your partner.": "لا شيء لتغييره — هذا شريكك أصلًا.",
+  "Your partner has been replaced. The new partner can sign in with a code sent to their email.":
+    "تم استبدال شريكك. يستطيع الشريك الجديد الدخول بكود يُرسَل إلى بريده.",
+  "your new partner": "شريكك الجديد",
+  "their email": "بريده",
+  "Replace my partner": "استبدال شريكي",
+  "Your partner": "شريكك",
+  "Add a partner": "إضافة شريك",
+  "Leave the team": "مغادرة الفريق",
+  "To leave this team, ask BFT MENA.": "لمغادرة هذا الفريق، تواصل مع BFT MENA.",
+  "Partner's full name": "الاسم الكامل للشريك",
+  "{name} will be taken off the team. They keep their account and anything they paid.":
+    "سيُزال {name} من الفريق. يبقى حسابه وما دفعه كما هو.",
+  "{name} will be added, and can sign in with a code sent to {email} — no password needed.":
+    "سيُضاف {name}، ويستطيع الدخول بكود يُرسَل إلى {email} — دون كلمة مرور.",
+  "Your registration, payment, team number and wave stay as they are.": "يبقى تسجيلك ودفعتك ورقم الفريق والموجة كما هي.",
+  "You will be taken off {team}.": "ستُزال من الفريق {team}.",
+  "{name} keeps the team and its place.": "يحتفظ {name} بالفريق ومكانه.",
+  "The person who registered": "من سجّل الفريق",
+  "Your account and anything you paid stay as they are, and you can join another team.":
+    "يبقى حسابك وما دفعته كما هو، ويمكنك الانضمام إلى فريق آخر.",
+  Reload: "إعادة التحميل",
+  "Replace partner": "استبدال الشريك",
+  "Your wave has started, so the team cannot change now.": "بدأت موجتك، فلا يمكن تغيير الفريق الآن.",
+  "Your team has a score, so it cannot change now.": "لفريقك نتيجة مسجّلة، فلا يمكن تغييره الآن.",
+  "This competition is finished.": "انتهت هذه المسابقة.",
+  "This team is no longer entered.": "هذا الفريق لم يعد مسجّلًا.",
+  "BFT MENA has not confirmed who registered this team yet. Until then, changes to the team go through them.":
+    "لم يؤكّد BFT MENA بعد من سجّل هذا الفريق. حتى ذلك الحين، تتم تغييرات الفريق عن طريقهم.",
+  "You both registered separately, so neither of you can change the other's place. Changes to this team go through BFT MENA.":
+    "سجّل كلٌّ منكما بشكل منفصل، فلا يستطيع أحدكما تغيير مكان الآخر. تتم تغييرات هذا الفريق عن طريق BFT MENA.",
+  "Your team changed while this page was open. Reload to see who is on it now.":
+    "تغيّر فريقك أثناء فتح هذه الصفحة. أعد التحميل لترى أعضاءه الآن.",
+  "This page sent something different under the same request. Reload and try again.":
+    "أرسلت هذه الصفحة محتوى مختلفًا ضمن الطلب نفسه. أعد التحميل وحاول مجددًا.",
+  "Type your partner's full name.": "اكتب الاسم الكامل لشريكك.",
+  "That is your own email. Type your partner's.": "هذا بريدك أنت. اكتب بريد شريكك.",
+  "That person is already entered in this competition.": "هذا الشخص مسجّل مسبقًا في هذه المسابقة.",
+  "Leaving a team is not open yet. Ask BFT MENA.": "مغادرة الفريق غير متاحة بعد. تواصل مع BFT MENA.",
+  "You cannot make this change.": "لا يمكنك إجراء هذا التغيير.",
+  "You are no longer on this team.": "لم تعد في هذا الفريق.",
+  "Team changes are not open yet.": "تغييرات الفريق غير متاحة بعد.",
+  "Check the fields and try again.": "راجع الحقول وحاول مجددًا.",
+  "Only the person who registered the team can correct their partner's details.": "من سجّل الفريق فقط يستطيع تصحيح بيانات شريكه.",
+  "BFT MENA has not confirmed who registered this team yet. Ask them to change it.":
+    "لم يؤكّد BFT MENA بعد من سجّل هذا الفريق. اطلب منهم التغيير.",
+  "You can correct your partner's name or email — one at a time — until 24 hours before the event.":
+    "يمكنك تصحيح اسم شريكك أو بريده — واحدًا في كل مرة — حتى 24 ساعة قبل الفعالية.",
+  "You have unsaved changes. Leave this screen?": "لديك تغييرات غير محفوظة. هل تغادر هذه الشاشة؟",
+  "This athlete is already entered in this competition.": "هذا الرياضي مسجّل مسبقًا في هذه المسابقة.",
+  "A new name and a new email is a different person. To put someone else in the team, use Replace my partner — or ask BFT MENA.":
+    "اسم جديد وبريد جديد يعنيان شخصًا آخر. لوضع شخص آخر في الفريق استخدم \"استبدال شريكي\" — أو تواصل مع BFT MENA.",
+  "A new name and a new email is a different person. Use Swap on that person's page to put someone else in the team.":
+    "اسم جديد وبريد جديد يعنيان شخصًا آخر. استخدم الاستبدال من صفحة ذلك الشخص لوضع شخص آخر في الفريق.",
+  "This person signs in with that email. Change it on their account (Users), or use Swap to put someone else in the team.":
+    "هذا الشخص يسجّل الدخول بهذا البريد. غيّره من حسابه (المستخدمون)، أو استخدم الاستبدال لوضع شخص آخر في الفريق.",
+  "This team changed while the form was open. Reload to see it as it is now.": "تغيّر هذا الفريق أثناء فتح النموذج. أعد التحميل لتراه كما هو الآن.",
+  "This team changed while the page was open. Reload to see it as it is now.": "تغيّر هذا الفريق أثناء فتح الصفحة. أعد التحميل لتراه كما هو الآن.",
+  "This wave has a team with one athlete ({teams}). Add their partner, or move the team, before starting.":
+    "في هذه الموجة فريق برياضي واحد ({teams}). أضف شريكه أو انقل الفريق قبل البدء.",
+
+  // ── When team changes close (D3a) ─────────────────────────────────────────
+  "Team changes closed on {when} (Qatar time). Any change now goes through BFT MENA.":
+    "أُغلقت تعديلات الفريق في {when} (بتوقيت قطر). أي تعديل الآن يتم عن طريق BFT MENA.",
+  "Team changes close on {when} (Qatar time). After that, BFT MENA makes them.":
+    "تُغلق تعديلات الفريق في {when} (بتوقيت قطر). بعد ذلك يُجريها BFT MENA.",
+  "You can correct your partner's name until {when} (Qatar time).": "يمكنك تصحيح اسم شريكك حتى {when} (بتوقيت قطر).",
+  "You can correct your partner's name until 24 hours before the event.": "يمكنك تصحيح اسم شريكك حتى 24 ساعة قبل الفعالية.",
+  "A different email is a different person: use Replace my partner.": "بريد مختلف يعني شخصًا آخر: استخدم \"استبدال شريكي\".",
+  "A different email is a different person: ask BFT MENA.": "بريد مختلف يعني شخصًا آخر: تواصل مع BFT MENA.",
+  "A different email is a different person. To change it, use Replace my partner — or ask BFT MENA.":
+    "بريد مختلف يعني شخصًا آخر. لتغييره استخدم \"استبدال شريكي\" — أو تواصل مع BFT MENA.",
+  "Team changes closed on {when} (Qatar time). Only BFT MENA Full access can change the team now.":
+    "أُغلقت تعديلات الفريق في {when} (بتوقيت قطر). لا يستطيع تغيير الفريق الآن إلا BFT MENA بصلاحية كاملة.",
+  "Team changes are closed. Only BFT MENA Full access can change the team now.":
+    "تعديلات الفريق مغلقة. لا يستطيع تغيير الفريق الآن إلا BFT MENA بصلاحية كاملة.",
+  "This team's wave has started. Who is on it cannot change now.": "بدأت موجة هذا الفريق، فلا يمكن تغيير أعضائه الآن.",
+  "This team has a score. Who is on it cannot change now.": "لهذا الفريق نتيجة مسجّلة، فلا يمكن تغيير أعضائه الآن.",
+  "Team changes close on {when} (Qatar time). After that, only BFT MENA Full access can change the team.":
+    "تُغلق تعديلات الفريق في {when} (بتوقيت قطر). بعد ذلك لا يغيّر الفريق إلا BFT MENA بصلاحية كاملة.",
 
   // ── A competition's status, as an athlete reads it ─────────────────────────
   "Coming up": "قادمة",

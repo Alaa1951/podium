@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { requireConsoleAnyAccess } from "@/lib/session";
-import { isCompeting } from "@/lib/team-status";
+import { onTheFloor } from "@/lib/ownership";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +68,7 @@ export default async function MarshallingPage(props: SeriesScreenProps) {
       athletes: team.competitors.map((person) => person.fullName),
       studio: team.studio?.name ?? null,
       checkedIn: !!team.attendedAt,
-      competing: isCompeting(team),
+      competing: onTheFloor(team),
     });
   }
 

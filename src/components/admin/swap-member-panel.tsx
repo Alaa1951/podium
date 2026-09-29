@@ -22,6 +22,7 @@ const CLOSED: Record<Extract<SwapDoor, { open: false }>["reason"], string> = {
   WAVE_STARTED: "This team's wave has started. Nobody can be swapped once they are on the floor.",
   REGISTRATION_CLOSED: "Registration has closed. Ask BFT MENA to change who is on this team.",
   REGISTRANT_SEAT: "This person registered the team. Only BFT MENA can replace them.",
+  TEAM_EDIT_CLOSED: "Team changes closed on {when} (Qatar time). Only BFT MENA Full access can change the team now.",
 };
 
 const ERRORS: Record<string, string> = {
@@ -38,6 +39,8 @@ const ERRORS: Record<string, string> = {
   FORBIDDEN: "You cannot change this.",
   REGISTRANT_SEAT: CLOSED.REGISTRANT_SEAT,
   TRANSFER_REQUIRED: "Confirm that the replacement will be the one who registered the team.",
+  STALE_MEMBERSHIP: "This team changed while the page was open. Reload to see it as it is now.",
+  TEAM_EDIT_CLOSED: "Team changes are closed. Only BFT MENA Full access can change the team now.",
 };
 
 export function SwapMemberPanel({
@@ -46,6 +49,8 @@ export function SwapMemberPanel({
   door,
   candidates,
   registrant = false,
+  version,
+  closesAt = "",
 }: {
   competitorId: string;
   fullName: string;
@@ -53,6 +58,10 @@ export function SwapMemberPanel({
   candidates: SwapCandidate[];
   /** This person registered the team: replacing them moves that too. */
   registrant?: boolean;
+  /** The team's membership version this page shows. */
+  version?: number;
+  /** When team changes close, formatted in Qatar time. */
+  closesAt?: string;
 }) {
   const t = useT();
   const router = useRouter();
@@ -77,7 +86,7 @@ export function SwapMemberPanel({
       <section className="card" style={{ marginTop: 18 }}>
         <h2 style={{ margin: 0 }}>{t("Swap this person out")}</h2>
         <p className="reg-sub" style={{ marginBottom: 0 }}>
-          {t(CLOSED[door.reason])}
+          {t(CLOSED[door.reason], { when: closesAt })}
         </p>
       </section>
     );
@@ -90,8 +99,8 @@ export function SwapMemberPanel({
       try {
         const result = await swapTeamMember(
           typedIn
-            ? { competitorId, fullName: form.fullName, email: form.email, phone: form.phone, transferOwnership: registrant ? transfer : undefined }
-            : { competitorId, replacementUserId: form.replacementUserId, transferOwnership: registrant ? transfer : undefined }
+            ? { competitorId, fullName: form.fullName, email: form.email, phone: form.phone, transferOwnership: registrant ? transfer : undefined, expectedVersion: version }
+            : { competitorId, replacementUserId: form.replacementUserId, transferOwnership: registrant ? transfer : undefined, expectedVersion: version }
         );
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));

@@ -1,3 +1,4 @@
+import { teamChangesCloseLabel } from "@/lib/ownership";
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/app/page-shell";
 import { SwapMemberPanel } from "@/components/admin/swap-member-panel";
@@ -17,7 +18,7 @@ export default async function CompetitorScreen(params: Promise<{ series: string;
   const [team] = await getScopedRoster(series.id, user, id);
   const person = team?.competitors.find((person) => person.id === personId);
   if (!team || !person) notFound();
-  const { t } = await getTranslator();
+  const { t, locale } = await getTranslator();
 
   // Changing who stands here is the same act as pairing two athletes, so it is
   // the same permission — and read-only stand-ins never get the panel.
@@ -33,6 +34,8 @@ export default async function CompetitorScreen(params: Promise<{ series: string;
         door={seat.door}
         candidates={candidates}
         registrant={seat.registrant}
+        version={seat.version}
+        closesAt={teamChangesCloseLabel(seat.competitionDate, locale)}
       />
     ) : null}
   </PageShell>;

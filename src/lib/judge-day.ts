@@ -3,7 +3,7 @@ import "server-only";
 import { zoneSchedule, type FloorTiming, type PlannedWave } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
-import { isCompeting } from "@/lib/team-status";
+import { onTheFloor } from "@/lib/ownership";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A JUDGE'S DAY — every wave that will come through their zone, and the team
@@ -134,7 +134,7 @@ export async function loadJudgeDay(input: {
       station: team.station,
       athletes: namesHidden ? [] : team.competitors.map((person) => person.fullName),
       checkedIn: !!team.attendedAt,
-      competing: isCompeting(team),
+      competing: onTheFloor(team),
     };
     const list = byWave.get(team.waveId) ?? [];
     list.push(row);

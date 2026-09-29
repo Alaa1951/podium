@@ -20,6 +20,12 @@ import { useIsMobile } from "@/components/app/use-mobile";
 
 export type StudioTeamRow = {
   id: string;
+  /** The team's membership version this form was opened on. */
+  version?: number;
+  /** When team changes close (D3a), formatted in Qatar time. */
+  closesAt?: string;
+  /** Already closed for the person looking (not Full access, past the cutoff). */
+  closed?: boolean;
   number: number;
   name: string;
   category: string;

@@ -40,10 +40,13 @@ export async function PairCard({
   members,
   viewerId,
   ownership,
+  viewerCanFill = false,
 }: {
   members: PairMember[];
   /** The signed-in athlete, to mark "you". */
   viewerId: string;
+  /** The viewer can add the partner themselves (the button follows the card). */
+  viewerCanFill?: boolean;
   ownership: { ownership: Ownership; registrantEmail: string | null; registrantUserId: string | null };
 }) {
   const { t } = await getTranslator();
@@ -76,7 +79,11 @@ export async function PairCard({
         {members.length < 2 ? (
           <li className="notice" style={{ margin: 0 }}>
             <strong>{t("Partner needed")}</strong>
-            <p style={{ margin: "6px 0 0" }}>{t("This team has one athlete so far. BFT MENA can add the partner.")}</p>
+            <p style={{ margin: "6px 0 0" }}>
+              {viewerCanFill
+                ? t("This team has one athlete so far. Add your partner with the button below.")
+                : t("This team has one athlete so far. BFT MENA can add the partner.")}
+            </p>
           </li>
         ) : null}
       </ul>

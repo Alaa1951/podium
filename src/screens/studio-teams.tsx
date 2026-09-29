@@ -1,3 +1,4 @@
+import { teamChangesCloseLabel, teamChangeWindow } from "@/lib/ownership";
 import { can } from "@/lib/access";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
@@ -85,6 +86,9 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
         editMode={editMode}
         rows={teams.map((team) => ({
           id: team.id,
+          version: team.membershipVersion,
+          closesAt: teamChangesCloseLabel(series.competitionDate, locale),
+          closed: !teamChangeWindow(series.competitionDate, new Date(), can(user, "registrations.changeAfterClose")).open,
           number: team.number,
           name: team.name,
           category: team.category,

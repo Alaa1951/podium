@@ -10,7 +10,7 @@
  *
  *   INTEGRATION_DB=1 npx vitest run src/lib/ownership.integration.test.ts
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -40,7 +40,26 @@ let workdir: string;
 
 /** Run the backfill against the throwaway schema — and only it. */
 function backfill(...args: string[]) {
-  const run = spawnSync(process.execPath, [script, ...args], {
+  const run = runBackfill({}, ...args);
+  if (run.status !== 0) throw new Error(run.stderr || run.stdout);
+  return run.stdout;
+}
+
+/** The same, without blocking this process (for runs that must wait on a lock we hold). */
+function runBackfillAsync(...args: string[]): Promise<{ status: number | null; stdout: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [script, ...args], {
+      cwd: workdir,
+      env: { ...process.env, DATABASE_URL: schemaUrl.toString(), MYSQL_DATABASE: schema },
+    });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.on("close", (status) => resolve({ status, stdout }));
+  });
+}
+
+function runBackfill(extraEnv: Record<string, string>, ...args: string[]) {
+  return spawnSync(process.execPath, [script, ...args], {
     cwd: workdir, // no .env here, and the journal lands here
     encoding: "utf8",
     env: {
@@ -50,10 +69,9 @@ function backfill(...args: string[]) {
       // (db-credentials.mjs): pin the database too, or the local .env's
       // would be used.
       MYSQL_DATABASE: schema,
+      ...extraEnv,
     },
   });
-  if (run.status !== 0) throw new Error(run.stderr || run.stdout);
-  return run.stdout;
 }
 
 const seat = (position: number, email: string | null, userId: string | null = null) => ({
@@ -149,5 +167,45 @@ describe.skipIf(!enabled)("team ownership on a real database", { timeout: 60_000
 
     expect(await linkSeatsForUser(prisma, "u-sara")).toMatchObject({ linked: 1, approved: true });
     expect(await owner("t")).toEqual({ ownership: "registrant", registrantEmail: "sara@example.com", registrantUserId: "u-sara" });
+  });
+
+  it("interrupted AFTER the commit (before its 'done' line): the change stands, a re-run writes nothing, --revert still undoes it", async () => {
+    await team("crash", 1, { source: "ghl", externalId: "c1", rawPayload: { email: "sara@example.com" } }, [seat(1, "sara@example.com", "u-sara"), seat(2, "mona@example.com")]);
+    const stopped = runBackfill({ BACKFILL_TEST_CRASH: "after-commit" }, "--apply");
+    expect(stopped.status).toBe(3);
+    expect(await owner("crash")).toMatchObject({ ownership: "registrant", registrantEmail: "sara@example.com" });
+    const journal = fs.readdirSync(workdir).find((file) => file.endsWith(".jsonl"))!;
+    const phases = fs.readFileSync(path.join(workdir, journal), "utf8").trim().split("\n").map((line) => JSON.parse(line).phase);
+    expect(phases).toEqual(["intent"]); // the intent is on disk; "done" never was
+
+    expect(backfill("--apply")).toContain("written: 0");
+    expect(backfill("--revert", journal)).toContain("reverted: 1");
+    expect(await owner("crash")).toEqual({ ownership: "unknown", registrantEmail: null, registrantUserId: null });
+  });
+
+  it("interrupted BEFORE the commit: nothing changed, and --revert says so", async () => {
+    await team("early", 1, { source: "ghl", externalId: "c1", rawPayload: { email: "sara@example.com" } }, [seat(1, "sara@example.com"), seat(2, "mona@example.com")]);
+    expect(runBackfill({ BACKFILL_TEST_CRASH: "before-commit" }, "--apply").status).toBe(3);
+    expect(await owner("early")).toEqual({ ownership: "unknown", registrantEmail: null, registrantUserId: null });
+    const journal = fs.readdirSync(workdir).find((file) => file.endsWith(".jsonl"))!;
+    expect(backfill("--revert", journal)).toContain("already as before: 1");
+  });
+
+  it("a team BFT MENA set between the plan and the write is skipped, never overwritten", async () => {
+    await team("raced", 1, { source: "ghl", externalId: "c1", rawPayload: { email: "sara@example.com" } }, [seat(1, "sara@example.com"), seat(2, "mona@example.com")]);
+    // Hold the team row: the script plans (a plain read), then waits on its
+    // lock; meanwhile the team is set to joint; then the hold is released.
+    let child!: Promise<{ status: number | null; stdout: string }>;
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Team WHERE id = ${"raced"} FOR UPDATE`;
+      child = runBackfillAsync("--apply");
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await tx.team.update({ where: { id: "raced" }, data: { ownership: "joint" } });
+    }, { timeout: 30_000 });
+    const out = await child;
+    expect(out.status).toBe(0);
+    expect(out.stdout).toContain("to set as registrant: 1"); // it had planned to write…
+    expect(out.stdout).toContain("written: 0"); // …and decided again under the lock
+    expect(await owner("raced")).toMatchObject({ ownership: "joint", registrantEmail: null });
   });
 });

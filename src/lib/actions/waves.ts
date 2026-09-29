@@ -1,5 +1,7 @@
 "use server";
 
+import { incompleteTeamPolicyEnabled } from "@/lib/ownership";
+import { isCompeting } from "@/lib/team-status";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
@@ -17,7 +19,7 @@ import { fillFinisherTimes, waveLengthFor } from "@/lib/wave-clock";
 
 export type ActionResult =
   | { ok: true; message?: string }
-  | { ok: false; error: string; freeInMs?: number };
+  | { ok: false; error: string; freeInMs?: number; teams?: number[] };
 
 // ── Waves ────────────────────────────────────────────────────────────────────
 // A wave is a row, not a number on the event. The supervisor presses START
@@ -63,7 +65,7 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
 
 async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof waveSchema>, fullAccess: boolean): Promise<ActionResult> {
   const wave = await tx.wave.findUnique({ where: { id: input.waveId }, include: {
-    series: true, teams: { where: { archivedAt: null, waitlistedAt: null }, select: { station: true } },
+    series: true, teams: { where: { archivedAt: null, waitlistedAt: null }, select: { station: true, number: true, paymentStatus: true, waitlistedAt: true, _count: { select: { competitors: true } } } },
   } });
   if (!wave || wave.series.archivedAt) return { ok: false, error: "NOT_FOUND" };
   const now = new Date();
@@ -73,6 +75,12 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
       if (wave.status !== "pending") return { ok: false, error: "ALREADY_STARTED" };
       if (!wave.teams.length) return { ok: false, error: "NO_TEAMS" };
       if (wave.teams.length > wave.capacity || wave.teams.length > MAX_STATIONS || wave.teams.some(team => team.station === null)) return { ok: false, error: "STATIONS_MISSING" };
+      // A paid team of one does not start (decision D3b, once switched on):
+      // the floor would have a station with half a pair on it.
+      if (incompleteTeamPolicyEnabled()) {
+        const incomplete = wave.teams.filter(team => isCompeting(team) && team._count.competitors < 2).map(team => team.number);
+        if (incomplete.length) return { ok: false, error: "INCOMPLETE_TEAM", teams: incomplete };
+      }
       const timing = { workMinutes: wave.series.zoneWorkMinutes, breakMinutes: wave.series.zoneBreakMinutes,
         zoneCount: await tx.zone.count({ where: { seriesId: wave.seriesId } }) };
       if (!timing.zoneCount) return { ok: false, error: "NO_ZONES" };

@@ -374,6 +374,50 @@ export async function sendSignUpPointerEmail(params: { email: string; url: strin
   await sendMail({ to: params.email, subject, text, html });
 }
 
+const BUTTON = "display:inline-block;background:#00b5cc;color:#07073d;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:14px 26px;text-decoration:none";
+
+/** The registrant put somebody else in this person's seat. */
+export async function sendRemovedFromTeamEmail(params: { email: string; teamName: string; teamNumber: number; url: string }) {
+  const team = `team ${params.teamNumber} ${params.teamName}`;
+  const subject = `You are no longer on ${team}`;
+  const text = `The person who registered ${team} has put somebody else in your place.\n\nYour ${BRAND} account stays as it is, and anything you paid is untouched. You can find a partner or enter again here: ${params.url}`;
+  const html = shell(
+    "You are no longer on the team",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center">The person who registered <strong>${escapeHtml(team)}</strong> has put somebody else in your place.</p>
+     <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">Your account stays as it is, and anything you paid is untouched.</p>
+     <div style="text-align:center;margin:24px 0"><a href="${params.url}" style="${BUTTON}">Open PODIUM</a></div>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
+/** Somebody was added to a team under this address. */
+export async function sendAddedToTeamEmail(params: { email: string; teamName: string; teamNumber: number; byName: string; url: string }) {
+  const team = `team ${params.teamNumber} ${params.teamName}`;
+  const subject = `${params.byName || "Your partner"} added you to ${team}`;
+  const text = `${params.byName || "Your partner"} added you to ${team} on ${BRAND}.\n\nSign in with a code sent to this email — no password needed — and your team will be there: ${params.url}\n\nYou can create a password later from Account if you want one.`;
+  const html = shell(
+    "You have been added to a team",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${escapeHtml(params.byName || "Your partner")}</strong> added you to <strong>${escapeHtml(team)}</strong>.</p>
+     <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">Sign in with a code sent to this email — no password needed.</p>
+     <div style="text-align:center;margin:24px 0"><a href="${params.url}" style="${BUTTON}">Sign in with a code</a></div>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
+/** The other member left the registrant's team. */
+export async function sendPartnerLeftEmail(params: { email: string; teamName: string; teamNumber: number; leaverName: string; url: string }) {
+  const team = `team ${params.teamNumber} ${params.teamName}`;
+  const subject = `${params.leaverName || "Your partner"} left ${team}`;
+  const text = `${params.leaverName || "Your partner"} has left ${team}. Your registration and place are kept; add a partner here: ${params.url}`;
+  const html = shell(
+    "Your partner left the team",
+    `<p style="color:#c6c6ff;font-size:14px;text-align:center"><strong>${escapeHtml(params.leaverName || "Your partner")}</strong> has left <strong>${escapeHtml(team)}</strong>.</p>
+     <p style="color:#9a9aff;font-size:13px;text-align:center;margin:0">Your registration and place are kept.</p>
+     <div style="text-align:center;margin:24px 0"><a href="${params.url}" style="${BUTTON}">Add a partner</a></div>`
+  );
+  await sendMail({ to: params.email, subject, text, html });
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }

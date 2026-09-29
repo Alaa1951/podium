@@ -68,3 +68,48 @@ export async function reconcileDerivedLinks(db: Prisma.TransactionClient, teamId
     }
   }
 }
+
+/**
+ * After a membership CHANGE (replace, fill, leave, a staff swap): the people
+ * who are no longer on the team lose every derived tie to it, and the people
+ * still on it are brought back in step from the seats as they are now.
+ *
+ * For each departed account, in this competition:
+ *   · partner link, partner snapshot and partner EMAIL cleared — the email
+ *     too, or the mutual-naming rule (partners.ts › onAthleteVerified) could
+ *     pair them up again with the person they just left;
+ *   · looking for a partner again, no team name;
+ *   · their pending wave-change request for this team closed — it was asked
+ *     on behalf of a pair they are no longer in.
+ * Anybody else still pointing at a departed account (the remaining member)
+ * is corrected by reconcileDerivedLinks from the current seats.
+ *
+ * Runs inside the change's transaction, under its competition lock.
+ */
+export async function syncAfterMembershipChange(
+  db: Prisma.TransactionClient,
+  change: { teamId: string; seriesId: string; departedUserIds: (string | null | undefined)[] }
+): Promise<void> {
+  const departed = [...new Set(change.departedUserIds.filter((id): id is string => Boolean(id)))];
+  if (departed.length) {
+    await db.seriesParticipant.updateMany({
+      where: { seriesId: change.seriesId, userId: { in: departed } },
+      data: {
+        partnerUserId: null, partnerLinkedAt: null, partnerName: null, partnerEmail: null, partnerPhone: null,
+        partnerDateOfBirth: null, partnerShirtSize: null, partnerBftMember: false,
+        lookingForPartner: true, teamName: null,
+      },
+    });
+    // Whoever still points at somebody who left is re-pointed below; here the
+    // pointer is dropped even for a participant no longer on any seat.
+    await db.seriesParticipant.updateMany({
+      where: { seriesId: change.seriesId, partnerUserId: { in: departed } },
+      data: { partnerUserId: null, partnerLinkedAt: null },
+    });
+    await db.waveChangeRequest.updateMany({
+      where: { teamId: change.teamId, requestedById: { in: departed }, status: "pending" },
+      data: { status: "rejected", openTeamId: null, reviewedAt: new Date(), rejectionReason: "Left the team" },
+    });
+  }
+  await reconcileDerivedLinks(db, change.teamId);
+}

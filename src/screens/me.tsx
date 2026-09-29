@@ -14,6 +14,8 @@ import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-
 import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
 import { PairCard } from "@/components/me/pair-card";
+import { MembershipActions } from "@/components/me/membership-actions";
+import { incompleteTeamPolicyEnabled, membershipChangesEnabled, membershipDoor, membershipRights, registrantSeat, teamChangeWindow, teamChangesCloseLabel } from "@/lib/ownership";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -22,7 +24,7 @@ import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/qu
 import { fmt } from "@/lib/scoring";
 import { requireRole } from "@/lib/session";
 import { isCompeting, teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
-import { eventPhase, teamEditOpen } from "@/lib/visibility";
+import { eventPhase } from "@/lib/visibility";
 import { summariseWaves } from "@/lib/waves";
 import { getSeriesWaves } from "@/lib/queries";
 import { waveZoneTimes, type PlannedWave } from "@/lib/floor";
@@ -106,7 +108,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         })
       : 0;
 
-  const profileCard = profile ? (
+  const profileCardFor = (onATeam: boolean) => profile ? (
     <>
       {waitingRequests > 0 ? (
         <div className="notice" style={{ marginTop: 16 }} role="status">
@@ -118,7 +120,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           </Link>
         </div>
       ) : null}
-      <AthleteProfile seriesId={series.id} profile={profile} canEdit={!user.viewAs && can(user, "partner.edit")} />
+      <AthleteProfile seriesId={series.id} profile={profile} canEdit={!onATeam && !user.viewAs && can(user, "partner.edit")} />
       {profile.lookingForPartner && !profile.partnerLinked && can(user, "partner.browse") ? (
         <Link href={meHref(series.id, "/partner")} className="btn btn-primary" style={{ marginTop: 12 }}>
           {t("Find a partner")}
@@ -163,7 +165,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         <PlainHeader roleLabel={`${series.name}${series.isTraining ? " · " + t("Training") : ""}`} homeHref="/me" backHref="/me?series=all" />
         <ApprovalBanner userId={user.id} />
         {picker}
-        {profileCard}
+        {profileCardFor(false)}
         <div className="notice">
           <strong>{t("No entry found for you yet.")}</strong>
           <p style={{ margin: "6px 0 0" }}>
@@ -183,8 +185,24 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   // Who registered the team — for "Your pair" (not part of the shared roster row).
   const ownership = await prisma.team.findUnique({
     where: { id: team.id },
-    select: { ownership: true, registrantEmail: true, registrantUserId: true },
+    select: {
+      ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true,
+      archivedAt: true, waveId: true, waveRef: { select: { status: true } }, score: { select: { id: true } },
+    },
   });
+  // What this athlete may change about the team, and whether it may change
+  // at all right now — the same rules the server applies (ownership.ts).
+  const owned = { ownership: ownership?.ownership ?? "unknown", registrantEmail: ownership?.registrantEmail ?? null, registrantUserId: ownership?.registrantUserId ?? null };
+  const rights = membershipRights({ ...owned, competitors: team.competitors }, user.id);
+  const door = membershipDoor({
+    archivedAt: ownership?.archivedAt ?? null, waveId: ownership?.waveId ?? null, waveStatus: ownership?.waveRef?.status ?? null,
+    scored: Boolean(ownership?.score), seriesStatus: series.status, seriesArchived: Boolean(series.archivedAt),
+    competitionDate: series.competitionDate,
+  }, new Date());
+  // When changes close (D3a), said in Qatar time — the competition's own.
+  const closesAtLabel = teamChangesCloseLabel(series.competitionDate, locale);
+  const partnerSeat = rights.canReplace ? team.competitors.find((person) => person.id === rights.canReplace) ?? null : null;
+  const registrantName = registrantSeat({ ...owned, competitors: team.competitors })?.fullName ?? null;
   const status = teamStatus(team);
 
   // YOUR DAY: when the pair is in each zone — estimated until their wave
@@ -219,13 +237,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
 
   // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
-  const canEditTeam =
-    can(user, "athleteHome.editTeam") &&
-    teamEditOpen({
-      competitionDate: series.competitionDate,
-      teamEditCloseHours: series.teamEditCloseHours,
-      now: new Date(),
-    }).open;
+  // The same cutoff as every other team change (D3a): 24 hours before.
+  const editWindowOpen = teamChangeWindow(series.competitionDate, new Date(), false).open;
+  // Correcting the partner's details is the registrant's (ownership.ts).
+  const canEditTeam = can(user, "athleteHome.editTeam") && editWindowOpen && rights.role === "registrant";
+  const editClosedReason = !editWindowOpen ? "window" as const : rights.role === "member" ? "registrant-only" as const : "not-confirmed" as const;
 
   // A placing is only shown once the scores are in. Before that a rank against
   // a half-scored field is a number that will change, which is worse than none.
@@ -239,7 +255,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       : [];
   const mine = ranked.find((one) => one.id === team.id) ?? null;
 
-  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor seriesId={series.id} teamId={team.id} members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email,userId:person.userId}))} open={canEditTeam} editMode /></div>;
+  if (editMode) return <div className="screen"><PlainHeader roleLabel={t("Edit team")} /><TeamEditor seriesId={series.id} teamId={team.id} members={team.competitors.map(person => ({position:person.position,fullName:person.fullName,email:person.email,userId:person.userId}))} open={canEditTeam} closedReason={editClosedReason} version={ownership?.membershipVersion ?? 0} closesAt={closesAtLabel} replaceAvailable={membershipChangesEnabled()} viewerId={user.id} editMode /></div>;
 
   return (
     <div className="screen">
@@ -398,6 +414,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       </div>
       <PairCard
         viewerId={user.id}
+        viewerCanFill={membershipChangesEnabled() && !user.viewAs && rights.canFill && door.open}
         ownership={ownership ?? { ownership: "unknown", registrantEmail: null, registrantUserId: null }}
         members={team.competitors.map((person) => ({
           id: person.id,
@@ -408,8 +425,25 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           shirt: shirts.get(person.id) ?? null,
         }))}
       />
+      {membershipChangesEnabled() && !user.viewAs ? (
+        <MembershipActions
+          teamId={team.id}
+          version={ownership?.membershipVersion ?? 0}
+          role={rights.role}
+          reason={rights.reason}
+          door={door}
+          partner={partnerSeat ? { id: partnerSeat.id, fullName: partnerSeat.fullName, email: partnerSeat.email, userId: partnerSeat.userId } : null}
+          canFill={rights.canFill}
+          canLeave={rights.canLeave}
+          mySeatId={rights.mySeatId}
+          leaveAvailable={incompleteTeamPolicyEnabled()}
+          teamLabel={`\u2068#${team.number} ${team.name}\u2069`}
+          registrantName={registrantName}
+          closesAt={closesAtLabel}
+        />
+      ) : null}
 
-      {profileCard}
+      {profileCardFor(true)}
 
       {/* The portraits for the screens over the rigs. Renders nothing at all
           when the feature is switched off — the API it asks says 404. */}
@@ -424,6 +458,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           userId: person.userId,
         }))}
         open={canEditTeam}
+        closedReason={editClosedReason}
+        closesAt={closesAtLabel}
+        replaceAvailable={membershipChangesEnabled()}
+        viewerId={user.id}
+        version={ownership?.membershipVersion ?? 0}
       />
 
       {team.submitted ? (

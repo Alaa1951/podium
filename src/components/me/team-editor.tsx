@@ -21,6 +21,11 @@ const ERRORS: Record<string, string> = {
   ALREADY_ENTERED: "This athlete is already entered in this competition.",
   FORBIDDEN: "You are not allowed to do that.",
   TEAM_EDIT_CLOSED: "Team changes are closed — the event starts in less than 24 hours.",
+  NOT_REGISTRANT: "Only the person who registered the team can correct their partner's details.",
+  OWNERSHIP_UNKNOWN: "BFT MENA has not confirmed who registered this team yet. Ask them to change it.",
+  PERSON_CHANGED: "A new name and a new email is a different person. To put someone else in the team, use Replace my partner — or ask BFT MENA.",
+  STALE_MEMBERSHIP: "Your team changed while this page was open. Reload to see who is on it now.",
+  EMAIL_IS_A_NEW_PERSON: "A different email is a different person. To change it, use Replace my partner — or ask BFT MENA.",
   NAME_REQUIRED: "Give every member a name.",
   EMAIL_INVALID: "That email does not look right.",
 };
@@ -36,12 +41,27 @@ export function TeamEditor({
   teamId,
   open,
   editMode = false,
+  closedReason = "window",
+  version,
+  closesAt,
+  replaceAvailable = false,
+  viewerId,
 }: {
   members: EditableMember[];
   seriesId: string;
   teamId: string;
   open: boolean;
   editMode?: boolean;
+  /** Why it is closed, when it is: the clock, or not this person's to change. */
+  closedReason?: "window" | "registrant-only" | "not-confirmed";
+  /** The team's membership version this page shows. */
+  version?: number;
+  /** When team changes close, already formatted in Qatar time. */
+  closesAt?: string;
+  /** "Replace my partner" is switched on (the way to change an email). */
+  replaceAvailable?: boolean;
+  /** The signed-in athlete, to label their own seat "You". */
+  viewerId?: string;
 }) {
   const t = useT();
   const router = useRouter();
@@ -53,8 +73,9 @@ export function TeamEditor({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const seat = (position: number) =>
-    t(position === 1 ? "First member" : "Partner");
+  // Who each seat is to the person looking — never its position, which
+  // says nothing about who registered or who is who.
+  const seat = (member: EditableMember) => (viewerId && member.userId === viewerId ? t("You") : t("Your partner"));
 
   function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -69,7 +90,7 @@ export function TeamEditor({
 
     startTransition(async () => {
       try {
-        const result = await updateMyTeam(input, seriesId, teamId);
+        const result = await updateMyTeam(input, seriesId, teamId, version);
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           return;
@@ -86,7 +107,13 @@ export function TeamEditor({
   if (!open) {
     return (
       <p className="field-note" style={{ marginTop: 8 }}>
-        {t("Team changes are closed — the event starts in less than 24 hours.")}
+        {closedReason === "registrant-only"
+          ? t("Only the person who registered the team can correct their partner's details.")
+          : closedReason === "not-confirmed"
+            ? t("BFT MENA has not confirmed who registered this team yet. Ask them to change it.")
+            : closesAt
+              ? t("Team changes closed on {when} (Qatar time). Any change now goes through BFT MENA.", { when: closesAt })
+              : t("Team changes are closed — the event starts in less than 24 hours.")}
       </p>
     );
   }
@@ -98,7 +125,9 @@ export function TeamEditor({
           {t("Edit team")}
         </button>}
         <span className="field-note" style={{ marginTop: 0 }}>
-          {t("Names and emails can be changed until 24 hours before the event.")}
+          {closesAt
+            ? t("You can correct your partner's name until {when} (Qatar time).", { when: closesAt })
+            : t("You can correct your partner's name until 24 hours before the event.")}
         </span>
       </div>
     );
@@ -108,7 +137,7 @@ export function TeamEditor({
     <form onInput={() => setDirty(true)} onSubmit={save} style={{ marginTop: 10, display: "grid", gap: 14, maxWidth: 560 }}>
       {members.map((member) => (
         <fieldset key={member.position} style={{ border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, display: "grid", gap: 8 }}>
-          <legend className="field-label">{seat(member.position)}</legend>
+          <legend className="field-label">{seat(member)}</legend>
           {member.userId && <p className="field-note">{t("Edit personal details from your account; team changes do not change shared identities.")} <Link href="/me?series=all">{t("Personal details")}</Link></p>}
           <label className="field-label" htmlFor={`name-${member.position}`}>
             {t("Name")}
@@ -128,10 +157,18 @@ export function TeamEditor({
               name={`email-${member.position}`}
               className="input"
               type="email"
-              readOnly={Boolean(member.userId)}
+              dir="ltr"
+              readOnly
               defaultValue={member.email ?? ""}
             />
           </label>
+          {!member.userId ? (
+            <p className="field-note" style={{ margin: 0 }}>
+              {replaceAvailable
+                ? t("A different email is a different person: use Replace my partner.")
+                : t("A different email is a different person: ask BFT MENA.")}
+            </p>
+          ) : null}
         </fieldset>
       ))}
 

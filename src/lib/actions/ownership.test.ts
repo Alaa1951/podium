@@ -14,14 +14,14 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/session", () => ({ requireAccess: mocks.requireAccess }));
 vi.mock("@/lib/prisma", () => ({ prisma: { team: { findUnique: mocks.findSeries }, $transaction: mocks.transaction } }));
-vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit, AUDIT: { teamOwnershipChanged: "ownership" } }));
+vi.mock("@/lib/audit", () => ({ recordAuditIn: mocks.audit, AUDIT: { teamOwnershipChanged: "ownership" } }));
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: vi.fn() }));
 
 import { setTeamOwnership } from "@/lib/actions/ownership";
 
 const bft = { id: "hq", role: "admin" };
 const team = (over: object = {}) => ({
-  id: "t1", number: 7, name: "FALCONS", archivedAt: null,
+  id: "t1", number: 7, name: "FALCONS", archivedAt: null, membershipVersion: 2,
   ownership: "unknown", registrantEmail: null, registrantUserId: null,
   competitors: [
     { id: "a", userId: "u-mona", email: "mona@example.com" },
@@ -62,14 +62,15 @@ describe("what it accepts", () => {
   it("names the person in seat 2 by their email and account, under the competition lock — audited", async () => {
     expect(await setTeamOwnership({ teamId: "t1", ownership: "registrant", registrantSeatId: "a" })).toEqual({ ok: true });
     expect(mocks.db.$queryRaw).toHaveBeenCalled();
-    expect(mocks.db.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: { ownership: "registrant", registrantEmail: "mona@example.com", registrantUserId: "u-mona" } });
-    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "ownership", detail: "unknown → registrant mona@example.com" }));
+    expect(mocks.db.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: { ownership: "registrant", registrantEmail: "mona@example.com", registrantUserId: "u-mona", membershipVersion: { increment: 1 } } });
+    // Written in the change's own transaction: no audit line, no change.
+    expect(mocks.audit).toHaveBeenCalledWith(mocks.db, expect.objectContaining({ action: "ownership", detail: "unknown → registrant mona@example.com" }));
   });
 
   it("joint and unknown name nobody", async () => {
     mocks.db.team.findUnique.mockResolvedValue(team({ ownership: "registrant", registrantEmail: "mona@example.com", registrantUserId: "u-mona" }));
     await setTeamOwnership({ teamId: "t1", ownership: "joint" });
-    expect(mocks.db.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: { ownership: "joint", registrantEmail: null, registrantUserId: null } });
+    expect(mocks.db.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: { ownership: "joint", registrantEmail: null, registrantUserId: null, membershipVersion: { increment: 1 } } });
   });
 
   it("saving the same choice again writes and audits nothing", async () => {
@@ -77,5 +78,17 @@ describe("what it accepts", () => {
     expect(await setTeamOwnership({ teamId: "t1", ownership: "registrant", registrantSeatId: "a" })).toEqual({ ok: true });
     expect(mocks.db.team.update).not.toHaveBeenCalled();
     expect(mocks.audit).not.toHaveBeenCalled();
+  });
+});
+
+describe("under concurrency and failure", () => {
+  it("refuses a page opened before somebody else changed the team", async () => {
+    expect(await setTeamOwnership({ teamId: "t1", ownership: "joint", expectedVersion: 1 })).toEqual({ ok: false, error: "STALE_MEMBERSHIP" });
+    expect(mocks.db.team.update).not.toHaveBeenCalled();
+  });
+
+  it("a failed audit write fails the change (it is inside the transaction)", async () => {
+    mocks.audit.mockRejectedValue(new Error("audit down"));
+    await expect(setTeamOwnership({ teamId: "t1", ownership: "joint" })).rejects.toThrow("audit down");
   });
 });

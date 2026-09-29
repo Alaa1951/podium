@@ -1,12 +1,12 @@
 import "server-only";
 
+import { onTheFloor } from "@/lib/ownership";
 import type { Category, Division, SeriesStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import type { BoardDisplay } from "@/lib/visibility";
 import { nextWaveStart, summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { athletePhoto } from "@/lib/athlete-photo";
-import { isCompeting } from "@/lib/team-status";
 import { zoneSchedule, type PlannedWave } from "@/lib/floor";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
@@ -119,7 +119,8 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
   // Only a PAID registration reaches the board. An unpaid one is still a real
   // registration everywhere else — on the roster, in the reports, in a wave —
   // which is why it is a status on the row and not a missing row.
-  const onBoard = teams.filter(isCompeting);
+  // …and, once the incomplete-team policy is on, only a full pair (D3b).
+  const onBoard = teams.filter((team) => onTheFloor(team));
 
   // Up next, per zone: the same arithmetic as the judge sheet (floor.ts).
   const ordered = [...zones].sort((a, b) => a.number - b.number);

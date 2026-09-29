@@ -20,6 +20,7 @@ const ERRORS: Record<string, string> = {
   SEAT_REQUIRED: "Choose the person who registered the team.",
   SEAT_HAS_NO_EMAIL: "That person has no email on the registration. Add one first.",
   SEAT_NOT_ON_TEAM: "That person is no longer on this team. Reload the page.",
+  STALE_MEMBERSHIP: "This team changed while the page was open. Reload to see it as it is now.",
   NOT_FOUND: "That team could not be found.",
   FORBIDDEN: "You cannot change this.",
 };
@@ -32,8 +33,11 @@ export function OwnershipPanel({
   registrantSeatId,
   seats,
   readOnly,
+  version,
 }: {
   teamId: string;
+  /** The team's membership version this page shows. */
+  version: number;
   ownership: Ownership;
   /** The seat that resolves as the registrant today, if any. */
   registrantSeatId: string | null;
@@ -55,8 +59,8 @@ export function OwnershipPanel({
       try {
         const result = await setTeamOwnership(
           choice.startsWith("seat:")
-            ? { teamId, ownership: "registrant", registrantSeatId: choice.slice(5) }
-            : { teamId, ownership: choice }
+            ? { teamId, ownership: "registrant", registrantSeatId: choice.slice(5), expectedVersion: version }
+            : { teamId, ownership: choice, expectedVersion: version }
         );
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));

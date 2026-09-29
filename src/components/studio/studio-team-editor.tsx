@@ -60,6 +60,7 @@ export function StudioTeamEditor({
           // A team may have one seat (a partner not named yet): no second
           // person is sent, and the server creates one only when added here.
           ...(people[1] ? { two: toPerson(people[1]) } : {}),
+          ...(row.version !== undefined ? { expectedVersion: row.version } : {}),
         });
 
         if (!result.ok) {
@@ -70,6 +71,24 @@ export function StudioTeamEditor({
                 ? t("Registrations have closed. Ask BFT MENA for any further change.")
                 : result.error === "REGISTRANT_EMAIL_LOCKED"
                   ? t("The email of the person who registered the team is changed by BFT MENA.")
+                  : result.error === "PERSON_CHANGED"
+                    ? t("A new name and a new email is a different person. Use Swap on that person's page to put someone else in the team.")
+                    : result.error === "LINKED_SEAT_EMAIL"
+                      ? t("This person signs in with that email. Change it on their account (Users), or use Swap to put someone else in the team.")
+                      : result.error === "TEAM_EDIT_CLOSED"
+                        ? row.closesAt
+                          ? t("Team changes closed on {when} (Qatar time). Only BFT MENA Full access can change the team now.", { when: row.closesAt })
+                          : t("Team changes are closed. Only BFT MENA Full access can change the team now.")
+                        : result.error === "WAVE_STARTED"
+                          ? t("This team's wave has started. Who is on it cannot change now.")
+                          : result.error === "TEAM_ALREADY_SCORED"
+                            ? t("This team has a score. Who is on it cannot change now.")
+                            : result.error === "SERIES_FINISHED"
+                              ? t("This competition is finished.")
+                      : result.error === "STALE_MEMBERSHIP"
+                        ? t("This team changed while the form was open. Reload to see it as it is now.")
+                        : result.error === "ALREADY_ENTERED"
+                          ? t("That person is already entered in this competition.")
                 : result.error === "INVALID_INPUT"
                   ? t("Check the fields — a name is missing or an email is not valid.")
                   : t("Something went wrong. Try again.")
@@ -84,6 +103,17 @@ export function StudioTeamEditor({
 
   return (
     <div className="studio-editor">
+      {row.closed ? (
+        <div className="notice" role="status" style={{ marginTop: 0, marginBottom: 12 }}>
+          {row.closesAt
+            ? t("Team changes closed on {when} (Qatar time). Only BFT MENA Full access can change the team now.", { when: row.closesAt })
+            : t("Team changes are closed. Only BFT MENA Full access can change the team now.")}
+        </div>
+      ) : row.closesAt ? (
+        <p className="field-note" style={{ marginTop: 0 }}>
+          {t("Team changes close on {when} (Qatar time). After that, only BFT MENA Full access can change the team.", { when: row.closesAt })}
+        </p>
+      ) : null}
       <div className="form-grid">
         <label>
           <span className="field-label">{t("Team name")}</span>
@@ -191,7 +221,7 @@ export function StudioTeamEditor({
       ) : null}
 
       <div className="mobile-action-bar" style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={save}>
+        <button type="button" className="btn btn-primary" disabled={pending || Boolean(row.closed)} onClick={save}>
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
         </button>

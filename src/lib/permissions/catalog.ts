@@ -150,6 +150,9 @@ export const CATALOG = {
           edit: act("Edit teams and athletes", "تعديل الفرق والرياضيين"),
           archive: act("Withdraw and restore teams", "سحب الفرق واستعادتها"),
           pair: act("Pair two athletes into a team", "جمع رياضيين في فريق"),
+          // Who is on a team after the 24-hour cutoff before the competition:
+          // BFT MENA Full access only (decision D3a), never grantable.
+          changeAfterClose: act("Change who is on a team after the 24-hour cutoff", "تغيير أعضاء الفريق بعد إغلاق الـ24 ساعة", "fullAdminOnly"),
           // Not `view`: these are people who have NOT registered, so "the
           // entry list" would be the wrong promise. Split out so a pairing
           // coordinator can be given these four lists without the roster and

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { OwnershipPanel } from "@/components/admin/ownership-panel";
-import { registrantSeat } from "@/lib/ownership";
+import { registrantSeat, teamChangesCloseLabel, teamChangeWindow } from "@/lib/ownership";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
 export default async function RegistrationsPage(props: SeriesScreenProps, detailId?: string, editMode = false) {
   const user = await requireConsoleAccess(editMode ? "registrations.edit" : "registrations.view");
   const searchParams = await props.searchParams;
-  const { t } = await getTranslator();
+  const { t, locale } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
   const needsFullReport = !detailId && isBft(user);
@@ -97,15 +97,16 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   const archivedRows: RegisteredRow[] = archivedTeams.map(toRegisteredRow);
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
-  if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
+  if (detailId && editMode && !user.viewAs) { const team = teams.find(team=>team.id===detailId)!; const studios = await getSeriesStudios(series.id); return <div className="screen"><h1>{t("Edit")} · {team.name}</h1><RegistrationEditor row={{id:team.id,version:team.membershipVersion,closesAt:teamChangesCloseLabel(series.competitionDate,locale),closed:!teamChangeWindow(series.competitionDate,new Date(),can(user,"registrations.changeAfterClose")).open,number:team.number,name:team.name,category:team.category,division:team.division,status:teamStatus(team),people:team.competitors.map(person=>({id:person.id,fullName:person.fullName,email:person.email,phone:person.phone,studioId:person.studioId,dateOfBirth:person.dateOfBirth?.toISOString().slice(0,10)??""}))}} studios={studios.map(studio=>({id:studio.id,name:studio.name}))} /></div>; }
   // Who registered the team — BFT MENA's to see and set (plan §4). Read
   // here rather than widening the roster every screen shares.
   const ownershipRow = detailId && isBft(user)
-    ? await prisma.team.findUnique({ where: { id: detailId }, select: { ownership: true, registrantEmail: true, registrantUserId: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } } })
+    ? await prisma.team.findUnique({ where: { id: detailId }, select: { ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true, competitors: { orderBy: { position: "asc" }, select: { id: true, userId: true, email: true, fullName: true } } } })
     : null;
   const ownershipPanel = ownershipRow ? (
     <OwnershipPanel
       teamId={detailId!}
+      version={ownershipRow.membershipVersion}
       ownership={ownershipRow.ownership}
       registrantSeatId={registrantSeat(ownershipRow)?.id ?? null}
       seats={ownershipRow.competitors.map((seat) => ({ id: seat.id, fullName: seat.fullName, email: seat.email }))}

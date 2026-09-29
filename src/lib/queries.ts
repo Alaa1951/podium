@@ -67,6 +67,8 @@ export type CompetitorRow = {
  */
 export type TeamRow = {
   id: string;
+  /** Moves on every membership change; an edit form sends back the one it showed. */
+  membershipVersion?: number;
   number: number;
   name: string;
   category: Category;
@@ -131,6 +133,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
     studioId: team.studioId,
     studioName: team.studio?.name ?? null,
     scoreEdits: team.scoreEdits,
+    membershipVersion: team.membershipVersion,
     competitors: team.competitors.map((c) => ({
       id: c.id,
       position: c.position,

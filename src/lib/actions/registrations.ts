@@ -3,14 +3,12 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { registrantSeat } from "@/lib/ownership";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { alreadyEntered } from "@/lib/one-entry";
-import { normalizeName } from "@/lib/scoring";
 import { createTeam } from "@/lib/team-create";
-import { isBft, requireAccess, teamScope } from "@/lib/session";
-import { registrationOpen } from "@/lib/visibility";
+import { editRegistration } from "@/lib/staff-membership";
+import { isBft, requireAccess } from "@/lib/session";
 import {
   optionalText,
   personSchema,
@@ -151,6 +149,8 @@ const editSchema = z.object({
   one: editPerson,
   /** Absent on a one-seat team — a team whose partner has not been named. */
   two: editPerson.optional(),
+  /** The team's membership version the form was opened on. */
+  expectedVersion: z.number().int().min(0).optional(),
 });
 
 /**
@@ -172,128 +172,28 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const data = parsed.data;
-
-  // Scoped, not merely checked afterwards: a studio asking for another studio's
-  // team gets NOT_FOUND, and learns nothing about whether it exists.
-  const team = await prisma.team.findFirst({
-    where: { id: data.teamId, ...teamScope(actor) },
-    select: {
-      id: true,
-      seriesId: true,
-      number: true,
-      name: true,
-      division: true,
-      ownership: true,
-      registrantEmail: true,
-      registrantUserId: true,
-      series: { select: { registrationClosesAt: true } },
-      competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, email: true, userId: true } },
-    },
-  });
-  if (!team) return { ok: false, error: "NOT_FOUND" };
-
-  const deadline = registrationOpen({
-    role: actor.role,
-    registrationClosesAt: team.series.registrationClosesAt,
-    now: new Date(),
-  });
-  if (!deadline.open) return { ok: false, error: deadline.reason };
-
-  if (!isBft(actor) && data.division !== team.division) {
-    return { ok: false, error: "DIVISION_LOCKED" };
-  }
-
-  // WHICH SEAT EACH PERSON IS. A form that sends seat ids is taken at its
-  // word: a person with an id is that seat, a person without one is a NEW
-  // seat. Only an older form that sends no ids at all is matched by position
-  // order. A new seat goes to whichever position is free. Nothing here
-  // assumes two seats, and nothing deletes one.
-  const people = [data.one, data.two].filter((person): person is NonNullable<typeof person> => Boolean(person));
-  const seats = team.competitors;
-  const byId = people.some((person) => person.id);
-  const targets = people.map((person, index) =>
-    byId
-      ? person.id ? seats.find((seat) => seat.id === person.id) ?? "unknown" : null
-      : seats[index] ?? null
-  );
-  if (targets.includes("unknown")) return { ok: false, error: "INVALID_INPUT" };
-  const held = targets.filter((target): target is (typeof seats)[number] => Boolean(target) && target !== "unknown");
-  if (new Set(held.map((seat) => seat.id)).size !== held.length) return { ok: false, error: "INVALID_INPUT" };
-  if (seats.length + targets.filter((target) => target === null).length > 2) return { ok: false, error: "INVALID_INPUT" };
-
-  // The person who registered the team is an identity: changing their email
-  // changes who that is, which is BFT MENA's to do (plan §4).
-  const registrant = registrantSeat(team);
-  const registrantIndex = registrant ? targets.findIndex((target) => target !== "unknown" && target?.id === registrant.id) : -1;
-  const newRegistrantEmail = registrantIndex >= 0 ? people[registrantIndex].email?.toLowerCase() ?? null : undefined;
-  const registrantMoves = registrant !== null && newRegistrantEmail !== undefined && newRegistrantEmail !== (registrant.email ?? "").toLowerCase();
-  if (registrantMoves && !isBft(actor)) return { ok: false, error: "REGISTRANT_EMAIL_LOCKED" };
-
-  await prisma.$transaction(async (tx) => {
-    // Every writer of a team's seats takes the competition lock.
-    await tx.$queryRaw`SELECT id FROM Series WHERE id = ${team.seriesId} FOR UPDATE`;
-    await tx.team.update({
-      where: { id: team.id },
-      data: {
-        name: data.teamName.toUpperCase(),
-        category: data.category,
-        division: data.division,
-        // Which studio owns the entry is what scopes it, so only BFT MENA may
-        // move it. A studio editing its own team keeps it — otherwise saving
-        // the form with a different first competitor would hand the team away.
-        ...(isBft(actor) ? { studioId: data.one.studioId } : {}),
-      },
-    });
-
-    const taken = new Set(seats.map((seat) => seat.position));
-    for (const [index, person] of people.entries()) {
-      const fields = {
-        fullName: person.fullName,
-        normalizedName: normalizeName(person.fullName),
-        phone: person.phone,
-        email: person.email?.toLowerCase() ?? null,
-        dateOfBirth: toDate(person.dateOfBirth),
-        studioId: person.studioId,
-      };
-      const target = targets[index];
-      if (target && target !== "unknown") {
-        await tx.competitor.update({ where: { id: target.id }, data: fields });
-      } else {
-        const position = [1, 2].find((free) => !taken.has(free))!;
-        taken.add(position);
-        await tx.competitor.create({ data: { teamId: team.id, position, ...fields } });
-      }
-    }
-
-    if (registrantMoves) {
-      await tx.team.update({
-        where: { id: team.id },
-        data: newRegistrantEmail
-          ? { registrantEmail: newRegistrantEmail, registrantUserId: null }
-          : { ownership: "unknown", registrantEmail: null, registrantUserId: null },
-      });
-    }
+  const person = (one: NonNullable<typeof data.two>) => ({
+    ...(one.id ? { id: one.id } : {}),
+    fullName: one.fullName,
+    email: one.email ?? null,
+    phone: one.phone ?? null,
+    dateOfBirth: toDate(one.dateOfBirth),
+    studioId: one.studioId ?? null,
   });
 
-  if (registrantMoves) {
-    await recordAudit({
-      actorId: actor.id,
-      action: AUDIT.teamOwnershipChanged,
-      targetType: "team",
-      targetId: team.id,
-      targetLabel: `${team.number} ${data.teamName}`,
-      detail: `registrant ${registrant?.email ?? "—"} → ${newRegistrantEmail ?? "unknown (no email)"} (registration edited)`,
-    });
-  }
-
-  await recordAudit({
-    actorId: actor.id,
-    action: AUDIT.registrationUpdated,
-    targetType: "team",
-    targetId: team.id,
-    targetLabel: `${team.number} ${data.teamName}`,
-    detail: team.name === data.teamName.toUpperCase() ? "details corrected" : `renamed from ${team.name}`,
+  // Everything else — the lock, the re-read, the deadline, the division, the
+  // seat identities, the registrant, the version and the audit line — is
+  // decided in one transaction (staff-membership.ts).
+  const outcome = await editRegistration(prisma, actor, {
+    teamId: data.teamId,
+    teamName: data.teamName,
+    category: data.category,
+    division: data.division,
+    one: person(data.one),
+    ...(data.two ? { two: person(data.two) } : {}),
+    ...(data.expectedVersion !== undefined ? { expectedVersion: data.expectedVersion } : {}),
   });
+  if (!outcome.ok) return outcome;
 
   revalidateCompetitionViews();
   return { ok: true };

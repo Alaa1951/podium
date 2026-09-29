@@ -319,6 +319,7 @@ Decisions the code makes on purpose, or has not made yet:
 | Registrations | Edit teams and athletes | `registrations.edit` | role |  | ✓ |  |  |  |  |  |
 | Registrations | Withdraw and restore teams | `registrations.archive` | role |  | ✓ |  |  |  |  |  |
 | Registrations | Pair two athletes into a team | `registrations.pair` | role |  | ✓ |  |  |  |  |  |
+| Registrations | Change who is on a team after the 24-hour cutoff | `registrations.changeAfterClose` | Full access only |  |  |  |  |  |  |  |
 | Registrations | See athletes without a partner or a team | `registrations.partners` | role |  | ✓ | ✓ |  |  |  |  |
 | Registrations | Admit entries from the waiting list | `registrations.waitlist` | BFT MENA only |  |  |  |  |  |  |  |
 | Registrations | Confirm payment | `registrations.payment` | BFT MENA only |  |  |  |  |  |  |  |

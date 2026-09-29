@@ -1,8 +1,8 @@
 import "server-only";
 
 import type { CurrentUser } from "@/lib/session";
-import { isBft } from "@/lib/access";
-import { registrantSeat } from "@/lib/ownership";
+import { can, isBft } from "@/lib/access";
+import { registrantSeat, teamChangeWindow } from "@/lib/ownership";
 import { isStudio, teamScope } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { registrationOpen } from "@/lib/visibility";
@@ -21,7 +21,7 @@ import { registrationOpen } from "@/lib/visibility";
 
 export type SwapDoor =
   | { open: true }
-  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" | "REGISTRANT_SEAT" };
+  | { open: false; reason: "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" | "REGISTRANT_SEAT" | "TEAM_EDIT_CLOSED" };
 
 export type SwapSeat = {
   competitorId: string;
@@ -30,6 +30,10 @@ export type SwapSeat = {
   teamName: string;
   /** This seat is the person who registered the team (ownership.ts). */
   registrant: boolean;
+  /** The team's membership version this page shows. */
+  version: number;
+  /** The competition start — team changes close 24 hours before it (D3a). */
+  competitionDate: Date;
   door: SwapDoor;
 };
 
@@ -50,11 +54,12 @@ export async function readSwapSeat(
           ownership: true,
           registrantEmail: true,
           registrantUserId: true,
+          membershipVersion: true,
           competitors: { select: { id: true, userId: true, email: true } },
           waveId: true,
           waveRef: { select: { status: true } },
           score: { select: { id: true } },
-          series: { select: { status: true, registrationClosesAt: true } },
+          series: { select: { status: true, registrationClosesAt: true, competitionDate: true } },
         },
       },
     },
@@ -75,6 +80,8 @@ export async function readSwapSeat(
         ? { open: false, reason: "TEAM_ALREADY_SCORED" }
         : team.waveId && team.waveRef?.status !== "pending"
           ? { open: false, reason: "WAVE_STARTED" }
+          : !teamChangeWindow(team.series.competitionDate, new Date(), can(user, "registrations.changeAfterClose")).open
+            ? { open: false, reason: "TEAM_EDIT_CLOSED" }
           : closed
             ? { open: false, reason: "REGISTRATION_CLOSED" }
             : registrant && !isBft(user)
@@ -87,6 +94,8 @@ export async function readSwapSeat(
     teamNumber: team.number,
     teamName: team.name,
     registrant,
+    version: team.membershipVersion,
+    competitionDate: team.series.competitionDate,
     door,
   };
 }

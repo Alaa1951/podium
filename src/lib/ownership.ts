@@ -81,3 +81,142 @@ export function isEligibleToCompete(team: Parameters<typeof isCompeting>[0] & { 
 export function membershipChangesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.ATHLETE_MEMBERSHIP_CHANGES === "on";
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHO MAY CHANGE A TEAM'S MEMBERSHIP (plan v7 §4, release R2b).
+//
+//   registrant (the person, in seat 1 or 2) — replace the other member, or
+//                fill the empty seat; cannot leave (BFT MENA withdraws).
+//   the other member of a registrant's team — leave; nothing else.
+//   joint     — nobody replaces or fills alone; leaving is a split (R4b).
+//   unknown   — nothing, for anybody.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RightsTeam = OwnedTeam & { competitors: (SeatRef & { position: number })[] };
+
+export type MembershipRights = {
+  mySeatId: string | null;
+  role: "registrant" | "member" | "none";
+  /** Why this person can do nothing (null when they can do something). */
+  reason: null | "NOT_ON_TEAM" | "OWNERSHIP_UNKNOWN" | "JOINT_TEAM" | "REGISTRANT_UNRESOLVED";
+  /** The seat the registrant may replace — the OTHER one — or null. */
+  canReplace: string | null;
+  canFill: boolean;
+  canLeave: boolean;
+};
+
+export function membershipRights(team: RightsTeam, userId: string): MembershipRights {
+  const mine = team.competitors.find((seat) => seat.userId === userId) ?? null;
+  const nothing = (reason: MembershipRights["reason"]): MembershipRights => ({
+    mySeatId: mine?.id ?? null, role: "none", reason, canReplace: null, canFill: false, canLeave: false,
+  });
+  if (!mine) return nothing("NOT_ON_TEAM");
+  if (team.ownership === "unknown") return nothing("OWNERSHIP_UNKNOWN");
+  if (team.ownership === "joint") return nothing("JOINT_TEAM");
+  const registrant = registrantSeat(team);
+  if (!registrant) return nothing("REGISTRANT_UNRESOLVED");
+  if (registrant.id === mine.id) {
+    const other = team.competitors.find((seat) => seat.id !== mine.id) ?? null;
+    return { mySeatId: mine.id, role: "registrant", reason: null, canReplace: other?.id ?? null, canFill: team.competitors.length < 2, canLeave: false };
+  }
+  return { mySeatId: mine.id, role: "member", reason: null, canReplace: null, canFill: false, canLeave: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHEN A TEAM MAY CHANGE (decision D3a).
+//
+// Until 24 hours before the competition starts, the changes each person is
+// allowed (by ownership and permissions) are open. From that moment — the
+// competition's stored start, minus 24 hours, on the SERVER's clock — the
+// athletes' and gyms' changes close, and so do BFT MENA Partial access's:
+// only BFT MENA Full access (the never-grantable key
+// `registrations.changeAfterClose`) may still change a team. The window
+// grants nobody anybody else's rights: it only says WHEN.
+//
+// The floor's own barriers — a started wave, a score, a finished
+// competition — are not the window: they stop everybody, Full access too.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Hours before the competition at which team changes close (D3a). */
+export const TEAM_CHANGES_CLOSE_HOURS = 24;
+
+/** The moment team changes close for everyone without Full access. */
+export function teamChangesCloseAt(competitionDate: Date): Date {
+  return new Date(competitionDate.getTime() - TEAM_CHANGES_CLOSE_HOURS * 3_600_000);
+}
+
+/** The cutoff as people read it: the competition's own time zone, their language. */
+export function teamChangesCloseLabel(competitionDate: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
+    timeZone: "Asia/Qatar", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  }).format(teamChangesCloseAt(competitionDate));
+}
+
+/** Before the cutoff: open. At it and after: only with Full access. */
+export function teamChangeWindow(competitionDate: Date, now: Date, fullAccess: boolean): { open: true; late: boolean } | { open: false; reason: "TEAM_EDIT_CLOSED" } {
+  if (now.getTime() < teamChangesCloseAt(competitionDate).getTime()) return { open: true, late: false };
+  return fullAccess ? { open: true, late: true } : { open: false, reason: "TEAM_EDIT_CLOSED" };
+}
+
+export type DoorTeam = {
+  archivedAt: Date | null;
+  waveId: string | null;
+  waveStatus: string | null;
+  scored: boolean;
+  seriesStatus: string;
+  seriesArchived: boolean;
+  competitionDate: Date;
+};
+
+export type MembershipDoor =
+  | { open: true }
+  | { open: false; reason: "NOT_FOUND" | "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "TEAM_EDIT_CLOSED" };
+
+/**
+ * The floor's barriers, which stop everybody. Membership (who is on the
+ * team) cannot change once the competition is finished, the team has a
+ * score, or its wave has started.
+ */
+export function membershipBarrier(team: Omit<DoorTeam, "competitionDate">): MembershipDoor {
+  if (team.archivedAt) return { open: false, reason: "NOT_FOUND" };
+  if (team.seriesStatus === "final" || team.seriesArchived) return { open: false, reason: "SERIES_FINISHED" };
+  if (team.scored) return { open: false, reason: "TEAM_ALREADY_SCORED" };
+  if (team.waveId && team.waveStatus !== "pending") return { open: false, reason: "WAVE_STARTED" };
+  return { open: true };
+}
+
+/**
+ * Whether membership may change right now: the barriers, then the window —
+ * which, after the cutoff, only Full access passes.
+ */
+export function membershipDoor(team: DoorTeam, now: Date, fullAccess = false): MembershipDoor {
+  const barrier = membershipBarrier(team);
+  if (!barrier.open) return barrier;
+  const window = teamChangeWindow(team.competitionDate, now, fullAccess);
+  return window.open ? { open: true } : window;
+}
+
+/**
+ * What an incomplete team (one seat) may do on the day — decision D3b. OFF
+ * until that decision is made: today's behaviour (payment facts alone) holds,
+ * and an athlete cannot LEAVE a team, since leaving is what makes one.
+ * "hold" = the proposed policy: the place is kept, the money unchanged, but
+ * the team is not on the board, results or floor sheets, and its wave will
+ * not start with it.
+ */
+export function incompleteTeamPolicyEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.INCOMPLETE_TEAM_POLICY === "hold";
+}
+
+/**
+ * Who stands on the floor — the board, the results, the judge's sheet,
+ * marshalling. Payment facts alone (isCompeting) until the incomplete-team
+ * policy is switched on (decision D3b); then a full pair as well. Payment
+ * facts stay what approval, accounting and the reports read.
+ */
+export function onTheFloor(
+  team: Parameters<typeof isCompeting>[0] & { competitors: readonly unknown[] },
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  return incompleteTeamPolicyEnabled(env) ? isEligibleToCompete(team) : isCompeting(team);
+}

@@ -71,6 +71,10 @@ export const AUDIT = {
   partnerUnlinked: "partner.unlinked",
   teamMemberSwapped: "team.member_swapped",
   teamOwnershipChanged: "team.ownership_changed",
+  teamPartnerReplaced: "team.partner_replaced",
+  teamPartnerAdded: "team.partner_added",
+  teamMemberLeft: "team.member_left",
+  teamPartnerCorrected: "team.partner_corrected",
   waitlistAdmitted: "registration.waitlist_admitted",
   waitlistReturned: "registration.waitlist_returned",
   announcementSent: "notification.sent",
@@ -116,7 +120,14 @@ export async function recordAuditIn(
   tx: Pick<typeof prisma, "adminAuditLog">,
   entry: Parameters<typeof recordAudit>[0]
 ) {
-  const requestHeaders = await headers();
+  // The IP is a courtesy (there is none outside a web request — a script, a
+  // test); the WRITE is the guarantee, and its failure is never swallowed.
+  let ip: string | null = null;
+  try {
+    ip = getIpFromHeaders(await headers());
+  } catch {
+    ip = null;
+  }
   await tx.adminAuditLog.create({
     data: {
       actorId: entry.actorId,
@@ -125,7 +136,7 @@ export async function recordAuditIn(
       targetId: entry.targetId,
       targetLabel: entry.targetLabel ?? null,
       detail: entry.detail ?? null,
-      ip: getIpFromHeaders(requestHeaders),
+      ip,
     },
   });
 }

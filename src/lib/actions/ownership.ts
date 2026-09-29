@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { isBft } from "@/lib/access";
-import { AUDIT, recordAudit } from "@/lib/audit";
+import { AUDIT, recordAuditIn } from "@/lib/audit";
 import { registrantSeat, type Ownership } from "@/lib/ownership";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
@@ -26,6 +26,8 @@ const schema = z
     ownership: z.enum(["registrant", "joint", "unknown"]),
     /** Required for `registrant`: the seat of the person who registered. */
     registrantSeatId: z.string().min(1).optional(),
+    /** The team's membership version the page showed. */
+    expectedVersion: z.number().int().min(0).optional(),
   })
   .refine((data) => data.ownership !== "registrant" || Boolean(data.registrantSeatId), { message: "SEAT_REQUIRED" });
 
@@ -43,23 +45,22 @@ export async function setTeamOwnership(input: unknown): Promise<OwnershipResult>
   const found = await prisma.team.findUnique({ where: { id: data.teamId }, select: { seriesId: true } });
   if (!found) return { ok: false, error: "NOT_FOUND" };
 
-  let before = "";
-  let after = "";
-  let label = "";
+  let changed = false;
   const outcome = await prisma.$transaction(async (tx): Promise<OwnershipResult> => {
     // Every writer of a team's membership takes the competition lock.
     await tx.$queryRaw`SELECT id FROM Series WHERE id = ${found.seriesId} FOR UPDATE`;
     const team = await tx.team.findUnique({
       where: { id: data.teamId },
       select: {
-        id: true, number: true, name: true, archivedAt: true,
+        id: true, number: true, name: true, archivedAt: true, membershipVersion: true,
         ownership: true, registrantEmail: true, registrantUserId: true,
         competitors: { select: { id: true, userId: true, email: true } },
       },
     });
     if (!team || team.archivedAt) return { ok: false, error: "NOT_FOUND" };
-    label = `${team.number} ${team.name}`;
-    before = describe(team.ownership, team.registrantEmail);
+    // Who may change the team depends on this: a page opened before somebody
+    // else changed the team must not decide on what it no longer shows.
+    if (data.expectedVersion !== undefined && data.expectedVersion !== team.membershipVersion) return { ok: false, error: "STALE_MEMBERSHIP" };
 
     let update: { ownership: Ownership; registrantEmail: string | null; registrantUserId: string | null };
     if (data.ownership === "registrant") {
@@ -79,22 +80,22 @@ export async function setTeamOwnership(input: unknown): Promise<OwnershipResult>
       (update.ownership !== "registrant" || registrantSeat(team)?.id === data.registrantSeatId);
     if (unchanged) return { ok: true };
 
-    await tx.team.update({ where: { id: team.id }, data: update });
-    after = describe(update.ownership, update.registrantEmail);
-    return { ok: true };
-  });
-  if (!outcome.ok) return outcome;
-
-  if (after) {
-    await recordAudit({
+    // Who may change the team is a membership fact: the version moves, so a
+    // request prepared under the old owner is refused as stale.
+    await tx.team.update({ where: { id: team.id }, data: { ...update, membershipVersion: { increment: 1 } } });
+    // In the same transaction: no audit line, no change.
+    await recordAuditIn(tx, {
       actorId: actor.id,
       action: AUDIT.teamOwnershipChanged,
       targetType: "team",
-      targetId: data.teamId,
-      targetLabel: label,
-      detail: `${before} → ${after}`,
+      targetId: team.id,
+      targetLabel: `${team.number} ${team.name}`,
+      detail: `${describe(team.ownership, team.registrantEmail)} → ${describe(update.ownership, update.registrantEmail)}`,
     });
-    revalidateCompetitionViews();
-  }
+    changed = true;
+    return { ok: true };
+  });
+  if (!outcome.ok) return outcome;
+  if (changed) revalidateCompetitionViews();
   return { ok: true };
 }

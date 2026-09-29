@@ -189,6 +189,16 @@ describe("resolveEffectivePermissions", () => {
     expect(effective).not.toContain("scores.unlock");
   });
 
+  it("never hands out the after-cutoff team change (D3a) — not by role, not by grant", () => {
+    expect(policyOf("registrations.changeAfterClose")).toBe("fullAdminOnly");
+    expect(STORABLE_PERMISSION_KEYS).not.toContain("registrations.changeAfterClose");
+    const effective = resolveEffectivePermissions(
+      inputs({ accountType: "staff", roles: [role("Poisoned", ["registrations.changeAfterClose", "registrations.edit"])], overrides: { grant: ["registrations.changeAfterClose"], deny: [] } })
+    );
+    expect(effective).toContain("registrations.edit");
+    expect(effective).not.toContain("registrations.changeAfterClose");
+  });
+
   it("reads malformed override JSON as no overrides", () => {
     expect(parseOverrides(null)).toEqual({ grant: [], deny: [] });
     expect(parseOverrides({ grant: "x", deny: [1, "a"] })).toEqual({ grant: [], deny: ["a"] });

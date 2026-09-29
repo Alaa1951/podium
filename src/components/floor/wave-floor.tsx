@@ -122,7 +122,9 @@ export function WaveFloor({
           setError(
             result.error === "ZONE_OCCUPIED"
               ? t("Zone 1 is still busy — free in {time}.", { time: clock(result.freeInMs ?? 0) })
-              : t(ERRORS[result.error] ?? "Something went wrong. Try again.")
+              : result.error === "INCOMPLETE_TEAM"
+                ? t("This wave has a team with one athlete ({teams}). Add their partner, or move the team, before starting.", { teams: (result.teams ?? []).map((n) => `#${n}`).join(", ") })
+                : t(ERRORS[result.error] ?? "Something went wrong. Try again.")
           );
         }
         router.refresh();
