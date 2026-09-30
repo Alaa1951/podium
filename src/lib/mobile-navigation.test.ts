@@ -16,6 +16,14 @@ describe("mobile navigation boundaries",()=>{
     const organiser=[{title:"",items:["registrations","waves","wave-control","marshalling","shirts","scores","results"].map(section=>({href:`/series/test/${section}`,label:section}))}];
     expect(mobileTabs(organiser).map(item=>item.href)).toEqual(["/series/test/registrations","/series/test/waves","/series/test/scores","/series/test/results"]);
   });
+  it("gives the two check-in desks a tab where there is room, after the familiar four",()=>{
+    const volunteer=[{title:"",items:["board","waves","check-in","warm-up","marshalling"].map(section=>({href:`/series/test/${section}`,label:section}))}];
+    expect(mobileTabs(volunteer).map(item=>item.href)).toEqual(["/series/test/waves","/series/test/check-in","/series/test/warm-up","/series/test/marshalling"]);
+    const organiser=[{title:"",items:["registrations","waves","check-in","warm-up","wave-control","marshalling","scores","results"].map(section=>({href:`/series/test/${section}`,label:section}))}];
+    expect(mobileTabs(organiser).map(item=>item.href)).toEqual(["/series/test/registrations","/series/test/waves","/series/test/scores","/series/test/results"]);
+    const gym=[{title:"",items:["teams","waves","check-in","warm-up"].map(section=>({href:`/studio/test/${section}`,label:section}))}];
+    expect(mobileTabs(gym).map(item=>item.href)).toEqual(["/studio/test/teams","/studio/test/waves","/studio/test/check-in","/studio/test/warm-up"]);
+  });
   it("does not highlight a sibling whose name shares a prefix",()=>{
     expect(matchesRoute("/users/abc/edit","/users")).toBe(true);
     expect(matchesRoute("/users-old","/users")).toBe(false);

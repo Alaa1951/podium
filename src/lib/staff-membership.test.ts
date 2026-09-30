@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
     competitorPortrait: { deleteMany: vi.fn() },
     portraitJob: { deleteMany: vi.fn() },
     team: { findFirst: vi.fn(), update: vi.fn() },
+    seriesParticipant: { updateMany: vi.fn() },
     user: { findFirst: vi.fn(), findUnique: vi.fn().mockResolvedValue(null) },
   };
   return { tx, entry: vi.fn(), sync: vi.fn(), audit: vi.fn(), participation: vi.fn() };
@@ -41,7 +42,7 @@ const after = new Date(CUTOFF.getTime() + 3_600_000);
 /** Sara (seat 2, signed in) registered FALCONS; Mona (seat 1) has not signed in. */
 function team(over: object = {}) {
   return {
-    id: "t1", seriesId: "s1", number: 7, name: "FALCONS", archivedAt: null, waveId: null, membershipVersion: 4, division: "Open",
+    id: "t1", seriesId: "s1", number: 7, name: "FALCONS", archivedAt: null, waveId: null, membershipVersion: 4, category: "Womens", division: "Open",
     ownership: "registrant", registrantEmail: "sara@example.com", registrantUserId: "u-sara",
     waveRef: null, score: null, series: { status: "scheduled", archivedAt: null, registrationClosesAt: null, competitionDate: START },
     competitors: [
@@ -161,6 +162,25 @@ describe("an email is who a seat is", () => {
     expect(await editRegistration(db as never, gym, form({ fullName: "Mona A. Saleh" }), before)).toEqual({ ok: true });
     expect(mocks.tx.competitorPortrait.deleteMany).not.toHaveBeenCalled();
     expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.not.objectContaining({ membershipVersion: expect.anything() }) });
+  });
+});
+
+describe("a bracket corrected on the edit form", () => {
+  it("says from what to what in the audit line, and the signed-in members' entries follow the team", async () => {
+    expect(await editRegistration(db as never, full, { ...form(), category: "Mixed", division: "Rookie" }, before)).toEqual({ ok: true });
+    expect(mocks.tx.seriesParticipant.updateMany).toHaveBeenCalledWith({
+      where: { seriesId: "s1", userId: { in: ["u-sara"] } },
+      data: { category: "Mixed", division: "Rookie" },
+    });
+    expect(mocks.audit).toHaveBeenCalledWith(mocks.tx, expect.objectContaining({
+      action: "updated", detail: expect.stringContaining("category Womens → Mixed · level Open → Rookie"),
+    }));
+  });
+
+  it("writes neither when the bracket did not change; a gym still cannot move the level from this form", async () => {
+    expect(await editRegistration(db as never, gym, form({ fullName: "Mona A. Saleh" }), before)).toEqual({ ok: true });
+    expect(mocks.tx.seriesParticipant.updateMany).not.toHaveBeenCalled();
+    expect(await editRegistration(db as never, gym, { ...form(), division: "Rookie" }, before)).toEqual({ ok: false, error: "DIVISION_LOCKED" });
   });
 });
 

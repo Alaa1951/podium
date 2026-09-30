@@ -5,7 +5,8 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { canAny, getCurrentUser, requireAccess, teamScope } from "@/lib/session";
+import { setTeamArrival } from "@/lib/checkin-db";
+import { getCurrentUser, requireAccess } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -73,44 +74,40 @@ export async function setPayment(input: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Checked in on the day, or not after all. */
+/**
+ * The whole team checked in at the entrance, or not after all.
+ *
+ * Check-in is floor work (registrations.attendance — the Organiser's, a
+ * volunteer's, a gym's for its own teams); whoever confirms payment may do it
+ * too. Answered, never redirected: it is pressed from the entrance and
+ * marshalling screens mid-call-up, and a redirect there loses the page.
+ *
+ * The key, the scope (a gym reaches only its own teams) and the write are
+ * checkin-db.ts. Pressing twice — or two volunteers at once — is one
+ * check-in: the first time stands and only one audit line is written.
+ * One athlete at a time is `setAthleteAttendance` (actions/checkin.ts).
+ */
 export async function setAttendance(input: unknown): Promise<ActionResult> {
-  // Check-in is floor work (registrations.attendance — the Organiser's, and
-  // a volunteer's when given it); whoever confirms payment may do it too.
-  // Answered, never redirected: it is pressed from the marshalling screen
-  // mid-call-up, and a redirect there loses the page.
   const actor = await getCurrentUser();
   if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
-  if (actor.viewAs || !canAny(actor, ["registrations.attendance", "registrations.payment"])) {
-    return { ok: false, error: "FORBIDDEN" };
-  }
+  if (actor.viewAs) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = z
     .object({ teamId: z.string().min(1), attended: z.boolean() })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
-  // Only a team this account may see: a gym given check-in checks in its own.
-  const team = await prisma.team.findFirst({
-    where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(actor) },
-    select: { id: true, seriesId: true, number: true, name: true, attendedAt: true },
-  });
-  if (!team) return { ok: false, error: "NOT_FOUND" };
-  // Two volunteers pressing at once: the first check-in time stands.
-  if (parsed.data.attended && team.attendedAt) return { ok: true };
-
-  await prisma.team.update({
-    where: { id: team.id },
-    data: { attendedAt: parsed.data.attended ? new Date() : null },
-  });
+  const outcome = await setTeamArrival(prisma, actor, parsed.data);
+  if (!outcome.ok) return outcome;
+  if (!outcome.changed) return { ok: true };
 
   await recordAudit({
     actorId: actor.id,
     action: AUDIT.attendanceChanged,
     targetType: "team",
-    targetId: team.id,
-    targetLabel: `${team.number} ${team.name}`,
-    detail: parsed.data.attended ? "checked in" : "check-in removed",
+    targetId: outcome.team.id,
+    targetLabel: outcome.team.label,
+    detail: outcome.detail,
   });
 
   revalidateCompetitionViews();

@@ -61,6 +61,8 @@ export default async function HomePage() {
     { href: `/series/${slug}`, label: t("Overview"), key: "overview.view" },
     { href: `/series/${slug}/registrations`, label: t("Athletes"), key: "registrations.view" },
     { href: `/series/${slug}/waves`, label: t("Waves"), key: "waves.view" },
+    { href: `/series/${slug}/check-in`, label: t("Entrance check-in"), key: "checkIn.view", also: ["registrations.attendance", "registrations.payment"] },
+    { href: `/series/${slug}/warm-up`, label: t("Warm-up check-in"), key: "checkIn.view", also: ["checkIn.warmup"] },
     { href: `/series/${slug}/wave-control`, label: t("Wave control"), key: "waveControl.view" },
     { href: `/series/${slug}/marshalling`, label: t("Marshalling"), key: "marshalling.view", also: ["waveControl.view"] },
     { href: `/series/${slug}/shirts`, label: t("T-shirts"), key: "shirts.view", also: ["registrations.view"] },

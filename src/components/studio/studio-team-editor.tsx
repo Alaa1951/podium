@@ -66,7 +66,7 @@ export function StudioTeamEditor({
         if (!result.ok) {
           setError(
             result.error === "DIVISION_LOCKED"
-              ? t("A change of division comes from BFT MENA.")
+              ? t("To change the level at the athlete's request, use Category / level on the team.")
               : result.error === "REGISTRATION_CLOSED"
                 ? t("Registrations have closed. Ask BFT MENA for any further change.")
                 : result.error === "REGISTRANT_EMAIL_LOCKED"
@@ -137,7 +137,7 @@ export function StudioTeamEditor({
 
         <label>
           <span className="field-label">{t("Division")}</span>
-          {canChooseDivision ? <select className="input" value={division} onChange={event=>setDivision(event.target.value)}>{["Rookie","Open","Pro"].map(value=><option key={value} value={value}>{t(value)}</option>)}</select> : <><input className="input" value={t(row.division)} disabled readOnly /><span className="field-note">{t("A change of division comes from BFT MENA.")}</span></>}
+          {canChooseDivision ? <select className="input" value={division} onChange={event=>setDivision(event.target.value)}>{["Rookie","Open","Pro"].map(value=><option key={value} value={value}>{t(value)}</option>)}</select> : <><input className="input" value={t(row.division)} disabled readOnly /><span className="field-note">{t("To change the level at the athlete's request, use Category / level on the team.")}</span></>}
         </label>
       </div>
 

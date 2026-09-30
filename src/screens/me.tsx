@@ -17,6 +17,7 @@ import { PairCard } from "@/components/me/pair-card";
 import { MembershipActions } from "@/components/me/membership-actions";
 import { crmPayerEmail, incompleteTeamPolicyEnabled, managingSeat, membershipChangesEnabled, membershipDoor, membershipRights, teamChangeWindow, teamChangesCloseLabel } from "@/lib/ownership";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
+import { MyBracket } from "@/components/me/my-bracket";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
@@ -187,7 +188,7 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
     where: { id: team.id },
     select: {
       ownership: true, registrantEmail: true, registrantUserId: true, membershipVersion: true, source: true, rawPayload: true,
-      archivedAt: true, waveId: true, waveRef: { select: { status: true } }, score: { select: { id: true } },
+      archivedAt: true, waveId: true, waveRef: { select: { status: true } }, score: { select: { id: true } }, warmupReadyAt: true,
     },
   });
   // What this athlete may change about the team, and whether it may change
@@ -232,12 +233,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
       )
     : [];
   const clockTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Qatar", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  const shirts = new Map(
-    (await prisma.competitor.findMany({ where: { teamId: team.id }, select: { id: true, shirtSize: true } })).map((row) => [
-      row.id,
-      row.shirtSize,
-    ])
-  );
+  const seats = await prisma.competitor.findMany({ where: { teamId: team.id }, select: { id: true, shirtSize: true, attendedAt: true } });
+  const shirts = new Map(seats.map((row) => [row.id, row.shirtSize]));
+  // Arrival is recorded per person at the entrance; ready-to-compete is the
+  // warm-up desk's, and a different fact (checkin.ts).
+  const arrived = seats.filter((row) => row.attendedAt).length;
 
   // Correcting who stands on the team — open until the series' own cutoff,
   // closed from then on. The clock is the server's, not theirs.
@@ -368,16 +368,22 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
         </div>
       </div>
 
+      {/* The team's category and level, and the athlete's own button to change them. */}
+      <MyBracket teamId={team.id} category={team.category} division={team.division} canChange={!user.viewAs && can(user, "athleteHome.editTeam")} />
+
       {wave ? (
         <section className="card" style={{ marginTop: 18 }}>
           <div className="card-kicker">{t("Your day")}</div>
           <div className="chip-row" style={{ marginBottom: 10 }}>
             <span className="badge badge-blue">{t("Station {station}", { station: team.station ?? "—" })}</span>
-            {team.attendedAt ? (
+            {arrived > 0 && arrived === seats.length ? (
               <span className="badge badge-ok">{t("Checked in")}</span>
+            ) : arrived > 0 ? (
+              <span className="badge badge-warn">{t("Partly arrived — {here} of {total}", { here: arrived, total: seats.length })}</span>
             ) : (
               <span className="badge badge-warn">{t("Not checked in yet")}</span>
             )}
+            {ownership?.warmupReadyAt ? <span className="badge badge-ok">{t("Ready to compete")}</span> : null}
           </div>
           <p className="reg-sub">
             {t("You keep the same station in every zone. Be at Zone 1 before your wave starts.")}

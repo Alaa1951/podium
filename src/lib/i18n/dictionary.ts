@@ -12,6 +12,7 @@ import { AR_ACCESS } from "@/lib/i18n/ar-access";
 import { AR_FLOOR } from "@/lib/i18n/ar-floor";
 import { AR_SIGNUP } from "@/lib/i18n/ar-signup";
 import { AR_WAVE_SCHEDULE } from "@/lib/i18n/ar-wave-schedule";
+import { AR_DESK } from "@/lib/i18n/ar-desk";
 
 /**
  * The Arabic table, assembled from three.
@@ -21,6 +22,7 @@ import { AR_WAVE_SCHEDULE } from "@/lib/i18n/ar-wave-schedule";
  */
 export const AR: Record<string, string> = { ...AR_CORE, ...AR_CONSOLE, ...AR_RESULTS, ...AR_NOTIFICATIONS, ...AR_MOBILE, ...AR_ACCESS, ...AR_FLOOR, ...AR_SIGNUP,
   ...AR_WAVE_SCHEDULE,
+  ...AR_DESK,
   More: "المزيد", Back: "رجوع", "My team": "فريقي", "My wave": "موجتي",
   "You have unsaved changes. Leave this screen?": "لديك تعديلات غير محفوظة. هل تريد مغادرة الشاشة؟",
   "You are offline. Reconnect to save changes.": "أنت غير متصل. اتصل بالإنترنت لحفظ التعديلات.",

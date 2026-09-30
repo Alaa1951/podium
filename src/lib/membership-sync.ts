@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { syncTeamArrival } from "@/lib/checkin-db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DERIVED RELATIONS FOLLOW THE TEAM'S CURRENT MEMBERS.
@@ -112,4 +113,7 @@ export async function syncAfterMembershipChange(
     });
   }
   await reconcileDerivedLinks(db, change.teamId);
+  // "The whole team has arrived" is derived from its seats too: a seat that
+  // was added, emptied or given to somebody else changes the answer.
+  await syncTeamArrival(db, change.teamId);
 }

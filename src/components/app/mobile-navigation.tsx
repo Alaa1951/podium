@@ -28,6 +28,10 @@ export function MobileIcon({ href }: { href: string }) {
     // A flag on a route: where to send people next.
     marshalling: "M5 21V4m0 0h11l-2 4 2 4H5",
     shirts: "M8 3 3 6l2 4 3-1v12h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0Z",
+    // A door with somebody ticked through it: arrived at the venue.
+    "check-in": "M4 21V4h9v17M2 21h20M10 12h.01M15 11l2 2 4-4",
+    // A stopwatch: warmed up and ready to go.
+    "warm-up": "M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM12 10v4l2.5 1.5M10 2h4M12 2v4",
   };
   const aliases: Record<string, string> = { registrations: "users", teams: "users", me: "users", "my-wave": "waves" };
   return <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[aliases[kind] ?? kind] ?? paths.home} /></svg>;

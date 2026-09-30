@@ -78,7 +78,7 @@ out(
     ? "**This copy shows the roles as they are in the live database** (BFT MENA edits them on the Roles screen). It is not committed."
     : "The roles below are the ones PODIUM **ships with**. BFT MENA can change them on the Roles screen, so a running system may differ — `npm run docs:access -- --live` (with the database's environment loaded) writes the live picture.",
   "",
-  "Contents: [Who does what, in plain words](#who-does-what-in-plain-words) · [How access is decided](#how-access-is-decided) · [Account types](#account-types) · [The roles](#the-roles) · [On the floor](#on-the-floor-zone-posts) · [Scores](#scores) · [Wave control](#wave-control) · [Test accounts](#test-accounts) · [Known limits](#known-limits) · [Permission matrix](#permission-matrix) · [Who may give each role](#who-may-give-each-role)",
+  "Contents: [Who does what, in plain words](#who-does-what-in-plain-words) · [How access is decided](#how-access-is-decided) · [Account types](#account-types) · [The roles](#the-roles) · [On the floor](#on-the-floor-zone-posts) · [Scores](#scores) · [Wave control](#wave-control) · [Test accounts](#test-accounts) · [The desks of the day](#the-desks-of-the-day) · [Known limits](#known-limits) · [Permission matrix](#permission-matrix) · [Who may give each role](#who-may-give-each-role)",
   ""
 );
 
@@ -91,15 +91,15 @@ out(
   "| Who | Screens, and what they can do there | Cannot |",
   "| --- | --- | --- |",
   "| **BFT MENA Full access** | Everything. The only one who corrects or unlocks a submitted score, changes an account type or which gym a gym account runs, creates BFT MENA or gym accounts, and decides who may give a role. | — |",
-  "| **BFT MENA Partial** | By default, views every console screen. Anything more comes from extra roles (e.g. Organiser). | Correct scores; change account types; create BFT MENA or gym accounts; change a stronger person's email or send them a reset link |",
-  "| **Gym / Studio** | **Users:** invite its athletes and event staff, approve sign-ups that name it, give Athlete / Judge to its own people. **Registrations:** its own teams (edit, withdraw, pair). **Waves:** view. **Scores / Results:** its own teams. **Announcements:** to its own people. | Wave control, Marshalling, payment, other gyms' data before the day; any floor button even if a role lists it |",
-  "| **Organiser** (floor supervisor) | **Wave control:** start the day (on the competition's date), Start / End now / Reset a wave (Reset is refused once a zone of that wave is submitted); rig-screen links. **Marshalling:** view, check teams in. **Waves:** create, set times, place teams, auto-assign. **Zone teams:** put judges on zones, pick leaders, place stations. **Registrations:** view, check in, export (no money, no phone or email). **T-shirts:** counts and list. **Scores / Results / Settings:** view. | Edit teams, payment, settings, the score console, corrections |",
+  "| **BFT MENA Partial** | By default, views every console screen, and works the day's desks: **Entrance check-in**, **Warm-up check-in**, and changing a team's category or level at the athlete's request (any level, Pro included). Anything more comes from extra roles (e.g. Organiser). | Correct scores; change account types; create BFT MENA or gym accounts; change a stronger person's email or send them a reset link |",
+  "| **Gym / Studio** | **Users:** invite its athletes and event staff, approve sign-ups that name it, give Athlete / Judge to its own people. **Registrations:** its own teams (edit, withdraw, pair; category or level at the athlete's request). **Entrance check-in / Warm-up check-in:** its own teams. **Waves:** view. **Scores / Results:** its own teams. **Announcements:** to its own people. | Wave control, Marshalling, payment, other gyms' data before the day; any floor button even if a role lists it |",
+  "| **Organiser** (floor supervisor) | **Wave control:** start the day (on the competition's date), Start / End now / Reset a wave (Reset is refused once a zone of that wave is submitted); rig-screen links. **Entrance check-in:** each athlete or a whole team. **Warm-up check-in:** mark teams ready, wave by wave. **Marshalling:** view, check teams in. **Waves:** create, set times, place teams, auto-assign. **Zone teams:** put judges on zones, pick leaders, place stations. **Registrations:** view, check in, export (no money, no phone or email); change a team's category or level at the athlete's request. **T-shirts:** counts and list. **Scores / Results / Settings:** view. | Change who is on a team, payment, settings, the score console, corrections |",
   "| **Zone leader** (post) | **Judge sheet:** the zone's whole day, every station; scores any station once the wave reaches the zone; submits sheets a judge left open; places the zone's judges on stations; **Start** the next wave when Zone 1 is free. | End now / Reset; other zones |",
-  "| **Judge** (post) | **Judge sheet:** \"You are on Zone Y · Station X\"; every wave coming to that station today with the team, the athletes and whether they checked in; the next one highlighted with a countdown — before it starts. Scores **only** that station, only while the wave is in the zone. | Score before the wave arrives, after the next one comes, or another station; the console |",
+  "| **Judge** (post) | **Judge sheet:** \"You are on Zone Y · Station X\"; every wave coming to that station today with the team, the athletes and whether they checked in; the next one highlighted with a countdown — before it starts. Scores **only** that station, only while the wave is in the zone. | Score before the wave arrives, after the next one comes, or another station; the console; either check-in desk; changing a team's category or level |",
   "| **Reserve** (post) | Until placed: the zone's whole day, every station, read-only. Once placed on a station: the same as a Judge. | Score before being placed |",
-  "| **Volunteer** | **Marshalling:** where each wave is, where it goes next, who to call up — station by station, with names. **Waves:** view. Live board. Given per person on top: **Check teams in** (`registrations.attendance`). | Start or stop waves, score, change anything else |",
+  "| **Volunteer** | **Marshalling:** where each wave is, where it goes next, who to call up — station by station, with names. **Entrance check-in** and **Warm-up check-in:** every team. Changes a team's category or level at the athlete's request. **Waves:** view. Live board. | Start or stop waves, score, change who is on a team, anything else |",
   "| **Coach** | **Waves** and **Results**: view. Live board. | Everything else |",
-  "| **Athlete** | **My team (`/me`):** team, partner, wave, **station**, **time in each zone** (estimated until the wave starts), check-in status, T-shirt size of each seat; ask for a morning / midday / evening wave. **My wave**, Results, Live board, Find a partner. | See other teams before the day; anything on the staff side |",
+  "| **Athlete** | **My team (`/me`):** team, partner, wave, **station**, **time in each zone** (estimated until the wave starts), check-in status, T-shirt size of each seat; **change their team's category or level** (Rookie ↔ Open) until the competition's team-change cutoff (24 hours before, by default); ask for a morning / midday / evening wave. **My wave**, Results, Live board, Find a partner. | See other teams before the day; anything on the staff side |",
   "",
 );
 
@@ -261,7 +261,7 @@ out(
   "| **Start wave** | `waveControl.control` or `waveControl.start`, or any **zone leader** of that competition | `access.ts › canControlWave` |",
   "| **End now** | `waveControl.control` or `waveControl.end` | `access.ts › canControlWave` |",
   "| **Reset** | `waveControl.control` or `waveControl.reset` — refused once any zone of that wave is **submitted**, except for Full access | `access.ts › canControlWave`, `actions/waves.ts` |",
-  "| **Marshalling** (`/series/…/marshalling`) | `marshalling.view` (Volunteer), or anyone who sees Wave control; the Check in button needs `registrations.attendance` | `screens/marshalling.tsx`, `lib/marshalling.ts` |",
+  "| **Marshalling** (`/series/…/marshalling`) | `marshalling.view` (Volunteer), or anyone who sees Wave control; the Check in button needs `registrations.attendance` (see [The desks of the day](#the-desks-of-the-day)) | `screens/marshalling.tsx`, `lib/marshalling.ts` |",
   "| Put judges on zones, pick leaders | `zoneStaff.assign` | `actions/zone-staff.ts` |",
   "| Place judges on stations | `zoneStaff.assign`, or that zone's leader | `actions/zone-staff.ts` |",
   "| Rig screens (`/series/…/zone/N/stations`) before the day | BFT MENA, and `waveControl.view` holders (to set them up) | `visibility.ts › readsWholeBoard` |",
@@ -303,6 +303,25 @@ out(
 
 // ── Known limits ─────────────────────────────────────────────────────────────
 out(
+  "## The desks of the day",
+  "",
+  "Three things done at a desk on the day, each an explicit key held through a role — the Organiser, Volunteer, Gym / Studio and BFT MENA Partial roles carry them; the **Judge**, **Coach** and **Athlete** roles do not. Nobody holds one merely for not being a judge, and an athlete's account never works a desk whatever it is given (`access.ts`). Whose teams a desk reaches is the account type's scope: BFT MENA and event staff every team, a gym its own.",
+  "",
+  "| What | Who | Rule in |",
+  "| --- | --- | --- |",
+  "| **Entrance check-in** (`/series/…/check-in`, a gym's at `/studio/…/check-in`) — arrival at the venue, per athlete or per team; totals for teams and athletes, by category and level; search and filters | screen: `checkIn.view` or the action; action: `registrations.attendance` (or `registrations.payment`) | `access.ts › canCheckInEntrance`, `checkin-db.ts`, `screens/check-in.tsx` |",
+  "| **Warm-up check-in** (`/series/…/warm-up`, `/studio/…/warm-up`) — ready to compete, one checklist per wave, with the entrance status beside it | screen: `checkIn.view` or the action; action: `checkIn.warmup` | `access.ts › canMarkWarmupReady`, `checkin-db.ts`, `screens/warm-up.tsx` |",
+  "| **Change a team's category or level for an athlete** — on the team's registration, on a gym's Teams tab, and on each team at the entrance desk | `registrations.bracket`, and only after confirming the athlete asked for it and approves | `access.ts › canAssistBracketChange`, `bracket-change.ts` |",
+  "| **Change my own team's category or level** (`/me`) | the athlete, with `athleteHome.editTeam` — either member of the team | `bracket-change.ts` |",
+  "",
+  "- **Arrival and readiness are two facts, stored apart** (`Competitor.attendedAt` / `Team.attendedAt`, and `Team.warmupReadyAt`): checking in at the entrance never marks a team ready, and marking it ready never changes its check-in. A team is checked in only when every athlete on it is; one of two is *partly arrived*, and the absent partner is not counted.",
+  "- **Pressing twice is one check-in**: the first time stands, nothing is written again and only one audit line exists.",
+  "- **Category and level**: Womens / Mens / Mixed — Womens cannot hold somebody registered as a man, nor Mens somebody registered as a woman; Rookie ↔ Open either way. Into or out of **Pro** is BFT MENA's. **When** is two clocks (`bracket.ts`): the **athlete and their gym** until the competition's own cutoff — *Settings → Team changes*, 24 hours before the start by default — and never once their wave has started; **BFT MENA and event staff** (Organiser, Volunteer) until a score has been entered for that team, even minutes before the start or with the wave already called. Nobody changes the bracket of a team that has a score, or of a finished competition. A team already placed keeps its wave and station; its check-in and readiness are untouched.",
+  "- **Every change is in the audit log** (`registration.bracket_changed`): who, which team, from what to what, when, and whether the athlete did it or staff did it at the athlete's request.",
+  ""
+);
+
+out(
   "## Known limits",
   "",
   "Decisions the code makes on purpose, or has not made yet:",
@@ -310,7 +329,7 @@ out(
   "- **Organisers are not tied to one competition yet.** An organiser account's roles apply to every competition (per-competition roles are the next step). Until then: give floor roles only to this event's staff and take them away after, and an organiser can start a competition's day only on its date. Judges already are per competition — through their post.",
   "- **An organiser can put themselves on a zone** (they hold `zoneStaff.assign`). Every change is in the audit log.",
   "- **Going Running is the only status change the floor makes.** Back to Scheduled, and Finished, stay in Settings (`settings.edit`, BFT MENA).",
-  "- **Payment** stays BFT MENA's (`registrations.payment`); check-in is its own key, `registrations.attendance`, which the Organiser role carries and a Volunteer can be given. The roster export leaves out money unless you hold `registrations.payment`, and phone / email unless you are BFT MENA or the athletes' own gym; every download is in the audit log.",
+  "- **Payment** stays BFT MENA's (`registrations.payment`); entrance check-in is its own key, `registrations.attendance`, carried by the Organiser, Volunteer, Gym / Studio and BFT MENA Partial roles. The roster export leaves out money unless you hold `registrations.payment`, and phone / email unless you are BFT MENA or the athletes' own gym; every download is in the audit log.",
   "- **Registering a pair by hand** and **restoring a withdrawn team** are BFT MENA's (the CRM is where entries come from).",
   "- **The live roles can differ** from the shipped ones above — BFT MENA edits them on the Roles screen. Run with `--live` to see them.",
   ""

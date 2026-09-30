@@ -171,6 +171,15 @@ export const CATALOG = {
           // `payment` (BFT MENA only) so the Organiser can run check-in on the
           // day. `payment` still covers it for whoever holds that.
           attendance: act("Check teams in on the day", "تسجيل حضور الفرق يوم البطولة"),
+          // Helping an athlete who asked to move category (Womens / Mens /
+          // Mixed) or level (Rookie ↔ Open). Its own key, not `edit`: the
+          // Organiser and a volunteer at the desk may do this one thing
+          // without being able to change who is on a team. The athlete's own
+          // change is `athleteHome.editTeam`.
+          bracket: act(
+            "Change a team's category or level at the athlete's request",
+            "تغيير فئة الفريق أو مستواه بطلب من الرياضي"
+          ),
           export: act("Export the roster", "تصدير القائمة"),
         },
       },
@@ -206,6 +215,19 @@ export const CATALOG = {
         label: "Marshalling",
         labelAr: "توجيه الفرق",
         actions: { view: view() },
+      },
+      // The two desks of the day, kept apart on purpose: ENTRANCE records who
+      // has arrived at the venue (the action is `registrations.attendance`),
+      // WARM-UP records that a pair is ready to compete (`warmup` below).
+      // Neither writes the other. `view` opens both screens; holding either
+      // action opens its own screen too.
+      checkIn: {
+        label: "Check-in",
+        labelAr: "تسجيل الحضور",
+        actions: {
+          view: view(),
+          warmup: act("Mark teams ready in warm-up", "تأكيد جاهزية الفرق في الإحماء"),
+        },
       },
       // How many T-shirts of each size, and who wears which. Also open to
       // anyone who can see the entry list (a gym sees its own).

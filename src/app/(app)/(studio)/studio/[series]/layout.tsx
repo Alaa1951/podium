@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ConsoleShell, type NavGroup } from "@/components/app/console-shell";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LanguageSwitch } from "@/components/i18n/language-switch";
-import { can } from "@/lib/access";
+import { can, canSeeEntranceCheckIn, canSeeWarmupCheckIn } from "@/lib/access";
 import { countPendingSignups } from "@/lib/approvals";
 import { prisma } from "@/lib/prisma";
 import { getTranslator } from "@/lib/i18n/server";
@@ -65,6 +65,9 @@ export default async function StudioSeriesLayout({
           : []),
         ...(can(user, "scores.view") ? [{ href: at("scores"), label: t("Scores") }] : []),
         ...(can(user, "waves.view") ? [{ href: at("waves"), label: t("Waves") }] : []),
+        // The day's two desks, for this gym's own teams (access.ts).
+        ...(canSeeEntranceCheckIn(user) ? [{ href: at("check-in"), label: t("Entrance check-in") }] : []),
+        ...(canSeeWarmupCheckIn(user) ? [{ href: at("warm-up"), label: t("Warm-up check-in") }] : []),
         ...(can(user, "results.view") ? [{ href: at("results"), label: t("Results") }] : []),
         ...(can(user, "users.view")
           ? [{ href: "/studio/people", label: t("People"), badge: waiting || undefined, alert: waiting > 0 }]

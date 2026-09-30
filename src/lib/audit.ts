@@ -35,6 +35,10 @@ export const AUDIT = {
   registrationUpdated: "registration.updated",
   paymentChanged: "registration.payment_changed",
   attendanceChanged: "registration.attendance_changed",
+  /** Ready to compete, marked or removed at the warm-up desk. */
+  warmupChanged: "registration.warmup_changed",
+  /** A team's category or level — who changed it, from what to what, and on whose say. */
+  bracketChanged: "registration.bracket_changed",
   zoneChanged: "config.zone_changed",
   seriesCreated: "series.created",
   seriesSettingsChanged: "series.settings_changed",

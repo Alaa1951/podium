@@ -13,12 +13,12 @@ export function hasContextNavigation(path: string) {
 /** Navigation is derived from the already permission-filtered server menu. */
 export function mobileTabs(groups: NavGroup[]): NavItem[] {
   const items = groups.flatMap((group) => group.items).filter((item) => item.href && !item.locked);
-  const inCompetition = items.some((item) => /^\/(series|studio)\/[^/]+\/(scores|registrations|teams|waves|results|marshalling)$/.test(item.href!));
-  // Marshalling comes last: it takes a tab only where there is room — a
-  // volunteer's bar is Waves and Marshalling — and never pushes an
-  // organiser's four familiar tabs into More.
+  const inCompetition = items.some((item) => /^\/(series|studio)\/[^/]+\/(scores|registrations|teams|waves|results|check-in|warm-up|marshalling)$/.test(item.href!));
+  // The desks and Marshalling come last: they take a tab only where there is
+  // room — a volunteer's bar is Waves, the two check-ins and Marshalling —
+  // and never push an organiser's four familiar tabs into More.
   const sections = inCompetition
-    ? ["registrations", "teams", "waves", "scores", "results", "marshalling"]
+    ? ["registrations", "teams", "waves", "scores", "results", "check-in", "warm-up", "marshalling"]
     : ["/", "/studio", "/series", "/users"];
   return sections.flatMap((section) => {
     const item = items.find((candidate) => inCompetition

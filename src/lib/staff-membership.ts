@@ -229,7 +229,7 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
       const team = await tx.team.findFirst({
         where: { id: input.teamId, ...scope },
         select: {
-          id: true, seriesId: true, number: true, name: true, division: true, archivedAt: true, waveId: true, membershipVersion: true,
+          id: true, seriesId: true, number: true, name: true, category: true, division: true, archivedAt: true, waveId: true, membershipVersion: true,
           ownership: true, registrantEmail: true, registrantUserId: true,
           waveRef: { select: { status: true } }, score: { select: { id: true } },
           series: { select: { status: true, archivedAt: true, registrationClosesAt: true, competitionDate: true } },
@@ -325,6 +325,16 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
       });
       // Names and emails feed the partner snapshots: bring them in step.
       await syncAfterMembershipChange(tx, { teamId: team.id, seriesId: team.seriesId, departedUserIds: [] });
+      // A bracket corrected on this form is the same fact as one changed at
+      // the athlete's request (bracket-change.ts): the members' own entries
+      // follow it, and the audit line says from what to what.
+      if (team.category !== input.category || team.division !== input.division) {
+        // A seat given to somebody new on this form never had an account (LINKED_SEAT_EMAIL).
+        const members = team.competitors.map((seat) => seat.userId).filter((id): id is string => Boolean(id));
+        if (members.length) await tx.seriesParticipant.updateMany({ where: { seriesId: team.seriesId, userId: { in: members } }, data: { category: input.category, division: input.division } });
+        if (team.category !== input.category) lines.push(`category ${team.category} → ${input.category}`);
+        if (team.division !== input.division) lines.push(`level ${team.division} → ${input.division}`);
+      }
 
       const label = `${team.number} ${input.teamName.toUpperCase()}`;
       await recordAuditIn(tx, {

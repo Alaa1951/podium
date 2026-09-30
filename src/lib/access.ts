@@ -146,6 +146,42 @@ export function canWriteScore(
 export const isFloorAccount = (user: Pick<CurrentUser, "role">) =>
   user.role === "admin" || user.role === "staff" || user.role === "organiser";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DESKS OF THE DAY — entrance check-in, warm-up check-in, and helping an
+// athlete change their category or level.
+//
+// Each is an explicit key, held through a role (Organiser, Volunteer,
+// Gym / Studio, BFT MENA Partial) — never "anybody who is not a judge": the
+// Judge and Coach roles do not carry them, so a judge's account is refused
+// here and on the server like anybody else without the key. An ATHLETE's
+// account never works a desk, whatever a role or a personal grant lists: their
+// own team is changed through their own page (`athleteHome.editTeam`).
+//
+// WHOSE teams is still `teamScope`: a gym checks in, and helps, its own.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type Holder = Pick<CurrentUser, "role" | "permissions">;
+
+const worksADesk = (user: Holder) => user.role !== "competitor";
+
+/** Record arrival at the venue (a whole team, or one athlete). */
+export const canCheckInEntrance = (user: Holder) =>
+  worksADesk(user) && canAny(user, ["registrations.attendance", "registrations.payment"]);
+
+/** Mark a team ready to compete in warm-up. */
+export const canMarkWarmupReady = (user: Holder) => worksADesk(user) && can(user, "checkIn.warmup");
+
+/** Open the entrance check-in screen: the view key, or the action it is for. */
+export const canSeeEntranceCheckIn = (user: Holder) =>
+  worksADesk(user) && (can(user, "checkIn.view") || canCheckInEntrance(user));
+
+/** Open the warm-up check-in screen: the view key, or the action it is for. */
+export const canSeeWarmupCheckIn = (user: Holder) =>
+  worksADesk(user) && (can(user, "checkIn.view") || canMarkWarmupReady(user));
+
+/** Change a team's category or level on the athlete's behalf, at their request. */
+export const canAssistBracketChange = (user: Holder) => worksADesk(user) && can(user, "registrations.bracket");
+
 export type WaveButton = "startDay" | "start" | "end" | "reset";
 
 /**

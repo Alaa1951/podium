@@ -4,6 +4,7 @@ import { AthleteAvatar } from "@/components/app/athlete-avatar";
 import { useT } from "@/components/i18n/locale-provider";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import type { RegisteredRow } from "@/components/admin/registered-table";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DetailLink } from "@/components/app/detail-link";
 
@@ -236,6 +237,13 @@ export function RowPair({
 
         <td>
           {t(row.category)} {t(row.division)}
+          {row.bracketHref ? (
+            <div className="reg-sub">
+              <Link href={row.bracketHref} className="linkish">
+                {t("Change")}
+              </Link>
+            </div>
+          ) : null}
         </td>
 
         <td className="pd-num">{row.wave ?? "—"}</td>

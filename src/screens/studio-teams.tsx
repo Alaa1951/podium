@@ -1,5 +1,6 @@
 import { teamChangesCloseLabel, teamChangeWindow } from "@/lib/ownership";
-import { can } from "@/lib/access";
+import { can, canAssistBracketChange } from "@/lib/access";
+import { loadBracketFacts } from "@/lib/bracket-data";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 
@@ -32,6 +33,12 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
 
   const [teams, studios] = await Promise.all([getScopedRoster(series.id, user, detailId), listStudios()]);
 
+  // Changing a team's category or level at the athlete's request
+  // (registrations.bracket): its own button on each team, open until the
+  // competition's own cutoff (Settings → Team changes) — after that it is
+  // BFT MENA's, until the team has a score.
+  const brackets = !user.viewAs && canAssistBracketChange(user) ? await loadBracketFacts(teams.map((team) => team.id), user, "staff") : {};
+
   const deadline = registrationOpen({
     role: user.role,
     registrationClosesAt: series.registrationClosesAt,
@@ -60,7 +67,7 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
           <h1>{t("Teams")}</h1>
           <p>
             {t(
-              "The pairs your studio entered in this competition. Correct a name or a category here; a change of division comes from BFT MENA."
+              "The pairs your studio entered in this competition. Correct a name here. When an athlete asks to change category or level, use Category / level on their team; a move into or out of Pro comes from BFT MENA."
             )}
           </p>
         </div>
@@ -94,6 +101,7 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
           category: team.category,
           division: team.division,
           status: teamStatus(team),
+          ...(brackets[team.id] ? { bracket: brackets[team.id] } : {}),
           people: team.competitors.map((person) => ({
             id: person.id,
             fullName: person.fullName,

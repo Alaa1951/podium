@@ -44,6 +44,8 @@ export async function putPersonInSeat(tx: Prisma.TransactionClient, seatId: stri
       studioId: person.studioId ?? null,
       // The screens over the rigs must not show the person who left.
       photoPath: null,
+      // Nor has the newcomer arrived because the person before them had.
+      attendedAt: null,
     },
   });
   await tx.competitorPortrait.deleteMany({ where: { competitorId: seatId } });

@@ -13,7 +13,9 @@ import { RegisteredTable, type RegisteredRow } from "@/components/admin/register
 import { toRegisteredRow } from "@/lib/registered-rows";
 import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
-import { can, canAny, isAdmin, isBft } from "@/lib/access";
+import { can, canAny, canAssistBracketChange, isAdmin, isBft } from "@/lib/access";
+import { BracketChange } from "@/components/bracket/bracket-change";
+import { loadBracketFacts } from "@/lib/bracket-data";
 import { getSeriesReport, money } from "@/lib/reports";
 import { crmIntakeFor, lastCrmSync } from "@/lib/crm/intake";
 import { CrmSyncBar } from "@/components/admin/crm-sync-bar";
@@ -100,9 +102,13 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     });
   });
 
-  const rows: RegisteredRow[] = (detailId ? teams.filter((team) => team.id === detailId) : filtered).map(
-    toRegisteredRow
-  );
+  // Helping an athlete change category or level (registrations.bracket):
+  // each row links to the team's own page, where the panel is.
+  const mayAssistBracket = !user.viewAs && canAssistBracketChange(user);
+  const rows: RegisteredRow[] = (detailId ? teams.filter((team) => team.id === detailId) : filtered).map((team) => ({
+    ...toRegisteredRow(team),
+    ...(mayAssistBracket && !detailId ? { bracketHref: seriesHref(series.slug, `registrations/${team.id}#bracket`) } : {}),
+  }));
 
 
   const archivedRows: RegisteredRow[] = archivedTeams.map(toRegisteredRow);
@@ -137,8 +143,20 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
       })).filter((team) => !managingSeat({ ...team, payerEmail: crmPayerEmail(team) }) && (team.ownership === "registrant" || team.competitors.every((seat) => seat.userId)))
     : [];
 
+  const bracket = detailId && mayAssistBracket ? (await loadBracketFacts([detailId], user, "staff"))[detailId] ?? null : null;
+  const bracketPanel = bracket ? (
+    <section className="card" id="bracket" style={{ marginTop: 16 }}>
+      <div className="card-kicker">{t("Category and level")}</div>
+      <div className="chip-row">
+        <span className="badge badge-blue">{t(bracket.category)}</span>
+        <span className="badge badge-blue">{t(bracket.division)}</span>
+      </div>
+      <BracketChange facts={bracket} mode="staff" teamLabel={`#${rows[0]?.number} ${rows[0]?.name}`} />
+    </section>
+  ) : null;
+
   if (detailId) return <div className="screen"><RegisteredTable readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
-              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{ownershipPanel}</div>;
+              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{bracketPanel}{ownershipPanel}</div>;
 
   return (
     <div className="screen">

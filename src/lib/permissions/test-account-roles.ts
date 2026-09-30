@@ -56,7 +56,7 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     name: "TEST · Organiser",
     accountType: "organiser",
     roles: ["organiser"],
-    purpose: "Runs the floor: waves, stations, Wave control (start, end, reset), zone teams.",
+    purpose: "Runs the floor: waves, stations, Wave control (start, end, reset), zone teams; entrance and warm-up check-in; category or level changes at an athlete's request.",
   },
   {
     slug: "zone_leader",
@@ -89,7 +89,7 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     name: "TEST · Volunteer",
     accountType: "organiser",
     roles: ["volunteer"],
-    purpose: "Sees the wave schedule and the live board.",
+    purpose: "Sees the wave schedule, Marshalling and the live board; runs entrance and warm-up check-in; changes a team's category or level at an athlete's request.",
   },
   {
     slug: "coach",

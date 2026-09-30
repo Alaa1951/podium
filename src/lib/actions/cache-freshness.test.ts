@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), requireAccess: vi.fn(), requireAnyAccess: vi.fn(), requireUser: vi.fn(), getCurrentUser: vi.fn(), findTeam: vi.fn(), updateTeam: vi.fn(),
   updateScore: vi.fn(), scoreAudit: vi.fn(), transaction: vi.fn(), zoneScores: vi.fn(),
-  audit: vi.fn(), revalidate: vi.fn(),
+  audit: vi.fn(), revalidate: vi.fn(), updateSeats: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -19,6 +19,8 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   team: { findUnique: mocks.findTeam, findFirst: mocks.findTeam, update: mocks.updateTeam },
+  // Check-in writes each seat and the team together, under a lock on the team row.
+  competitor: { updateMany: mocks.updateSeats }, $queryRaw: vi.fn(),
   score: { update: mocks.updateScore }, scoreAudit: { create: mocks.scoreAudit },
   zoneScore: { updateMany: mocks.zoneScores },
   $transaction: mocks.transaction,
@@ -37,8 +39,10 @@ beforeEach(() => {
   mocks.requireAnyAccess.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.requireUser.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.getCurrentUser.mockResolvedValue({ id: "admin", role: "admin" });
-  mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" } });
-  mocks.transaction.mockImplementation(async (writes: Promise<unknown>[]) => Promise.all(writes));
+  mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" }, attendedAt: null, competitors: [{ id: "seat", attendedAt: null }] });
+  // Both forms: a list of writes (scores), or a callback given the client (check-in).
+  mocks.transaction.mockImplementation(async (work: Promise<unknown>[] | ((tx: unknown) => unknown)) =>
+    typeof work === "function" ? work((await import("@/lib/prisma")).prisma) : Promise.all(work));
 });
 
 describe("prefetched competition data after writes", () => {

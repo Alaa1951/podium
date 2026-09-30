@@ -49,6 +49,8 @@ export type RegisteredRow = {
   registeredAt: string;
   attended: boolean;
   submitted: boolean;
+  /** Where staff change this team's category or level (registrations.bracket). */
+  bracketHref?: string;
   people: {
     id?: string;
     fullName: string;

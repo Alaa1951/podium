@@ -127,6 +127,11 @@ export default async function CompetitionLayout({
     {
       title: t("On the day"),
       items: allowed<{ key: PermissionKey | null; also?: PermissionKey[]; href: string; label: string; title?: string }>([
+        // The two desks, in the order a pair meets them: arriving at the
+        // venue, then ready to compete. Each opens for its view key or for
+        // the check-in it is for (access.ts) — never for the Judge role.
+        { href: at("check-in"), label: t("Entrance check-in"), key: "checkIn.view", also: ["registrations.attendance", "registrations.payment"] },
+        { href: at("warm-up"), label: t("Warm-up check-in"), key: "checkIn.view", also: ["checkIn.warmup"] },
         { href: at("wave-control"), label: t("Wave control"), key: "waveControl.view" },
         { href: at("marshalling"), label: t("Marshalling"), key: "marshalling.view", also: ["waveControl.view"] },
         { href: at("shirts"), label: t("T-shirts"), key: "shirts.view", also: ["registrations.view"] },

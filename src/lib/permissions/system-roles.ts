@@ -35,23 +35,38 @@ const VIEW_ALL: PermissionKey[] = ALL_PERMISSION_KEYS.filter((key) => {
   return key.endsWith(".view") && !["athleteHome.view", "partner.view", "judgeSheet.view"].includes(key);
 });
 
+/**
+ * The desk work of the day, held by every shipped STAFF role except Judge and
+ * Coach: entrance check-in, warm-up check-in, and changing a team's category
+ * or level at the athlete's request. `checkIn.view` opens the two screens.
+ * Whose teams each of them reaches is still their account type's scope
+ * (access.ts › teamScope): a gym's own, never another gym's.
+ */
+const DESK_WORK: PermissionKey[] = [
+  "registrations.attendance",
+  "registrations.bracket",
+  "checkIn.view",
+  "checkIn.warmup",
+];
+
 export const SYSTEM_ROLES: SystemRoleDef[] = [
   {
     key: "bft-partial",
     name: "BFT MENA Partial",
     nameAr: "بي إف تي مينا - صلاحية جزئية",
-    description: "BFT MENA staff with chosen screens only. Starts as view-only everywhere.",
+    description:
+      "BFT MENA staff with chosen screens only. Starts as view-only everywhere, plus the desk work of the day: entrance and warm-up check-in, and changing a team's category or level at the athlete's request.",
     assignableBy: "bft",
     accountTypes: ["staff"],
     sortOrder: 10,
-    permissions: VIEW_ALL,
+    permissions: [...new Set([...VIEW_ALL, ...DESK_WORK])],
   },
   {
     key: "gym-studio",
     name: "Gym / Studio",
     nameAr: "الجيم / الاستوديو",
     description:
-      "Runs its own gym: approves its people, registers and pairs its athletes, places its teams in waves. No score entry.",
+      "Runs its own gym: approves its people, registers and pairs its athletes, places its teams in waves, checks its own teams in (entrance and warm-up) and changes their category or level at the athlete's request. No score entry.",
     assignableBy: "bft",
     accountTypes: ["studio"],
     sortOrder: 20,
@@ -71,6 +86,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "registrations.pair",
       "registrations.partners",
       "registrations.export",
+      ...DESK_WORK,
       "waves.view",
       "waves.placeTeams",
       "scores.view",
@@ -82,7 +98,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Organiser",
     nameAr: "منظم",
     description:
-      "Runs the floor of every competition: builds the waves and places teams, starts the day, starts/ends/resets waves on Wave control, puts judges on zones and picks zone leaders, checks teams in on Marshalling. Sees the entry list, T-shirt counts, scores and results. Does not edit teams, enter scores or change settings.",
+      "Runs the floor of every competition: builds the waves and places teams, starts the day, starts/ends/resets waves on Wave control, puts judges on zones and picks zone leaders, runs entrance and warm-up check-in, and changes a team's category or level at the athlete's request. Sees the entry list, T-shirt counts, scores and results. Does not change who is on a team, enter scores or change settings.",
     // BFT MENA only: the role runs the floor of EVERY competition (Wave
     // control, zone teams), so a gym handing it out would hand one of its own
     // people control of rival gyms' waves and judges. For the same reason it
@@ -97,7 +113,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "registrations.view",
       "registrations.export",
       "registrations.partners",
-      "registrations.attendance",
+      ...DESK_WORK,
       "waves.view",
       "waves.placeTeams",
       "waves.edit",
@@ -128,11 +144,11 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Volunteer",
     nameAr: "متطوع",
     description:
-      "Moves athletes on the floor: sees Marshalling (where each wave is, where it goes next, who to call up), the wave schedule and the live board. Checking teams in is given on top, per person, when needed.",
+      "Moves athletes on the floor: sees Marshalling (where each wave is, where it goes next, who to call up), the wave schedule and the live board; runs entrance and warm-up check-in, and changes a team's category or level at the athlete's request.",
     assignableBy: "bft",
     accountTypes: ["organiser"],
     sortOrder: 50,
-    permissions: ["waves.view", "marshalling.view"],
+    permissions: ["waves.view", "marshalling.view", ...DESK_WORK],
   },
   {
     key: "coach",

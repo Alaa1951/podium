@@ -20,7 +20,7 @@ export function StudioPermissions({ form, set }: { form: SeriesSettings; set: Se
       <div className="form-row">
         <Field
           label={t("Team changes close (hours before the event)")}
-          hint={t("A member may correct names and emails on their team until this many hours before the competition. 0 closes at the start time itself.")}
+          hint={`${t("A member may correct names and emails on their team until this many hours before the competition. 0 closes at the start time itself.")} ${t("Athletes and their gym may also change the team's category and level until then. After it, BFT MENA and event staff still can, until a score is entered for the team.")}`}
         >
           <input
             className="input pd-num"
