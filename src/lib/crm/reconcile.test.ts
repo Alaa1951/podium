@@ -413,4 +413,32 @@ describe("reconcile", () => {
     expect(actions[0]).toMatchObject({ kind: "intake" });
     expect((actions[0] as { intake: { missing: string } }).intake.missing).toContain("Waiting list");
   });
+
+  // A REFUND ENDS THE REGISTRATION'S JOURNEY. The pair keeps living in the
+  // CRM's own Refunded stage — PODIUM builds no team and holds no chase row,
+  // even though the form was never finished (the shape every real refund so
+  // far has been in). An intake row held before the refund loses it on the
+  // same poll's mirror cleanup.
+  it("skips a refunded registration entirely instead of holding it for chase", () => {
+    const refunded = contact("refunded");
+    refunded.customFields = refunded.customFields.filter(
+      (field) => field.id !== FIELD.category && field.id !== FIELD.division
+    );
+    const actions = reconcile(
+      snapshot({
+        contacts: [refunded],
+        opportunities: [opportunity("refunded", "stage-refunded")],
+        pipelines: [
+          {
+            id: "pipe-1",
+            name: "Podium Series 1",
+            stages: [...PIPELINES[0].stages, { id: "stage-refunded", name: "Refunded" }],
+          },
+        ],
+      })
+    );
+    expect(actions).toEqual([
+      { kind: "skip", externalId: "refunded", reason: "registration refunded in the CRM" },
+    ]);
+  });
 });

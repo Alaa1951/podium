@@ -384,6 +384,18 @@ export function reconcile(snapshot: Snapshot): Action[] {
       continue;
     }
 
+    // A REFUND IS THE CRM'S HISTORY, NOT A PODIUM ENTRY. The money came back,
+    // so there is no team to build and nothing to chase: the registration
+    // keeps living in the CRM's own Refunded stage, where the refund was
+    // decided. An intake row held for this contact loses it on this poll's
+    // mirror cleanup, so the chase list never rings somebody whose money is
+    // already back in their account. (A contact that ALREADY has a team went
+    // through the money path above: the refund reaches the team there.)
+    if (payment === "refunded") {
+      actions.push({ kind: "skip", externalId: contact.id, reason: "registration refunded in the CRM" });
+      continue;
+    }
+
     const draft = draftFrom(contact, payment, snapshot.studioNames, snapshot.registrationClosesAt);
     if (!draft.ok) {
       actions.push({
