@@ -7,6 +7,7 @@ import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib
 import type { BoardDisplay } from "@/lib/visibility";
 import { nextWaveStart, summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { athletePhoto } from "@/lib/athlete-photo";
+import { boardScore, type BoardZoneScore } from "@/lib/board-score";
 import { zoneSchedule, type PlannedWave } from "@/lib/floor";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
@@ -20,7 +21,13 @@ export type BoardTeam = {
   name: string;
   category: Category;
   division: Division;
-  wave: number;
+  /**
+   * The number of the wave the team is ASSIGNED to (its wave link), or null
+   * when it has none. Never the bare wave number a team row keeps for
+   * imports, which defaults to 1 — read as an assignment, that put every
+   * unplaced team in "wave 1" and filled "Up next" with the whole field.
+   */
+  wave: number | null;
   /** The rig (1–9) this team stands on in every zone of its wave. The station
    *  screens are addressed by (zone x station), and this is the second half. */
   station: number | null;
@@ -34,10 +41,20 @@ export type BoardTeam = {
   /** The pair in one picture — what a rig screen shows above the name. */
   groupPortrait: string | null;
   studioName: string | null;
+  /** Every zone submitted and none unlocked: the score is final. */
   submitted: boolean;
+  /**
+   * At least one zone submitted: the team is on the ranking. Zones are judged
+   * one by one, so a team climbs the board as they arrive (board-score.ts).
+   */
+  scored: boolean;
   /** Points per zone, in board order — as many as the series defines. The
-   *  board used to carry four named fields and could only draw Series 1. */
-  zones: { number: number; name: string; points: number }[];
+   *  board used to carry four named fields and could only draw Series 1.
+   *  A zone never submitted carries 0 and `submitted: false`, never the
+   *  judge's draft; one unlocked for correction carries its values as they
+   *  stand, so the correction moves the team the moment it is saved. */
+  zones: BoardZoneScore[];
+  /** The submitted zones only. */
   total: number;
 };
 
@@ -115,6 +132,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
       })
     : [];
   const now = Date.now();
+  const waveNumber = new Map(waves.map((wave) => [wave.id, wave.number]));
 
   // Only a PAID registration reaches the board. An unpaid one is still a real
   // registration everywhere else — on the roster, in the reports, in a wave —
@@ -165,25 +183,23 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     sponsorsEnabled: series.sponsorsEnabled,
     upNext,
     teams: onBoard.map((team) => {
+      const score = boardScore(team.zones, team.publishedZones);
       return {
         id: team.id,
         number: team.number,
         name: team.name,
         category: team.category,
         division: team.division,
-        wave: team.wave,
+        wave: team.waveId ? waveNumber.get(team.waveId) ?? null : null,
         station: team.station,
         competitors: team.competitors.map((a) => a.fullName),
         portraits: team.competitors.map((a) => athletePhoto(a.photoPath)),
         groupPortrait: team.groupPortraitPath ? athletePhoto(team.groupPortraitPath) : null,
         studioName: team.studioName,
         submitted: team.submitted,
-        zones: team.zones.map((zone) => ({
-          number: zone.number,
-          name: zone.name,
-          points: zone.points,
-        })),
-        total: team.total,
+        scored: score.scored,
+        zones: score.zones,
+        total: score.total,
       };
     }),
   };

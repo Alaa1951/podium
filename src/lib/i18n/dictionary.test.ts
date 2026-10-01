@@ -106,6 +106,9 @@ describe("one key, one file", () => {
       "ar-signup": (await import("@/lib/i18n/ar-signup")).AR_SIGNUP,
       "ar-wave-schedule": (await import("@/lib/i18n/ar-wave-schedule")).AR_WAVE_SCHEDULE,
       "ar-desk": (await import("@/lib/i18n/ar-desk")).AR_DESK,
+      "ar-schedule": (await import("@/lib/i18n/ar-schedule")).AR_SCHEDULE,
+      "ar-waivers": (await import("@/lib/i18n/ar-waivers")).AR_WAIVERS,
+      "ar-team-edit": (await import("@/lib/i18n/ar-team-edit")).AR_TEAM_EDIT,
     };
 
     // Only CONFLICTING duplicates are flagged. The same phrase written

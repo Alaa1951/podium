@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { can, isBft, isStudio, teamScope, type CurrentUser } from "@/lib/access";
-import { PROOF_TX } from "@/lib/auth-proof";
+import { forgetAddressProof, PROOF_TX } from "@/lib/auth-proof";
 import { AUDIT, recordAuditIn } from "@/lib/audit";
 import { syncAfterMembershipChange } from "@/lib/membership-sync";
 import { findEntryInSeries } from "@/lib/one-entry";
@@ -37,6 +37,19 @@ import { registrationOpen } from "@/lib/visibility";
 // A seat somebody has signed in to keeps its email (LINKED_SEAT_EMAIL): the
 // person's address is their account's, and giving the seat to somebody else
 // is a swap. No account's email is ever changed to move a seat.
+//
+// BFT MENA FULL ACCESS CORRECTS: for them an email on this form is the SAME
+// athlete's address put right — the seat, its account link, signature,
+// check-in and details stay, and no barrier applies, because nobody new is on
+// the team (somebody new is still a Swap). On a signed-in seat the account's
+// own email follows, as Users would change it: on a tick that says so
+// (CONFIRM_ACCOUNT_EMAIL), never onto another account's address, never the
+// actor's own, every open code and link spent. A name on a signed-in seat is
+// the account's name, so Full access corrects that too.
+//
+// What the form showed is what a change is measured against: a signed-in
+// seat reads as its account (queries.ts › toRosterRow), so an account whose
+// email or name differs from the seat's is not a change nobody typed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type StaffActor = Pick<CurrentUser, "id" | "role" | "studioId" | "permissions">;
@@ -45,7 +58,8 @@ export type StaffError =
   | "NOT_FOUND" | "SERIES_FINISHED" | "TEAM_ALREADY_SCORED" | "WAVE_STARTED" | "REGISTRATION_CLOSED" | "TEAM_EDIT_CLOSED"
   | "STALE_MEMBERSHIP" | "REGISTRANT_SEAT" | "TRANSFER_REQUIRED" | "REGISTRANT_EMAIL_LOCKED"
   | "SAME_ATHLETE" | "ATHLETE_NOT_FOUND" | "ALREADY_ENTERED" | "EMAIL_INVALID"
-  | "LINKED_SEAT_EMAIL" | "DIVISION_LOCKED" | "INVALID_INPUT";
+  | "LINKED_SEAT_EMAIL" | "DIVISION_LOCKED" | "INVALID_INPUT"
+  | "CONFIRM_ACCOUNT_EMAIL" | "ACCOUNT_EMAIL_TAKEN" | "OWN_ACCOUNT";
 
 class Refused extends Error {
   constructor(readonly code: StaffError) {
@@ -203,6 +217,42 @@ export async function swapSeat(db: PrismaClient, actor: StaffActor, input: SwapI
 
 // ── correcting a registration ────────────────────────────────────────────────
 
+/**
+ * Full access puts the SAME athlete's address right. Not already entered
+ * elsewhere in this competition; on a signed-in seat, the account's email
+ * too — on the confirming tick, never another account's address, never the
+ * actor's own — with every open code and link spent, as in Users. Returns the
+ * audit line.
+ */
+async function correctEmail(
+  tx: Prisma.TransactionClient,
+  actor: StaffActor,
+  { seriesId, target, email, confirmed }: {
+    seriesId: string;
+    target: { id: string; position: number; email: string | null; userId: string | null; user: { email: string } | null };
+    email: string | null;
+    confirmed: boolean;
+  }
+): Promise<string> {
+  const before = target.user?.email ?? target.email;
+  await assertNotEntered(tx, seriesId, email, target.userId, target.id);
+  if (target.userId && target.user) {
+    if (!email) throw new Refused("EMAIL_INVALID");
+    if (target.userId === actor.id) throw new Refused("OWN_ACCOUNT");
+    if (!confirmed) throw new Refused("CONFIRM_ACCOUNT_EMAIL");
+    const other = await tx.user.findUnique({ where: { email }, select: { id: true } });
+    if (other && other.id !== target.userId) throw new Refused("ACCOUNT_EMAIL_TAKEN");
+    await tx.$queryRaw`SELECT id FROM User WHERE id = ${target.userId} FOR UPDATE`;
+    await tx.user.update({ where: { id: target.userId }, data: { email } });
+    await forgetAddressProof(tx, target.userId);
+    await recordAuditIn(tx, {
+      actorId: actor.id, action: AUDIT.accountUpdated, targetType: "user", targetId: target.userId, targetLabel: email,
+      detail: `email ${before} → ${email} (corrected on the team's registration)`,
+    });
+  }
+  return `position ${target.position}: email ${before ?? "—"} → ${email ?? "—"} (corrected, same athlete)`;
+}
+
 export type EditPerson = { id?: string; fullName: string; email: string | null; phone: string | null; dateOfBirth: Date | null; studioId: string | null };
 export type EditInput = {
   teamId: string;
@@ -212,6 +262,8 @@ export type EditInput = {
   one: EditPerson;
   two?: EditPerson;
   expectedVersion?: number;
+  /** Full access confirmed that a signed-in athlete's sign-in email changes. */
+  confirmAccountEmail?: boolean;
 };
 
 export type EditOutcome = { ok: true } | { ok: false; error: StaffError };
@@ -233,7 +285,7 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
           ownership: true, registrantEmail: true, registrantUserId: true,
           waveRef: { select: { status: true } }, score: { select: { id: true } },
           series: { select: { status: true, archivedAt: true, registrationClosesAt: true, competitionDate: true } },
-          competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, email: true, userId: true, fullName: true, phone: true, dateOfBirth: true, studioId: true } },
+          competitors: { orderBy: { position: "asc" }, select: { id: true, position: true, email: true, userId: true, fullName: true, phone: true, dateOfBirth: true, studioId: true, user: { select: { email: true, name: true } } } },
         },
       });
       if (!team) throw new Refused("NOT_FOUND");
@@ -259,12 +311,18 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
         if (person.email && !EMAIL.test(clean(person.email))) throw new Refused("EMAIL_INVALID");
       }
 
-      // Does this touch WHO is on the team? A new seat, or any seat's email.
-      const newPerson = targets.map((target, index) => target === null || (target !== "unknown" && clean(target.email) !== clean(people[index].email)));
+      // Measured against what the form showed: a signed-in seat reads as its account.
+      const full = hasFullAccess(actor);
+      const emailChanged = targets.map((target, index) => Boolean(target) && target !== "unknown" && clean(target!.user?.email ?? target!.email) !== clean(people[index].email));
+      // Does this touch WHO is on the team? A new seat — or, for anybody but
+      // Full access (who corrects the same athlete's address), a seat's email.
+      const newPerson = targets.map((target, index) => target === null || (!full && emailChanged[index]));
       if (newPerson.some(Boolean)) barrierOrThrow(team);
 
       const registrant = registrantSeat(team);
       let registrantEmailAfter: string | null | undefined;
+      /** Full access corrected the registrant's address: the same person, still the registrant. */
+      let registrantCorrected: string | null | undefined;
       const lines: string[] = [];
       const taken = new Set(seats.map((seat) => seat.position));
 
@@ -291,11 +349,20 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
             });
             lines.push(`position ${target.position}: ${target.fullName} <${target.email ?? "—"}> → ${person.fullName.trim()} <${email ?? "—"}>`);
           } else {
+            if (emailChanged[index]) {
+              lines.push(await correctEmail(tx, actor, { seriesId: team.seriesId, target, email, confirmed: Boolean(input.confirmAccountEmail) }));
+              if (registrant?.id === target.id) registrantCorrected = email;
+            }
             await tx.competitor.update({
               where: { id: target.id },
-              data: { fullName: person.fullName.trim(), normalizedName: normalizeName(person.fullName), phone: person.phone, dateOfBirth: person.dateOfBirth, studioId: person.studioId },
+              data: { fullName: person.fullName.trim(), normalizedName: normalizeName(person.fullName), phone: person.phone, dateOfBirth: person.dateOfBirth, studioId: person.studioId, ...(emailChanged[index] ? { email } : {}) },
             });
-            if (normalizeName(target.fullName) !== normalizeName(person.fullName)) lines.push(`position ${target.position}: name ${target.fullName} → ${person.fullName.trim()}`);
+            const shownName = target.user?.name ?? target.fullName;
+            if (normalizeName(shownName) !== normalizeName(person.fullName)) {
+              // A signed-in seat shows its account's name: Full access corrects that name.
+              if (full && target.userId && target.user) await tx.user.update({ where: { id: target.userId }, data: { name: person.fullName.trim() } });
+              lines.push(`position ${target.position}: name ${shownName} → ${person.fullName.trim()}`);
+            }
           }
         } else {
           await assertNotEntered(tx, team.seriesId, email, null, null);
@@ -319,6 +386,12 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
           ...(registrantEmailAfter !== undefined
             ? registrantEmailAfter
               ? { registrantEmail: registrantEmailAfter, registrantUserId: null }
+              : { ownership: "unknown" as const, registrantEmail: null, registrantUserId: null }
+            : {}),
+          // Corrected, not replaced: the registrant keeps their account link.
+          ...(registrantCorrected !== undefined
+            ? registrantCorrected
+              ? { registrantEmail: registrantCorrected }
               : { ownership: "unknown" as const, registrantEmail: null, registrantUserId: null }
             : {}),
         },

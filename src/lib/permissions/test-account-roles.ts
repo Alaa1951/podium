@@ -56,7 +56,7 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     name: "TEST · Organiser",
     accountType: "organiser",
     roles: ["organiser"],
-    purpose: "Runs the floor: waves, stations, Wave control (start, end, reset), zone teams; entrance and warm-up check-in; category or level changes at an athlete's request.",
+    purpose: "Runs the floor: waves, stations, Wave control (start, end, reset), zone teams; entrance and warm-up check-in; category or level changes at an athlete's request; creates, edits and pairs teams.",
   },
   {
     slug: "zone_leader",

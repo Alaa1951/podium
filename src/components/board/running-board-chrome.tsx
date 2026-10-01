@@ -71,6 +71,8 @@ export function BoardHeader({
 export function FloorPanel({
   kicker,
   idle,
+  upcoming = false,
+  done = false,
   focusNumber,
   waveClock,
   floor,
@@ -81,6 +83,10 @@ export function FloorPanel({
   kicker: string;
   /** Nothing running: the clock is a countdown to a start, not a wave. */
   idle: boolean;
+  /** Showing the NEXT wave: nothing in it can have scored, so its count is its teams. */
+  upcoming?: boolean;
+  /** No wave left to run: no wave, no rows — "No upcoming waves". */
+  done?: boolean;
   focusNumber: number;
   waveClock: string;
   floor: {
@@ -105,9 +111,13 @@ export function FloorPanel({
           <div className="display num">{waveClock}</div>
         </div>
 
-        <div className="floor-panel-count num">
-          {floor.scored.length} {t("of")} {floor.total} {t("scored")}
-        </div>
+        {done ? null : (
+          <div className="floor-panel-count num" data-testid="floor-count">
+            {upcoming
+              ? t("{count} teams in this wave", { count: floor.total })
+              : `${floor.scored.length} ${t("of")} ${floor.total} ${t("scored")}`}
+          </div>
+        )}
 
         {/* Which of the running waves is on show, and that it will turn. */}
         {runningNumbers.length > 1 ? (
@@ -135,8 +145,10 @@ export function FloorPanel({
         {floor.pending.map((team) => (
           <FloorRow key={team.id} team={team} position={null} display={display} />
         ))}
-        {floor.total === 0 ? (
-          <div className="floor-panel-empty">{t("No teams in this wave.")}</div>
+        {done ? (
+          <div className="floor-panel-empty" data-testid="floor-none">{t("No upcoming waves.")}</div>
+        ) : floor.total === 0 ? (
+          <div className="floor-panel-empty" data-testid="floor-empty">{t("No teams in this wave.")}</div>
         ) : null}
       </div>
     </aside>

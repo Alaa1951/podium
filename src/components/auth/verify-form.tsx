@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
+import { useCountdown } from "@/components/auth/use-countdown";
+import { codeErrorMessage, resendWaitMessage, sendLimitMessage, waitLabel } from "@/lib/otp-messages";
 import { useT } from "@/components/i18n/locale-provider";
 import { getDevicePayload } from "@/lib/device-client";
 
@@ -12,10 +14,13 @@ export function VerifyForm({
   email,
   callbackUrl,
   trust,
+  initialCooldown = 0,
 }: {
   email: string;
   callbackUrl: string;
   trust: boolean;
+  /** A code was sent a moment ago by the sign-in itself: the resend waits this long. */
+  initialCooldown?: number;
 }) {
   const t = useT();
   const router = useRouter();
@@ -24,13 +29,7 @@ export function VerifyForm({
   const [error, setError] = useState("");
   const [refused, setRefused] = useState(false);
   const [notice, setNotice] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const id = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(id);
-  }, [cooldown]);
+  const [cooldown, setCooldown] = useCountdown(initialCooldown);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,7 +60,7 @@ export function VerifyForm({
         return;
       }
       if (res?.error) {
-        setError(t("That code is not valid or has expired."));
+        setError(codeErrorMessage(res.error, t));
         return;
       }
 
@@ -87,9 +86,12 @@ export function VerifyForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = (await res.json()) as { cooldownSeconds?: number };
-      setCooldown(data.cooldownSeconds ?? 60);
-      setNotice(t("Code sent again."));
+      const data = (await res.json()) as { cooldownSeconds?: number; waiting?: boolean; limited?: boolean };
+      const wait = data.cooldownSeconds ?? 60;
+      setCooldown(wait);
+      if (data.limited) setError(sendLimitMessage(wait, t));
+      else if (data.waiting) setNotice(resendWaitMessage(wait, t));
+      else setNotice(t("Code sent again. Use the code from the newest email."));
     } catch {
       setError(t("Something went wrong. Try again."));
     }
@@ -150,7 +152,7 @@ export function VerifyForm({
         onClick={resend}
         disabled={cooldown > 0}
       >
-        {cooldown > 0 ? `${t("Resend code")} (${cooldown}s)` : t("Resend code")}
+        {cooldown > 0 ? `${t("Resend code")} (${waitLabel(cooldown, t)})` : t("Resend code")}
       </button>
     </form>
   );

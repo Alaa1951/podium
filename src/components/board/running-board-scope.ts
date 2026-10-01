@@ -16,12 +16,12 @@ export const ON_FLOOR = -2;
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-/** Which brackets have a submitted score in them — the rest are dimmed. */
+/** Which brackets have a team on the ranking — the rest are dimmed. */
 export function populatedBrackets(teams: BoardTeam[]) {
   return BRACKETS.map((bracket, index) =>
     teams.some(
       (team) =>
-        team.submitted &&
+        team.scored &&
         team.category === bracket.category &&
         team.division === bracket.division
     )
@@ -35,11 +35,14 @@ export function populatedBrackets(teams: BoardTeam[]) {
  * whether or not it has scored yet — the caller filters to submitted rows
  * when it wants the ones that count.
  */
+/** In a wave that has been started — a team in no wave has not competed. */
+export const inReachedWave = (team: Pick<BoardTeam, "wave">, reached: number) => team.wave !== null && team.wave <= reached;
+
 export function markedBracketsTeams(teams: BoardTeam[], marks: number[], reached: number) {
   const chosen = marks.map((index) => BRACKETS[index]);
   return teams.filter(
     (team) =>
-      team.wave <= reached &&
+      inReachedWave(team, reached) &&
       chosen.some((bracket) => team.category === bracket.category && team.division === bracket.division)
   );
 }
@@ -63,15 +66,15 @@ export function teamsInScope(params: {
 }) {
   const { teams, selection, reached, runningNumbers } = params;
 
-  if (selection === ALL_TEAMS) return teams.filter((team) => team.wave <= reached);
-  if (selection === ON_FLOOR) return teams.filter((team) => runningNumbers.includes(team.wave));
+  if (selection === ALL_TEAMS) return teams.filter((team) => inReachedWave(team, reached));
+  if (selection === ON_FLOOR) return teams.filter((team) => team.wave !== null && runningNumbers.includes(team.wave));
 
   const bracket = BRACKETS[selection];
   return teams.filter(
     (team) =>
       team.category === bracket.category &&
       team.division === bracket.division &&
-      team.wave <= reached
+      inReachedWave(team, reached)
   );
 }
 

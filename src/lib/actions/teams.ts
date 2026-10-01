@@ -3,67 +3,19 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
-import { lowestFreeStation, MAX_STATIONS } from "@/lib/floor";
+import { MAX_STATIONS } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { assignmentPlan, ScheduleError, scheduleError } from "@/lib/wave-schedule";
-import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
-import { isFloorAccount } from "@/lib/access";
-import { can, requireAccess, teamScope } from "@/lib/session";
+import { ScheduleError, scheduleError } from "@/lib/wave-schedule";
+import { scheduleTransaction } from "@/lib/wave-schedule-db";
+import { canBuildSchedule, canPlaceTeams } from "@/lib/access";
+import type { ScheduleConflict } from "@/lib/category-schedule";
+import { applyPlan, isScheduled, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
+import { getCurrentUser, requireAccess, teamScope } from "@/lib/session";
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message?: string } : { message?: string; data: T }))
-  | { ok: false; error: string };
-
-const setWaveSchema = z.object({
-  teamId: z.string().min(1),
-  wave: z.coerce.number().int().min(1).max(99),
-});
-
-/**
- * Put a team into a wave. It takes the lowest free station there (1–9), which
- * it then keeps in every zone; a full wave refuses with WAVE_FULL.
- */
-export async function setTeamWave(input: unknown): Promise<ActionResult> {
-  const user = await requireAccess("waves.placeTeams");
-  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
-
-  const parsed = setWaveSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-
-  const found = await prisma.team.findFirst({
-    where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(user) },
-    select: { seriesId: true },
-  });
-  if (!found) return { ok: false, error: "NOT_FOUND" };
-  try {
-    await scheduleTransaction(found.seriesId, async (tx) => {
-      const team = await tx.team.findFirst({
-        where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(user) },
-        include: { waveRef: true, series: true },
-      });
-      if (!team || team.series.archivedAt) throw new ScheduleError("NOT_FOUND");
-      if (team.waitlistedAt) throw new ScheduleError("ON_THE_WAITING_LIST");
-      if (team.series.status === "final" || (team.waveRef && team.waveRef.status !== "pending")) throw new ScheduleError("WAVE_STARTED");
-      // Moving into a wave number nobody has made would make it: that is
-      // building the running order (waves.edit), not placing a team in it.
-      if (!can(user, "waves.edit")) {
-        const exists = await tx.wave.count({ where: { seriesId: team.seriesId, number: parsed.data.wave } });
-        if (!exists) throw new ScheduleError("NO_SUCH_WAVE");
-      }
-      const target = await waveRowFor(tx, team.seriesId, parsed.data.wave);
-      if (target.status !== "pending") throw new ScheduleError("WAVE_STARTED");
-      if (target.id === team.waveId) return;
-      const occupants = await tx.team.findMany({ where: { waveId: target.id }, select: { station: true } });
-      if (occupants.length >= target.capacity) throw new ScheduleError("WAVE_FULL");
-      const station = lowestFreeStation(occupants.map(row => row.station), target.capacity);
-      if (station === null) throw new ScheduleError("WAVE_FULL");
-      await tx.team.update({ where: { id: team.id }, data: { wave: target.number, waveId: target.id, station } });
-    });
-  } catch (error) { return scheduleError(error); }
-  revalidateCompetitionViews();
-  return { ok: true };
-}
+  | { ok: false; error: string; conflicts?: ScheduleConflict[] };
 
 const stationSchema = z.object({
   teamId: z.string().min(1),
@@ -71,34 +23,46 @@ const stationSchema = z.object({
 });
 
 /**
- * Move a team to another station in its wave, before the wave starts. If a
- * team already stands there the two swap — provided the mover may move that
- * team too (a studio cannot shift another studio's team).
+ * Move a team to another station of its own wave, before the wave starts —
+ * a placement by hand, so the team then RUNS MANUALLY (protected from Auto
+ * Assign). If a team already stands there the two swap, provided the mover
+ * may move that team too (a gym cannot shift another gym's team) and that
+ * team is not itself running manually: a protected slot is never moved as a
+ * side effect of somebody else's move.
  */
 export async function setTeamStation(input: unknown): Promise<ActionResult> {
-  const user = await requireAccess("waves.placeTeams");
-  if (user.viewAs) return { ok: false, error: "FORBIDDEN" };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "UNAUTHENTICATED" };
+  if (user.viewAs || !canPlaceTeams(user)) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = stationSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const found = await prisma.team.findFirst({ where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(user) }, select: { seriesId: true } });
   if (!found) return { ok: false, error: "NOT_FOUND" };
+  let label = "";
   try {
-    await scheduleTransaction(found.seriesId, async tx => {
+    label = await scheduleTransaction(found.seriesId, async tx => {
       const team = await tx.team.findFirst({ where: { id: parsed.data.teamId, archivedAt: null, ...teamScope(user) }, include: { waveRef: true } });
       if (!team?.waveId || !team.waveRef) throw new ScheduleError("NOT_FOUND");
       if (team.waitlistedAt || team.waveRef.status !== "pending") throw new ScheduleError("WAVE_STARTED");
       if (parsed.data.station > team.waveRef.capacity) throw new ScheduleError("BEYOND_CAPACITY");
-      if (team.station === parsed.data.station) return;
-      const occupant = await tx.team.findFirst({ where: { waveId: team.waveId, station: parsed.data.station }, select: { id: true } });
+      if (team.station === parsed.data.station) return "";
+      if (await tx.zoneScore.count({ where: { status: "submitted", score: { teamId: team.id } } })) throw new ScheduleError("TEAM_ALREADY_SCORED");
+      const occupant = await tx.team.findFirst({ where: { waveId: team.waveId, station: parsed.data.station }, select: { id: true, slotManualAt: true } });
       if (occupant && !await tx.team.count({ where: { id: occupant.id, ...teamScope(user) } })) throw new ScheduleError("STATION_TAKEN");
+      if (occupant?.slotManualAt) throw new ScheduleError("STATION_PROTECTED");
       if (occupant) await tx.team.update({ where: { id: occupant.id }, data: { station: null } });
-      await tx.team.update({ where: { id: team.id }, data: { station: parsed.data.station } });
+      await tx.team.update({ where: { id: team.id }, data: { station: parsed.data.station, slotManualAt: new Date() } });
       if (occupant) await tx.team.update({ where: { id: occupant.id }, data: { station: team.station } });
+      return `${team.number} ${team.name}|wave ${team.waveRef.number}: station ${team.station ?? "—"} → ${parsed.data.station} · running manually${occupant ? " · swapped with the team that stood there" : ""}`;
     });
   } catch (error) { return scheduleError(error); }
-  revalidateCompetitionViews();
+  if (label) {
+    const [targetLabel, detail] = label.split("|");
+    await recordAudit({ actorId: user.id, action: AUDIT.teamSlotMoved, targetType: "team", targetId: parsed.data.teamId, targetLabel, detail });
+    revalidateCompetitionViews();
+  }
   return { ok: true };
 }
 
@@ -108,48 +72,54 @@ const autoAssignSchema = z.object({
   perWave: z.coerce.number().int().min(1).max(MAX_STATIONS),
 });
 
-/** Rebuild the whole pre-event field in category, level, then team-number order. */
+/**
+ * AUTO ASSIGN, by category (category-schedule.ts).
+ *
+ * Every team not running manually is dealt into waves of its OWN category's
+ * block — Rookie, Open, Pro, then team number — from the block's configured
+ * start, one spacing apart. Teams running manually stay in exactly their
+ * slot, and their stations count as taken first.
+ *
+ * All or nothing: the whole plan is worked out and checked first; a single
+ * conflict — a block that overruns the next one's start, a protected slot the
+ * schedule no longer fits — and nothing is written, and the conflicts say
+ * what is needed against what there is. Runs under the competition lock, so
+ * a manual move made at the same moment is either seen (and kept) or waits.
+ */
 export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
   const user = await requireAccess("waves.edit");
   // Rebuilds every gym's placements: a floor account's job, never a gym's.
-  if (user.viewAs || !isFloorAccount(user)) return { ok: false, error: "FORBIDDEN" };
+  if (user.viewAs || !canBuildSchedule(user)) return { ok: false, error: "FORBIDDEN" };
   const parsed = autoAssignSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId, perWave } = parsed.data;
-  let assigned;
+  let outcome;
   try {
-    assigned = await scheduleTransaction(seriesId, async (tx) => {
+    outcome = await scheduleTransaction(seriesId, async (tx) => {
       const series = await tx.series.findUnique({ where: { id: seriesId } });
       if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
       if (series.status !== "scheduled" || await tx.wave.count({ where: { seriesId, status: { not: "pending" } } })) {
         throw new ScheduleError("WAVE_STARTED");
       }
-      const teams = await tx.team.findMany({
-        where: { seriesId, archivedAt: null, waitlistedAt: null },
-        select: { id: true, category: true, division: true, number: true },
-      });
-      const plan = assignmentPlan(teams, perWave);
-      const waveCount = Math.ceil(plan.length / perWave);
+      // A recorded result is history: nobody is reseated over it.
+      if (await tx.zoneScore.count({ where: { status: "submitted", score: { team: { seriesId } } } })) throw new ScheduleError("RESULTS_RECORDED");
+      const context = await loadScheduleContext(tx, seriesId, { capacity: perWave });
+      if (!isScheduled(context.blocks)) throw new ScheduleError("CATEGORY_SCHEDULE_MISSING");
+      const plan = planFor(context);
+      if (plan.conflicts.length) throw new ScheduleConflictError("SCHEDULE_CONFLICT", plan.conflicts);
       await tx.series.update({ where: { id: seriesId }, data: { waveCapacity: perWave } });
-      // Free stations first, including excluded rows which must hold no place.
-      await tx.team.updateMany({ where: { seriesId }, data: { station: null, waveId: null } });
-      await tx.wave.deleteMany({ where: { seriesId, number: { gt: waveCount } } });
-      await tx.wave.updateMany({ where: { seriesId }, data: { capacity: perWave, durationMinutes: series.waveMinutes } });
-      const waveIds = new Map<number, string>();
-      for (let number = 1; number <= waveCount; number++) {
-        const wave = await waveRowFor(tx, seriesId, number);
-        waveIds.set(number, wave.id);
-      }
-      for (const placement of plan) {
-        await tx.team.update({ where: { id: placement.team.id }, data: {
-          wave: placement.number, waveId: waveIds.get(placement.number)!, station: placement.station,
-        } });
-      }
-      return { teams: plan.length, waves: waveCount };
+      const written = await applyPlan(tx, context, plan);
+      return { plan, written, name: series.name };
     });
-  } catch (error) { return scheduleError(error); }
-  await recordAudit({ actorId: user.id, action: AUDIT.wavesAssigned, targetType: "event", targetId: seriesId,
-    detail: String(assigned.teams) + " teams; " + String(assigned.waves) + " waves; capacity=" + String(perWave) });
+  } catch (error) {
+    if (error instanceof ScheduleConflictError) return { ok: false, error: error.code, conflicts: error.conflicts };
+    return scheduleError(error);
+  }
+  const { plan, written } = outcome;
+  const perBlock = plan.blocks.map((block) => `${block.category} ${block.waves} wave(s) from ${plan.waves.find((wave) => wave.block === block.category)?.startTime ?? "—"}`).join(", ");
+  const held = plan.waves.flatMap((wave) => wave.seats).filter((seat) => seat.protected).length;
+  await recordAudit({ actorId: user.id, action: AUDIT.wavesAssigned, targetType: "event", targetId: seriesId, targetLabel: outcome.name,
+    detail: `by category schedule: ${plan.waves.flatMap((wave) => wave.seats).length} teams in ${plan.waves.length} waves (${perBlock}); ${held} running manually kept in place; capacity=${perWave}; ${written.renumbered} kept wave(s) renumbered` });
   revalidateCompetitionViews();
   return { ok: true };
 }

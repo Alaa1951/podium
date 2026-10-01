@@ -2,6 +2,8 @@ import "server-only";
 import type { WaveChangeStatus } from "@/generated/prisma/enums";
 import { can, isBft, type CurrentUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
+import { awardsWindows, clockLabel, clockMinutes, lateForAwards, outsideItsBlock } from "@/lib/category-schedule";
+import { isScheduled } from "@/lib/category-schedule-db";
 
 export const preferenceLabels = { morning: "Morning", midday: "Midday", evening: "Evening" } as const;
 
@@ -22,11 +24,30 @@ export async function listWaveChangeRequests(user: CurrentUser, seriesId?: strin
         archivedAt: true, waitlistedAt: true, waveId: true, waveRef: true } },
     },
   });
+  const seriesIds = [...new Set(rows.map(row => row.seriesId))];
   const waves = rows.length ? await prisma.wave.findMany({
-    where: { seriesId: { in: [...new Set(rows.map(row => row.seriesId))] }, status: "pending" },
+    where: { seriesId: { in: seriesIds } },
     orderBy: { number: "asc" },
-    include: { teams: { select: { station: true } } },
+    // Teams in the field only: a withdrawn team gives its place back (slot-move.ts › IN_FIELD).
+    include: { teams: { where: { archivedAt: null, waitlistedAt: null }, select: { station: true } } },
   }) : [];
+  const blocksBySeries = new Map<string, Awaited<ReturnType<typeof prisma.categorySchedule.findMany>>>();
+  for (const block of rows.length ? await prisma.categorySchedule.findMany({ where: { seriesId: { in: seriesIds } }, orderBy: { position: "asc" } }) : []) {
+    blocksBySeries.set(block.seriesId, [...(blocksBySeries.get(block.seriesId) ?? []), block]);
+  }
+  // What approving each destination would mean — the same rules the move is checked by (slot-move.ts).
+  const warn = (seriesId: string, category: (typeof rows)[number]["team"]["category"], wave: (typeof waves)[number]) => {
+    const blocks = blocksBySeries.get(seriesId) ?? [];
+    const scheduled = isScheduled(blocks);
+    const late = scheduled
+      ? lateForAwards(category, clockMinutes(wave.startTime) + wave.durationMinutes, awardsWindows(blocks, waves.filter(one => one.seriesId === seriesId)))
+      : null;
+    return {
+      blockCategory: wave.blockCategory,
+      outsideBlock: outsideItsBlock(category, wave.blockCategory, scheduled),
+      lateForAwards: late ? { from: clockLabel(late.fromMinutes), to: clockLabel(late.toMinutes) } : null,
+    };
+  };
   return rows.map(row => ({
     id: row.id, seriesId: row.seriesId, seriesName: row.series.name,
     teamName: row.team.name, teamNumber: row.team.number, category: row.team.category, division: row.team.division,
@@ -40,9 +61,10 @@ export async function listWaveChangeRequests(user: CurrentUser, seriesId?: strin
     sourceWaveVersion: row.team.waveRef?.updatedAt.toISOString() ?? null,
     sourceWaveId: row.team.waveId,
     eligible: !row.team.archivedAt && !row.team.waitlistedAt && row.team.waveRef?.status === "pending" && row.series.status !== "final",
-    waves: waves.filter(wave => wave.seriesId === row.seriesId && wave.id !== row.team.waveId).map(wave => ({
+    waves: waves.filter(wave => wave.seriesId === row.seriesId && wave.id !== row.team.waveId && wave.status === "pending").map(wave => ({
       id: wave.id, number: wave.number, startTime: wave.startTime, capacity: wave.capacity,
       occupied: wave.teams.length, version: wave.updatedAt.toISOString(),
+      ...warn(row.seriesId, row.team.category, wave),
     })),
   }));
 }

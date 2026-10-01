@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { requestCompetitorCode } from "@/lib/actions/competitor-login";
+import { codeErrorMessage, resendWaitMessage, sendLimitMessage } from "@/lib/otp-messages";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIGNING IN AS AN ATHLETE.
@@ -30,19 +31,19 @@ export function CompetitorLoginForm() {
   const [error, setError] = useState("");
   const [refused, setRefused] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
 
   function ask() {
     setError("");
+    setNote("");
     startTransition(async () => {
       const result = await requestCompetitorCode({ email });
       if (!result.ok) {
-        setError(
-          result.error === "TOO_MANY"
-            ? t("Too many requests. Wait a few minutes and try again.")
-            : t("That email does not look right.")
-        );
+        setError(result.error === "TOO_MANY" ? sendLimitMessage(result.retryAfter, t) : t("That email does not look right."));
         return;
       }
+      // Asked again within the cooldown: the code already sent is still the one.
+      if (result.resendIn) setNote(resendWaitMessage(result.resendIn, t));
       setStage("code");
     });
   }
@@ -63,8 +64,12 @@ export function CompetitorLoginForm() {
       setRefused(true);
       return;
     }
-    if (!result || result.error || result.url?.includes("csrf=true")) {
-      setError(t("That code is not valid or has expired."));
+    if (!result || result.url?.includes("csrf=true")) {
+      setError(t("Something went wrong. Try again."));
+      return;
+    }
+    if (result.error) {
+      setError(codeErrorMessage(result.error, t));
       return;
     }
 
@@ -113,6 +118,9 @@ export function CompetitorLoginForm() {
           {pending ? <span className="spinner" /> : null}
           {t("Send me a code")}
         </button>
+        {/* Staff accounts never get a code here (competitor-access.ts): said
+            to everyone, so it tells nobody who has which account. */}
+        <p className="auth-note">{t("Judges, organisers, volunteers, coaches and gyms sign in with their email and password.")}</p>
       </form>
     );
   }
@@ -131,6 +139,7 @@ export function CompetitorLoginForm() {
       </p>
 
       {refused ? <RefusedCodeNotice kind="code" /> : null}
+      {note ? <p className="auth-note" role="status">{note}</p> : null}
       {error ? (
         <div className="notice-error" role="alert" style={{ marginBottom: 14 }}>
           {error}

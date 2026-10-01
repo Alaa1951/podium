@@ -36,14 +36,15 @@ import { issueCompetitorCode } from "@/lib/competitor-access";
 
 const WAITING = new Date("2026-09-21T10:00:00Z");
 
-/** One registration of Sara's, with the team facts the gate reads. */
-function entry(team: { paymentStatus: string; waitlistedAt?: Date | null }) {
+/** One registration of Sara's — the registrant's seat unless said — with the team facts the gate reads. */
+function entry(team: { paymentStatus: string; waitlistedAt?: Date | null; id?: string }, position = 1) {
   return {
     id: "c1",
     fullName: "Sara Ali",
     userId: null,
+    position,
     team: {
-      id: "t1",
+      id: team.id ?? "t1",
       seriesId: "s1",
       name: "FALCONS",
       paymentStatus: team.paymentStatus,
@@ -100,9 +101,9 @@ describe("training payments", () => {
 });
 
 describe("shared contact email on imported rosters", () => {
-  it("does not turn different athletes sharing one event email into one account", async () => {
+  it("does not turn different athletes sharing one event email into one account — seats of two teams in one competition", async () => {
     const first = entry({ paymentStatus: "paid" });
-    mocks.findCompetitors.mockResolvedValue([first, { ...first, id: "c2", fullName: "Another athlete" }]);
+    mocks.findCompetitors.mockResolvedValue([first, { ...entry({ paymentStatus: "paid", id: "t2" }), id: "c2", fullName: "Another athlete" }]);
     // No account is minted; the mailbox is pointed at Sign up (never the screen).
     expect(await issueCompetitorCode("shared@example.com")).toEqual({ ok: false, signup: true });
     expect(mocks.createUser).not.toHaveBeenCalled();
@@ -112,8 +113,26 @@ describe("shared contact email on imported rosters", () => {
   it("still opens the door on the unambiguous competition when another is shared", async () => {
     const first = entry({ paymentStatus: "paid" });
     const next = { ...first, id: "c-next", team: { ...first.team, seriesId: "s2", series: { ...first.team.series, id: "s2" } } };
-    mocks.findCompetitors.mockResolvedValue([first, { ...first, id: "c2" }, next]);
+    mocks.findCompetitors.mockResolvedValue([first, { ...entry({ paymentStatus: "paid", id: "t2" }), id: "c2" }, next]);
     expect(await issueCompetitorCode("sara@example.com")).toMatchObject({ ok: true });
+  });
+
+  it("opens the door for the payer whose address is on BOTH seats of their team — the account is theirs, the registrant's", async () => {
+    const payer = entry({ paymentStatus: "paid" });
+    const partner = { ...entry({ paymentStatus: "paid" }, 2), id: "c2", fullName: "Mona Saleh" };
+    mocks.findCompetitors.mockResolvedValue([partner, payer]);
+    expect(await issueCompetitorCode("sara@example.com")).toEqual({ ok: true, code: "123456", name: "Sara Ali" });
+    expect(mocks.createUser).toHaveBeenCalledWith({ data: expect.objectContaining({ email: "sara@example.com", name: "Sara Ali", status: "invited" }) });
+    // Minted, never linked or approved at request time.
+    expect(mocks.linkCompetitors).not.toHaveBeenCalled();
+  });
+
+  it("still points an address spanning two teams at Sign up, whichever seats it holds", async () => {
+    for (const position of [1, 2]) {
+      mocks.findCompetitors.mockResolvedValue([entry({ paymentStatus: "paid" }), { ...entry({ paymentStatus: "paid", id: "t2" }, position), id: "c2" }]);
+      expect(await issueCompetitorCode("coach@example.com")).toEqual({ ok: false, signup: true });
+    }
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });
 
@@ -127,8 +146,9 @@ describe("the waiting list", () => {
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
-  it("picks the entry that holds a place when somebody has both", async () => {
-    mocks.findCompetitors.mockResolvedValue([entry({ paymentStatus: "paid", waitlistedAt: WAITING }), entry({ paymentStatus: "paid" })]);
+  it("picks the entry that holds a place when somebody has both (in two competitions)", async () => {
+    const holding = entry({ paymentStatus: "paid", id: "t2" });
+    mocks.findCompetitors.mockResolvedValue([entry({ paymentStatus: "paid", waitlistedAt: WAITING }), { ...holding, id: "c2", team: { ...holding.team, seriesId: "s2" } }]);
     expect(await issueCompetitorCode("sara@example.com")).toMatchObject({ ok: true });
     expect(mocks.createUser).toHaveBeenCalled();
   });

@@ -24,13 +24,30 @@ import { isCompeting } from "@/lib/team-status";
 // on is re-read under the account lock, so an address changed in between
 // links nothing, and a failed link never costs the sign-in or the proof.
 //
+// THE ADDRESS PROVES THE PAYER. In one competition, an email claims:
+//
+//   · its one seat, when it sits on one seat — the ordinary case, registrant
+//     or partner alike;
+//   · the REGISTRANT'S seat (position 1) only, when it sits on both seats of
+//     ONE team. The CRM form puts the payer's address on the partner's seat
+//     too; the payer is the person who proved it, and the partner's seat
+//     waits for the partner's own address. Refusing both, as this once did,
+//     left the paying athlete signed in and looking at "No entry found";
+//   · nothing, when it sits on seats of MORE THAN ONE team. A coach who
+//     entered several teams under their own address must not become all of
+//     them, and which one is theirs is not something an address can say.
+//
+// A seat with no email never takes part: it shares no address, so it can
+// neither claim nor block. The code door (competitor-access.ts) asks the
+// same question, so an address that links here gets a code there.
+//
 // SERIALISED PER COMPETITION. Before claiming, the competition row is locked
 // — the lock every team writer takes (team-create, swap, partner requests) —
 // so two partners signing in for the first time at the same moment are
 // handled one after the other, and the second sees the first's seat.
 //
 // Repeated calls with nothing to claim take no lock and write nothing
-// (plan §3.3).
+// (plan §3.3) — a partner's seat left unclaimed on purpose included.
 //
 // No "server-only" import on purpose (the integration harness calls this).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,15 +63,21 @@ export type LinkOutcome = {
 
 const none = (skipped: LinkOutcome["skipped"]): LinkOutcome => ({ linked: 0, approved: false, skipped });
 
-/** A shared purchaser email cannot claim several athletes in one competition. */
-export function unambiguousSeats<T extends { id: string; team: { seriesId: string } }>(rows: T[]): T[] {
-  const bySeries = new Map<string, Set<string>>();
-  for (const row of rows) {
-    const ids = bySeries.get(row.team.seriesId) ?? new Set<string>();
-    ids.add(row.id);
-    bySeries.set(row.team.seriesId, ids);
+/**
+ * The seats an address may claim, competition by competition (the rule above):
+ * its only seat; the registrant's seat when it sits on both seats of one team;
+ * nothing when it spans teams. In the order given.
+ */
+export function payerSeatsToClaim<T extends { id: string; position: number; team: { id: string; seriesId: string } }>(rows: T[]): T[] {
+  const bySeries = new Map<string, T[]>();
+  for (const row of rows) bySeries.set(row.team.seriesId, [...(bySeries.get(row.team.seriesId) ?? []), row]);
+  const chosen = new Set<string>();
+  for (const seats of bySeries.values()) {
+    if (new Set(seats.map((seat) => seat.team.id)).size !== 1) continue;
+    const seat = seats.length === 1 ? seats[0] : seats.find((one) => one.position === 1);
+    if (seat) chosen.add(seat.id);
   }
-  return rows.filter((row) => bySeries.get(row.team.seriesId)?.size === 1);
+  return rows.filter((row) => chosen.has(row.id));
 }
 
 /** The switch that turns this off without touching the proof rule (plan §15). */
@@ -71,12 +94,17 @@ function logFailure(userId: string, error: unknown) {
 export async function linkSeatsForUser(db: PrismaClient, userId: string): Promise<LinkOutcome> {
   if (!seatLinkingEnabled()) return none(null);
 
-  // The ordinary sign-in: nothing unclaimed under this address, nothing to
-  // do — no transaction, no lock. (Read-only; the claim re-checks all of it.)
+  // The ordinary sign-in: nothing this address may claim is unclaimed —
+  // nothing to do, no transaction, no lock. A partner's seat under the
+  // payer's address stays unclaimed for good, so it is the claimable seats
+  // that are counted, not the open ones. (Read-only; the claim re-checks it.)
   const account = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
   if (!account) return none("not_competitor");
-  const open = await db.competitor.count({ where: { email: normalizeEmail(account.email), userId: null, team: LIVE_TEAM } });
-  if (open === 0) return none(null);
+  const mine = await db.competitor.findMany({
+    where: { email: normalizeEmail(account.email), team: LIVE_TEAM },
+    select: { id: true, userId: true, position: true, team: { select: { id: true, seriesId: true } } },
+  });
+  if (!payerSeatsToClaim(mine).some((seat) => !seat.userId)) return none(null);
 
   try {
     return await db.$transaction((tx) => claimSeats(tx, userId), PROOF_TX);
@@ -122,7 +150,7 @@ async function claimSeats(tx: Prisma.TransactionClient, userId: string): Promise
   const seats = await tx.competitor.findMany({
     where: { email, team: { ...LIVE_TEAM, seriesId: { in: seriesIds } } },
     select: {
-      id: true, userId: true, shirtSize: true, bftMember: true,
+      id: true, userId: true, position: true, shirtSize: true, bftMember: true,
       team: {
         select: {
           id: true, seriesId: true, name: true, createdAt: true, division: true, category: true,
@@ -136,7 +164,7 @@ async function claimSeats(tx: Prisma.TransactionClient, userId: string): Promise
 
   let linked = 0;
   let paidEntry = false;
-  for (const seat of unambiguousSeats(seats)) {
+  for (const seat of payerSeatsToClaim(seats)) {
     if (seat.userId) continue; // already somebody's — ours or not, we never take it
     const claimed = await tx.competitor.updateMany({ where: { id: seat.id, email, userId: null }, data: { userId } });
     if (claimed.count !== 1) continue;

@@ -82,10 +82,13 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     ["u-sara", "competitor", "f"], ["u-mona", "competitor", "f"], ["u-lina", "competitor", "f"], ["u-omar", "competitor", "m"],
     ["u-org", "organiser", null], ["u-vol", "organiser", null], ["u-judge", "organiser", null], ["u-gym-a", "studio", null], ["u-gym-b", "studio", null], ["u-desk", "staff", null],
   ] as const;
+  // An athlete's account carries their own name, as a real one does: the desks
+  // and every refusal name a seat by its account (waiver-db.ts › seatsOf).
+  const names: Record<string, string> = { "u-sara": "Sara Ali", "u-mona": "Mona Saleh", "u-lina": "Lina Omar", "u-omar": "Omar Aziz" };
   for (const [id, role, sex] of people) {
     await prisma.user.create({
       data: {
-        id, email: `${id}@example.com`, name: id.slice(2), role, status: "active", approvalStatus: "approved", verifiedEmail: `${id}@example.com`,
+        id, email: `${id}@example.com`, name: names[id] ?? id.slice(2), role, status: "active", approvalStatus: "approved", verifiedEmail: `${id}@example.com`,
         ...(sex ? { athleteProfile: { create: { sex } } } : {}),
       },
     });
@@ -120,6 +123,6 @@ export async function field(prisma: PrismaClient): Promise<CheckInTeam[]> {
   return teams.map((team) => ({
     id: team.id, number: team.number, name: team.name, category: team.category, division: team.division, studio: null,
     waveId: team.waveId, waveNumber: null, station: team.station, competing: true, ready: team.warmupReadyAt !== null,
-    athletes: team.competitors.map((one) => ({ id: one.id, fullName: one.fullName, arrived: one.attendedAt !== null })),
+    athletes: team.competitors.map((one) => ({ id: one.id, fullName: one.fullName, arrived: one.attendedAt !== null, waiver: "not_required" as const })),
   }));
 }

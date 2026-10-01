@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { requestMyVerificationCode } from "@/lib/actions/competitor-login";
+import { codeErrorMessage, sendLimitMessage } from "@/lib/otp-messages";
 
 /** Keep an address in its own direction inside a sentence (bidi isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
@@ -32,7 +33,7 @@ export function VerifyEmailCard({ email }: { email: string }) {
     startTransition(async () => {
       const result = await requestMyVerificationCode();
       if (!result.ok) {
-        setError(result.error === "TOO_MANY" ? t("Too many requests. Wait a few minutes and try again.") : t("Something went wrong. Try again."));
+        setError(result.error === "TOO_MANY" ? sendLimitMessage(result.retryAfter, t) : t("Something went wrong. Try again."));
         return;
       }
       setStage("code");
@@ -51,8 +52,12 @@ export function VerifyEmailCard({ email }: { email: string }) {
       setRefused(true);
       return;
     }
-    if (!result || result.error || result.url?.includes("csrf=true")) {
-      setError(t("That code is not valid or has expired."));
+    if (!result || result.url?.includes("csrf=true")) {
+      setError(t("Something went wrong. Try again."));
+      return;
+    }
+    if (result.error) {
+      setError(codeErrorMessage(result.error, t));
       return;
     }
     router.refresh();

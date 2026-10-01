@@ -3,8 +3,11 @@ import "server-only";
 import type { Role, UserStatus } from "@/generated/prisma/enums";
 import { sendOtpEmail, sendSecurityAlertEmail } from "@/lib/email";
 import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
+import { prisma } from "@/lib/prisma";
 import { hashDeviceFingerprint } from "@/lib/security";
 import { logLoginEvent } from "@/lib/trusted-device";
+
+export { AUTH_ERRORS, refuseWithReason, tooManyAttempts } from "@/lib/auth-errors";
 
 // The pieces every way in needs: what a device looks like, where a request
 // came from, what a session user is, and how a device is challenged. Shared so
@@ -22,18 +25,6 @@ import { logLoginEvent } from "@/lib/trusted-device";
 // a session exists. Nothing in this file ever reaches the browser.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const AUTH_ERRORS = {
-  otpRequired: "OTP_REQUIRED",
-  accountDisabled: "ACCOUNT_DISABLED",
-  notActivated: "ACCOUNT_NOT_ACTIVATED",
-  tooManyAttempts: "TOO_MANY_ATTEMPTS",
-  /**
-   * The code was right but cannot be used: it was sent to an address the
-   * account no longer has, or it predates recipient records. The person
-   * asks for a new one (competitor-login-form.tsx › refused screen).
-   */
-  codeRefused: "CODE_REFUSED",
-} as const;
 
 export type DevicePayload = {
   deviceFingerprint: string;
@@ -96,6 +87,19 @@ export function toSessionUser(user: {
   };
 }
 
+/** An unused sign-in code sent within the resend cooldown — the gap itself resets on a restart. */
+async function recentCode(userId: string): Promise<boolean> {
+  const now = Date.now();
+  return Boolean(await prisma.otpChallenge.findFirst({
+    where: {
+      userId, purpose: "login", consumedAt: null, expiresAt: { gt: new Date(now) },
+      createdAt: { gt: new Date(now - getOtpConfig().resendCooldownSeconds * 1000) },
+    },
+    select: { id: true },
+  }));
+}
+
+
 export async function challengeDevice(params: {
   userId: string;
   email: string;
@@ -104,6 +108,13 @@ export async function challengeDevice(params: {
   suspicious: boolean;
   device: DevicePayload;
 }) {
+  // Signing in again while the last code is still on its way: that code stays
+  // the one to type — a second would only replace it. Decided on the codes
+  // themselves (the password was checked, so this says nothing to a
+  // stranger), not on the address's gap, which a door that sent no code can
+  // also start.
+  if (await recentCode(params.userId)) return;
+
   const { code } = await createOtpChallenge({
     userId: params.userId,
     purpose: "login",

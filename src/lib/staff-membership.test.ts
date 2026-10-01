@@ -14,12 +14,12 @@ const mocks = vi.hoisted(() => {
     portraitJob: { deleteMany: vi.fn() },
     team: { findFirst: vi.fn(), update: vi.fn() },
     seriesParticipant: { updateMany: vi.fn() },
-    user: { findFirst: vi.fn(), findUnique: vi.fn().mockResolvedValue(null) },
+    user: { findFirst: vi.fn(), findUnique: vi.fn().mockResolvedValue(null), update: vi.fn() },
   };
-  return { tx, entry: vi.fn(), sync: vi.fn(), audit: vi.fn(), participation: vi.fn() };
+  return { tx, entry: vi.fn(), sync: vi.fn(), audit: vi.fn(), participation: vi.fn(), forget: vi.fn() };
 });
-vi.mock("@/lib/auth-proof", () => ({ PROOF_TX: {} }));
-vi.mock("@/lib/audit", () => ({ recordAuditIn: mocks.audit, AUDIT: { teamMemberSwapped: "swap", teamOwnershipChanged: "ownership", registrationUpdated: "updated" } }));
+vi.mock("@/lib/auth-proof", () => ({ PROOF_TX: {}, forgetAddressProof: mocks.forget }));
+vi.mock("@/lib/audit", () => ({ recordAuditIn: mocks.audit, AUDIT: { teamMemberSwapped: "swap", teamOwnershipChanged: "ownership", registrationUpdated: "updated", accountUpdated: "account" } }));
 vi.mock("@/lib/membership-sync", () => ({ syncAfterMembershipChange: mocks.sync }));
 vi.mock("@/lib/one-entry", () => ({ findEntryInSeries: mocks.entry }));
 vi.mock("@/lib/participation", () => ({ ensureParticipation: mocks.participation }));
@@ -46,8 +46,8 @@ function team(over: object = {}) {
     ownership: "registrant", registrantEmail: "sara@example.com", registrantUserId: "u-sara",
     waveRef: null, score: null, series: { status: "scheduled", archivedAt: null, registrationClosesAt: null, competitionDate: START },
     competitors: [
-      { id: "seat-mona", position: 1, userId: null, email: "mona@example.com", fullName: "Mona Saleh", phone: "+97450000001", dateOfBirth: null, studioId: null },
-      { id: "seat-sara", position: 2, userId: "u-sara", email: "sara@example.com", fullName: "Sara Ali", phone: null, dateOfBirth: null, studioId: null },
+      { id: "seat-mona", position: 1, userId: null, email: "mona@example.com", fullName: "Mona Saleh", phone: "+97450000001", dateOfBirth: null, studioId: null, user: null },
+      { id: "seat-sara", position: 2, userId: "u-sara", email: "sara@example.com", fullName: "Sara Ali", phone: null, dateOfBirth: null, studioId: null, user: { email: "sara@example.com", name: "Sara Ali" } },
     ],
     ...over,
   };
@@ -125,10 +125,10 @@ describe("the floor's barriers stop a change of WHO is on the team — Full acce
     ["the competition is finished", { series: { status: "final", archivedAt: null, registrationClosesAt: null, competitionDate: START } }, "SERIES_FINISHED"],
     ["the team has a score", { score: { id: "sc" } }, "TEAM_ALREADY_SCORED"],
     ["its wave has started", { waveId: "w1", waveRef: { status: "running" } }, "WAVE_STARTED"],
-  ])("changing a seat's email is refused when %s; a name fix still goes through", async (_label, over, error) => {
+  ])("a new email from staff below Full access is refused when %s; a name fix still goes through", async (_label, over, error) => {
     mocks.tx.team.findFirst.mockResolvedValue(team(over));
-    expect(await editRegistration(db as never, full, form({ email: "nour@example.com" }), before)).toEqual({ ok: false, error });
-    expect(await editRegistration(db as never, full, form({ fullName: "Mona A. Saleh" }), before)).toEqual({ ok: true });
+    expect(await editRegistration(db as never, partial, form({ email: "nour@example.com" }), before)).toEqual({ ok: false, error });
+    expect(await editRegistration(db as never, partial, form({ fullName: "Mona A. Saleh" }), before)).toEqual({ ok: true });
   });
 
   it("a swap is refused on the same barriers", async () => {
@@ -149,8 +149,17 @@ describe("an email is who a seat is", () => {
     expect(mocks.audit).toHaveBeenCalledWith(mocks.tx, expect.objectContaining({ action: "updated" }));
   });
 
-  it("a signed-in seat's email never changes here, even for Full access", async () => {
-    expect(await editRegistration(db as never, full, form({}, { email: "sara.new@example.com" }), before)).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
+  it("a signed-in seat's email never changes here for staff below Full access, or a gym", async () => {
+    expect(await editRegistration(db as never, partial, form({}, { email: "sara.new@example.com" }), before)).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
+    expect(await editRegistration(db as never, gym, form({}, { email: "sara.new@example.com" }), before)).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
+  });
+
+  it("an account whose email and name differ from its seat's is no change nobody typed", async () => {
+    // The form shows the account (queries.ts › toRosterRow); the seat still holds what was registered.
+    mocks.tx.team.findFirst.mockResolvedValue(team({ competitors: [team().competitors[0], { ...team().competitors[1], email: "old@example.com", fullName: "Sarah" }] }));
+    expect(await editRegistration(db as never, partial, form({}, {}, { teamName: "Hawks" }), before)).toEqual({ ok: true });
+    expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ name: "HAWKS" }) });
+    expect(mocks.tx.user.update).not.toHaveBeenCalled();
   });
 
   it("an address already entered in this competition is refused", async () => {
@@ -162,6 +171,47 @@ describe("an email is who a seat is", () => {
     expect(await editRegistration(db as never, gym, form({ fullName: "Mona A. Saleh" }), before)).toEqual({ ok: true });
     expect(mocks.tx.competitorPortrait.deleteMany).not.toHaveBeenCalled();
     expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.not.objectContaining({ membershipVersion: expect.anything() }) });
+  });
+});
+
+describe("BFT MENA Full access corrects any athlete's name and email — the same athlete", () => {
+  it("an email put right on a seat without an account: nothing cleared, no new version, no barrier", async () => {
+    mocks.tx.team.findFirst.mockResolvedValue(team({ score: { id: "sc" }, waveId: "w1", waveRef: { status: "running" } }));
+    expect(await editRegistration(db as never, full, form({ email: "mona.s@example.com" }), after)).toEqual({ ok: true });
+    expect(mocks.entry).toHaveBeenCalledWith(expect.objectContaining({ emails: ["mona.s@example.com"], exceptCompetitorId: "seat-mona" }), mocks.tx);
+    expect(mocks.tx.competitor.update).toHaveBeenCalledWith({ where: { id: "seat-mona" }, data: expect.objectContaining({ email: "mona.s@example.com", phone: "+97450000001" }) });
+    expect(mocks.tx.competitor.update).toHaveBeenCalledWith({ where: { id: "seat-mona" }, data: expect.not.objectContaining({ userId: null }) });
+    expect(mocks.tx.competitorPortrait.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.not.objectContaining({ membershipVersion: expect.anything() }) });
+    expect(mocks.audit).toHaveBeenCalledWith(mocks.tx, expect.objectContaining({ action: "updated", detail: expect.stringContaining("email mona@example.com → mona.s@example.com (corrected, same athlete)") }));
+  });
+
+  it("a signed-in athlete's email only on the tick — then their sign-in email changes, old codes and links spent", async () => {
+    const edit = form({}, { email: "Sara.New@example.com" });
+    expect(await editRegistration(db as never, full, edit, before)).toEqual({ ok: false, error: "CONFIRM_ACCOUNT_EMAIL" });
+    expect(mocks.tx.user.update).not.toHaveBeenCalled();
+    expect(await editRegistration(db as never, full, { ...edit, confirmAccountEmail: true }, before)).toEqual({ ok: true });
+    expect(mocks.tx.user.update).toHaveBeenCalledWith({ where: { id: "u-sara" }, data: { email: "sara.new@example.com" } });
+    expect(mocks.forget).toHaveBeenCalledWith(mocks.tx, "u-sara");
+    // Still the registrant: the address follows, the account link stays.
+    expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ registrantEmail: "sara.new@example.com" }) });
+    expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.not.objectContaining({ registrantUserId: null }) });
+    expect(mocks.audit).toHaveBeenCalledWith(mocks.tx, expect.objectContaining({ action: "account", targetId: "u-sara" }));
+  });
+
+  it("never onto another account's address, never the actor's own", async () => {
+    mocks.tx.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "u-other" });
+    expect(await editRegistration(db as never, full, form({}, { email: "taken@example.com" }, { confirmAccountEmail: true }), before)).toEqual({ ok: false, error: "ACCOUNT_EMAIL_TAKEN" });
+    const self = { ...full, id: "u-sara" };
+    expect(await editRegistration(db as never, self, form({}, { email: "me@example.com" }, { confirmAccountEmail: true }), before)).toEqual({ ok: false, error: "OWN_ACCOUNT" });
+  });
+
+  it("a signed-in athlete's name is their account's name: Full access corrects it; below Full access, the seat only", async () => {
+    expect(await editRegistration(db as never, full, form({}, { fullName: "Sara M. Ali" }), before)).toEqual({ ok: true });
+    expect(mocks.tx.user.update).toHaveBeenCalledWith({ where: { id: "u-sara" }, data: { name: "Sara M. Ali" } });
+    mocks.tx.user.update.mockClear();
+    expect(await editRegistration(db as never, partial, form({}, { fullName: "Sara M. Ali" }), before)).toEqual({ ok: true });
+    expect(mocks.tx.user.update).not.toHaveBeenCalled();
   });
 });
 
@@ -200,8 +250,14 @@ describe("the registrant, versions, seats", () => {
     ] }));
     const move = form({}, { email: "sara.new@example.com" });
     expect(await editRegistration(db as never, gym, move, before)).toEqual({ ok: false, error: "REGISTRANT_EMAIL_LOCKED" });
-    expect(await editRegistration(db as never, full, move, before)).toEqual({ ok: true });
+    // BFT MENA below Full access: a new email is a new person, and the registrant goes with it.
+    expect(await editRegistration(db as never, partial, move, before)).toEqual({ ok: true });
     expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ registrantEmail: "sara.new@example.com", registrantUserId: null }) });
+    // Full access corrects the same registrant's address.
+    mocks.tx.team.update.mockClear();
+    expect(await editRegistration(db as never, full, move, before)).toEqual({ ok: true });
+    expect(mocks.tx.team.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ registrantEmail: "sara.new@example.com" }) });
+    expect(mocks.tx.competitorPortrait.deleteMany).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a stale page, a foreign seat, a third person — after the lock", async () => {

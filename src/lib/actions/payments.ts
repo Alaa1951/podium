@@ -6,10 +6,11 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { setTeamArrival } from "@/lib/checkin-db";
+import type { TeamGaps } from "@/lib/readiness";
 import { getCurrentUser, requireAccess } from "@/lib/session";
 import { optionalText, toMinor } from "@/lib/actions/registration-fields";
 
-export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
+export type ActionResult = { ok: true; message?: string } | { ok: false; error: string; gaps?: TeamGaps };
 
 // Confirming, holding and reversing a registration's payment, and marking who
 // actually turned up. Only a paid registration reaches the board, which is why

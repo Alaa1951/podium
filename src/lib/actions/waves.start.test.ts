@@ -10,8 +10,11 @@ const mocks = vi.hoisted(() => {
     wave: { findUnique: vi.fn(), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     zone: { count: vi.fn().mockResolvedValue(3) },
   };
-  return { tx, user: vi.fn() };
+  return { tx, user: vi.fn(), blockers: vi.fn() };
 });
+// Readiness (waiver, entrance, warm-up) is its own check, tested against a
+// real database in wave-start.integration.test.ts; here it answers "ready".
+vi.mock("@/lib/wave-start-check", () => ({ waveStartBlockers: mocks.blockers }));
 vi.mock("@/lib/session", () => ({ getCurrentUser: mocks.user, requireAccess: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { wave: { findUnique: vi.fn().mockResolvedValue({ seriesId: "s1" }) }, zoneStaff: { count: vi.fn().mockResolvedValue(0) } } }));
 vi.mock("@/lib/wave-schedule-db", () => ({ scheduleTransaction: (_series: string, work: (tx: unknown) => unknown) => work(mocks.tx), waveRowFor: vi.fn() }));
@@ -32,6 +35,7 @@ beforeEach(() => {
   mocks.user.mockResolvedValue({ id: "hq", role: "admin", permissions: [] });
   mocks.tx.zone.count.mockResolvedValue(3);
   mocks.tx.wave.findMany.mockResolvedValue([]);
+  mocks.blockers.mockResolvedValue([]);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -50,5 +54,15 @@ describe("a wave with a team of one", () => {
 
     mocks.tx.wave.findUnique.mockResolvedValue(wave([team(1, 2), team(3, 1, { paymentStatus: "pending" })]));
     expect(await controlWave({ waveId: "w1", action: "start" })).toMatchObject({ ok: true });
+  });
+});
+
+describe("a wave with anybody not ready", () => {
+  it("is refused with the list, by team and athlete — and nothing starts", async () => {
+    const blockers = [{ team: { id: "t2", number: 2, name: "TWO" }, gaps: ["warmup"], athletes: [{ id: "a", name: "Sara Ali", gaps: ["waiver"] }] }];
+    mocks.blockers.mockResolvedValue(blockers);
+    mocks.tx.wave.findUnique.mockResolvedValue(wave([team(1, 2), team(2, 2)]));
+    expect(await controlWave({ waveId: "w1", action: "start" })).toEqual({ ok: false, error: "NOT_READY", blockers });
+    expect(mocks.tx.wave.update).not.toHaveBeenCalled();
   });
 });

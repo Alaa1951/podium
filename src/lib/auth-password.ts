@@ -27,6 +27,7 @@ import {
   toSessionUser,
   type ReqLike,
 } from "@/lib/auth-shared";
+import { refuseWithReason, tooManyAttempts } from "@/lib/auth-errors";
 
 // THE STAFF SIGN-IN, and the competitor's.
 //
@@ -45,19 +46,6 @@ import {
  * The decision lives in otp-bypass.ts, pinned by its own tests.
  */
 const OTP_DEV_BYPASS = otpDevBypassEnabled(process.env);
-
-/**
- * A right code that cannot be used — sent to an address the account no
- * longer has, or issued before recipients were recorded — is refused as a
- * whole: no session, nothing changed. The form tells the person to ask for a
- * new one. Other refusals stay silent (`null`), like a wrong code.
- */
-function refuseIfAddressStale(verification: OtpVerification): void {
-  if (verification.ok) return;
-  if (verification.reason === "no_recipient" || verification.reason === "address_changed") {
-    throw new Error(AUTH_ERRORS.codeRefused);
-  }
-}
 
 /**
  * What a proven address does for a competitor: their seats follow — in a
@@ -92,7 +80,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       if (!email || !password) return null;
 
       const rate = limitAuthAttempt({ scope: "login", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.passwordSignIn });
-      if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
+      if (!rate.ok) throw tooManyAttempts(rate.retryAfter);
 
       const user = await prisma.user.findUnique({ where: { email } });
 
@@ -187,7 +175,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       if (!email || !code) return null;
 
       const rate = limitAuthAttempt({ scope: "otp", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.passwordSignIn });
-      if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
+      if (!rate.ok) throw tooManyAttempts(rate.retryAfter);
 
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user) return null;
@@ -198,8 +186,11 @@ export const passwordProviders: NextAuthOptions["providers"] = [
         ? { ok: true, user: { ...user, signupType: user.signupType ?? null }, verifiedEmail: email }
         : await verifyOtpChallenge({ userId: user.id, code, purpose: "login" });
       if (!verification.ok) {
-        await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
-        refuseIfAddressStale(verification);
+        // Only a wrong code is a guess. Typing a real code of ours that was
+        // replaced, has expired or is locked counts toward nothing — five of
+        // those would otherwise mark the account suspicious (trusted-device.ts).
+        if (verification.reason === "invalid") await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
+        refuseWithReason(verification);
         return null;
       }
 
@@ -280,7 +271,7 @@ export const passwordProviders: NextAuthOptions["providers"] = [
       if (!email || !code) return null;
 
       const rate = limitAuthAttempt({ scope: "competitor-otp", ip, identifier: email, limit: 10, networkLimit: NETWORK_LIMITS.codeEntry });
-      if (!rate.ok) throw new Error(AUTH_ERRORS.tooManyAttempts);
+      if (!rate.ok) throw tooManyAttempts(rate.retryAfter);
 
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user) return null;
@@ -301,8 +292,11 @@ export const passwordProviders: NextAuthOptions["providers"] = [
             },
           });
       if (!verification.ok) {
-        await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
-        refuseIfAddressStale(verification);
+        // Only a wrong code is a guess. Typing a real code of ours that was
+        // replaced, has expired or is locked counts toward nothing — five of
+        // those would otherwise mark the account suspicious (trusted-device.ts).
+        if (verification.reason === "invalid") await logLoginEvent({ userId: user.id, eventType: "OTP_FAILED", ip });
+        refuseWithReason(verification);
         return null;
       }
 

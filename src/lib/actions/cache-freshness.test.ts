@@ -19,8 +19,16 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   team: { findUnique: mocks.findTeam, findFirst: mocks.findTeam, update: mocks.updateTeam },
-  // Check-in writes each seat and the team together, under a lock on the team row.
-  competitor: { updateMany: mocks.updateSeats }, $queryRaw: vi.fn(),
+  // Check-in writes each seat and the team together, under a lock on the team row,
+  // after reading the seats and the competition's waiver (none here), with a
+  // history row per athlete.
+  competitor: {
+    updateMany: mocks.updateSeats,
+    findMany: vi.fn(async () => [{ id: "seat", attendedAt: null, teamId: "team", fullName: "A", userId: null, dateOfBirth: null, team: { category: "Mens" }, user: null }]),
+  },
+  $queryRaw: vi.fn(),
+  waiverRelease: { findFirst: vi.fn(async () => null) },
+  attendanceEvent: { createMany: vi.fn() },
   score: { update: mocks.updateScore }, scoreAudit: { create: mocks.scoreAudit },
   zoneScore: { updateMany: mocks.zoneScores },
   $transaction: mocks.transaction,
@@ -39,7 +47,7 @@ beforeEach(() => {
   mocks.requireAnyAccess.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.requireUser.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.getCurrentUser.mockResolvedValue({ id: "admin", role: "admin" });
-  mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" }, attendedAt: null, competitors: [{ id: "seat", attendedAt: null }] });
+  mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" }, attendedAt: null, archivedAt: null, waitlistedAt: null, waveId: null, warmupReadyAt: null, warmupWaveId: null, series: { status: "live", archivedAt: null }, competitors: [{ id: "seat", attendedAt: null }] });
   // Both forms: a list of writes (scores), or a callback given the client (check-in).
   mocks.transaction.mockImplementation(async (work: Promise<unknown>[] | ((tx: unknown) => unknown)) =>
     typeof work === "function" ? work((await import("@/lib/prisma")).prisma) : Promise.all(work));

@@ -58,7 +58,13 @@ export type BracketError =
   /** The page showed a bracket the team no longer has. */
   | "STALE_BRACKET"
   /** Staff saved without confirming the athlete asked for it and approves. */
-  | "APPROVAL_REQUIRED";
+  | "APPROVAL_REQUIRED"
+  /**
+   * The team runs manually in another category's block: changing its
+   * category would make a new scheduling exception nobody chose. Its slot is
+   * resolved first — moved, or returned to Auto Assign.
+   */
+  | "PROTECTED_SLOT";
 
 /** Whose clock applies: see WHEN above. */
 export type BracketSide = "team" | "floor";

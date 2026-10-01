@@ -35,7 +35,11 @@ vi.mock("@/lib/prisma", () => ({
     competitor: { count: mocks.seatCount },
   },
 }));
-vi.mock("@/lib/otp", () => ({ createOtpChallenge: mocks.otp, getOtpConfig: () => ({ ttlMinutes: 10 }) }));
+vi.mock("@/lib/otp", () => ({
+  createOtpChallenge: mocks.otp, getOtpConfig: () => ({ ttlMinutes: 10, resendCooldownSeconds: 60 }),
+  // No code went to any address a moment ago (otp-flow.integration.test.ts covers the gap).
+  codeGapLeft: () => 0, startCodeGap: () => undefined,
+}));
 vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendAlreadyRegisteredEmail: mocks.alreadyRegistered }));
 vi.mock("@/lib/rate-limit", () => ({ checkRate: mocks.rate, MINUTE_MS: 60_000 }));
 
@@ -79,7 +83,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
     // proves the address (link-seats.ts); approval follows only a paid entry.
     mocks.seatCount.mockResolvedValue(1);
     const { startSignup } = await import("@/lib/actions/signup");
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: "sara@example.com", approvalStatus: "pending", status: "invited" }) }));
     expect(mocks.otp).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", sentTo: "sara@example.com" }));
     expect(mocks.alreadyRegistered).not.toHaveBeenCalled();
@@ -87,7 +91,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
 
   it("lets an ATHLETE sign up with no password — codes are the way in — but not an organiser", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
-    expect(await startSignup({ ...athlete, password: "" })).toEqual({ ok: true });
+    expect(await startSignup({ ...athlete, password: "" })).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ passwordHash: null }) }));
     expect(mocks.otp).toHaveBeenCalled();
 
@@ -118,7 +122,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
 
   it("creates a waiting athlete looking for a partner, and emails a code", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
     const data = mocks.createUser.mock.calls[0][0].data;
     expect(data).toMatchObject({
       email: "sara@example.com",
@@ -153,7 +157,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
   it("never reveals an existing account — it gets an email instead of a code", async () => {
     mocks.findUser.mockResolvedValue({ id: "old", role: "studio", status: "active", signupType: null, approvalStatus: "approved" });
     const { startSignup } = await import("@/lib/actions/signup");
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.alreadyRegistered).toHaveBeenCalled();
     expect(mocks.createUser).not.toHaveBeenCalled();
     expect(mocks.updateUser).not.toHaveBeenCalled();
@@ -183,7 +187,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
     const { startSignup } = await import("@/lib/actions/signup");
 
     // Nothing open: the field is not rendered, so it must not be demanded.
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
 
     mocks.listSeries.mockResolvedValue([{ id: "s1", name: "Upcoming", status: "scheduled", competitionDate: new Date("2099-01-01") }]);
     expect(await startSignup(athlete)).toEqual({ ok: false, error: "COMPETITION_REQUIRED" });
@@ -201,7 +205,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
     });
 
     mocks.findSeries.mockResolvedValue({ id: "s1", name: "Upcoming", status: "scheduled", competitionDate: new Date("2099-01-01") });
-    expect(await startSignup({ ...athlete, seriesId: "s1" })).toEqual({ ok: true });
+    expect(await startSignup({ ...athlete, seriesId: "s1" })).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.createUser.mock.calls[0][0].data.requestedSeriesId).toBe("s1");
     expect(mocks.findSeries.mock.calls[0][0].where).toMatchObject({
       signupOpen: true,
@@ -221,10 +225,10 @@ describe("startSignup", { timeout: 30_000 }, () => {
   it("asks for a team name only once a partner is named", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
     // Looking for a partner: no team to name yet, and none is demanded.
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
     const noName = { ...pair, teamName: undefined };
     expect(await startSignup(noName)).toEqual({ ok: false, error: "TEAM_NAME_REQUIRED" });
-    expect(await startSignup(pair)).toEqual({ ok: true });
+    expect(await startSignup(pair)).toEqual({ ok: true, resendIn: 60 });
   });
 
   it("asks for the partner's own gender and shirt size", async () => {
@@ -236,7 +240,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
   it("stores the pair's details, and clears them when there is no partner", async () => {
     const { startSignup } = await import("@/lib/actions/signup");
 
-    expect(await startSignup(pair)).toEqual({ ok: true });
+    expect(await startSignup(pair)).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.upsertProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
@@ -250,7 +254,7 @@ describe("startSignup", { timeout: 30_000 }, () => {
     );
 
     mocks.upsertProfile.mockClear();
-    expect(await startSignup(athlete)).toEqual({ ok: true });
+    expect(await startSignup(athlete)).toEqual({ ok: true, resendIn: 60 });
     expect(mocks.upsertProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({

@@ -22,6 +22,7 @@
  * screen cannot change what this proves.
  */
 import { test, expect, type Browser, type Page } from "@playwright/test";
+import { visit } from "./support/visit";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { encode } from "next-auth/jwt";
@@ -148,7 +149,7 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
   try {
     // ── 1. The athlete changes her own team ─────────────────────────────────
     const athlete = await as(sara);
-    await athlete.goto(`/me?series=${id}`);
+    await visit(athlete, `/me?series=${id}`);
     const mine = seen(athlete, "#bracket");
     await expect(mine.locator(".badge")).toHaveText([t("Womens"), t("Open")]);
     await press(mine, "Change category or level").click();
@@ -181,19 +182,21 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     for (const outsider of [judge, coach]) {
       const page = await as(outsider);
       for (const desk of ["check-in", "warm-up"]) {
-        await page.goto(`/series/${id}/${desk}`);
-        await expect(page).not.toHaveURL(new RegExp(`/${desk}`));
+        await visit(page, `/series/${id}/${desk}`);
+        // Refused: sent home, or — for an account the console lets in (the live
+        // Judge role reads Wave control) — told the screen is not theirs. Never the desk.
         await expect(seen(page, ".checkin")).toHaveCount(0);
+        if (new URL(page.url()).pathname.endsWith(`/${desk}`)) await expect(page.getByText("404", { exact: true })).toBeVisible();
       }
-      await page.goto("/home");
+      await visit(page, "/home");
       await expect(page.locator(`a[href="/series/${id}/check-in"], a[href="/series/${id}/warm-up"]`)).toHaveCount(0);
     }
 
     // ── 3. A volunteer at the entrance ──────────────────────────────────────
     const desk = await as(volunteer);
-    await desk.goto("/home");
+    await visit(desk, "/home");
     await expect(seen(desk, `a[href="/series/${id}/check-in"]`).first()).toBeVisible();
-    await desk.goto(`/series/${id}/check-in`);
+    await visit(desk, `/series/${id}/check-in`);
     // Seven teams hold a place (the waiting one is not at the door); thirteen athletes.
     await expect(figures(desk)).toHaveText(["7", "0", "7", "13", "0", "13"]);
     await expect(card(desk, 8)).toHaveCount(0);
@@ -215,8 +218,8 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     await expect(figures(desk)).toHaveText(["7", "2", "5", "13", "4", "9"]);
     await press(card(desk, 6), "Check in whole team").click();
     await expect(figures(desk)).toHaveText(["7", "3", "4", "13", "5", "8"]);
-    // Undo one athlete: the team is partial again and the count drops by one person.
-    await press(card(desk, 2).locator("li", { hasText: omar.name }), "Undo").click();
+    // Check one athlete out: the team is partial again and the count drops by one person.
+    await press(card(desk, 2).locator("li", { hasText: omar.name }), "Check out").click();
     await expect(figures(desk)).toHaveText(["7", "2", "5", "13", "4", "9"]);
     await press(card(desk, 2), "Check in whole team").click();
     await expect(figures(desk)).toHaveText(["7", "3", "4", "13", "5", "8"]);
@@ -276,7 +279,7 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     await expect(card(desk, 4).getByTestId("bracket-closed")).toHaveText(t("This team has a score, so its category and level cannot change now."));
 
     // ── 5. The volunteer at the warm-up desk ────────────────────────────────
-    await desk.goto(`/series/${id}/warm-up`);
+    await visit(desk, `/series/${id}/warm-up`);
     const ready = seen(desk, ".checkin-figures .stat-value");
     await expect(ready).toHaveText(["7", "0", "7"]);
     await expect(seen(desk, ".warmup-group")).toHaveCount(4); // waves 1, 2, 3 and "not in a wave yet"
@@ -285,36 +288,37 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     await expect(line(1)).toContainText(t("Arrived"));
     await expect(line(1)).toContainText(t("Not ready yet"));
     await expect(line(3)).toContainText(t("Not arrived"));
-    // Ready without having checked in at the entrance: allowed, and nobody is checked in by it.
-    await press(line(3), "Mark ready").click();
-    await expect(line(3).getByText(t("Ready"), { exact: true })).toBeVisible();
-    await press(line(1), "Mark ready").click();
-    await expect(ready).toHaveText(["7", "2", "5"]);
-    await expect(seen(desk, '[data-testid="warmup-wave-2"]')).toContainText(t("{count} ready", { count: 2 }));
-    await expect(seen(desk, '[data-testid="warmup-wave-2"]')).toContainText(t("{count} pending", { count: 1 }));
+    // Ready without having checked in at the entrance: refused, and the desk is told who is not here.
+    await press(line(3), "Warm-up check-in").click();
+    await expect(line(3).getByTestId("warmup-refusal")).toContainText("Khalid Hamad");
+    await expect(line(3).getByTestId("warmup-refusal")).toContainText(t("Not checked in at the entrance"));
+    await press(line(1), "Warm-up check-in").click();
+    await expect(ready).toHaveText(["7", "1", "6"]);
+    await expect(seen(desk, '[data-testid="warmup-wave-2"]')).toContainText(t("{count} ready", { count: 1 }));
+    await expect(seen(desk, '[data-testid="warmup-wave-2"]')).toContainText(t("{count} pending", { count: 2 }));
     const lions = await row(3);
-    expect(lions.warmupReadyAt).not.toBeNull();
-    expect(lions.attendedAt).toBeNull();
+    expect(lions.warmupReadyAt).toBeNull();
     expect(lions.competitors.every((seat) => seat.attendedAt === null)).toBe(true);
+    expect((await row(1)).warmupWaveId).toBe(`${id}-w2`); // ready for its own wave
     expect((await row(2)).warmupReadyAt).toBeNull(); // checked in at the entrance, and still not ready
     await capture(desk, "warm-up");
     // Filters: by readiness and by wave.
     await desk.getByLabel(t("Readiness"), { exact: true }).filter({ visible: true }).selectOption("ready");
-    await expect(seen(desk, ".warmup-row")).toHaveCount(2);
+    await expect(seen(desk, ".warmup-row")).toHaveCount(1);
     await desk.getByLabel(t("Readiness"), { exact: true }).filter({ visible: true }).selectOption("pending");
-    await expect(seen(desk, ".warmup-row")).toHaveCount(5);
+    await expect(seen(desk, ".warmup-row")).toHaveCount(6);
     await desk.getByLabel(t("Wave"), { exact: true }).filter({ visible: true }).selectOption(`${id}-w3`);
     await expect(seen(desk, ".warmup-row")).toHaveCount(2);
     await press(seen(desk, ".list-toolbar"), "Clear").click();
-    // Undo is one press, and leaves the entrance check-in where it was.
-    await press(line(1), "Undo ready").click();
-    await expect(ready).toHaveText(["7", "1", "6"]);
+    // Warm-up check-out is one press, and leaves the entrance check-in where it was.
+    await press(line(1), "Warm-up check-out").click();
+    await expect(ready).toHaveText(["7", "0", "7"]);
     expect((await row(1)).attendedAt).not.toBeNull();
-    expect((await trail("registration.warmup_changed")).map((entry) => entry.detail)).toEqual(["ready to compete (warm-up)", "ready to compete (warm-up)", "warm-up readiness removed"]);
+    expect((await trail("registration.warmup_changed")).map((entry) => entry.detail)).toEqual(["ready to compete in wave 2 (warm-up check-in)", "warm-up check-out: readiness cleared"]);
 
     // ── 6. An organiser: both desks in the menu, and help from the registration
     const floor = await as(organiser);
-    await floor.goto(`/series/${id}/registrations/${id}-t5`);
+    await visit(floor, `/series/${id}/registrations/${id}-t5`);
     // On a phone the menu is behind "More", so the two desks are read from the document.
     await expect(floor.locator(`#console-nav a[href="/series/${id}/check-in"]`)).toHaveCount(1);
     await expect(floor.locator(`#console-nav a[href="/series/${id}/warm-up"]`)).toHaveCount(1);
@@ -327,7 +331,7 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     await capture(floor, "registration-pro");
     // BFT MENA may.
     const office = await as(hq);
-    await office.goto(`/series/${id}/registrations/${id}-t5`);
+    await visit(office, `/series/${id}/registrations/${id}-t5`);
     const move = seen(office, "#bracket");
     await press(move, "Change category or level").click();
     await choose(move, "Level", "Open").click();
@@ -338,49 +342,52 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
 
     // ── 7. A gym: its own teams only, in its own area ───────────────────────
     const owner = await as(gymOwner);
-    await owner.goto(`/series/${id}/check-in`);
+    await visit(owner, `/series/${id}/check-in`);
     // Sent to its own area; let that settle before going on.
     await expect(owner).toHaveURL(/\/studio(\/|$)/);
     await owner.waitForLoadState("networkidle");
-    await owner.goto(`/studio/${id}/check-in`);
+    await visit(owner, `/studio/${id}/check-in`);
     await expect(seen(owner, ".checkin-team")).toHaveCount(3);
     await expect(figures(owner)).toHaveText(["3", "3", "0", "5", "5", "0"]);
     await expect(card(owner, 3)).toHaveCount(0); // the other gym's team is not there
-    await press(card(owner, 6), "Undo team check-in").click();
-    await expect(figures(owner)).toHaveText(["3", "2", "1", "5", "4", "1"]);
-    await capture(owner, "gym-entrance");
-    await owner.goto(`/studio/${id}/warm-up`);
+    await visit(owner, `/studio/${id}/warm-up`);
     await expect(seen(owner, ".warmup-row")).toHaveCount(3);
-    await press(seen(owner, '[data-testid="warmup-team-6"]'), "Mark ready").click();
+    await press(seen(owner, '[data-testid="warmup-team-6"]'), "Warm-up check-in").click();
     await expect.poll(async () => (await row(6)).warmupReadyAt).not.toBeNull();
-    expect((await row(6)).attendedAt).toBeNull();
     // And the category / level button on its own team.
-    await owner.goto(`/studio/${id}/teams/${id}-t6`);
+    await visit(owner, `/studio/${id}/teams/${id}-t6`);
     await press(seen(owner, ".mobile-detail"), "Change category or level").click();
     await choose(seen(owner, ".bracket-change"), "Level", "Rookie").click();
     await seen(owner, ".bracket-change").getByRole("checkbox").check();
     await press(seen(owner, ".bracket-change"), "Save change").click();
     await expect.poll(async () => (await row(6)).division).toBe("Rookie");
-    // Its readiness came through the change untouched.
+    // Its readiness came through the level change untouched.
     expect((await row(6)).warmupReadyAt).not.toBeNull();
+    // Leaving the venue takes it back.
+    await visit(owner, `/studio/${id}/check-in`);
+    await owner.waitForLoadState("networkidle");
+    await press(card(owner, 6), "Check out whole team").click();
+    await expect(figures(owner)).toHaveText(["3", "2", "1", "5", "4", "1"]);
+    expect((await row(6)).warmupReadyAt).toBeNull();
+    await capture(owner, "gym-entrance");
 
     // The athlete's own page shows what the desks recorded.
-    await athlete.goto(`/me?series=${id}`);
+    await visit(athlete, `/me?series=${id}`);
     await expect(seen(athlete, ".badge").filter({ hasText: t("Checked in") }).first()).toBeVisible();
     await capture(athlete, "athlete-day");
 
     // ── 8. The cutoff: teams close 24 hours before; BFT MENA and the desk do not ─
     // Two hours to go — past the competition's 24-hour cutoff.
     await db.series.update({ where: { id }, data: { competitionDate: new Date(Date.now() + 2 * 3_600_000) } });
-    await athlete.goto(`/me?series=${id}`);
+    await visit(athlete, `/me?series=${id}`);
     await expect(seen(athlete, '#bracket [data-testid="bracket-closed"]')).toBeVisible();
     await expect(press(seen(athlete, "#bracket"), "Change category or level")).toHaveCount(0);
     await capture(athlete, "athlete-closed");
     // Her gym is on the same clock.
-    await owner.goto(`/studio/${id}/teams/${id}-t1`);
+    await visit(owner, `/studio/${id}/teams/${id}-t1`);
     await expect(seen(owner, '.mobile-detail [data-testid="bracket-closed"]')).toBeVisible();
     // The desk still can, at her request — until her team has a score.
-    await desk.goto(`/series/${id}/check-in`);
+    await visit(desk, `/series/${id}/check-in`);
     await press(card(desk, 1), "Category / level…").click();
     const late = card(desk, 1).locator(".bracket-change:visible");
     await choose(late, "Level", "Rookie").click();
@@ -390,7 +397,7 @@ test("athletes, staff and gyms at the entrance, the warm-up and the category / l
     expect((await row(1)).attendedAt).not.toBeNull();
     // The cutoff is the competition's own setting: shortened to one hour, her button is back.
     await db.series.update({ where: { id }, data: { teamEditCloseHours: 1 } });
-    await athlete.goto(`/me?series=${id}`);
+    await visit(athlete, `/me?series=${id}`);
     await expect(press(seen(athlete, "#bracket"), "Change category or level")).toBeVisible();
     await expect(seen(athlete, "#bracket").locator(".badge")).toHaveText([t("Womens"), t("Rookie")]);
   } finally {

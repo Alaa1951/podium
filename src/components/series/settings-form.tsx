@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { useT } from "@/components/i18n/locale-provider";
 import { setSeriesStatus, updateSeriesSettings } from "@/lib/actions/series";
 import { waveLengthMinutes } from "@/lib/floor";
+import { conflictMessage, PROTECTED_HINT } from "@/lib/category-schedule-messages";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import {
   BoardDisplay,
@@ -79,7 +80,11 @@ export function SettingsForm({
           setMessage(
             result.error === "SERIES_DATE_INVALID"
               ? t("That date could not be read.")
-              : t("Check the form — a required value is missing or out of range.")
+              : result.error === "PROTECTED_CONFLICT"
+                ? [t(PROTECTED_HINT), ...(("conflicts" in result && result.conflicts) || []).map((conflict) => conflictMessage(conflict, t))].join(" ")
+                : result.error === "BEYOND_CAPACITY"
+                  ? t("Some teams stand on stations past that many teams per wave. Move them first.")
+                  : t("Check the form — a required value is missing or out of range.")
           );
           return;
         }

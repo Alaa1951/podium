@@ -11,13 +11,18 @@ import { setAthleteAttendance } from "@/lib/actions/checkin";
 import { setAttendance } from "@/lib/actions/payments";
 import type { BracketFacts } from "@/lib/bracket";
 import { arrivalStatus, checkInTotals, matchesEntrance, totalsByBracket, type CheckInTeam } from "@/lib/checkin";
+import type { TeamGaps } from "@/lib/readiness";
+import { gapLines, waiverBadge } from "@/lib/readiness-messages";
 import { CATEGORIES, DIVISIONS } from "@/lib/scoring";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENTRANCE CHECK-IN — who has arrived at the venue.
 //
-// One card per team, one line per athlete: each person is checked in with
-// their own button, or the whole team at once. A team is "checked in" only
+// One card per team, one line per athlete: each person is checked in — or
+// out — with their own button, or the whole team at once. Where the
+// competition asks for a waiver, each athlete's own signature comes first:
+// the line says so, and a refused check-in names who is missing what; the
+// athlete signs on their own phone and the desk simply tries again. A team is "checked in" only
 // when everybody on it is; one of two is "partly arrived" and says who is
 // missing. The totals count teams and athletes separately and are recounted
 // from the same rows after every press. The page re-reads the server every
@@ -26,14 +31,17 @@ import { CATEGORIES, DIVISIONS } from "@/lib/scoring";
 // This screen never marks anybody ready to compete: that is the warm-up desk.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FILTER_KEYS = ["q", "category", "division", "status"] as const;
+const FILTER_KEYS = ["q", "category", "division", "status", "waiver"] as const;
 
 export function EntranceBoard({
   teams,
   canCheckIn,
   brackets,
+  waiverRequired = false,
 }: {
   teams: CheckInTeam[];
+  /** The competition asks every athlete to sign a waiver before entry. */
+  waiverRequired?: boolean;
   /** Holds entrance check-in (registrations.attendance): the buttons work. */
   canCheckIn: boolean;
   /** Per team, for staff who may change a category or level; null for everybody else. */
@@ -45,6 +53,7 @@ export function EntranceBoard({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [changing, setChanging] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<TeamGaps | null>(null);
   const [filters, setFilters] = useUrlFilters(FILTER_KEYS);
   const query = useDeferredValue(filters.q);
 
@@ -57,16 +66,19 @@ export function EntranceBoard({
 
   const totals = checkInTotals(teams);
   const visible = teams.filter((team) => matchesEntrance(team, { ...filters, q: query }));
-  const filtered = Boolean(filters.q || filters.category || filters.division || filters.status);
+  const filtered = Boolean(filters.q || filters.category || filters.division || filters.status || filters.waiver);
 
-  function run(key: string, action: () => Promise<{ ok: boolean }>) {
+  function run(key: string, action: () => Promise<{ ok: boolean; error?: string; gaps?: TeamGaps }>) {
     if (!canCheckIn) return;
     setError("");
+    setRefusal(null);
     setBusy(key);
     startTransition(async () => {
       try {
         const result = await action();
-        if (!result.ok) setError(t("Could not save. Check your connection and try again."));
+        // Refused for a reason somebody can fix: say who and what, at the team.
+        if (!result.ok && result.error === "PREREQUISITES" && result.gaps) setRefusal(result.gaps);
+        else if (!result.ok) setError(t("Could not save. Check your connection and try again."));
         router.refresh();
       } catch {
         setError(t("Could not save. Check your connection and try again."));
@@ -117,8 +129,15 @@ export function EntranceBoard({
             <option value="pending">{t("Not yet checked in")}</option>
             <option value="partial">{t("Partly arrived")}</option>
           </select>
+          {waiverRequired ? (
+            <select className="input" value={filters.waiver} onChange={(event) => setFilters({ waiver: event.target.value })} aria-label={t("Waiver")}>
+              <option value="">{t("Any waiver status")}</option>
+              <option value="signed">{t("Everybody signed")}</option>
+              <option value="pending">{t("Waiver acceptance required")}</option>
+            </select>
+          ) : null}
           {filtered ? (
-            <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", status: "" })}>
+            <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", status: "", waiver: "" })}>
               {t("Clear")}
             </button>
           ) : null}
@@ -171,28 +190,42 @@ export function EntranceBoard({
               </div>
 
               <ul className="checkin-athletes">
-                {team.athletes.map((athlete) => (
-                  <li key={athlete.id}>
-                    <span className="checkin-athlete-name">{athlete.fullName}</span>
-                    {athlete.arrived ? (
-                      <span className="badge badge-ok">{t("Arrived")}</span>
-                    ) : (
-                      <span className="badge badge-neutral">{t("Not arrived")}</span>
-                    )}
-                    {canCheckIn ? (
-                      <button
-                        type="button"
-                        className={athlete.arrived ? "btn btn-sm btn-ghost" : "btn btn-sm btn-primary"}
-                        disabled={pending}
-                        aria-busy={busy === athlete.id || undefined}
-                        onClick={() => run(athlete.id, () => setAthleteAttendance({ competitorId: athlete.id, attended: !athlete.arrived }))}
-                      >
-                        {athlete.arrived ? t("Undo") : t("Check in")}
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
+                {team.athletes.map((athlete) => {
+                  const waiver = waiverBadge(athlete.waiver);
+                  return (
+                    <li key={athlete.id} data-testid={`checkin-athlete-${athlete.id}`}>
+                      <span className="checkin-athlete-name">{athlete.fullName}</span>
+                      {athlete.arrived ? (
+                        <span className="badge badge-ok">{t("Arrived")}</span>
+                      ) : (
+                        <span className="badge badge-neutral">{t("Not arrived")}</span>
+                      )}
+                      {waiver ? <span className={`badge ${waiver.tone}`} data-testid="athlete-waiver" data-state={athlete.waiver}>{t(waiver.label)}</span> : null}
+                      {canCheckIn ? (
+                        <button
+                          type="button"
+                          className={athlete.arrived ? "btn btn-sm btn-ghost" : "btn btn-sm btn-primary"}
+                          disabled={pending}
+                          aria-busy={busy === athlete.id || undefined}
+                          onClick={() => run(athlete.id, () => setAthleteAttendance({ competitorId: athlete.id, attended: !athlete.arrived }))}
+                        >
+                          {athlete.arrived ? t("Check out") : t("Check in")}
+                        </button>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
+
+              {refusal && refusal.team.id === team.id ? (
+                <div className="notice-error checkin-refusal" role="alert" data-testid="checkin-refusal">
+                  <strong>{t("Not checked in — nobody on this team was checked in.")}</strong>
+                  <ul>
+                    {gapLines(refusal, t).map((line) => <li key={line.who}><strong>{line.who}:</strong> {line.what.join(" · ")}</li>)}
+                  </ul>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => { setRefusal(null); router.refresh(); }}>{t("Check again")}</button>
+                </div>
+              ) : null}
 
               {canCheckIn || facts ? (
                 <div className="checkin-team-actions">
@@ -203,7 +236,7 @@ export function EntranceBoard({
                   ) : null}
                   {canCheckIn && status !== "out" ? (
                     <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => run(team.id, () => setAttendance({ teamId: team.id, attended: false }))}>
-                      {t("Undo team check-in")}
+                      {t("Check out whole team")}
                     </button>
                   ) : null}
                   {facts && changing !== team.id ? (

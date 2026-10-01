@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { VerifyForm } from "@/components/auth/verify-form";
 import { getTranslator } from "@/lib/i18n/server";
+import { getOtpConfig } from "@/lib/otp";
 
 export default async function VerifyPage(props: PageProps<"/verify">) {
   const params = await props.searchParams;
@@ -18,7 +19,9 @@ export default async function VerifyPage(props: PageProps<"/verify">) {
 
   return (
     <AuthShell title={t("Verification required")}>
-      <VerifyForm email={email} callbackUrl={callbackUrl} trust={trust} />
+      {/* The sign-in that led here has just sent (or kept) a code: another
+          before the cooldown would only replace the one on its way. */}
+      <VerifyForm email={email} callbackUrl={callbackUrl} trust={trust} initialCooldown={getOtpConfig().resendCooldownSeconds} />
     </AuthShell>
   );
 }

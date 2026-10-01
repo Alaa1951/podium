@@ -8,7 +8,7 @@ import { AUDIT, recordAudit } from "@/lib/audit";
 import { finisherRemainingMs, MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
-import { can, canControlWave, isFloorAccount, waveButtons } from "@/lib/access";
+import { can, canBuildSchedule, canControlWave, waveButtons } from "@/lib/access";
 import { formatQatarDayKey } from "@/lib/qatar-time";
 import { getCurrentUser, requireAccess } from "@/lib/session";
 import { ScheduleError, scheduledTime, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
@@ -16,10 +16,18 @@ import { scheduleTransaction, waveRowFor } from "@/lib/wave-schedule-db";
 import { deletionGuard } from "@/lib/series-guard";
 import type { Prisma } from "@/generated/prisma/client";
 import { fillFinisherTimes, waveLengthFor } from "@/lib/wave-clock";
+import { isScheduled, loadBlocks } from "@/lib/category-schedule-db";
+import type { TeamGaps } from "@/lib/readiness";
+import { waveStartBlockers } from "@/lib/wave-start-check";
+import { protectedIn, ProtectedWaveError } from "@/lib/wave-protection";
+
+const protectedResult = (error: unknown): ActionResult | null =>
+  error instanceof ProtectedWaveError ? { ok: false, error: error.message, teams: error.teams } : null;
 
 export type ActionResult =
   | { ok: true; message?: string }
-  | { ok: false; error: string; freeInMs?: number; teams?: number[] };
+  /** NOT_READY: `blockers` lists what is missing, by team and athlete (readiness.ts). */
+  | { ok: false; error: string; freeInMs?: number; teams?: number[]; blockers?: TeamGaps[] };
 
 // ── Waves ────────────────────────────────────────────────────────────────────
 // A wave is a row, not a number on the event. The supervisor presses START
@@ -55,10 +63,11 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
     can(actor, "judgeSheet.view") &&
     (await prisma.zoneStaff.count({ where: { seriesId: found.seriesId, userId: actor.id, position: "leader" } })) > 0;
   if (!canControlWave(actor, parsed.data.action, leadsAZone)) return { ok: false, error: "FORBIDDEN" };
-  const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data, actor.role === "admin"));
+  // Fresh reads: the readiness check must see what it waited for (wave-schedule-db.ts).
+  const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data, actor.role === "admin"), { freshReads: true });
   if (!result.ok) return result;
   await recordAudit({ actorId: actor.id, action: AUDIT.waveControlled, targetType: "event", targetId: found.seriesId,
-    detail: "wave=" + parsed.data.waveId + " action=" + parsed.data.action });
+    detail: "wave=" + parsed.data.waveId + " action=" + parsed.data.action + (result.message ? " " + result.message : "") });
   revalidateCompetitionViews();
   return { ok: true };
 }
@@ -81,6 +90,10 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
         const incomplete = wave.teams.filter(team => isCompeting(team) && team._count.competitors < 2).map(team => team.number);
         if (incomplete.length) return { ok: false, error: "INCOMPLETE_TEAM", teams: incomplete };
       }
+      // Every athlete of every team: registered, signed, at the venue, and
+      // the team ready for THIS wave. No bypass, for anybody.
+      const blockers = await waveStartBlockers(tx, wave.id, wave.seriesId);
+      if (blockers.length) return { ok: false, error: "NOT_READY", blockers };
       const timing = { workMinutes: wave.series.zoneWorkMinutes, breakMinutes: wave.series.zoneBreakMinutes,
         zoneCount: await tx.zone.count({ where: { seriesId: wave.seriesId } }) };
       if (!timing.zoneCount) return { ok: false, error: "NO_ZONES" };
@@ -89,7 +102,7 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
       if (freeAt) return { ok: false, error: "ZONE_OCCUPIED", freeInMs: freeAt.getTime() - now.getTime() };
       const minutes = waveLengthFor(timing);
       await tx.wave.update({ where: { id: wave.id }, data: { status: "running", durationMinutes: minutes, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000) } });
-      break;
+      return { ok: true, message: `(wave ${wave.number}, ${wave.teams.length} teams, every athlete signed, checked in and ready)` };
     }
     case "finish": {
       // A finished competition's floor is history: its results stand on it.
@@ -175,6 +188,8 @@ const waveSaveSchema = z.object({
   waveId: z.string().min(1).optional(),
   number: z.coerce.number().int().min(1).max(99),
   startTime: z.string().regex(TIME_PATTERN).optional(),
+  /** The person confirmed changing a wave that holds teams running manually. */
+  confirmProtected: z.coerce.boolean().default(false),
 });
 
 /**
@@ -185,10 +200,10 @@ const waveSaveSchema = z.object({
  */
 export async function saveWave(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !canBuildSchedule(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = waveSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { seriesId, waveId, number, startTime } = parsed.data;
+  const { seriesId, waveId, number, startTime, confirmProtected } = parsed.data;
   try {
     await scheduleTransaction(seriesId, async (tx) => {
       const series = await tx.series.findUnique({ where: { id: seriesId } });
@@ -201,6 +216,11 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
         if (!wave) throw new ScheduleError("NOT_FOUND");
         if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
         if (!startTime) throw new ScheduleError("INVALID_INPUT");
+        // A wave holding teams running manually moves them with it: only on purpose.
+        if ((wave.number !== number || wave.startTime !== startTime) && !confirmProtected) {
+          const held = await protectedIn(tx, [wave.id]);
+          if (held.length) throw new ProtectedWaveError("PROTECTED_WAVE", held);
+        }
         await tx.wave.update({ where: { id: wave.id }, data: { number, startTime } });
         await tx.team.updateMany({ where: { waveId: wave.id }, data: { wave: number } });
       } else {
@@ -208,16 +228,16 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
         if (startTime) await tx.wave.update({ where: { id: wave.id }, data: { startTime } });
       }
     });
-  } catch (error) { return scheduleError(error); }
+  } catch (error) { return protectedResult(error) ?? scheduleError(error); }
   await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: seriesId,
-    detail: "wave=" + number + (startTime ? " start=" + startTime : " created") });
+    detail: "wave=" + number + (startTime ? " start=" + startTime : " created") + (confirmProtected ? " (holds teams running manually — confirmed)" : "") });
   revalidateCompetitionViews();
   return { ok: true };
 }
 
 export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !canBuildSchedule(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ seriesId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const { seriesId } = parsed.data;
@@ -227,10 +247,14 @@ export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
       if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
       const waves = await tx.wave.findMany({ where: { seriesId }, orderBy: { number: "asc" } });
       if (series.status !== "scheduled" || waves.some(w => w.status !== "pending")) throw new ScheduleError("WAVE_STARTED");
+      // With a category schedule, times come from each category's block: Auto Assign lays them out.
+      if (isScheduled(await loadBlocks(tx, seriesId))) throw new ScheduleError("CATEGORY_SCHEDULE_ACTIVE");
+      const held = await protectedIn(tx, waves.map(w => w.id));
+      if (held.length) throw new ProtectedWaveError("PROTECTED_CONFLICT", held);
       const times = waves.map((wave, index) => ({ id: wave.id, startTime: scheduledTime(series.firstWaveTime, series.waveIntervalMinutes, index) }));
       for (const time of times) await tx.wave.update({ where: { id: time.id }, data: { startTime: time.startTime } });
     });
-  } catch (error) { return scheduleError(error); }
+  } catch (error) { return protectedResult(error) ?? scheduleError(error); }
   await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: seriesId, detail: "arranged estimated starts" });
   revalidateCompetitionViews();
   return { ok: true };
@@ -242,7 +266,7 @@ export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
  */
 export async function deleteWave(input: unknown): Promise<ActionResult> {
   const actor = await requireAccess("waves.edit");
-  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !canBuildSchedule(actor)) return { ok: false, error: "FORBIDDEN" };
   const parsed = z.object({ waveId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const found = await prisma.wave.findUnique({ where: { id: parsed.data.waveId }, select: { seriesId: true } });
@@ -254,10 +278,13 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
       if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
       const guard = deletionGuard(wave.series.status);
       if (!guard.allowed) throw new ScheduleError(guard.reason);
+      // Removing a wave would take a protected team off the running order: resolve it first.
+      const held = await protectedIn(tx, [wave.id]);
+      if (held.length) throw new ProtectedWaveError("PROTECTED_CONFLICT", held);
       await tx.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null, station: null } });
       await tx.wave.delete({ where: { id: wave.id } });
     });
-  } catch (error) { return scheduleError(error); }
+  } catch (error) { return protectedResult(error) ?? scheduleError(error); }
   await recordAudit({ actorId: actor.id, action: AUDIT.waveScheduleChanged, targetType: "event", targetId: found.seriesId,
     detail: "wave=" + parsed.data.waveId + " deleted" });
   revalidateCompetitionViews();

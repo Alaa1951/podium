@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { getDevicePayload } from "@/lib/device-client";
+import { codeErrorMessage } from "@/lib/otp-messages";
 
 // One form for everyone. The role is never chosen here — the server reads it
 // from the account, so this screen cannot be used to probe who is an admin.
@@ -74,8 +75,9 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         );
         return;
       }
-      if (authError.includes("TOO_MANY_ATTEMPTS")) {
-        setError(t("Too many attempts. Try again shortly."));
+      if (authError.startsWith("TOO_MANY_ATTEMPTS")) {
+        // The server says how long the refusal lasts ("TOO_MANY_ATTEMPTS:<seconds>").
+        setError(codeErrorMessage(authError, t));
         return;
       }
       if (authError) {

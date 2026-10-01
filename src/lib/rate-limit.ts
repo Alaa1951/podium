@@ -40,6 +40,44 @@ export function checkRate(key: string, limit: number, windowMs: number): RateRes
   return { ok: true };
 }
 
+// ── Cooldowns ───────────────────────────────────────────────────────────────
+// "Not again before …": the gap between two sign-in codes to one address.
+// Keyed by the address alone and started for known and unknown addresses
+// alike, so whether one is waiting says nothing about whether it has an
+// account. Same single-process caveat as the buckets above.
+
+const cooldowns: Map<string, number> = (() => {
+  const g = globalThis as unknown as { __pdCooldowns?: Map<string, number> };
+  if (!g.__pdCooldowns) g.__pdCooldowns = new Map();
+  return g.__pdCooldowns;
+})();
+
+/** Seconds left before `key` may act again; 0 when it may. */
+export function cooldownLeft(key: string): number {
+  const until = cooldowns.get(key);
+  if (until === undefined) return 0;
+  const left = until - Date.now();
+  if (left <= 0) {
+    cooldowns.delete(key);
+    return 0;
+  }
+  return Math.ceil(left / 1000);
+}
+
+/** End the gap for `key` now. */
+export function endCooldown(key: string): void {
+  cooldowns.delete(key);
+}
+
+/** Start (or restart) the gap for `key`. */
+export function startCooldown(key: string, ms: number): void {
+  cooldowns.set(key, Date.now() + ms);
+  if (cooldowns.size > 5000) {
+    const now = Date.now();
+    for (const [k, until] of cooldowns) if (until <= now) cooldowns.delete(k);
+  }
+}
+
 const DEFAULT_WINDOW_MS = 15 * MINUTE_MS;
 const DEFAULT_LIMIT = 10;
 

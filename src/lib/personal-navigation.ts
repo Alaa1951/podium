@@ -22,6 +22,9 @@ export function personalNavItems(role: string, homeHref?: string): PersonalNavIt
     return [
       { href: "/me", label: "My team" },
       { href: "/my-wave", label: "My wave" },
+      // Every athlete signs their own (waivers.ts); a staff account that also
+      // competes reaches the same page from the prompt above every screen.
+      { href: "/waivers", label: "Waiver Declarations" },
       { href: "/results", label: "Results" },
       { href: "/account", label: "Account" },
     ];
@@ -90,10 +93,12 @@ export function screenTitle(path: string): string | undefined {
     "/my-wave": "My wave",
     "/account": "Account",
     "/notifications": "Notifications",
+    "/waivers": "Waiver Declarations",
   };
   if (known[path]) return known[path];
   if (path.startsWith("/studio/announcements")) return "Announcements";
   if (path.startsWith("/my-wave/")) return "My wave";
+  if (path.startsWith("/waivers/receipt/")) return "Waiver receipt";
   return undefined;
 }
 

@@ -31,7 +31,7 @@ function team(number: number, arrived: boolean[], over: Partial<CheckInTeam> = {
     station: null,
     competing: true,
     ready: false,
-    athletes: arrived.map((here, index) => ({ id: `a${++seat}`, fullName: `Athlete ${number}-${index + 1}`, arrived: here })),
+    athletes: arrived.map((here, index) => ({ id: `a${++seat}`, fullName: `Athlete ${number}-${index + 1}`, arrived: here, waiver: "not_required" as const })),
     ...over,
   };
 }

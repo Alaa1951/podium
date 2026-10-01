@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { StartBlockers } from "@/components/floor/start-blockers";
 import { controlWave } from "@/lib/actions/waves";
+import type { TeamGaps } from "@/lib/readiness";
 import {
   stationSlots,
   waveLengthMinutes,
@@ -77,6 +79,7 @@ export function WaveFloor({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [blocked, setBlocked] = useState<{ waveId: string; blockers: TeamGaps[] } | null>(null);
   // The wall clock lives in state so every render is pure; the first render
   // (server and browser alike) shows placeholders.
   const [now, setNow] = useState<number | null>(null);
@@ -115,10 +118,12 @@ export function WaveFloor({
     if (action === "finish" && !window.confirm(t("End this wave now? Teams not stopped keep the time left on the clock."))) return;
     if (action === "reset" && !window.confirm(t("Put this wave back to not started? Scores already entered are kept."))) return;
     setError("");
+    setBlocked(null);
     startTransition(async () => {
       try {
         const result = await controlWave({ waveId, action });
-        if (!result.ok) {
+        if (!result.ok && result.error === "NOT_READY" && result.blockers) setBlocked({ waveId, blockers: result.blockers });
+        else if (!result.ok) {
           setError(
             result.error === "ZONE_OCCUPIED"
               ? t("Zone 1 is still busy — free in {time}.", { time: clock(result.freeInMs ?? 0) })
@@ -146,6 +151,9 @@ export function WaveFloor({
         <div className="notice-error" role="alert" style={{ marginBottom: 12 }}>
           {error}
         </div>
+      ) : null}
+      {blocked ? (
+        <StartBlockers waveId={blocked.waveId} waveNumber={waves.find((wave) => wave.id === blocked.waveId)?.number ?? 0} blockers={blocked.blockers} onClose={() => setBlocked(null)} />
       ) : null}
 
       <section className="card" style={{ marginBottom: 16 }}>

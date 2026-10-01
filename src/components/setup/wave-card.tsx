@@ -1,10 +1,10 @@
 "use client";
 
 import { BlueprintCard } from "@/components/app/page-shell";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
-import { Field, TeamRow, type SetupTeam } from "@/components/setup/wave-board-parts";
+import { Field, TeamRow, type SetupTeam, type TeamPlacement } from "@/components/setup/wave-board-parts";
 import { waveWindowLabel, type WaveState } from "@/lib/waves";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,16 +18,19 @@ import { waveWindowLabel, type WaveState } from "@/lib/waves";
 
 type TeamGridProps = {
   teams: SetupTeam[];
-  /** The wave's capacity — how many stations its team rows may offer. */
-  stations: number;
-  pickable: number[];
+  /** Where each team runs against where its category runs. */
+  placement: (team: SetupTeam) => TeamPlacement;
+  /** waves.placeTeams: Move, and Return to Auto Assign. */
+  canPlace: boolean;
   pending: boolean;
   /** Whether the studio chips may be pressed (registrations.edit). */
   canEditTeams: boolean;
   studioName: (studioId: string | null) => string;
-  onMove: (teamId: string, wave: number) => void;
+  onMove: (team: SetupTeam) => void;
+  onRelease: (team: SetupTeam) => void;
   onCycle: (competitorId: string, current: string | null) => void;
-  onStation?: (teamId: string, station: number) => void;
+  /** The move or return panel open under a team, if any. */
+  panelFor: (team: SetupTeam) => ReactNode;
 };
 
 function TeamGrid(props: TeamGridProps) {
@@ -37,14 +40,15 @@ function TeamGrid(props: TeamGridProps) {
         <TeamRow
           key={team.id}
           team={team}
-          stations={props.stations}
-          pickable={props.pickable}
+          placement={props.placement(team)}
+          canPlace={props.canPlace}
           pending={props.pending}
           canEditTeams={props.canEditTeams}
           studioName={props.studioName}
           onMove={props.onMove}
+          onRelease={props.onRelease}
           onCycle={props.onCycle}
-          onStation={props.onStation}
+          panel={props.panelFor(team)}
         />
       ))}
     </div>
@@ -61,7 +65,10 @@ export function WaveCard({
   onRemove,
   onSaveSettings,
   grid,
+  scheduled = false,
 }: {
+  /** A category schedule exists: a wave outside it says so. */
+  scheduled?: boolean;
   wave: WaveState;
   inWave: SetupTeam[];
   isAdmin: boolean;
@@ -70,7 +77,7 @@ export function WaveCard({
   onToggleSettings: () => void;
   onRemove: () => void;
   onSaveSettings: (wave: WaveState, form: FormData) => void;
-  grid: Omit<TeamGridProps, "teams" | "stations">;
+  grid: Omit<TeamGridProps, "teams">;
 }) {
   const t = useT();
 
@@ -95,6 +102,11 @@ export function WaveCard({
         </div>
 
         <span className={`badge ${status.tone}`}>{status.label}</span>
+        {wave.blockCategory ? (
+          <span className="badge badge-cyan" data-testid="wave-block">{t("{category} block", { category: t(wave.blockCategory) })}</span>
+        ) : scheduled ? (
+          <span className="badge badge-neutral" data-testid="wave-block">{t("No category block")}</span>
+        ) : null}
 
         <div className="pd-num wave-card-window">
           {window.start} – {window.end} · {wave.durationMinutes} {t("min")}
@@ -151,25 +163,18 @@ export function WaveCard({
         </div>
       ) : null}
 
-      <TeamGrid {...grid} teams={inWave} stations={wave.capacity} />
+      <TeamGrid {...grid} teams={inWave} />
     </BlueprintCard>
   );
 }
 
 export function OrphanCard({
   inWave,
-  stations,
   grid,
 }: {
   number: number;
   inWave: SetupTeam[];
-  /**
-   * The COMPETITION's capacity. These teams point at a wave that does not
-   * exist, so there is no wave capacity to read — and the wave somebody
-   * eventually creates for them will be built with this number.
-   */
-  stations: number;
-  grid: Omit<TeamGridProps, "teams" | "stations">;
+  grid: Omit<TeamGridProps, "teams">;
 }) {
   const t = useT();
 
@@ -189,7 +194,7 @@ export function OrphanCard({
         </div>
       </div>
 
-      <TeamGrid {...grid} teams={inWave} stations={stations} />
+      <TeamGrid {...grid} teams={inWave} />
     </BlueprintCard>
   );
 }

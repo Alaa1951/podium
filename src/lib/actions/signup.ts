@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { sendAlreadyRegisteredEmail, sendOtpEmail } from "@/lib/email";
-import { createOtpChallenge, getOtpConfig } from "@/lib/otp";
+import { codeGapLeft, createOtpChallenge, getOtpConfig, startCodeGap } from "@/lib/otp";
 import { prisma } from "@/lib/prisma";
 import { competitionChoices } from "@/lib/competition-choice";
 import { listOpenSignupSeries } from "@/lib/queries";
@@ -33,7 +33,12 @@ import {
 // pointing at sign-in instead of a code.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SignupResult = { ok: true } | { ok: false; error: string };
+/**
+ * `resendIn`: seconds before "send the code again" may be pressed — a code
+ * went out just now, or one did less than a minute ago and is still the one
+ * to type. `retryAfter`: how long a refusal lasts.
+ */
+export type SignupResult = { ok: true; resendIn?: number } | { ok: false; error: string; retryAfter?: number };
 
 const ORGANISER_KINDS = ["organiser", "judge", "volunteer", "coach", "gym-studio"] as const;
 
@@ -126,7 +131,13 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   // one Wi-Fi must not be throttled as one person.
   const perEmail = checkRate(`signup:email:${email}`, 5, 15 * MINUTE_MS);
   const perIp = checkRate(`signup:ip:${ip ?? "unknown"}`, 40, 15 * MINUTE_MS);
-  if (!perEmail.ok || !perIp.ok) return { ok: false, error: "TOO_MANY" };
+  if (!perEmail.ok) return { ok: false, error: "TOO_MANY", retryAfter: perEmail.retryAfter };
+  if (!perIp.ok) return { ok: false, error: "TOO_MANY", retryAfter: perIp.retryAfter };
+  // A code (or the "already registered" email) went to this address less
+  // than a minute ago: it is still the one to use — the details are saved,
+  // no second code races the first. Known or not, the answer is the same.
+  const gap = codeGapLeft(email);
+  const { resendCooldownSeconds } = getOtpConfig();
 
   // An ATHLETE may leave the password empty: the emailed code is a complete
   // way in, now and later (/athlete), and a password can be created any time
@@ -172,6 +183,8 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   // here too would leave them no way in at all.
   const unfinished = existing && existing.signupType && existing.status === "invited";
   if (existing && !unfinished) {
+    if (gap) return { ok: true, resendIn: gap };
+    startCodeGap(email);
     try {
       await sendAlreadyRegisteredEmail({
         email,
@@ -180,7 +193,7 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
     } catch {
       // Same reply either way.
     }
-    return { ok: true };
+    return { ok: true, resendIn: resendCooldownSeconds };
   }
 
   const athlete = data.type === "athlete";
@@ -249,13 +262,14 @@ export async function startSignup(input: unknown): Promise<SignupResult> {
   }
 
   // The code is a sign-in code: typing it in proves the address and signs in.
+  if (gap) return { ok: true, resendIn: gap };
   const { code } = await createOtpChallenge({ userId: user.id, purpose: "login", sentTo: email, ip });
   try {
     await sendOtpEmail({ email, code, ttlMinutes: getOtpConfig().ttlMinutes });
   } catch {
     return { ok: false, error: "EMAIL_SEND_FAILED" };
   }
-  return { ok: true };
+  return { ok: true, resendIn: resendCooldownSeconds };
 }
 
 /** Send the sign-up code again, for an account still finishing its sign-up. */
@@ -263,8 +277,12 @@ export async function resendSignupCode(input: unknown): Promise<SignupResult> {
   const parsed = z.object({ email: z.string().trim().max(200) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
   const email = normalizeEmail(parsed.data.email);
+  // Before the allowance: pressing again while the last code is on its way
+  // costs nothing, and replaces nothing.
+  const gap = codeGapLeft(email);
+  if (gap) return { ok: false, error: "RESEND_COOLDOWN", retryAfter: gap };
   const rate = checkRate(`signup-resend:${email}`, 3, 15 * MINUTE_MS);
-  if (!rate.ok) return { ok: false, error: "TOO_MANY" };
+  if (!rate.ok) return { ok: false, error: "TOO_MANY", retryAfter: rate.retryAfter };
 
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, status: true, signupType: true } });
   if (user?.signupType && user.status === "invited") {
@@ -274,6 +292,8 @@ export async function resendSignupCode(input: unknown): Promise<SignupResult> {
     } catch {
       return { ok: false, error: "EMAIL_SEND_FAILED" };
     }
+  } else {
+    startCodeGap(email);
   }
-  return { ok: true };
+  return { ok: true, resendIn: getOtpConfig().resendCooldownSeconds };
 }

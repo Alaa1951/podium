@@ -36,7 +36,7 @@ export default async function CheckInPage(props: SeriesScreenProps, area: DeskAr
   const { user, series } = await requireDesk(props.params, area, canSeeEntranceCheckIn);
   const { t } = await getTranslator();
 
-  const { teams } = await loadCheckIn(series.id, user);
+  const { teams, waiverRequired } = await loadCheckIn(series.id, user);
   const mayAssist = !user.viewAs && canAssistBracketChange(user);
   const brackets = mayAssist ? await loadBracketFacts(teams.map((team) => team.id), user, "staff") : null;
   const base = area === "studio" ? `/studio/${series.slug}` : `/series/${series.slug}`;
@@ -67,7 +67,7 @@ export default async function CheckInPage(props: SeriesScreenProps, area: DeskAr
         </div>
       ) : null}
 
-      <EntranceBoard teams={teams} canCheckIn={!user.viewAs && canCheckInEntrance(user)} brackets={brackets} />
+      <EntranceBoard teams={teams} canCheckIn={!user.viewAs && canCheckInEntrance(user)} brackets={brackets} waiverRequired={waiverRequired} />
     </div>
   );
 }

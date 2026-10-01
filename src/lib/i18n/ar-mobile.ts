@@ -174,6 +174,7 @@ export const AR_MOBILE: Phrases = {
   "Your PODIUM": "مشاركتك في PODIUM", "Your pair": "أعضاء فريقك", "What you did": "نتيجتك بالتفصيل", "Placing": "الترتيب",
   "See the full results": "عرض النتائج كاملة", "of": "من", "after the results": "بعد ظهور النتائج", "not scored yet": "لم تُسجّل النتيجة بعد",
   "not yet assigned": "لم تُحدّد الموجة بعد", "No entry found for you yet.": "لا يوجد تسجيل باسمك بعد.",
+  "Your email is on a registration in this competition, but more than one team uses it. Each team needs its registrant's own email — contact BFT MENA.": "بريدك مسجّل في هذه المسابقة، لكن أكثر من فريق يستخدمه. يحتاج كل فريق إلى البريد الخاص بمن سجّله — تواصل مع BFT MENA.",
   "Your studio registers your pair. It appears here as soon as they do.": "يسجّل استوديوك فريقك، وسيظهر هنا فور التسجيل.",
   "Your entry could not be found. Ask your studio to check it.": "تعذّر العثور على تسجيلك. اطلب من استوديوك مراجعته.",
   "Pairs appear here once they have registered and paid through the entry form.": "تظهر الفرق هنا بعد التسجيل والدفع من نموذج التسجيل.",

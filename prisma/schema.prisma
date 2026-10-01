@@ -656,9 +656,41 @@ model Series {
   partnerRequests PartnerRequest[]
   waveChangeRequests WaveChangeRequest[]
   crmRegistrationMerges CrmRegistrationMerge[]
+  /// When each category runs: its start and the break after it. No rows
+  /// until somebody sets it — a start time is never invented.
+  categorySchedule CategorySchedule[]
+  /// The waiver each athlete must sign for THIS competition (src/lib/waivers).
+  /// None attached: no waiver is required here.
+  waiverReleases   WaiverRelease[]
+  attendanceEvents AttendanceEvent[]
 
   @@index([status])
   @@index([competitionDate])
+}
+
+/// ONE CATEGORY'S BLOCK OF THE DAY (src/lib/category-schedule.ts).
+///
+/// Men, Mixed and Women each run in a block of their own: from `startTime`
+/// until their last wave finishes, then at least `breakMinutes` for awards and
+/// preparation before the next category may start. The start is a fixed
+/// constraint — auto-assignment never moves it, shortens the break, or spills
+/// a category's teams into another block; a schedule that does not fit is a
+/// conflict for a person to resolve.
+model CategorySchedule {
+  id           String   @id @default(cuid())
+  seriesId     String
+  series       Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  category     Category
+  /// 1, 2, 3 — the running order of the blocks (Men, Mixed, Women by default).
+  position     Int
+  /// "HH:mm", Qatar wall time on the competition's day — the same convention
+  /// as Wave.startTime and Series.firstWaveTime.
+  startTime    String
+  /// The minimum break after this category's last wave FINISHES.
+  breakMinutes Int
+  updatedAt    DateTime @updatedAt
+
+  @@unique([seriesId, category])
 }
 
 /// One account's participation in one competition, including before a team exists.
@@ -842,6 +874,11 @@ model Wave {
   capacity        Int    @default(9)
 
   status    WaveStatus @default(pending)
+  /// The category block this wave runs in (CategorySchedule), set by
+  /// auto-assignment. A team of another category standing in it is a
+  /// SCHEDULING EXCEPTION — it still competes in its own category. Null for a
+  /// wave built by hand or before a category schedule existed.
+  blockCategory Category?
   /// Set when an operator presses START; the clock counts from here.
   startedAt DateTime?
   endsAt    DateTime?
@@ -955,8 +992,12 @@ model Team {
   attendedAt    DateTime?
   /// READY TO COMPETE — the warm-up check-in, a different fact from arriving
   /// at the venue and never written by it. Set by whoever runs the warm-up
-  /// area once the pair's preparation is complete; cleared only by them.
+  /// area once the pair's preparation is complete; cleared by them, by an
+  /// entrance check-out, and by a change of who is on the team.
   warmupReadyAt DateTime?
+  /// The wave that readiness was given for. Ready counts only while the team
+  /// is still in THAT wave: a team moved to another wave warms up for it again.
+  warmupWaveId  String?
 
   /// Kept as a plain number so a team always has a wave, even before the
   /// schedule is built; `waveId` is the link once it is.
@@ -965,6 +1006,11 @@ model Team {
   waveRef Wave?   @relation(fields: [waveId], references: [id], onDelete: SetNull)
   /// The station (1–9) this team stands on in every zone of its wave.
   station Int?
+  /// RUNNING MANUALLY: staff placed this team in its wave and station by hand
+  /// (or approved a time change). Auto-assignment keeps a protected team in
+  /// exactly that slot and counts its station as taken. Cleared only by
+  /// "Return to Auto Assign", or when the team leaves the field.
+  slotManualAt DateTime?
 
   // The studio that registered the team — the scope key for studio accounts.
   studioId String?
@@ -1526,4 +1572,130 @@ model MembershipOperation {
 
   @@index([teamId])
   @@index([actorId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WAIVER DECLARATIONS (src/lib/waivers).
+//
+// A RELEASE is one version of one competition's waiver; its EDITIONS are the
+// same release in English and Arabic, each stored exactly as presented, with
+// the SHA-256 of that exact text. An ACCEPTANCE is one athlete signing one
+// edition: insert-only, never updated, never inferred. Nothing in the app
+// writes an acceptance except the athlete's own "Agree & Sign".
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum WaiverLanguage {
+  en
+  ar
+}
+
+enum WaiverReleaseStatus {
+  /// The version athletes must sign now. One per competition at a time.
+  active
+  /// Replaced by a later version: kept, with every acceptance of it.
+  retired
+}
+
+model WaiverRelease {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  /// 1, 2, … within the competition. A new version is a new row.
+  version     Int
+  /// The bundled document it was made from (src/lib/waivers/documents).
+  documentKey String @db.VarChar(100)
+  status      WaiverReleaseStatus @default(active)
+  activatedAt DateTime @default(now())
+  activatedById String?
+  retiredAt   DateTime?
+
+  editions    WaiverEdition[]
+  acceptances WaiverAcceptance[]
+
+  @@unique([seriesId, version])
+  @@index([seriesId, status])
+}
+
+model WaiverEdition {
+  id        String @id @default(cuid())
+  releaseId String
+  release   WaiverRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  language  WaiverLanguage
+  /// The document exactly as shown to the athlete, serialised once.
+  content     String @db.LongText
+  /// SHA-256 (hex) of `content`, byte for byte.
+  contentHash String @db.Char(64)
+  /// The checkbox sentence of this edition, word for word.
+  acknowledgement String @db.Text
+  createdAt DateTime @default(now())
+
+  acceptances WaiverAcceptance[]
+
+  @@unique([releaseId, language])
+}
+
+model WaiverAcceptance {
+  id        String @id @default(cuid())
+  releaseId String
+  release   WaiverRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  /// The edition presented and signed — its language and exact content.
+  editionId String
+  edition   WaiverEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  seriesId  String
+  /// Who signed: the athlete's own account (the session, never the request).
+  userId    String
+  /// The registration as it stood when signed: a snapshot, not a link that
+  /// changes later. Validity follows the account, never the seat, so a
+  /// replacement on the seat is never covered by somebody else's signature.
+  teamId       String
+  competitorId String
+  typedName       String @db.VarChar(200)
+  acknowledgement String @db.Text
+  language        WaiverLanguage
+  contentHash     String @db.Char(64)
+  /// The team's category and level when it was signed — a record only: the
+  /// signature covers the athlete whatever category or level follows.
+  category        Category
+  division        Division
+  signatureMethod String @default("typed_name") @db.VarChar(32)
+  /// Server time. Never supplied by the browser.
+  acceptedAt DateTime @default(now())
+  /// release · account: the same signature twice is one row.
+  dedupeKey String @unique @db.VarChar(191)
+
+  @@index([seriesId, userId])
+  @@index([releaseId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTENDANCE HISTORY — every entrance and warm-up check-in and check-out,
+// as it happened. The current state stays on the rows it always lived on
+// (Competitor.attendedAt, Team.attendedAt, Team.warmupReadyAt); this is the
+// record of how it got there, and it is only ever added to.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AttendanceKind {
+  entrance_in
+  entrance_out
+  warmup_in
+  warmup_out
+}
+
+model AttendanceEvent {
+  id       String @id @default(cuid())
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  teamId   String
+  /// The athlete, for an entrance event; null for the team's warm-up.
+  competitorId String?
+  /// The wave a warm-up event was for.
+  waveId  String?
+  kind    AttendanceKind
+  /// Who pressed it; null for a change the system made (a move, a new member).
+  actorId String?
+  reason  String? @db.VarChar(191)
+  at      DateTime @default(now())
+
+  @@index([seriesId, at])
+  @@index([teamId, at])
 }

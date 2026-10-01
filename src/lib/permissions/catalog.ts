@@ -229,6 +229,18 @@ export const CATALOG = {
           warmup: act("Mark teams ready in warm-up", "تأكيد جاهزية الفرق في الإحماء"),
         },
       },
+      // The waiver each athlete signs (src/lib/waivers). Whether an athlete
+      // has signed is shown on both check-in desks to whoever works them; this
+      // is the rest — attaching a version to a competition, and reading the
+      // signed records themselves. Nobody signs for an athlete, whatever
+      // they hold.
+      waivers: {
+        label: "Waivers",
+        labelAr: "الإقرارات",
+        actions: {
+          manage: act("Attach waiver versions and read signed records", "إرفاق إصدارات الإقرار والاطلاع على السجلات الموقّعة", "bftOnly"),
+        },
+      },
       // How many T-shirts of each size, and who wears which. Also open to
       // anyone who can see the entry list (a gym sees its own).
       shirts: {

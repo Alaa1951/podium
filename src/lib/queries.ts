@@ -31,7 +31,9 @@ const teamInclude = {
   score: {
     include: {
       entries: { select: { inputId: true, value: true } },
-      zones: { where: { status: "submitted" }, select: { zoneId: true } },
+      // Submitted now, or once — a zone unlocked for correction keeps the
+      // time it was first submitted, and stays on the board (board-score.ts).
+      zones: { select: { zoneId: true, status: true, submittedAt: true } },
     },
   },
 } as const;
@@ -77,6 +79,8 @@ export type TeamRow = {
   waveId: string | null;
   /** The station (1–9) this team stands on in every zone of its wave. */
   station: number | null;
+  /** Running manually: placed by hand, kept where it is by Auto Assign. */
+  slotManualAt?: Date | null;
   studioId: string | null;
   studioName: string | null;
   scoreEdits: number;
@@ -104,13 +108,18 @@ export type TeamRow = {
   zones: { id: string; number: number; name: string; points: number }[];
   /** Zones whose judge has submitted them — locked. */
   lockedZones: string[];
+  /**
+   * Zones submitted at some point: the locked ones, and any unlocked since
+   * for correction. What the board shows, with the values as they stand.
+   */
+  publishedZones: string[];
   submitted: boolean;
   total: number;
 };
 
 type TeamWithRelations = Awaited<ReturnType<typeof loadTeams>>[number];
 type RosterWithRelations = Awaited<ReturnType<typeof loadRoster>>[number];
-export type RosterRow = Omit<TeamRow, "values" | "zones" | "total" | "lockedZones">;
+export type RosterRow = Omit<TeamRow, "values" | "zones" | "total" | "lockedZones" | "publishedZones">;
 
 function loadRoster(args: Parameters<typeof prisma.team.findMany>[0]) {
   return prisma.team.findMany({ ...args, include: rosterInclude });
@@ -130,6 +139,7 @@ function toRosterRow(team: RosterWithRelations): RosterRow {
     wave: team.wave,
     waveId: team.waveId,
     station: team.station,
+    slotManualAt: team.slotManualAt,
     studioId: team.studioId,
     studioName: team.studio?.name ?? null,
     scoreEdits: team.scoreEdits,
@@ -172,7 +182,8 @@ function toTeamRow(team: TeamWithRelations, zones: ZoneDef[]): TeamRow {
     ...toRosterRow(team),
     values,
     zones: zoneBreakdown(zones, values),
-    lockedZones: team.score?.zones.map((zone) => zone.zoneId) ?? [],
+    lockedZones: team.score?.zones.filter((zone) => zone.status === "submitted").map((zone) => zone.zoneId) ?? [],
+    publishedZones: team.score?.zones.filter((zone) => zone.status === "submitted" || zone.submittedAt !== null).map((zone) => zone.zoneId) ?? [],
     total: totalPoints(zones, values),
   };
 }

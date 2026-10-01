@@ -42,6 +42,8 @@ export type StudioTeamRow = {
     email: string | null;
     dateOfBirth: string;
     studioId: string | null;
+    /** The seat has a PODIUM account: its email is the one they sign in with. */
+    linked?: boolean;
   }[];
 };
 

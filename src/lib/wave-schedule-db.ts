@@ -5,12 +5,19 @@ import { ScheduleError, scheduledTime } from "@/lib/wave-schedule";
 
 /** All schedule writers use the same lock order. The wave locks also protect
  * against a clock transition while checking whether a move is still allowed. */
-export function scheduleTransaction<T>(seriesId: string, work: (tx: Prisma.TransactionClient) => Promise<T>) {
+/**
+ * `freshReads`: run at READ COMMITTED, so a read made after a lock was
+ * waited for returns what the other side committed — not the snapshot this
+ * transaction opened before it waited (REPEATABLE READ's). Starting a wave
+ * needs that: it locks the wave's teams and seats and must then read the
+ * check-out, move or new member it waited for (wave-start-check.ts).
+ */
+export function scheduleTransaction<T>(seriesId: string, work: (tx: Prisma.TransactionClient) => Promise<T>, options: { freshReads?: boolean } = {}) {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM Series WHERE id = ${seriesId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM Wave WHERE seriesId = ${seriesId} ORDER BY id FOR UPDATE`;
     return work(tx);
-  }, { timeout: 30_000 });
+  }, { timeout: 30_000, ...(options.freshReads ? { isolationLevel: "ReadCommitted" as const } : {}) });
 }
 
 export async function waveRowFor(tx: Prisma.TransactionClient, seriesId: string, number: number) {

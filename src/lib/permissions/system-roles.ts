@@ -1,16 +1,24 @@
 // Relative imports with extensions: the seed script loads this file with plain
 // Node (type stripping), which knows nothing of the "@/" alias.
 import type { Role } from "../../generated/prisma/enums.ts";
-import { ALL_PERMISSION_KEYS, policyOf, type PermissionKey } from "./catalog.ts";
+import type { PermissionKey } from "./catalog.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE ROLES PODIUM SHIPS WITH.
 //
 // These are only the STARTING point. Each one is seeded as a row
 // (AccessRole, isSystem) and from then on BFT MENA edits it on the Roles screen
-// like any other — the row wins. The definitions here are used to create a
-// missing row, and as a fallback if a system row is somehow absent, so a fresh
-// database still behaves sensibly.
+// like any other — the row ALWAYS wins. The definitions here are used to
+// create a missing row (ensure-system-roles.ts never updates an existing one),
+// and as a fallback if a system row is somehow absent.
+//
+// KEPT IN SYNC WITH THE LIVE ROLES SCREEN, as of 2026-09-30: the permission
+// lists below are the live rows' own, so a fresh database, or a recreated row,
+// starts as the roles are really used — not thinner. permissions.test.ts pins
+// them to a snapshot: a difference from live is a review decision, not drift.
+// BFT MENA's own custom roles (e.g. "Limited admin") are theirs and are not
+// shipped. The names, descriptions, assigners, account types and order could
+// not be read from live here and are unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type AccountType = Role;
@@ -26,14 +34,6 @@ export type SystemRoleDef = {
   sortOrder: number;
   permissions: PermissionKey[];
 };
-
-/** Every storable `view` key — the starting point for BFT MENA Partial access. */
-const VIEW_ALL: PermissionKey[] = ALL_PERMISSION_KEYS.filter((key) => {
-  const policy = policyOf(key);
-  if (policy !== "role" && policy !== "bftOnly") return false;
-  // Personal screens belong to athletes and judges, not to HQ staff.
-  return key.endsWith(".view") && !["athleteHome.view", "partner.view", "judgeSheet.view"].includes(key);
-});
 
 /**
  * The desk work of the day, held by every shipped STAFF role except Judge and
@@ -59,7 +59,64 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     assignableBy: "bft",
     accountTypes: ["staff"],
     sortOrder: 10,
-    permissions: [...new Set([...VIEW_ALL, ...DESK_WORK])],
+    // No longer "every view key plus the desks": BFT MENA grew it on the Roles
+    // screen into the office's working set — registrations end to end, money,
+    // users and roles, settings, score entry — so it is listed as live has it.
+    permissions: [
+      "announcements.send",
+      "approvals.decide",
+      "approvals.view",
+      "athleteHome.editTeam",
+      "athleteHome.view",
+      "audit.view",
+      "checkIn.view",
+      "checkIn.warmup",
+      "competitionStudios.edit",
+      "competitions.create",
+      "competitions.view",
+      "dashboard.view",
+      "judgeSheet.view",
+      "overview.view",
+      "partner.browse",
+      "partner.edit",
+      "partner.request",
+      "partner.view",
+      "registrations.archive",
+      "registrations.attendance",
+      "registrations.bracket",
+      "registrations.create",
+      "registrations.edit",
+      "registrations.export",
+      "registrations.pair",
+      "registrations.partners",
+      "registrations.payment",
+      "registrations.view",
+      "registrations.waitlist",
+      "results.publish",
+      "results.view",
+      "roles.edit",
+      "roles.view",
+      "scores.enter",
+      "scores.view",
+      "settings.edit",
+      "settings.view",
+      "sponsors.edit",
+      "studios.create",
+      "studios.edit",
+      "studios.view",
+      "users.assignRoles",
+      "users.delete",
+      "users.disable",
+      "users.edit",
+      "users.invite",
+      "users.overrides",
+      "users.view",
+      "waveControl.control",
+      "waveControl.view",
+      "waves.view",
+      "zoneStaff.assign",
+      "zoneStaff.view",
+    ],
   },
   {
     key: "gym-studio",
@@ -107,25 +164,42 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     assignableBy: "bft",
     accountTypes: ["organiser", "staff"],
     sortOrder: 30,
+    // As live: the floor, plus team edits (create, edit, pair) and the two
+    // money keys. Payment and the waiting list are BFT-only keys, so an
+    // organiser-TYPE account never holds them whatever this lists (resolve.ts
+    // › withinCeiling); a staff account given this role does. The desk work
+    // (DESK_WORK) is among them.
     permissions: [
-      "overview.view",
+      "approvals.view",
+      "checkIn.view",
+      "checkIn.warmup",
       "competitionStudios.view",
-      "registrations.view",
-      "registrations.export",
-      "registrations.partners",
-      ...DESK_WORK,
-      "waves.view",
-      "waves.placeTeams",
-      "waves.edit",
-      "waveControl.view",
-      "waveControl.control",
+      "competitions.view",
+      "dashboard.view",
       "marshalling.view",
-      "shirts.view",
-      "zoneStaff.view",
-      "zoneStaff.assign",
-      "scores.view",
+      "overview.view",
+      "registrations.attendance",
+      "registrations.bracket",
+      "registrations.create",
+      "registrations.edit",
+      "registrations.export",
+      "registrations.pair",
+      "registrations.partners",
+      "registrations.payment",
+      "registrations.view",
+      "registrations.waitlist",
       "results.view",
+      "scores.view",
       "settings.view",
+      "shirts.view",
+      "studios.view",
+      "waveControl.control",
+      "waveControl.view",
+      "waves.edit",
+      "waves.placeTeams",
+      "waves.view",
+      "zoneStaff.assign",
+      "zoneStaff.view",
     ],
   },
   {
@@ -137,7 +211,16 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     assignableBy: "bft_studio",
     accountTypes: ["organiser", "studio", "staff"],
     sortOrder: 40,
-    permissions: ["judgeSheet.view", "scores.enter"],
+    // As live: the sheet and score entry, and reading what the floor shows
+    // them — the waves, Wave control, the zone teams and the scores.
+    permissions: [
+      "judgeSheet.view",
+      "scores.enter",
+      "scores.view",
+      "waveControl.view",
+      "waves.view",
+      "zoneStaff.view",
+    ],
   },
   {
     key: "volunteer",

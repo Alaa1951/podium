@@ -81,7 +81,8 @@ export async function changeBracket(db: PrismaClient, actor: BracketActor, input
         where,
         select: {
           id: true, seriesId: true, number: true, name: true, category: true, division: true, archivedAt: true, waveId: true,
-          waveRef: { select: { status: true } },
+          station: true, slotManualAt: true,
+          waveRef: { select: { status: true, blockCategory: true } },
           score: { select: { id: true } },
           series: { select: { status: true, archivedAt: true, competitionDate: true, teamEditCloseHours: true } },
           competitors: { select: { userId: true, user: { select: { athleteProfile: { select: { sex: true } } } } } },
@@ -104,6 +105,11 @@ export async function changeBracket(db: PrismaClient, actor: BracketActor, input
 
       const level = levelBlock(team.division, input.division, isBft(actor));
       if (level) throw new Refused(level);
+      // A team placed by hand in a category block keeps its slot through a
+      // change of category only when it moves INTO that block's category:
+      // anything else would quietly turn it into an exception.
+      const block = team.waveRef?.status === "pending" && team.slotManualAt && team.station !== null ? team.waveRef.blockCategory : null;
+      if (block && input.category !== team.category && input.category !== block) throw new Refused("PROTECTED_SLOT");
       if (input.category !== team.category) {
         const category = categoryBlock(input.category, team.competitors.map((seat) => seat.user?.athleteProfile?.sex ?? null));
         if (category) throw new Refused(category);

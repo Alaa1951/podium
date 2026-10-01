@@ -30,6 +30,7 @@ function wave(
     capacity,
     durationMinutes: 30,
     startTime: "09:00",
+    blockCategory: null,
     remainingMs: null,
     endsAt: null,
     stoppedRemainingMs: null,
@@ -54,6 +55,7 @@ function team(number: number, waveNumber: number, station: number | null): Board
     groupPortrait: null,
     studioName: "Studio A",
     submitted: false,
+    scored: false,
     zones: [],
     total: 0,
   };

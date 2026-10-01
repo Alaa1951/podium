@@ -348,14 +348,14 @@ describe.skipIf(!enabled)("team membership on a real database", { timeout: 60_00
 
   // ── Staff edits are corrections, never disguised swaps ────────────────────
 
-  it("a registration edit cannot change a signed-in seat's email, or put a different person in a seat", async () => {
+  it("below Full access, a registration edit cannot change a signed-in seat's email, or put a different person in a seat", async () => {
     const form = (monaPart: object) => ({
       teamId: "t1", teamName: "FALCONS", category: "Womens" as const, division: "Open" as const,
       one: { id: "seat-mona", fullName: "Mona Saleh", email: "mona@example.com", phone: null, dateOfBirth: null, studioId: null, ...monaPart },
       two: { id: "seat-sara", fullName: "Sara Ali", email: "sara@example.com", phone: null, dateOfBirth: null, studioId: null },
     });
-    expect(await editRegistration(prisma, staff, form({ email: "mona.new@example.com" }))).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
-    expect(await editRegistration(prisma, staff, form({ fullName: "Nour Hassan", email: "nour@example.com" }))).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
+    expect(await editRegistration(prisma, desk, form({ email: "mona.new@example.com" }))).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
+    expect(await editRegistration(prisma, desk, form({ fullName: "Nour Hassan", email: "nour@example.com" }))).toEqual({ ok: false, error: "LINKED_SEAT_EMAIL" });
     expect(await seat("seat-mona")).toMatchObject({ userId: "u-mona", email: "mona@example.com" });
 
     // A name correction is fine, audited, and does not move the version.
@@ -363,6 +363,28 @@ describe.skipIf(!enabled)("team membership on a real database", { timeout: 60_00
     expect(await teamRow()).toMatchObject({ membershipVersion: 0 });
     expect(await participant("u-sara")).toMatchObject({ partnerName: "Mona A. Saleh" });
     expect(await prisma.adminAuditLog.count({ where: { action: "registration.updated" } })).toBe(1);
+  });
+
+  it("Full access corrects a signed-in athlete's email and name — the same athlete, their sign-in email with it", async () => {
+    const form = (saraPart: object, over: object = {}) => ({
+      teamId: "t1", teamName: "FALCONS", category: "Womens" as const, division: "Open" as const,
+      one: { id: "seat-mona", fullName: "Mona Saleh", email: "mona@example.com", phone: null, dateOfBirth: null, studioId: null },
+      two: { id: "seat-sara", fullName: "Sara Ali", email: "sara@example.com", phone: null, dateOfBirth: null, studioId: null, ...saraPart },
+      ...over,
+    });
+    // Only on the tick; another account's address never; nothing written until then.
+    expect(await editRegistration(prisma, staff, form({ email: "sara.ali@example.com" }))).toEqual({ ok: false, error: "CONFIRM_ACCOUNT_EMAIL" });
+    expect(await editRegistration(prisma, staff, form({ email: "mona@example.com" }, { confirmAccountEmail: true }))).toEqual({ ok: false, error: "ALREADY_ENTERED" });
+    await prisma.user.create({ data: { id: "u-else", email: "else@example.com", name: "Else", role: "competitor", status: "active" } });
+    expect(await editRegistration(prisma, staff, form({ email: "else@example.com" }, { confirmAccountEmail: true }))).toEqual({ ok: false, error: "ACCOUNT_EMAIL_TAKEN" });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: "u-sara" } })).toMatchObject({ email: "sara@example.com" });
+
+    // Corrected: the same account, seat, registrant and version; the old proof spent.
+    expect(await editRegistration(prisma, staff, form({ email: "Sara.Ali@example.com", fullName: "Sara M. Ali" }, { confirmAccountEmail: true }))).toEqual({ ok: true });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: "u-sara" } })).toMatchObject({ email: "sara.ali@example.com", name: "Sara M. Ali", verifiedEmail: null });
+    expect(await seat("seat-sara")).toMatchObject({ userId: "u-sara", email: "sara.ali@example.com", fullName: "Sara M. Ali" });
+    expect(await teamRow()).toMatchObject({ membershipVersion: 0, registrantUserId: "u-sara", registrantEmail: "sara.ali@example.com" });
+    expect(await prisma.adminAuditLog.count({ where: { action: "account.updated", targetId: "u-sara" } })).toBe(1);
   });
 
   // ── D3a: the 24-hour cutoff, on real rows ─────────────────────────────────
@@ -399,12 +421,15 @@ describe.skipIf(!enabled)("team membership on a real database", { timeout: 60_00
       const wave = await prisma.wave.create({ data: { seriesId: "s1", number: 1, status: "running", startedAt: new Date() } });
       await prisma.team.update({ where: { id: "t1" }, data: { waveId: wave.id } });
     }, "WAVE_STARTED"],
-  ])("even Full access cannot add a seat or change a seat's person %s — a name fix still goes through", async (_label, setUp, error) => {
+  ])("nobody adds a seat %s, and below Full access nobody changes a seat's email — Full access corrects one; a name fix goes through", async (_label, setUp, error) => {
     // Mona leaves the seat free first (a one-seat team), then the barrier.
     await prisma.competitor.update({ where: { id: "seat-mona" }, data: { userId: null } });
     await setUp();
-    // Changing the unclaimed seat's email = a different person.
-    expect(await editRegistration(prisma, staff, editForm({ email: "nour@example.com" }))).toEqual({ ok: false, error });
+    // Below Full access, the unclaimed seat's new email = a different person.
+    expect(await editRegistration(prisma, desk, editForm({ email: "nour@example.com" }))).toEqual({ ok: false, error });
+    // Full access corrects the same athlete's address: nothing about the seat is cleared.
+    expect(await editRegistration(prisma, staff, editForm({ email: "mona.s@example.com" }))).toEqual({ ok: true });
+    expect(await seat("seat-mona")).toMatchObject({ email: "mona.s@example.com", fullName: "Mona Saleh" });
     // Adding a seat to a one-seat team.
     await prisma.competitor.delete({ where: { id: "seat-mona" } });
     const add = { ...editForm({}), one: { id: "seat-sara", fullName: "Sara Ali", email: "sara@example.com", phone: null, dateOfBirth: null, studioId: null }, two: { fullName: "Nour Hassan", email: "nour@example.com", phone: null, dateOfBirth: null, studioId: null } };

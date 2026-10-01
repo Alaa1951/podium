@@ -26,11 +26,14 @@ export function StudioTeamEditor({
   studios,
   onDone,
   canChooseDivision = false,
+  canCorrectIdentity = false,
 }: {
   row: StudioTeamRow;
   studios: { id: string; name: string }[];
   onDone: () => void;
   canChooseDivision?: boolean;
+  /** BFT MENA Full access: an email here corrects the same athlete (staff-membership.ts). */
+  canCorrectIdentity?: boolean;
 }) {
   const t = useT();
   const [pending, startTransition] = useTransition();
@@ -41,6 +44,9 @@ export function StudioTeamEditor({
   const [division, setDivision] = useState(row.division);
   const [saved, setSaved] = useState(false);
   const [people, setPeople] = useState(row.people);
+  const [confirmAccount, setConfirmAccount] = useState(false);
+  // A signed-in athlete's email is the one they sign in with: changing it is said out loud.
+  const accountEmailChanged = canCorrectIdentity && people.some((p, index) => row.people[index]?.linked && sameEmail(p.email) !== sameEmail(row.people[index].email));
   useUnsavedChanges(!saved && (name !== row.name || category !== row.category || division !== row.division || JSON.stringify(people) !== JSON.stringify(row.people)));
 
   function person(index: number, patch: Partial<StudioTeamRow["people"][number]>) {
@@ -61,6 +67,7 @@ export function StudioTeamEditor({
           // person is sent, and the server creates one only when added here.
           ...(people[1] ? { two: toPerson(people[1]) } : {}),
           ...(row.version !== undefined ? { expectedVersion: row.version } : {}),
+          ...(accountEmailChanged && confirmAccount ? { confirmAccountEmail: true } : {}),
         });
 
         if (!result.ok) {
@@ -73,6 +80,14 @@ export function StudioTeamEditor({
                   ? t("The email of the person who registered the team is changed by BFT MENA.")
                   : result.error === "PERSON_CHANGED"
                     ? t("A new name and a new email is a different person. Use Swap on that person's page to put someone else in the team.")
+                    : result.error === "CONFIRM_ACCOUNT_EMAIL"
+                      ? t("Tick the box to confirm the athlete's sign-in email changes.")
+                    : result.error === "ACCOUNT_EMAIL_TAKEN"
+                      ? t("Another PODIUM account already uses that email. To put that account in the team, use Swap on the athlete's page.")
+                    : result.error === "OWN_ACCOUNT"
+                      ? t("You cannot change your own sign-in email here. Another Full access account can.")
+                    : result.error === "EMAIL_INVALID"
+                      ? t("Check the fields — a name is missing or an email is not valid.")
                     : result.error === "LINKED_SEAT_EMAIL"
                       ? t("This person signs in with that email. Change it on their account (Users), or use Swap to put someone else in the team.")
                       : result.error === "TEAM_EDIT_CLOSED"
@@ -112,6 +127,11 @@ export function StudioTeamEditor({
       ) : row.closesAt ? (
         <p className="field-note" style={{ marginTop: 0 }}>
           {t("Team changes close on {when} (Qatar time). After that, only BFT MENA Full access can change the team.", { when: row.closesAt })}
+        </p>
+      ) : null}
+      {canCorrectIdentity ? (
+        <p className="field-note" style={{ marginTop: 0 }}>
+          {t("Correcting a name or an email keeps the same athlete — their account, waiver and check-in stay. To put someone else in the team, use Swap on the athlete's page.")}
         </p>
       ) : null}
       <div className="form-grid">
@@ -163,6 +183,9 @@ export function StudioTeamEditor({
                 value={p.email ?? ""}
                 onChange={(e) => person(index, { email: e.target.value })}
               />
+              {canCorrectIdentity && p.linked ? (
+                <span className="field-note" data-testid="account-email-note">{t("Has a PODIUM account: a corrected email becomes the one they sign in with.")}</span>
+              ) : null}
             </label>
             <label>
               <span className="field-label">{t("Phone")}</span>
@@ -214,6 +237,13 @@ export function StudioTeamEditor({
         </div>
       ) : null}
 
+      {accountEmailChanged ? (
+        <label className="checkline" style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
+          <input type="checkbox" checked={confirmAccount} onChange={(e) => setConfirmAccount(e.target.checked)} data-testid="confirm-account-email" />
+          <span>{t("Same athlete: I confirm their sign-in email changes to the new one. Codes and links sent to the old email stop working.")}</span>
+        </label>
+      ) : null}
+
       {error ? (
         <div className="notice-error" role="alert" style={{ marginTop: 12 }}>
           {error}
@@ -221,7 +251,7 @@ export function StudioTeamEditor({
       ) : null}
 
       <div className="mobile-action-bar" style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button type="button" className="btn btn-primary" disabled={pending || Boolean(row.closed)} onClick={save}>
+        <button type="button" className="btn btn-primary" disabled={pending || Boolean(row.closed) || (accountEmailChanged && !confirmAccount)} onClick={save}>
           {pending ? <span className="spinner" /> : null}
           {t("Save changes")}
         </button>
@@ -232,6 +262,8 @@ export function StudioTeamEditor({
     </div>
   );
 }
+
+const sameEmail = (email: string | null | undefined) => (email ?? "").trim().toLowerCase();
 
 /** The shape the registration action's person schema expects. */
 const toPerson = (p: StudioTeamRow["people"][number]) => ({

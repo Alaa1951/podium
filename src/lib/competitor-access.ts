@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { unambiguousSeats } from "@/lib/link-seats";
+import { payerSeatsToClaim } from "@/lib/link-seats";
 import { isCompeting } from "@/lib/team-status";
 import { createOtpChallenge } from "@/lib/otp";
 import { normalizeEmail } from "@/lib/security";
@@ -41,6 +41,7 @@ export async function findRegistrations(rawEmail: string) {
       id: true,
       fullName: true,
       userId: true,
+      position: true,
       team: {
         select: {
           id: true,
@@ -96,8 +97,11 @@ export async function issueCompetitorCode(rawEmail: string): Promise<CodeRequest
   // made, the holder of another seat is pointed at Sign up, which creates
   // their account waiting for approval and links the seat once the address
   // is proven — visible with its true state, approving nothing.
+  // Which seats the address stands for is link-seats.ts's rule, so a code
+  // goes out exactly when the typed code will link a seat: the payer whose
+  // address is on both seats of their team comes in; one spanning teams does not.
   const registrations = await findRegistrations(email);
-  const paid = unambiguousSeats(registrations).filter((one) => !one.team.series.isTraining && isCompeting(one.team));
+  const paid = payerSeatsToClaim(registrations).filter((one) => !one.team.series.isTraining && isCompeting(one.team));
   if (paid.length === 0) return registrations.length > 0 ? { ok: false, signup: true } : { ok: false };
 
   const account = await prisma.user.create({

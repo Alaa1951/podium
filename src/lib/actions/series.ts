@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { scheduleTransaction } from "@/lib/wave-schedule-db";
+import { touchesProtected, type ScheduleConflict } from "@/lib/category-schedule";
+import { isScheduled, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
 import { ScheduleError, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
@@ -22,7 +24,7 @@ import { DEFAULT_ZONES } from "@/lib/zones";
 // scores its own teams, but never touches the schedule.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
+export type ActionResult = { ok: true; message?: string } | { ok: false; error: string; conflicts?: ScheduleConflict[] };
 
 /** "PODIUM Series 4" → "podium-series-4". Stable, readable, URL-safe. */
 function slugify(name: string) {
@@ -173,6 +175,15 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
   try {
     await scheduleTransaction(seriesId, async tx => {
       if (await tx.team.count({ where: { seriesId, waveRef: { status: "pending" }, station: { gt: data.waveCapacity } } })) throw new ScheduleError("BEYOND_CAPACITY");
+      // New timing must still fit every team running manually in its category block.
+      const context = await loadScheduleContext(tx, seriesId, {
+        capacity: data.waveCapacity, waveIntervalMinutes: data.waveIntervalMinutes,
+        zoneWorkMinutes: data.zoneWorkMinutes, zoneBreakMinutes: data.zoneBreakMinutes,
+      });
+      if (isScheduled(context.blocks)) {
+        const blocking = planFor(context).conflicts.filter(touchesProtected);
+        if (blocking.length) throw new ScheduleConflictError("PROTECTED_CONFLICT", blocking);
+      }
       await tx.series.update({
         where: { id: seriesId },
         data: {
@@ -209,7 +220,10 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
       });
 
     });
-  } catch (error) { return scheduleError(error); }
+  } catch (error) {
+    if (error instanceof ScheduleConflictError) return { ok: false, error: error.code, conflicts: error.conflicts };
+    return scheduleError(error);
+  }
 
   await recordAudit({
     actorId: actor.id,

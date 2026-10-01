@@ -12,6 +12,10 @@ import { getSeriesZones } from "@/lib/queries";
 import { formatQatarForInput } from "@/lib/qatar-time";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { can, requireConsoleAccess } from "@/lib/session";
+import { canBuildSchedule, isBft } from "@/lib/access";
+import { CategoryScheduleForm } from "@/components/schedule/category-schedule-form";
+import { WaiverSettings } from "@/components/waivers/waiver-settings";
+import { loadScheduleView } from "@/lib/schedule-view";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +31,11 @@ const forInput = formatQatarForInput;
  */
 export default async function SettingsPage(props: SeriesScreenProps, zoneId?: string, zoneEdit = false) {
   const user = await requireConsoleAccess(zoneEdit ? "settings.edit" : "settings.view");
-  const { t } = await getTranslator();
+  const { t, locale } = await getTranslator();
 
   const { series } = await requireSeries(props.params);
 
-  const [zones, recorded, sponsors] = await Promise.all([
+  const [zones, recorded, sponsors, schedule] = await Promise.all([
     getSeriesZones(series.id),
     prisma.zoneEntry.count({
       where: { input: { zone: { seriesId: series.id } }, value: { not: null } },
@@ -41,6 +45,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
       orderBy: { position: "asc" },
       select: { id: true, alt: true, position: true },
     }),
+    loadScheduleView(series.id),
   ]);
 
   if(zoneId && zoneId !== "new" && zoneId !== "list" && !zones.some(zone => zone.id === zoneId)) notFound();
@@ -86,6 +91,22 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
         zoneCount={zones.length}
         readOnly={!can(user, "settings.edit") || !!user.viewAs}
       />
+
+      {/* Its own save: it is the running order's (waves.edit), not Settings' (settings.edit). */}
+      <div id="category-schedule" style={{ marginTop: 34 }}>
+        <CategoryScheduleForm
+          seriesId={series.id}
+          dayLabel={new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", { timeZone: "Asia/Qatar", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(series.competitionDate)}
+          initial={schedule.blocks}
+          timing={schedule.timing}
+          teams={schedule.teams}
+          fixed={schedule.fixed}
+          canEdit={!user.viewAs && canBuildSchedule(user) && series.status !== "final"}
+        />
+      </div>
+
+      {/* The waiver this competition requires, and its signed records: BFT MENA's. */}
+      {!user.viewAs && isBft(user) && can(user, "waivers.manage") ? <WaiverSettings series={series} /> : null}
 
       <h2 className="section-title" style={{ marginTop: 34 }}>
         {t("Scoring")}

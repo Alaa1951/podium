@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { checkRate, limitAuthAttempt, MINUTE_MS, NETWORK_LIMITS } from "@/lib/rate-limit";
+import { checkRate, cooldownLeft, limitAuthAttempt, MINUTE_MS, NETWORK_LIMITS, startCooldown } from "@/lib/rate-limit";
 
 let counter = 0;
 const uniqueScope = () => `test-scope-${counter++}-${Math.random().toString(36).slice(2)}`;
@@ -154,5 +154,30 @@ describe("many athletes behind one network (a gym's Wi-Fi, the venue)", () => {
     const scope = uniqueScope();
     for (let n = 0; n < 3; n += 1) expect(limitAuthAttempt({ scope, ip: "203.0.113.60", identifier: `x${n}@example.com`, limit: 3 }).ok).toBe(true);
     expect(limitAuthAttempt({ scope, ip: "203.0.113.60", identifier: "x9@example.com", limit: 3 }).ok).toBe(false);
+  });
+});
+
+describe("cooldowns — the gap between two codes to one address", () => {
+  it("counts down from when it started, and ends", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-30T10:00:00Z"));
+    const key = uniqueScope();
+    expect(cooldownLeft(key)).toBe(0);
+    startCooldown(key, 60_000);
+    expect(cooldownLeft(key)).toBe(60);
+    vi.advanceTimersByTime(45_500);
+    expect(cooldownLeft(key)).toBe(15);
+    vi.advanceTimersByTime(14_500);
+    expect(cooldownLeft(key)).toBe(0);
+  });
+
+  it("asking while it runs does not extend it — only starting it again does", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-30T10:00:00Z"));
+    const key = uniqueScope();
+    startCooldown(key, 60_000);
+    vi.advanceTimersByTime(30_000);
+    for (let i = 0; i < 5; i++) cooldownLeft(key);
+    expect(cooldownLeft(key)).toBe(30);
   });
 });

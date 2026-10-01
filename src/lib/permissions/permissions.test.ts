@@ -110,12 +110,69 @@ describe("the shipped roles", () => {
     expect(systemRole("organiser")!.assignableBy).toBe("bft");
   });
 
-  it("keep organisers out of team edits and score entry", () => {
+  it("keep organisers out of score entry, and an organiser account away from money whatever the role lists", () => {
     const organiser = systemRole("organiser")!.permissions;
-    expect(organiser).not.toContain("registrations.edit");
-    expect(organiser).not.toContain("registrations.create");
     expect(organiser).not.toContain("scores.enter");
-    expect(organiser).toEqual(expect.arrayContaining(["waveControl.control", "zoneStaff.assign", "scores.view"]));
+    expect(organiser).toEqual(expect.arrayContaining(["waveControl.control", "zoneStaff.assign", "scores.view", "registrations.edit"]));
+    // As live, the role lists payment and the waiting list — BFT-only keys the
+    // organiser account type never holds (the ceiling); a staff account does.
+    const asOrganiser = resolveEffectivePermissions(inputs({ accountType: "organiser", roles: [role("Organiser", organiser)] }));
+    expect(asOrganiser).not.toContain("registrations.payment");
+    expect(asOrganiser).not.toContain("registrations.waitlist");
+    expect(asOrganiser).toContain("registrations.edit");
+    const asStaff = resolveEffectivePermissions(inputs({ accountType: "staff", roles: [role("Organiser", organiser)] }));
+    expect(asStaff).toEqual(expect.arrayContaining(["registrations.payment", "registrations.waitlist"]));
+  });
+
+  it("match the live Roles screen (2026-09-30), key for key — a change here is a review decision", () => {
+    // The live rows win in a running database; this snapshot is what a fresh
+    // or recreated row starts from. Change it only together with live.
+    const shipped = Object.fromEntries(SYSTEM_ROLES.map((def) => [def.key, [...def.permissions].sort()]));
+    expect(shipped).toEqual({
+      "bft-partial": [
+        "announcements.send", "approvals.decide", "approvals.view", "athleteHome.editTeam", "athleteHome.view",
+        "audit.view", "checkIn.view", "checkIn.warmup", "competitionStudios.edit", "competitions.create",
+        "competitions.view", "dashboard.view", "judgeSheet.view", "overview.view", "partner.browse", "partner.edit",
+        "partner.request", "partner.view", "registrations.archive", "registrations.attendance",
+        "registrations.bracket", "registrations.create", "registrations.edit", "registrations.export",
+        "registrations.pair", "registrations.partners", "registrations.payment", "registrations.view",
+        "registrations.waitlist", "results.publish", "results.view", "roles.edit", "roles.view", "scores.enter",
+        "scores.view", "settings.edit", "settings.view", "sponsors.edit", "studios.create", "studios.edit",
+        "studios.view", "users.assignRoles", "users.delete", "users.disable", "users.edit", "users.invite",
+        "users.overrides", "users.view", "waveControl.control", "waveControl.view", "waves.view", "zoneStaff.assign",
+        "zoneStaff.view",
+      ],
+      "gym-studio": [
+        "announcements.send", "approvals.decide", "approvals.view", "checkIn.view", "checkIn.warmup",
+        "registrations.archive", "registrations.attendance", "registrations.bracket", "registrations.create",
+        "registrations.edit", "registrations.export", "registrations.pair", "registrations.partners",
+        "registrations.view", "results.view", "scores.view", "users.assignRoles", "users.delete", "users.disable",
+        "users.invite", "users.view", "waves.placeTeams", "waves.view",
+      ],
+      organiser: [
+        "approvals.view", "checkIn.view", "checkIn.warmup", "competitionStudios.view", "competitions.view",
+        "dashboard.view", "marshalling.view", "overview.view", "registrations.attendance", "registrations.bracket",
+        "registrations.create", "registrations.edit", "registrations.export", "registrations.pair",
+        "registrations.partners", "registrations.payment", "registrations.view", "registrations.waitlist",
+        "results.view", "scores.view", "settings.view", "shirts.view", "studios.view", "waveControl.control",
+        "waveControl.view", "waves.edit", "waves.placeTeams", "waves.view", "zoneStaff.assign", "zoneStaff.view",
+      ],
+      judge: [
+        "judgeSheet.view", "scores.enter", "scores.view", "waveControl.view", "waves.view", "zoneStaff.view",
+      ],
+      volunteer: [
+        "checkIn.view", "checkIn.warmup", "marshalling.view", "registrations.attendance", "registrations.bracket",
+        "waves.view",
+      ],
+      coach: [
+        "results.view", "waves.view",
+      ],
+      athlete: [
+        "athleteHome.editTeam", "athleteHome.view", "partner.browse", "partner.edit", "partner.request",
+        "partner.view",
+      ],
+    });
+    for (const def of SYSTEM_ROLES) expect(new Set(def.permissions).size).toBe(def.permissions.length);
   });
 
   it("keep studios out of score entry", () => {

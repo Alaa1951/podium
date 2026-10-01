@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { syncTeamArrival } from "@/lib/checkin-db";
+import { clearReadiness, syncTeamArrival } from "@/lib/checkin-db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DERIVED RELATIONS FOLLOW THE TEAM'S CURRENT MEMBERS.
@@ -116,4 +116,7 @@ export async function syncAfterMembershipChange(
   // "The whole team has arrived" is derived from its seats too: a seat that
   // was added, emptied or given to somebody else changes the answer.
   await syncTeamArrival(db, change.teamId);
+  // Ready to compete was said of the people who were on it: whoever is on it
+  // now goes through warm-up again (and signs their own waiver first).
+  await clearReadiness(db, { id: change.teamId, seriesId: change.seriesId }, null, "team membership changed");
 }

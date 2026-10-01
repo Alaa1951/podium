@@ -173,9 +173,14 @@ html[data-mobile="true"] .zone-list { grid-template-columns: minmax(0,1fr) !impo
 html[data-mobile="true"] .zone-card { min-width: 0; }
 html[data-mobile="true"] .zone-card-head { flex-wrap: wrap; }
 
-html[data-mobile="true"] .setup-team-row { grid-template-columns: 32px minmax(0,1fr) !important; }
-html[data-mobile="true"] .setup-team-row > select { grid-column: 2; width: 100% !important; }
-html[data-mobile="true"] .setup-team-row > div > div:first-child { white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; }
+html[data-mobile="true"] .setup-team-main { grid-template-columns: 32px minmax(0,1fr) !important; }
+html[data-mobile="true"] .setup-team-actions { grid-column: 1 / -1; flex-direction: row !important; flex-wrap: wrap; }
+html[data-mobile="true"] .setup-team-actions > * { flex: 1 1 140px; }
+html[data-mobile="true"] .setup-team-locked { grid-column: 1 / -1; max-width: none; }
+html[data-mobile="true"] .setup-team-name { white-space: normal !important; overflow: visible !important; overflow-wrap: anywhere; }
+html[data-mobile="true"] .category-schedule-row { grid-template-columns: 28px minmax(0,1fr) !important; }
+html[data-mobile="true"] .category-schedule-row > label, html[data-mobile="true"] .category-schedule-move { grid-column: 1 / -1; }
+html[data-mobile="true"] .move-panel-fields { grid-template-columns: minmax(0,1fr) !important; }
 html[data-mobile="true"] .mobile-only.mobile-list { display: grid; gap:12px; }
 
 html[data-mobile="true"] .wave-card-teams { grid-template-columns: minmax(0,1fr) !important; }

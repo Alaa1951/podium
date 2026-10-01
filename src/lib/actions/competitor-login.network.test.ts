@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({ issue: vi.fn(), sendOtp: vi.fn() }));
 
 vi.mock("@/lib/competitor-access", () => ({ issueCompetitorCode: mocks.issue }));
 vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendSignUpPointerEmail: vi.fn() }));
-vi.mock("@/lib/otp", () => ({ createOtpChallenge: vi.fn(), getOtpConfig: () => ({ ttlMinutes: 10 }) }));
+// No code went to any address a moment ago (otp-flow.integration.test.ts covers the gap).
+vi.mock("@/lib/otp", () => ({ createOtpChallenge: vi.fn(), getOtpConfig: () => ({ ttlMinutes: 10 }), codeGapLeft: () => 0, startCodeGap: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/session", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/security", () => ({ getBaseUrl: () => "https://podium.test", getIpFromHeaders: (h: Headers) => h.get("x-forwarded-for") }));
@@ -38,7 +39,7 @@ describe("athletes on one network", () => {
     state.ip = "198.51.100.23";
     const sara = `sara-${run}@example.com`;
     for (let n = 0; n < 5; n += 1) expect(await requestCompetitorCode({ email: sara })).toEqual({ ok: true });
-    expect(await requestCompetitorCode({ email: sara })).toEqual({ ok: false, error: "TOO_MANY" });
+    expect(await requestCompetitorCode({ email: sara })).toMatchObject({ ok: false, error: "TOO_MANY", retryAfter: expect.any(Number) });
     expect(await requestCompetitorCode({ email: `mona-${run}@example.com` })).toEqual({ ok: true });
     expect(mocks.sendOtp).toHaveBeenCalledTimes(6);
   });

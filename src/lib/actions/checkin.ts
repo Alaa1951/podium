@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { setAthleteArrival, setWarmupReady, type CheckInOutcome } from "@/lib/checkin-db";
 import { prisma } from "@/lib/prisma";
+import type { TeamGaps } from "@/lib/readiness";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { getCurrentUser } from "@/lib/session";
 
@@ -24,7 +25,8 @@ import { getCurrentUser } from "@/lib/session";
 
 export type CheckInActionResult =
   | { ok: true }
-  | { ok: false; error: "UNAUTHENTICATED" | "FORBIDDEN" | "INVALID_INPUT" | "NOT_FOUND" | "SERIES_FINISHED" };
+  /** PREREQUISITES: `gaps` names what is missing, by athlete (readiness.ts). */
+  | { ok: false; error: "UNAUTHENTICATED" | "FORBIDDEN" | "INVALID_INPUT" | "NOT_FOUND" | "SERIES_FINISHED" | "PREREQUISITES"; gaps?: TeamGaps };
 
 async function finish(
   actorId: string,

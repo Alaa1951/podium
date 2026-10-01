@@ -25,7 +25,7 @@ can then see or change is filtered on the server by their role and their studio.
 | Email OTP on untrusted devices, with a server-side named staff exception | [`auth-password.ts`](../src/lib/auth-password.ts) |
 | Codes stored as HMAC-SHA256, never plaintext | [`otp.ts`](../src/lib/otp.ts) |
 | Codes expire in 10 minutes, 5 attempts, consumed on use | `otp.ts` |
-| Issuing a code consumes any outstanding one | `createOtpChallenge` |
+| Issuing a code consumes any outstanding one; one code per address per resend cooldown | `createOtpChallenge`, `codeGapLeft` |
 | Device trust for 30 days, then re-challenged | [`trusted-device.ts`](../src/lib/trusted-device.ts) |
 | Device fingerprints stored as HMAC, never raw | `hashDeviceFingerprint` |
 | Rate limit per IP **and** per address | [`rate-limit.ts`](../src/lib/rate-limit.ts) |
@@ -55,6 +55,35 @@ status, audit log and permissions all still apply; what a test account may do is
 exactly its account type and roles. The list and the password never go in the
 repository (it is public). Block the accounts on Users between test sessions: a
 blocked account cannot sign in at all.
+
+### Sign-in codes: timings, limits, and what each refusal says
+
+Defaults in code; `.env` may override the first three (`OTP_TTL_MINUTES`,
+`OTP_MAX_ATTEMPTS`, `OTP_RESEND_COOLDOWN_SECONDS`). Every limit below lives in the
+one server process (`rate-limit.ts`): fixed windows starting at the first request,
+not extended by retrying while refused, and cleared by a restart.
+
+| Rule | Value | Keyed by |
+| --- | --- | --- |
+| A code is valid for | 10 min | the code |
+| Wrong codes before that code is locked | 5 (a new code starts again at 0) | the code |
+| Gap between two codes to one address, from any door | 60 s | the address |
+| Typing codes | 10 per 15 min per address; per network 300 (sign-up and athlete doors) or 120 (`/verify`) | address and network |
+| Password sign-in (each can send a code) | 10 per 15 min per address; 120 per network | address and network |
+| Sign-up | 5 per 15 min per address; 40 per network | address and network |
+| Sign-up "send again" | 3 per 15 min | address |
+| `/verify` "resend" | 5 per 15 min per address; 60 per network | address and network |
+| Athlete door "send me a code" | 5 per 15 min per address; 120 per network | address and network |
+| Suspicious sign-in (code forced even on a trusted device, alert email) | 5 failed codes or passwords in 15 min | account |
+
+A new code replaces the last and email can arrive out of order, so a person often
+types the code of an earlier email. The right code of an earlier email is answered
+as **replaced** and costs the current code no attempt; the right code of an expired
+or used one as **expired**; the right code after five wrong ones as **locked**.
+Those answers need a real code from that mailbox, so they tell a stranger nothing.
+A wrong code — or none outstanding — gets the same answer as an unknown address.
+A refusal that lasts (typing limit, sending limit, the gap) says how long, from the
+server's own count (`auth-proof.ts`, `auth-errors.ts`, `otp-messages.ts`).
 
 ### What sign-in does not reveal
 
@@ -185,6 +214,14 @@ Visible to BFT MENA at `/e/{event}/audit`.
 
 Score changes are recorded separately, field by field, with the old and new
 value — visible per team in Score entry.
+
+### Waiver records
+
+A waiver signature is the athlete's own act. The server takes the account and the seat from the session, never from the request: no field can name another athlete, staff cannot sign for anybody, and view-as is refused. Signatures are insert-only (`WaiverAcceptance`) and the application never edits or deletes them. Each keeps the SHA-256 of the exact edition signed, and a new version is a new release, never an edit. A receipt opens only for its owner or `waivers.manage` (BFT MENA); anybody else gets *not found*. The desks see signed or not signed, never the typed name. The audit line records the version and language only: the typed name is kept in the acceptance row and nowhere else, never in logs. Details: [WAIVERS.md](WAIVERS.md).
+
+### Correcting an athlete's sign-in email
+
+Only BFT MENA Full access can change the email of an athlete who has an account from the team's registration form, and only after ticking a box that says their sign-in email changes. It follows the same rules as Users: never onto another account's address, never the actor's own, and every open code and link to the old address is spent (the new address is unproven until they sign in). The account stays the same person, with the same link to the seat, waiver and check-in; putting someone else in the seat is a Swap. Below Full access, a signed-in athlete's email cannot be changed there at all. Each correction writes `registration.updated` and `account.updated` in the same transaction.
 
 ---
 

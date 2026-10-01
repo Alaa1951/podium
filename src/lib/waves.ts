@@ -1,4 +1,4 @@
-import type { WaveStatus } from "@/generated/prisma/enums";
+import type { Category, WaveStatus } from "@/generated/prisma/enums";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,6 +24,8 @@ export type WaveState = {
   durationMinutes: number;
   /** Scheduled start as HH:mm — the plan, not the clock. */
   startTime: string;
+  /** The category block it runs in (category-schedule.ts); null outside the schedule. */
+  blockCategory: Category | null;
   /** Time left on a running wave. Null when it has not started or has ended. */
   remainingMs: number | null;
   /** When the clock runs out — the finisher stop reads it. Null if not run. */

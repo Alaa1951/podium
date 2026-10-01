@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({ issue: vi.fn(), sendOtp: vi.fn(), pointer: vi.
 
 vi.mock("@/lib/competitor-access", () => ({ issueCompetitorCode: mocks.issue }));
 vi.mock("@/lib/email", () => ({ sendOtpEmail: mocks.sendOtp, sendSignUpPointerEmail: mocks.pointer }));
-vi.mock("@/lib/otp", () => ({ createOtpChallenge: vi.fn(), getOtpConfig: () => ({ ttlMinutes: 10 }) }));
+// No code went to any address a moment ago (otp-flow.integration.test.ts covers the gap).
+vi.mock("@/lib/otp", () => ({ createOtpChallenge: vi.fn(), getOtpConfig: () => ({ ttlMinutes: 10 }), codeGapLeft: () => 0, startCodeGap: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/rate-limit", () => ({ limitAuthAttempt: mocks.rate, NETWORK_LIMITS: { codeRequest: 120, codeEntry: 300, passwordSignIn: 120, emailedLink: 60 } }));
 vi.mock("@/lib/session", () => ({ getCurrentUser: vi.fn() }));

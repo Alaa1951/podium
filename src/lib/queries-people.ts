@@ -211,6 +211,7 @@ export const getSeriesWaves = cache(async (seriesId: string): Promise<WaveState[
     capacity: wave.capacity,
     durationMinutes: wave.durationMinutes,
     startTime: wave.startTime,
+    blockCategory: wave.blockCategory,
     remainingMs:
       wave.status === "running" && wave.endsAt
         ? Math.max(0, wave.endsAt.getTime() - now)

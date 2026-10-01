@@ -10,6 +10,7 @@ import { SignOutButton } from "@/components/app/sign-out-button";
 import { VerifyEmailCard } from "@/components/me/verify-email-card";
 import { linkSeatsForUser } from "@/lib/link-seats";
 import { PlainHeader } from "@/components/app/plain-header";
+import { WaiverCard } from "@/components/waivers/waiver-card";
 import { AthleteProfile, type AthleteProfileDTO } from "@/components/me/athlete-profile";
 import { PortraitUpload } from "@/components/me/portrait-upload";
 import { TeamEditor } from "@/components/me/team-editor";
@@ -21,6 +22,7 @@ import { MyBracket } from "@/components/me/my-bracket";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail } from "@/lib/security";
 import { getMyTeam, getSeriesZones, rankBracket, getSeriesTeams } from "@/lib/queries";
 import { fmt } from "@/lib/scoring";
 import { requireRole } from "@/lib/session";
@@ -161,6 +163,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
   }).format(series.competitionDate);
 
   if (!team) {
+    // Proven, and still nothing linked, yet the address IS on a seat here: it
+    // sits on more than one team, which links nothing by design (link-seats.ts).
+    // Say so, rather than leave the athlete looking for a typo.
+    const sharedAcrossTeams = addressProven && !user.viewAs
+      && (await prisma.competitor.count({ where: { email: normalizeEmail(currentEmail), userId: null, team: { seriesId: series.id, archivedAt: null, series: { archivedAt: null } } } })) > 0;
     return (
       <div className="screen">
         <PlainHeader roleLabel={`${series.name}${series.isTraining ? " · " + t("Training") : ""}`} homeHref="/me" backHref="/me?series=all" />
@@ -173,6 +180,11 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
             {t("Signed in as {email}.", { email: `\u2068${currentEmail}\u2069` })}{" "}
             {t("Registered with another email? Sign out and use Athlete sign-in with that email. If your registration uses this email, ask your gym or BFT MENA to check it.")}
           </p>
+          {sharedAcrossTeams ? (
+            <p style={{ margin: "6px 0 0" }} data-testid="shared-across-teams">
+              {t("Your email is on a registration in this competition, but more than one team uses it. Each team needs its registrant's own email — contact BFT MENA.")}
+            </p>
+          ) : null}
           <div style={{ marginTop: 10 }}>
             <SignOutButton />
           </div>
@@ -283,6 +295,9 @@ export default async function MyPage(editMode = false, requestedSeries?: string)
           <span className={`badge ${teamStatusTone(status)}`}>{t(teamStatusLabel(status))}</span>
         </div>
       </div>
+
+      {/* Each athlete's own waiver: an action until signed, then its receipt. */}
+      <WaiverCard userId={user.id} seriesId={series.id} />
 
       {/* The member's whole world, in one strip: the wall screen, what the
           public sees, and this page — their own team, their own roster. */}

@@ -425,8 +425,18 @@ describe.skipIf(!enabled)("address-bound proof and seat linking on a real databa
 
   // ── Linking: whose seat, and what it approves ────────────────────────────
 
-  it("an ambiguous email (two seats in one competition) is never claimed", async () => {
+  it("the payer's email on BOTH seats of their team claims the registrant's seat only", async () => {
     await prisma.competitor.update({ where: { id: "c2" }, data: { email: "a@example.com" } });
+    await prisma.user.update({ where: { id: "u1" }, data: { verifiedEmail: "a@example.com" } });
+    expect(await linkSeatsForUser(prisma, "u1")).toMatchObject({ linked: 1 });
+    expect((await prisma.competitor.findMany({ where: { userId: "u1" } })).map((seat) => seat.id)).toEqual(["c1"]);
+  });
+
+  it("an email on seats of two teams in one competition is never claimed", async () => {
+    await prisma.team.create({ data: {
+      id: "t-other", seriesId: "s1", number: 9, name: "HAWKS", category: "Womens", division: "Open", paymentStatus: "paid",
+      competitors: { create: [{ id: "c-other", position: 2, fullName: "Sara again", normalizedName: "sara again", email: "a@example.com" }] },
+    } });
     await prisma.user.update({ where: { id: "u1" }, data: { verifiedEmail: "a@example.com" } });
     expect(await linkSeatsForUser(prisma, "u1")).toMatchObject({ linked: 0 });
     expect((await prisma.competitor.findMany({ where: { userId: "u1" } })).length).toBe(0);

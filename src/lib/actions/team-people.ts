@@ -117,7 +117,8 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
   // A withdrawn team gives its station back to the wave.
   await prisma.team.update({
     where: { id: team.id },
-    data: { archivedAt: new Date(), station: null },
+    // A slot staff placed it in by hand is released with it.
+    data: { archivedAt: new Date(), station: null, slotManualAt: null },
   });
 
   await recordAudit({
@@ -126,7 +127,7 @@ export async function archiveTeam(teamId: string): Promise<ActionResult> {
     targetType: "team",
     targetId: team.id,
     targetLabel: `${team.number} ${team.name}`,
-    detail: "archived (withdrawn) — restorable",
+    detail: `archived (withdrawn) — restorable${team.slotManualAt ? " · its manual slot was released" : ""}`,
   });
 
   revalidateCompetitionViews();

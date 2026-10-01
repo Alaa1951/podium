@@ -22,7 +22,7 @@ const user = {
  * locking read ($queryRaw) answers with `locked` — the committed row — which
  * may differ from what the plain read (user.findUnique) says.
  */
-function fakeDb(overrides: Partial<{ user: typeof user; locked: Partial<typeof user>; challenge: unknown; token: unknown; spent: number }> = {}) {
+function fakeDb(overrides: Partial<{ user: typeof user; locked: Partial<typeof user>; challenge: unknown; earlier: unknown[]; token: unknown; spent: number }> = {}) {
   const row = overrides.user ?? user;
   const locked = { email: row.email, status: row.status, archivedAt: row.archivedAt, ...overrides.locked };
   const spent = overrides.spent ?? 1;
@@ -31,6 +31,7 @@ function fakeDb(overrides: Partial<{ user: typeof user; locked: Partial<typeof u
     user: { findUnique: vi.fn().mockResolvedValue(row), update: vi.fn().mockResolvedValue(undefined) },
     otpChallenge: {
       findFirst: vi.fn().mockResolvedValue(overrides.challenge ?? null),
+      findMany: vi.fn().mockResolvedValue(overrides.earlier ?? []),
       update: vi.fn().mockResolvedValue(undefined),
       updateMany: vi.fn().mockResolvedValue({ count: spent }),
     },
@@ -46,7 +47,8 @@ function fakeDb(overrides: Partial<{ user: typeof user; locked: Partial<typeof u
 }
 
 const future = new Date(Date.now() + 60_000);
-const goodCode = { id: "c1", codeHash: hashSecret("123456"), attempts: 0, expiresAt: future, sentTo: "sara@example.com" };
+const goodCode = { id: "c1", codeHash: hashSecret("123456"), attempts: 0, expiresAt: future, sentTo: "sara@example.com", createdAt: new Date() };
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 
 describe("consuming a sign-in code", () => {
   let onProven: ReturnType<typeof vi.fn<(tx: unknown, user: unknown) => Promise<void>>>;
@@ -94,9 +96,28 @@ describe("consuming a sign-in code", () => {
   });
 
   it("reports no code, too many attempts, and an unusable account", async () => {
-    expect(await consumeLoginCode({ db: fakeDb() as never, userId: "u1", code: "123456", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "expired" });
+    // No code outstanding and no code of ours typed: the same answer as a
+    // wrong code, so it cannot tell a stranger whether a code is pending.
+    expect(await consumeLoginCode({ db: fakeDb() as never, userId: "u1", code: "123456", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "invalid" });
     expect(await consumeLoginCode({ db: fakeDb({ challenge: { ...goodCode, attempts: 5 } }) as never, userId: "u1", code: "123456", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "attempts" });
     expect(await consumeLoginCode({ db: fakeDb({ challenge: goodCode, user: { ...user, status: "disabled" } }) as never, userId: "u1", code: "123456", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "account" });
+  });
+
+  it("the right code of an earlier email, since replaced, is 'superseded' — and costs the current code no attempt", async () => {
+    const db = fakeDb({ challenge: goodCode, earlier: [{ codeHash: hashSecret("111111"), createdAt: minutesAgo(1) }] });
+    expect(await consumeLoginCode({ db: db as never, userId: "u1", code: "111111", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "superseded" });
+    expect(db.otpChallenge.updateMany).not.toHaveBeenCalled();
+    expect(db.otpChallenge.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ NOT: { id: "c1" } }) }));
+  });
+
+  it("the right code of an expired or used challenge, with nothing newer to use, is 'expired'", async () => {
+    const db = fakeDb({ earlier: [{ codeHash: hashSecret("123456"), createdAt: minutesAgo(11) }] });
+    expect(await consumeLoginCode({ db: db as never, userId: "u1", code: "123456", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "expired" });
+  });
+
+  it("a wrong code against a locked code is still only 'invalid' — only the right code learns it is locked", async () => {
+    const db = fakeDb({ challenge: { ...goodCode, attempts: 5 } });
+    expect(await consumeLoginCode({ db: db as never, userId: "u1", code: "000000", purpose: "login", maxAttempts: 5 })).toEqual({ ok: false, reason: "invalid" });
   });
 
   it("decides on the LOCKED row: a plain read still showing the old address does not let the code through", async () => {

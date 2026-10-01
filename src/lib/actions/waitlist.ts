@@ -53,6 +53,7 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
       number: true,
       name: true,
       waitlistedAt: true,
+      slotManualAt: true,
       waveRef: { select: { status: true } },
       score: { select: { id: true } },
       series: { select: { name: true, slug: true, status: true } },
@@ -78,7 +79,8 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
       // standing on has to become free for whoever is admitted next.
       // Without this the pair stayed on the running order, on a station, not
       // competing, and the floor screens still drew them over a rig.
-      ...(waiting ? { waveId: null, station: null, wave: 1 } : {}),
+      // A slot staff had placed it in by hand goes with it: there is no slot.
+      ...(waiting ? { waveId: null, station: null, wave: 1, slotManualAt: null } : {}),
     },
   });
   if (moved.count === 0) {
@@ -91,7 +93,9 @@ export async function setWaitlist(input: unknown): Promise<WaitlistResult> {
     targetType: "team",
     targetId: team.id,
     targetLabel: `${team.number} ${team.name}`,
-    detail: waiting ? "returned to the waiting list" : "admitted from the waiting list",
+    detail: waiting
+      ? `returned to the waiting list${team.slotManualAt ? " · its manual slot was released" : ""}`
+      : "admitted from the waiting list",
   });
 
   // Both people are told, because both of them have been waiting to know. The

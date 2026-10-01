@@ -462,4 +462,18 @@ export const AR_SIGNUP: Phrases = {
   "Signed in as {email}.": "مسجّل الدخول باسم {email}.",
   "Registered with another email? Sign out and use Athlete sign-in with that email. If your registration uses this email, ask your gym or BFT MENA to check it.":
     "سجّلت ببريد آخر؟ سجّل الخروج واستخدم دخول الرياضي بذلك البريد. وإن كان تسجيلك بهذا البريد، اطلب من صالتك أو BFT MENA التحقق منه.",
+  // ── Why a code did not work, and how long to wait ─────────────────────────
+  "{seconds} s": "{seconds} ث",
+  "Too many sign-in attempts. Try again in {wait}.": "محاولات دخول كثيرة. حاول مجددًا بعد {wait}.",
+  "Too many sign-in attempts. Try again in a few minutes.": "محاولات دخول كثيرة. حاول مجددًا بعد بضع دقائق.",
+  "A newer code was sent after this one. Use the code from the most recent email.": "أُرسل رمز أحدث بعد هذا الرمز. استخدم الرمز من أحدث رسالة.",
+  "This code has expired or was already used. Ask for a new code.": "انتهت صلاحية هذا الرمز أو استُخدم من قبل. اطلب رمزًا جديدًا.",
+  "Too many incorrect codes were typed for this one. Ask for a new code.": "أُدخلت رموز خاطئة كثيرة لهذا الرمز. اطلب رمزًا جديدًا.",
+  "That code is not correct. Check the most recent email we sent, or ask for a new code.": "هذا الرمز غير صحيح. راجع أحدث رسالة أرسلناها، أو اطلب رمزًا جديدًا.",
+  "A code was sent a moment ago and still works. You can ask for another in {wait}.": "أُرسل رمز قبل لحظات وما زال صالحًا. يمكنك طلب رمز آخر بعد {wait}.",
+  "Too many codes were asked for. Try again in {wait}.": "طُلبت رموز كثيرة. حاول مجددًا بعد {wait}.",
+  "A new code is on its way. Use the code from the newest email.": "رمز جديد في الطريق إليك. استخدم الرمز من أحدث رسالة.",
+  "Code sent again. Use the code from the newest email.": "أُعيد إرسال الرمز. استخدم الرمز من أحدث رسالة.",
+  "Judges, organisers, volunteers, coaches and gyms sign in with their email and password.":
+    "الحكام والمنظمون والمتطوعون والمدربون والصالات يسجّلون الدخول بالبريد الإلكتروني وكلمة المرور.",
 };

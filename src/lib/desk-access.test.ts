@@ -59,11 +59,10 @@ describe("the keys", () => {
     }
   });
 
-  it("do not make an organiser or a volunteer an editor of teams", () => {
-    for (const key of ["organiser", "volunteer"]) {
-      expect(systemRole(key)!.permissions).not.toContain("registrations.edit");
-      expect(systemRole(key)!.permissions).not.toContain("registrations.payment");
-    }
+  it("do not make a volunteer an editor of teams (the Organiser edits teams, as on the live Roles screen)", () => {
+    expect(systemRole("volunteer")!.permissions).not.toContain("registrations.edit");
+    expect(systemRole("volunteer")!.permissions).not.toContain("registrations.payment");
+    expect(systemRole("organiser")!.permissions).toContain("registrations.edit");
   });
 });
 

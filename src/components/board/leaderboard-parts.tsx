@@ -19,7 +19,7 @@ export function busiestBracket(teams: BoardTeam[]) {
   for (const bracket of BRACKETS) {
     const count = teams.filter(
       (team) =>
-        team.submitted &&
+        team.scored &&
         team.category === bracket.category &&
         team.division === bracket.division
     ).length;

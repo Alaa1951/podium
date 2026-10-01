@@ -4,6 +4,8 @@ import { z } from "zod";
 import { can, isBft } from "@/lib/access";
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { lowestFreeStation } from "@/lib/floor";
+import { clearReadiness } from "@/lib/checkin-db";
+import { IN_FIELD, requireConfirmations, SlotConfirmationError, slotWarnings } from "@/lib/slot-move";
 import { prisma } from "@/lib/prisma";
 import { requireAccess, requireRole } from "@/lib/session";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
@@ -49,6 +51,10 @@ const approveSchema = z.object({
   requestId: z.string().min(1), targetWaveId: z.string().min(1),
   teamVersion: z.string().datetime(), sourceWaveId: z.string().min(1), sourceWaveVersion: z.string().datetime(),
   targetWaveVersion: z.string().datetime(), targetOccupied: z.number().int().min(0),
+  /** Staff confirmed a wave outside the team's own category block. */
+  confirmException: z.boolean().default(false),
+  /** Staff confirmed a wave finishing after the team's category's awards begin. */
+  confirmAwards: z.boolean().default(false),
 });
 
 export async function approveWaveChange(input: unknown) {
@@ -67,19 +73,24 @@ export async function approveWaveChange(input: unknown) {
       if (request.series.archivedAt || request.series.status === "final" || team.archivedAt || team.waitlistedAt || team.waveRef?.status !== "pending") throw new ScheduleError("NOT_ELIGIBLE");
       if (team.updatedAt.toISOString() !== data.teamVersion || team.waveId !== data.sourceWaveId ||
           team.waveRef.updatedAt.toISOString() !== data.sourceWaveVersion) throw new ScheduleError("SCHEDULE_CHANGED");
-      const target = await tx.wave.findFirst({ where: { id: data.targetWaveId, seriesId: request.seriesId }, include: { teams: { select: { station: true } } } });
+      const target = await tx.wave.findFirst({ where: { id: data.targetWaveId, seriesId: request.seriesId }, include: { teams: { where: IN_FIELD, select: { station: true } } } });
       if (!target || target.id === team.waveId) throw new ScheduleError("INVALID_INPUT");
       if (target.status !== "pending") throw new ScheduleError("WAVE_STARTED");
       if (target.updatedAt.toISOString() !== data.targetWaveVersion || target.teams.length !== data.targetOccupied) throw new ScheduleError("SCHEDULE_CHANGED");
       if (target.teams.length >= target.capacity) throw new ScheduleError("WAVE_FULL");
       const station = lowestFreeStation(target.teams.map(row => row.station), target.capacity);
       if (station === null) throw new ScheduleError("WAVE_FULL");
+      // The same confirmations as any manual move (slot-move.ts).
+      requireConfirmations(await slotWarnings(tx, team.category, target), { exception: data.confirmException, awards: data.confirmAwards });
       // A guarded update also detects a competing legacy writer after our read.
       const moved = await tx.team.updateMany({
         where: { id: team.id, updatedAt: team.updatedAt, waveId: team.waveId, archivedAt: null, waitlistedAt: null },
-        data: { waveId: target.id, wave: target.number, station },
+        // An approved move is a placement by hand: Auto Assign keeps it.
+        data: { waveId: target.id, wave: target.number, station, slotManualAt: new Date() },
       });
       if (moved.count !== 1) throw new ScheduleError("SCHEDULE_CHANGED");
+      // Its warm-up readiness was for the wave it left.
+      await clearReadiness(tx, team, actor.id, `moved to wave ${target.number} (approved request)`);
       const decided = await tx.waveChangeRequest.updateMany({ where: { id: request.id, status: "pending" }, data: {
         status: "approved", openTeamId: null, reviewedById: actor.id, reviewedAt: new Date(),
         fromWaveNumber: team.waveRef.number, fromStartTime: team.waveRef.startTime,
@@ -87,9 +98,12 @@ export async function approveWaveChange(input: unknown) {
       } });
       if (decided.count !== 1) throw new ScheduleError("SCHEDULE_CHANGED");
     });
-  } catch (error) { return scheduleError(error); }
+  } catch (error) {
+    if (error instanceof SlotConfirmationError) return { ok: false as const, error: error.code };
+    return scheduleError(error);
+  }
   await recordAudit({ actorId: actor.id, action: AUDIT.waveChangeApproved, targetType: "team", targetId: found.teamId,
-    detail: `request=${data.requestId} from=${data.sourceWaveId} to=${data.targetWaveId}` });
+    detail: `request=${data.requestId} from=${data.sourceWaveId} to=${data.targetWaveId} · running manually${data.confirmException ? " · outside its category block (confirmed)" : ""}${data.confirmAwards ? " · after its category's awards begin (confirmed)" : ""}` });
   revalidateCompetitionViews();
   return { ok: true as const };
 }

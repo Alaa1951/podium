@@ -24,6 +24,7 @@ export function MobileIcon({ href }: { href: string }) {
     scores: "M4 4h16v17H4ZM8 8h8M8 12h8M8 16h4",
     results: "M8 3h8v7a4 4 0 0 1-8 0ZM8 5H3v3a4 4 0 0 0 5 4m8-7h5v3a4 4 0 0 1-5 4M12 14v6m-4 1h8",
     account: "M20 21a8 8 0 0 0-16 0M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+    waivers: "M6 3h9l4 4v14H6ZM15 3v4h4M9 14l2 2 4-4",
     more: "M4 6h16M4 12h16M4 18h16",
     // A flag on a route: where to send people next.
     marshalling: "M5 21V4m0 0h11l-2 4 2 4H5",

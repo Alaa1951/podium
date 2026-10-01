@@ -182,6 +182,22 @@ export const canSeeWarmupCheckIn = (user: Holder) =>
 /** Change a team's category or level on the athlete's behalf, at their request. */
 export const canAssistBracketChange = (user: Holder) => worksADesk(user) && can(user, "registrations.bracket");
 
+// ── The running order ────────────────────────────────────────────────────────
+//
+// BUILDING it — the category schedule, Auto Assign, waves and their times —
+// is `waves.edit` on a floor account (BFT MENA, event staff): it rearranges
+// every gym's teams. PLACING a team by hand, and handing it back to Auto
+// Assign, is `waves.placeTeams`, within the account's own teams (teamScope).
+// Neither is ever an athlete's, whatever a role or grant lists: an athlete
+// changes their own category or level, never where anybody runs. The Judge
+// role holds neither key.
+
+/** Configure the category schedule, run Auto Assign, add, time and remove waves. */
+export const canBuildSchedule = (user: Holder) => isFloorAccount(user) && can(user, "waves.edit");
+
+/** Move a team to another slot by hand, or return it to Auto Assign. */
+export const canPlaceTeams = (user: Holder) => user.role !== "competitor" && can(user, "waves.placeTeams");
+
 export type WaveButton = "startDay" | "start" | "end" | "reset";
 
 /**

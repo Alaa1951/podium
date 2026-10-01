@@ -8,6 +8,8 @@ import { useState, useTransition, type ReactNode } from "react";
 import { RefusedCodeNotice } from "@/components/auth/refused-code-notice";
 import { useT } from "@/components/i18n/locale-provider";
 import { resendSignupCode, startSignup } from "@/lib/actions/signup";
+import { useCountdown } from "@/components/auth/use-countdown";
+import { codeErrorMessage, resendWaitMessage, sendLimitMessage, waitLabel } from "@/lib/otp-messages";
 import {
   MIN_PASSWORD_LENGTH,
   PASSWORD_RULES_SHORT,
@@ -77,6 +79,8 @@ export function SignupForm({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState(false);
+  // Seconds before "Send the code again" may be pressed — from the server.
+  const [cooldown, setCooldown] = useCountdown();
 
   const [kind, setKind] = useState<Kind>(initialType ?? "athlete");
   const [roleKey, setRoleKey] = useState<OrganiserRole>("organiser");
@@ -153,9 +157,12 @@ export function SignupForm({
           ...(gym ? { gymName: form.gymName, city: form.city } : {}),
         });
         if (!result.ok) {
-          setError(t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
+          setError(result.error === "TOO_MANY"
+            ? sendLimitMessage(result.retryAfter, t)
+            : t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
           return;
         }
+        setCooldown(result.resendIn ?? 0);
         setStage("code");
       } catch {
         setError(t("Could not send. Check your connection and try again."));
@@ -176,8 +183,12 @@ export function SignupForm({
       setRefused(true);
       return;
     }
-    if (!result || result.error || result.url?.includes("csrf=true")) {
-      setError(t("That code is not valid or has expired."));
+    if (!result || result.url?.includes("csrf=true")) {
+      setError(t("Something went wrong. Try again."));
+      return;
+    }
+    if (result.error) {
+      setError(codeErrorMessage(result.error, t));
       return;
     }
     router.replace(athlete ? "/me" : "/home");
@@ -189,8 +200,20 @@ export function SignupForm({
     setNote("");
     startTransition(async () => {
       const result = await resendSignupCode({ email: form.email });
-      if (!result.ok) setError(t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
-      else setNote(t("A new code is on its way."));
+      if (result.ok) {
+        // A resend issues a different code: digits already typed are now stale.
+        setCode("");
+        setCooldown(result.resendIn ?? 0);
+        setNote(t("A new code is on its way. Use the code from the newest email."));
+      } else if (result.error === "RESEND_COOLDOWN") {
+        setCooldown(result.retryAfter ?? 0);
+        setNote(resendWaitMessage(result.retryAfter ?? 0, t));
+      } else if (result.error === "TOO_MANY") {
+        setCooldown(result.retryAfter ?? 0);
+        setError(sendLimitMessage(result.retryAfter, t));
+      } else {
+        setError(t(ERRORS[result.error] ?? "Something went wrong. Try again.", PASSWORD_RULE_VALUES));
+      }
     });
   }
 
@@ -283,8 +306,8 @@ export function SignupForm({
           {busy ? <span className="spinner" /> : null}
           {t("Confirm")}
         </button>
-        <button type="button" className="btn btn-block btn-ghost" onClick={resend} disabled={busy || pending} style={{ marginTop: 8 }}>
-          {t("Send the code again")}
+        <button type="button" className="btn btn-block btn-ghost" onClick={resend} disabled={busy || pending || cooldown > 0} style={{ marginTop: 8 }} data-testid="signup-resend">
+          {cooldown > 0 ? `${t("Send the code again")} (${waitLabel(cooldown, t)})` : t("Send the code again")}
         </button>
         <p className="auth-note">{t("After this you can sign in straight away. BFT MENA or your studio approves your account.")}</p>
       </form>

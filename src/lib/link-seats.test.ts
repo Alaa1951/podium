@@ -1,6 +1,7 @@
 /**
- * Linking an account to its seats — only on a proven address, only one seat
- * per competition per email, never touching a partnership choice.
+ * Linking an account to its seats — only on a proven address, one seat per
+ * competition per email (the payer's, when the address sits on both seats of
+ * one team; none when it spans teams), never touching a partnership choice.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,24 +12,25 @@ const mocks = vi.hoisted(() => {
 });
 vi.mock("@/lib/membership-sync", () => ({ reconcileDerivedLinks: mocks.reconcile }));
 
-import { linkSeatsForUser, unambiguousSeats } from "@/lib/link-seats";
+import { linkSeatsForUser, payerSeatsToClaim } from "@/lib/link-seats";
 
 const account = {
   id: "u1", email: "sara@example.com", role: "competitor", status: "active", archivedAt: null, approvalStatus: "approved", verifiedEmail: "sara@example.com",
 };
-const team = (seriesId: string, extra: Partial<{ paymentStatus: string; waitlistedAt: Date | null; competitors: { id: string }[]; series: { isTraining: boolean } }> = {}) => ({
+const team = (seriesId: string, extra: Partial<{ id: string; paymentStatus: string; waitlistedAt: Date | null; competitors: { id: string }[]; series: { isTraining: boolean } }> = {}) => ({
   id: `t-${seriesId}`, seriesId, name: "FALCONS", createdAt: new Date("2026-09-01"), division: "Open", category: "Womens",
   paymentStatus: "paid", waitlistedAt: null, competitors: [{ id: "a" }, { id: "b" }], series: { isTraining: false }, ...extra,
 });
 
-type Seat = { id: string; userId: string | null; team: { seriesId: string }; shirtSize?: string | null; bftMember?: boolean };
+type Seat = { id: string; userId: string | null; position?: number; team: { id: string; seriesId: string }; shirtSize?: string | null; bftMember?: boolean };
 
 /**
  * A fake client whose $transaction runs the work against itself. The locking
  * read of the account answers with `user`; seat queries honour `userId: null`.
  */
 function fakeDb(overrides: { user?: unknown; seats?: Seat[]; claimed?: number } = {}) {
-  const seats = overrides.seats ?? [];
+  // A seat is the registrant's (position 1) unless a test says otherwise.
+  const seats = (overrides.seats ?? []).map((seat) => ({ position: 1, ...seat }));
   const db = {
     $transaction: vi.fn(),
     $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray) => (strings.join("?").includes("FROM User") ? [overrides.user ?? account] : [])),
@@ -53,14 +55,26 @@ beforeEach(() => {
   delete process.env.ATHLETE_SEAT_LINKING;
 });
 
-describe("unambiguous seats", () => {
-  it("keeps only the competitions where the email sits on exactly one seat", () => {
-    const rows = [
-      { id: "a", team: { seriesId: "s1" } },
-      { id: "b", team: { seriesId: "s1" } },
-      { id: "c", team: { seriesId: "s2" } },
-    ];
-    expect(unambiguousSeats(rows).map((row) => row.id)).toEqual(["c"]);
+describe("the seats an address stands for — the payer's", () => {
+  const row = (id: string, position: number, teamId: string, seriesId = "s1") => ({ id, position, team: { id: teamId, seriesId } });
+
+  it("its one seat, registrant or partner", () => {
+    expect(payerSeatsToClaim([row("a", 1, "A")]).map((one) => one.id)).toEqual(["a"]);
+    expect(payerSeatsToClaim([row("b", 2, "A")]).map((one) => one.id)).toEqual(["b"]);
+  });
+
+  it("on both seats of ONE team: the registrant's seat (position 1) only", () => {
+    expect(payerSeatsToClaim([row("partner", 2, "A"), row("payer", 1, "A")]).map((one) => one.id)).toEqual(["payer"]);
+  });
+
+  it("across MORE THAN ONE team in a competition: nothing there — seat 1 and seat 1, or seat 1 and seat 2", () => {
+    expect(payerSeatsToClaim([row("a", 1, "A"), row("b", 1, "B")])).toEqual([]);
+    expect(payerSeatsToClaim([row("a", 1, "A"), row("b", 2, "B")])).toEqual([]);
+  });
+
+  it("decides each competition on its own", () => {
+    const rows = [row("a", 1, "A", "s1"), row("b", 1, "B", "s1"), row("c", 2, "C", "s2"), row("d", 1, "C", "s2"), row("e", 2, "E", "s3")];
+    expect(payerSeatsToClaim(rows).map((one) => one.id)).toEqual(["d", "e"]);
   });
 });
 
@@ -112,11 +126,11 @@ describe("linking", () => {
     }
   });
 
-  it("skips an ambiguous competition but links the clear one; never takes a seat somebody else holds", async () => {
+  it("skips a competition where the address spans teams but links the clear one; never takes a seat somebody else holds", async () => {
     const db = fakeDb({
       seats: [
-        { id: "a", userId: null, team: team("s1") },
-        { id: "b", userId: null, team: team("s1") },
+        { id: "a", userId: null, team: team("s1", { id: "t-A" }) },
+        { id: "b", userId: null, position: 2, team: team("s1", { id: "t-B" }) },
         { id: "c", userId: "someone-else", team: team("s2") },
         { id: "d", userId: null, team: team("s3") },
       ],
@@ -170,6 +184,55 @@ describe("linking", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await linkSeatsForUser(db as never, "u1")).toEqual({ linked: 0, approved: false, skipped: "failed" });
     error.mockRestore();
+  });
+
+  it("the payer's address on BOTH seats of their team claims the registrant's seat only — and they see their team", async () => {
+    const db = fakeDb({ user: { ...account, approvalStatus: "pending" }, seats: [
+      { id: "partner", userId: null, position: 2, team: team("s1") },
+      { id: "payer", userId: null, position: 1, team: team("s1") },
+    ] });
+    expect(await linkSeatsForUser(db as never, "u1")).toEqual({ linked: 1, approved: true, skipped: null });
+    expect(db.competitor.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.competitor.updateMany).toHaveBeenCalledWith({ where: { id: "payer", email: "sara@example.com", userId: null }, data: { userId: "u1" } });
+    expect(mocks.reconcile).toHaveBeenCalledWith(db, "t-s1");
+
+    // The partner's seat stays unclaimed for good — and the next sign-in opens no transaction for it.
+    const after = fakeDb({ seats: [
+      { id: "partner", userId: null, position: 2, team: team("s1") },
+      { id: "payer", userId: "u1", position: 1, team: team("s1") },
+    ] });
+    expect(await linkSeatsForUser(after as never, "u1")).toEqual({ linked: 0, approved: false, skipped: null });
+    expect(after.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("an address on seats of two teams in one competition claims nothing there — seat 1 and seat 1, or seat 1 and seat 2", async () => {
+    for (const other of [1, 2]) {
+      const db = fakeDb({ user: { ...account, approvalStatus: "pending" }, seats: [
+        { id: "a", userId: null, position: 1, team: team("s1", { id: "t-A" }) },
+        { id: "b", userId: null, position: other, team: team("s1", { id: "t-B" }) },
+      ] });
+      expect(await linkSeatsForUser(db as never, "u1")).toEqual({ linked: 0, approved: false, skipped: null });
+      expect(db.competitor.updateMany).not.toHaveBeenCalled();
+      expect(db.user.update).not.toHaveBeenCalled();
+    }
+  });
+
+  it("a partner seat with no email never counts: the payer claims their seat as always", async () => {
+    // Seats are found BY address; a partner with none is simply not among them.
+    const db = fakeDb({ seats: [{ id: "payer", userId: null, position: 1, team: team("s1", { competitors: [{ id: "payer" }, { id: "no-email" }] }) }] });
+    expect(await linkSeatsForUser(db as never, "u1")).toMatchObject({ linked: 1 });
+    expect(db.competitor.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "payer" }) }));
+  });
+
+  it("the payer's seat on an unpaid, waiting-list or training entry is linked and shown — and approves nothing", async () => {
+    for (const extra of [{ paymentStatus: "pending" }, { waitlistedAt: new Date() }, { series: { isTraining: true } }]) {
+      const db = fakeDb({ user: { ...account, approvalStatus: "pending" }, seats: [
+        { id: "partner", userId: null, position: 2, team: team("s1", extra) },
+        { id: "payer", userId: null, position: 1, team: team("s1", extra) },
+      ] });
+      expect(await linkSeatsForUser(db as never, "u1")).toEqual({ linked: 1, approved: false, skipped: null });
+      expect(db.user.update).not.toHaveBeenCalled();
+    }
   });
 
   it("can be switched off for a rollback without touching the proof rule", async () => {

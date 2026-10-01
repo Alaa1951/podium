@@ -27,6 +27,12 @@ export const AUDIT = {
   scoreUnlocked: "score.unlocked",
   eventStatusChanged: "event.status_changed",
   wavesAssigned: "event.waves_assigned",
+  /** Settings → Category schedule: each block's start and break, before and after. */
+  categoryScheduleChanged: "event.category_schedule_changed",
+  /** A team placed in a slot by hand: it now runs manually. */
+  teamSlotMoved: "team.slot_moved",
+  /** A team handed back to Auto Assign: its protection removed, its slot kept for now. */
+  teamSlotReleased: "team.slot_released",
   waveControlled: "event.wave_controlled",
   registrationCreated: "registration.created",
   /** A CRM poll somebody asked for by hand; the timer's polls are not audited. */
@@ -37,6 +43,10 @@ export const AUDIT = {
   attendanceChanged: "registration.attendance_changed",
   /** Ready to compete, marked or removed at the warm-up desk. */
   warmupChanged: "registration.warmup_changed",
+  /** An athlete signed the competition's waiver — version and language, never the signature itself. */
+  waiverSigned: "registration.waiver_signed",
+  /** A waiver version made the one athletes must sign for a competition. */
+  waiverAttached: "event.waiver_attached",
   /** A team's category or level — who changed it, from what to what, and on whose say. */
   bracketChanged: "registration.bracket_changed",
   zoneChanged: "config.zone_changed",

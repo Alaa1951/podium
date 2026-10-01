@@ -54,6 +54,7 @@ export async function admitIfRoom(db: Db, teamId: string): Promise<AdmitOutcome>
       id: true,
       number: true,
       capacity: true,
+      blockCategory: true,
       teams: {
         where: { archivedAt: null, waitlistedAt: null },
         select: { station: true, category: true, division: true },
@@ -61,7 +62,11 @@ export async function admitIfRoom(db: Db, teamId: string): Promise<AdmitOutcome>
     },
   });
 
+  // Once waves run in category blocks, an automatic admission never mixes
+  // categories: only a wave of the team's own block is a place for it.
+  const blocked = waves.some((wave) => Boolean(wave.blockCategory));
   const withRoom = waves
+    .filter((wave) => !blocked || wave.blockCategory === team.category)
     .map((wave) => ({
       wave,
       station: lowestFreeStation(

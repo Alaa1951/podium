@@ -9,6 +9,7 @@ import {
   markedBracketsLabel,
   markedBracketsTeams,
   populatedBrackets,
+  inReachedWave,
   scopeTitle,
   teamsInScope,
   waveStateLabel,
@@ -114,7 +115,8 @@ export function RunningBoard({
   // ── The rows on show ──────────────────────────────────────────────────────
   // One ranking of the current scope: the marked brackets combined, the field
   // so far, or this instant on the floor — always ranked by score, so the
-  // board can never show a row the progress bar has not counted.
+  // board can never show a row the progress bar has not counted. A team is on
+  // it from its first submitted zone (board-score.ts), not only once all are.
   const scopedTeams = () => {
     if (floorView) {
       return teamsInScope({ teams: data.teams, selection: ON_FLOOR, reached, runningNumbers });
@@ -126,7 +128,7 @@ export function RunningBoard({
   };
 
   const rows = useMemo(
-    () => rankAll(scopedTeams().filter((team) => team.submitted)),
+    () => rankAll(scopedTeams().filter((team) => team.scored)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.teams, reached, runningNumbers, marks, floorView]
   );
@@ -146,11 +148,11 @@ export function RunningBoard({
   // ── Figures in the header ─────────────────────────────────────────────────
   const inScope = scopedTeams();
 
-  const scopeDone = inScope.filter((x) => x.submitted).length;
+  const scopeDone = inScope.filter((x) => x.scored).length;
   const scopePercent = inScope.length ? Math.round((scopeDone / inScope.length) * 100) : 0;
 
-  const eventPool = data.teams.filter((x) => x.wave <= reached);
-  const eventDone = eventPool.filter((x) => x.submitted).length;
+  const eventPool = data.teams.filter((x) => inReachedWave(x, reached));
+  const eventDone = eventPool.filter((x) => x.scored).length;
 
   // Brackets holding at least one submitted score — the rest render dimmed.
   const populated = useMemo(() => populatedBrackets(data.teams), [data.teams]);
@@ -194,11 +196,15 @@ export function RunningBoard({
     .filter(Boolean)
     .join(" · ");
 
+  // The floor panel: exactly the teams ASSIGNED to the wave in focus — the
+  // one running, or the next one (Up next) — and nobody else. An empty wave
+  // is an empty panel, never the whole field.
+  const upcoming = idle && Boolean(nextWave);
   const floor = useMemo(() => {
-    const onFloor = data.teams.filter((team) => team.wave === focusNumber);
+    const onFloor = focusNumber ? data.teams.filter((team) => team.wave === focusNumber) : [];
     return {
-      scored: rankAll(onFloor.filter((team) => team.submitted)),
-      pending: onFloor.filter((team) => !team.submitted),
+      scored: rankAll(onFloor.filter((team) => team.scored)),
+      pending: onFloor.filter((team) => !team.scored),
       total: onFloor.length,
     };
   }, [data.teams, focusNumber]);
@@ -315,8 +321,10 @@ export function RunningBoard({
 
         <FloorPanel
           focusNumber={focusNumber}
-          kicker={idle ? (nextWave ? t("Up next") : t("All waves complete")) : t("On the floor now")}
+          kicker={idle ? (nextWave ? t("Up next") : t("No upcoming waves")) : t("On the floor now")}
           idle={idle}
+          upcoming={upcoming}
+          done={idle && !nextWave}
           waveClock={waveClock}
           floor={floor}
           runningNumbers={runningNumbers}

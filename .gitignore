@@ -78,3 +78,9 @@ debug.log
 .tmp-qa/
 .tmp-*
 tmp-portrait-test/
+# Local scratch (audits, exports — may hold personal data). Never committed.
+/tmp/
+
+# Local-only secrets (server addresses, keys, credentials). Lives on the
+# machine that made it, never committed — see DEPLOY.local.md.
+*.local.md

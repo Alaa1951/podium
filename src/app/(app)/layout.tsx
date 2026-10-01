@@ -3,6 +3,7 @@ import { ViewAsBanner } from "@/components/app/view-as-banner";
 import { BfcacheRefresh } from "@/components/app/bfcache-refresh";
 import { PersonalMobileNavigation } from "@/components/app/mobile-navigation";
 import { PersonalDesktopNavigation } from "@/components/app/personal-nav";
+import { WaiverPrompt } from "@/components/waivers/waiver-prompt";
 
 /**
  * Everything below this layout needs an account. `requireUser` redirects to
@@ -18,7 +19,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const home = await homeForUser(user);
   return (
     <>
-      {user.viewAs ? <ViewAsBanner name={user.name} role={user.role} /> : null}
+      {user.viewAs ? <ViewAsBanner name={user.name} role={user.role} /> : <WaiverPrompt userId={user.id} />}
       {/* A competitor has no sidebar on a wide screen, so their bar goes here
           — above the page, the way the console's own nav sits beside it. */}
       <PersonalDesktopNavigation role={user.role} homeHref={home} />

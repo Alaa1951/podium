@@ -4,6 +4,7 @@ import type { BoardTeam } from "@/lib/board";
 import { fmt } from "@/lib/scoring";
 import { teamLabel, type BoardDisplay } from "@/lib/visibility";
 import { Medal } from "@/components/board/medal";
+import { useT } from "@/components/i18n/locale-provider";
 
 // The pieces the running board is assembled from: its grid, its figures, a
 // scored row, a zone cell, and a row of the floor panel. Separated from the
@@ -55,11 +56,14 @@ export function ScoreRow({
   showBracket: boolean;
   columns: string;
 }) {
+  const t = useT();
   const label = teamLabel({ name: row.name, competitors: row.competitors }, display);
+  // As on the reference board: bracket · wave · athletes · team number.
   const sub = [
-    showBracket ? `${row.category} ${row.division}` : null,
-    `W${row.wave}`,
+    showBracket ? `${t(row.category)} ${t(row.division)}` : null,
+    row.wave !== null ? `W${row.wave}` : null,
     label.secondary,
+    `${t("Team")} ${row.number}`,
   ]
     .filter(Boolean)
     .join("  ·  ");
@@ -101,8 +105,12 @@ export function ScoreRow({
 
       {row.zones.map((zone) => (
         // Whole points get no decimals, fractions get two — so a column of
-        // 4,860 and 32.21 stays readable instead of all being .00
-        <Zone key={zone.number} value={fmt(zone.points, Number.isInteger(zone.points) ? 0 : 2)} />
+        // 4,860 and 32.21 stays readable instead of all being .00. A zone its
+        // judge has not submitted yet is a dash.
+        <Zone
+          key={zone.number}
+          value={zone.submitted ? fmt(zone.points, Number.isInteger(zone.points) ? 0 : 2) : "—"}
+        />
       ))}
 
       <div
@@ -145,10 +153,13 @@ export function FloorRow({
   position: number | null;
   display: BoardDisplay;
 }) {
+  const t = useT();
   const label = teamLabel({ name: team.name, competitors: team.competitors }, display);
 
   return (
     <div
+      data-testid="floor-row"
+      data-team={team.number}
       style={{
         display: "grid",
         gridTemplateColumns: "28px minmax(0,1fr) auto",
@@ -194,14 +205,14 @@ export function FloorRow({
           }}
         >
           {position !== null && position <= 3 ? <Medal rank={position} size={18} /> : null}
-          {team.category} {team.division}
+          {t(team.category)} {t(team.division)}
         </div>
       </div>
       <div
         className="display num"
         style={{ fontSize: 17, color: position === 1 ? "#fff" : "var(--board-text)", whiteSpace: "nowrap" }}
       >
-        {team.submitted ? fmt(team.total, 2) : "—"}
+        {team.scored ? fmt(team.total, 2) : "—"}
       </div>
     </div>
   );

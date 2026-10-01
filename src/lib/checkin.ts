@@ -1,6 +1,7 @@
 import type { Category, Division } from "@/generated/prisma/enums";
 import { BRACKETS } from "@/lib/scoring";
 import { matchesSearch } from "@/lib/search";
+import { waiverSatisfied, type WaiverState } from "@/lib/waivers/status";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE TWO CHECK-INS OF THE DAY, and the figures on their screens.
@@ -23,7 +24,13 @@ import { matchesSearch } from "@/lib/search";
 
 export type ArrivalStatus = "in" | "partial" | "out";
 
-export type CheckInAthlete = { id: string; fullName: string; arrived: boolean };
+export type CheckInAthlete = {
+  id: string;
+  fullName: string;
+  arrived: boolean;
+  /** Their own signature of the competition's waiver — the state, never the signature. */
+  waiver: WaiverState;
+};
 
 export type CheckInTeam = {
   id: string;
@@ -38,8 +45,12 @@ export type CheckInTeam = {
   /** Paid and holding a place — an unpaid pair still has to be found at the door. */
   competing: boolean;
   athletes: CheckInAthlete[];
-  /** Ready to compete (warm-up). Never derived from arrival. */
+  /** Ready to compete (warm-up) in the wave it is in now. Never derived from arrival. */
   ready: boolean;
+  /** Runs in another category's block (a scheduling exception); it still competes in its own. */
+  outsideBlock?: boolean;
+  /** The block its wave runs in, when that is not its own. */
+  hostBlock?: Category | null;
 };
 
 /** Everyone here, some of them, or nobody. A team with no athletes has not arrived. */
@@ -96,11 +107,18 @@ const inBracket = (team: CheckInTeam, filter: { category: string; division: stri
   (!filter.category || filter.category === "all" || team.category === filter.category) &&
   (!filter.division || filter.division === "all" || team.division === filter.division);
 
+/** Everybody on the team has signed (or no waiver is asked for). */
+export const waiversDone = (team: Pick<CheckInTeam, "athletes">) => team.athletes.every((athlete) => waiverSatisfied(athlete.waiver));
+
+/** `waiver`: all · signed (every athlete) · pending (somebody has not). */
+const matchesWaiver = (team: CheckInTeam, waiver: string | undefined) =>
+  !waiver || waiver === "all" || (waiver === "signed" ? waiversDone(team) : !waiversDone(team));
+
 /** `status`: all · in (everyone here) · pending (not fully here) · partial. */
-export type EntranceFilter = { q: string; category: string; division: string; status: string };
+export type EntranceFilter = { q: string; category: string; division: string; status: string; waiver?: string };
 
 export function matchesEntrance(team: CheckInTeam, filter: EntranceFilter): boolean {
-  if (!inBracket(team, filter)) return false;
+  if (!inBracket(team, filter) || !matchesWaiver(team, filter.waiver)) return false;
   const status = arrivalStatus(team);
   if (filter.status === "in" && status !== "in") return false;
   if (filter.status === "pending" && status === "in") return false;
@@ -109,10 +127,10 @@ export function matchesEntrance(team: CheckInTeam, filter: EntranceFilter): bool
 }
 
 /** `wave`: all · a wave id · none (not placed yet). `readiness`: all · ready · pending. */
-export type WarmupFilter = { q: string; category: string; division: string; wave: string; readiness: string };
+export type WarmupFilter = { q: string; category: string; division: string; wave: string; readiness: string; waiver?: string };
 
 export function matchesWarmup(team: CheckInTeam, filter: WarmupFilter): boolean {
-  if (!inBracket(team, filter)) return false;
+  if (!inBracket(team, filter) || !matchesWaiver(team, filter.waiver)) return false;
   if (filter.wave === "none" && team.waveId !== null) return false;
   if (filter.wave && filter.wave !== "all" && filter.wave !== "none" && team.waveId !== filter.wave) return false;
   if (filter.readiness === "ready" && !team.ready) return false;

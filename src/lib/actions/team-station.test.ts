@@ -34,6 +34,8 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/session", () => ({
   requireAccess: mocks.requireAccess,
+  // Answered, not redirected: the station select is pressed mid-screen.
+  getCurrentUser: mocks.requireAccess,
   isStudio: (u: { role: string }) => u.role === "studio",
   teamScope: () => ({}),
 }));
@@ -45,7 +47,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/wave-schedule-db", () => ({ scheduleTransaction: mocks.transaction }));
 
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: mocks.revalidate }));
-vi.mock("@/lib/access", () => ({ can: () => true }));
+vi.mock("@/lib/access", () => ({ can: () => true, canPlaceTeams: () => true, canBuildSchedule: () => true }));
 vi.mock("@/lib/audit", () => ({ recordAudit: vi.fn(), AUDIT: new Proxy({}, { get: () => "x" }) }));
 
 // Imported AFTER the mocks, the way every action test in this project does it.
@@ -73,7 +75,7 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(async (_seriesId, work) => work({ team: {
     ...mocks.db.team,
     findFirst: (args: { where: { station?: number } }) => args.where.station === undefined ? mocks.findTeam(args) : mocks.findOccupant(args),
-  } }));
+  }, zoneScore: { count: async () => 0 } }));
 });
 
 describe("setTeamStation", () => {
@@ -84,6 +86,17 @@ describe("setTeamStation", () => {
 
     expect(result.ok).toBe(true);
     expect(mocks.transaction).toHaveBeenCalled();
+    // Placed by hand: it now runs manually, protected from Auto Assign.
+    expect(mocks.updateTeam).toHaveBeenCalledWith({ where: { id: "t1" }, data: { station: 7, slotManualAt: expect.any(Date) } });
+  });
+
+  it("never swaps with a team running manually — its slot is not moved as a side effect", async () => {
+    mocks.findTeam.mockResolvedValue(seatedIn(7));
+    mocks.findOccupant.mockResolvedValue({ id: "t2", slotManualAt: new Date() });
+    mocks.countTeams.mockResolvedValue(1);
+
+    expect(await setTeamStation({ teamId: "t1", station: 5 })).toEqual({ ok: false, error: "STATION_PROTECTED" });
+    expect(mocks.updateTeam).not.toHaveBeenCalled();
   });
 
   // THE ONE THAT MATTERS. Capacity seven, station eight: there is no eighth

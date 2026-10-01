@@ -1,0 +1,293 @@
+{
+  "key": "podium-series-1",
+  "version": 1,
+  "event": {
+    "name": "PODIUM Series 1",
+    "organiser": "BFT MENA LLC",
+    "date": "2026-10-03",
+    "venue": "Aspire Ladies Sports Hall, Aspire Zone, Doha, State of Qatar"
+  },
+  "contactEmail": "info@bftmiddleeast.com",
+  "language": "en",
+  "dir": "ltr",
+  "source": "Waiver - EN.docx",
+  "corrections": [
+    "Section 9: the media contact email westwalk@bodyfittraining.com was replaced by info@bftmiddleeast.com, as approved by BFT MENA."
+  ],
+  "blocks": [
+    {
+      "t": "title",
+      "lines": [
+        "PODIUM",
+        "SERIES 1",
+        "PARTICIPANT WAIVER, ASSUMPTION OF RISK, RELEASE OF LIABILITY,\nMEDICAL CONSENT & MEDIA CONSENT"
+      ]
+    },
+    {
+      "t": "facts",
+      "rows": [
+        {
+          "label": "EVENT",
+          "value": "PODIUM Series 1"
+        },
+        {
+          "label": "ORGANISER",
+          "value": "BFT MENA LLC"
+        },
+        {
+          "label": "DATE",
+          "value": "3 October 2026"
+        },
+        {
+          "label": "VENUE",
+          "value": "Aspire Ladies Sports Hall, Aspire Zone, Doha, State of Qatar"
+        }
+      ]
+    },
+    {
+      "t": "notice",
+      "title": "IMPORTANT - PLEASE READ CAREFULLY BEFORE SIGNING",
+      "paragraphs": [
+        "Participation in PODIUM involves strenuous physical activity and carries inherent risks of injury. This document affects your legal rights. By registering for, attending and/or participating in PODIUM and signing or electronically accepting this document, you confirm that you have read, understood and voluntarily accepted its terms."
+      ]
+    },
+    {
+      "t": "heading",
+      "number": 1,
+      "text": "1. PARTICIPANT DECLARATION"
+    },
+    {
+      "t": "p",
+      "text": "I voluntarily choose to participate in PODIUM, a competitive fitness event organised by BFT MENA LLC at Aspire Ladies Sports Hall, Aspire Zone, Doha, Qatar. I confirm that:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "I am physically capable of participating in a high-intensity fitness competition involving strength, conditioning, endurance, cardiovascular exercise, running, lifting, carrying, throwing and other functional movements.",
+        "I am responsible for determining whether I am sufficiently fit, healthy, trained and prepared to participate.",
+        "I am not aware of any medical condition, injury, illness or other circumstance that would make my participation unsafe. If I have any uncertainty, I should obtain appropriate medical advice before competing.",
+        "I will immediately stop participating and inform event staff if I experience pain, dizziness, faintness, unusual shortness of breath, chest pain, injury or other symptoms indicating that continuing may be unsafe.",
+        "I will not participate while under the influence of alcohol, recreational drugs, or any medication or substance that may materially impair my ability to participate safely.",
+        "I understand that BFT MENA LLC, Aspire Zone Foundation, event staff, judges and volunteers are not responsible for determining my individual medical fitness to compete."
+      ]
+    },
+    {
+      "t": "heading",
+      "number": 2,
+      "text": "2. ASSUMPTION OF RISK"
+    },
+    {
+      "t": "p",
+      "text": "I understand and acknowledge that participation in PODIUM involves inherent and potentially serious risks, including without limitation:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "muscle strains, sprains, tears and other soft-tissue injuries;",
+        "joint, ligament and tendon injuries;",
+        "cuts, bruises, abrasions, slips, trips, falls and collisions;",
+        "injuries caused by weights, equipment, surfaces, obstacles or other participants;",
+        "fractures, dislocations and impact injuries;",
+        "overexertion, dehydration, heat-related illness, dizziness, fainting or loss of consciousness;",
+        "cardiovascular or respiratory complications;",
+        "aggravation of existing, latent or previously unknown medical conditions;",
+        "serious bodily injury, permanent disability or, in exceptional circumstances, death."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "I understand that these risks may arise from my own acts or omissions, the acts or omissions of other participants, the competitive environment, equipment, surfaces, facilities, event conditions or other circumstances associated with the Event. I freely and voluntarily accept and assume the risks inherent in participating in PODIUM."
+    },
+    {
+      "t": "heading",
+      "number": 3,
+      "text": "3. EVENT RULES, SAFETY & OFFICIAL DIRECTIONS"
+    },
+    {
+      "t": "p",
+      "text": "I agree to:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "comply with all PODIUM competition rules, movement standards, event procedures and venue requirements;",
+        "follow all reasonable instructions given by BFT MENA LLC, Aspire Zone Foundation, judges, marshals, coaches, medical personnel, security personnel and event officials;",
+        "use equipment only as intended and conduct myself responsibly so as not to endanger myself or others;",
+        "immediately report damaged or unsafe equipment, hazards, accidents and injuries to event staff;",
+        "respect all security, privacy, access and restricted-area requirements applicable at Aspire Zone."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "I acknowledge that event officials may stop my participation, remove me from a workout, modify my participation, refuse continued participation or disqualify me where reasonably considered necessary for safety, rule compliance, venue requirements or proper operation of the Event."
+    },
+    {
+      "t": "heading",
+      "number": 4,
+      "text": "4. MANDATORY ARRIVAL & CHECK-IN"
+    },
+    {
+      "t": "p",
+      "text": "I understand that I must arrive at the Event venue at least sixty (60) minutes before my scheduled competition/start time. This time is required for check-in, athlete verification, briefing, preparation, warm-up and other pre-competition requirements."
+    },
+    {
+      "t": "p",
+      "text": "Failure to arrive on time may result in me being unable to compete, missing my scheduled heat or being disqualified, subject to the Event Organiser's reasonable discretion. I understand that schedules may be adjusted for operational, safety or other event requirements and that I am responsible for monitoring official Event communications and instructions."
+    },
+    {
+      "t": "heading",
+      "number": 5,
+      "text": "5. MEDICAL TREATMENT & EMERGENCY CONSENT"
+    },
+    {
+      "t": "p",
+      "text": "If I become injured, ill or incapacitated during the Event, I authorise appropriately qualified event personnel, first-aid providers, paramedics and/or medical professionals to provide or arrange such first aid, emergency assistance or medical treatment as they reasonably consider necessary, including transportation to an appropriate medical facility where reasonably required."
+    },
+    {
+      "t": "p",
+      "text": "I understand that emergency treatment cannot be guaranteed to prevent injury, complications or adverse outcomes. To the extent permitted by applicable law, I accept responsibility for medical, ambulance, hospital or other healthcare expenses incurred on my behalf that are not otherwise covered by the Event Organiser or applicable insurance. This consent does not replace my responsibility to provide relevant information to treating medical professionals where I am able to do so."
+    },
+    {
+      "t": "heading",
+      "number": 6,
+      "text": "6. RELEASE & LIMITATION OF LIABILITY"
+    },
+    {
+      "t": "p",
+      "text": "To the fullest extent permitted by the laws of the State of Qatar, I acknowledge that I participate voluntarily and at my own risk."
+    },
+    {
+      "t": "p",
+      "text": "I agree that BFT MENA LLC and, where applicable, its directors, officers, employees, coaches, contractors, representatives, volunteers, event officials and agents, together with Aspire Zone Foundation and applicable venue personnel and authorised event partners (collectively, the “Released Parties”), shall not be liable to me for loss, damage or injury arising from risks inherent in my voluntary participation in the Event to the extent that such liability may lawfully be excluded or limited."
+    },
+    {
+      "t": "p",
+      "text": "Nothing in this document is intended to exclude, restrict or waive any liability, duty, right or remedy that cannot lawfully be excluded, restricted or waived under the laws of the State of Qatar. This waiver is intended to operate to the maximum extent permitted by applicable law."
+    },
+    {
+      "t": "heading",
+      "number": 7,
+      "text": "7. PERSONAL PROPERTY"
+    },
+    {
+      "t": "p",
+      "text": "I am solely responsible for all personal belongings brought to or left at the Event, including phones, watches, wearable devices, jewellery, wallets, money, bank cards, clothing, footwear, bags and electronic equipment. To the fullest extent permitted by law, the Released Parties accept no responsibility for personal property that is lost, stolen, misplaced or damaged at the Event. I understand that I should not bring unnecessary valuables to the venue."
+    },
+    {
+      "t": "heading",
+      "number": 8,
+      "text": "8. WOMEN'S COMPETITION - STRICT NO-PHOTOGRAPHY / NO-RECORDING POLICY"
+    },
+    {
+      "t": "p",
+      "text": "The women's competition/session is subject to a strict no-photography and no-recording policy. During designated women's-only competition/session periods and restricted areas, participants, spectators, guests and other attendees must not photograph, film, livestream, video record or otherwise capture or distribute images or recordings of participants."
+    },
+    {
+      "t": "p",
+      "text": "This restriction includes mobile phones, cameras, video cameras, smart watches, wearable/action cameras, livestreaming equipment and any other image or video recording device."
+    },
+    {
+      "t": "p",
+      "text": "No media consent is granted or requested from female participants for the women's-only competition/session under this waiver. All attendees must comply with directions from BFT MENA LLC, Aspire Zone Foundation, venue security and event personnel concerning photography, recording, privacy and restricted areas. A person who breaches these requirements may be required to stop recording, delete material where lawfully required, leave a restricted area or leave the venue, subject to applicable law and venue procedures."
+    },
+    {
+      "t": "heading",
+      "number": 9,
+      "text": "9. MEDIA CONSENT - MEN'S & MIXED COMPETITION ONLY"
+    },
+    {
+      "t": "p",
+      "text": "This section applies only to participants competing in, or attending areas where authorised photography or filming is permitted during, the men's and mixed portions of PODIUM. It does not apply to the women's-only competition/session."
+    },
+    {
+      "t": "p",
+      "text": "I acknowledge that authorised photographers, videographers and media personnel may photograph, film and/or record the men's and mixed portions of PODIUM. Subject to applicable law, I consent to BFT MENA LLC, Body Fit Training/BFT and its authorised affiliates, Aspire Zone Foundation, and their authorised photographers, videographers, agencies and service providers capturing and using my photograph, image and likeness, video footage, voice and appearance at the Event for legitimate Event, promotional, marketing, communications, publicity, editorial, archival and social-media purposes relating to PODIUM, BFT and/or Aspire Zone."
+    },
+    {
+      "t": "p",
+      "text": "This may include use on websites, social-media platforms, digital advertising, event recaps, promotional material, presentations, press/media communications and future promotion of PODIUM or BFT events. Material may be edited, cropped, formatted or combined with other Event content, provided that it is not used in a deliberately misleading or unlawful manner."
+    },
+    {
+      "t": "p",
+      "text": "I understand that I will not be entitled to payment, royalties or other compensation for authorised use of such Event media unless separately agreed in writing. Questions or requests concerning BFT MENA's use of Event photographs or video may be directed to info@bftmiddleeast.com. Any request concerning personal data or media will be considered and handled in accordance with applicable law."
+    },
+    {
+      "t": "heading",
+      "number": 10,
+      "text": "10. PERSONAL DATA & EVENT ADMINISTRATION"
+    },
+    {
+      "t": "p",
+      "text": "I acknowledge that BFT MENA LLC may collect and process personal information reasonably necessary to administer the Event, including information provided during registration, check-in and participation. This may include my name, contact information, competition category, team information, results, timing information, emergency information and records relating to my acceptance of this waiver."
+    },
+    {
+      "t": "p",
+      "text": "Such information may be used as reasonably necessary for Event registration and administration, participant identification, scheduling and competition management, results and rankings, safety and emergency management, Event communications, compliance with legal or regulatory requirements, and maintaining records of this agreement. Personal information will be handled in accordance with applicable laws of the State of Qatar."
+    },
+    {
+      "t": "heading",
+      "number": 11,
+      "text": "11. EVENT CHANGES, DELAYS OR CANCELLATION"
+    },
+    {
+      "t": "p",
+      "text": "I understand that BFT MENA LLC may reasonably alter competition schedules, workouts, movements, equipment, heats, divisions, venue arrangements or other operational elements where necessary due to safety, venue, regulatory, technical or operational requirements or circumstances outside its reasonable control. Where the Event is delayed, interrupted, modified or cancelled, any refund, transfer or other remedy will be determined in accordance with applicable registration terms and mandatory law."
+    },
+    {
+      "t": "heading",
+      "number": 12,
+      "text": "12. PARTICIPANT CONDUCT"
+    },
+    {
+      "t": "p",
+      "text": "I agree to behave respectfully toward participants, staff, judges, volunteers, spectators, venue personnel and other attendees. Threatening, abusive, discriminatory, dangerous, intentionally disruptive or seriously unsportsmanlike conduct may result in removal or disqualification. Decisions concerning competition judging, movement standards, penalties and Event results will be administered in accordance with PODIUM competition rules and procedures."
+    },
+    {
+      "t": "heading",
+      "number": 13,
+      "text": "13. AGE & CAPACITY TO CONSENT"
+    },
+    {
+      "t": "p",
+      "text": "By signing this waiver, I confirm that I am legally capable of entering into this agreement. If a participant is below the age at which they may independently provide legally effective consent, participation must be authorised by a parent or legal guardian, who must complete the required consent on the participant's behalf. The parent or legal guardian confirms that they have read and understood this document and consent to the minor's participation subject to these terms."
+    },
+    {
+      "t": "heading",
+      "number": 14,
+      "text": "14. GOVERNING LAW, JURISDICTION & SEVERABILITY"
+    },
+    {
+      "t": "p",
+      "text": "This waiver and any dispute arising from or connected with participation in PODIUM shall be governed by the laws of the State of Qatar. Subject to any mandatory legal requirements, disputes arising from or relating to this agreement or participation in the Event shall be subject to the jurisdiction of the competent courts of the State of Qatar."
+    },
+    {
+      "t": "p",
+      "text": "If any provision of this waiver is determined to be invalid, unlawful or unenforceable, that provision shall be interpreted, limited or severed to the minimum extent necessary where legally permissible, and the remaining provisions shall continue in effect."
+    },
+    {
+      "t": "heading",
+      "number": 15,
+      "text": "15. ENTIRE ACKNOWLEDGEMENT & ELECTRONIC ACCEPTANCE"
+    },
+    {
+      "t": "p",
+      "text": "This document records my acknowledgement and agreement concerning participation in the Event. Where accepted electronically through my registered PODIUM account, I intend my electronic signature or acceptance to evidence my agreement to all provisions of this waiver that apply to me. This includes the women's competition privacy and no-recording requirements and, where applicable, the media consent provisions for the men's and mixed portions of the Event. BFT MENA LLC may retain the electronically accepted version of this waiver, together with the participant account identity, date and time of acceptance, waiver version and associated audit records, for legitimate legal, administrative and compliance purposes in accordance with applicable law."
+    },
+    {
+      "t": "ack",
+      "title": "MANDATORY PARTICIPANT ACKNOWLEDGEMENT & ELECTRONIC ACCEPTANCE",
+      "paragraphs": [
+        "By electronically signing or accepting this waiver through my registered PODIUM account, I confirm that I have read and understood this document in full and voluntarily agree to all provisions that apply to me. This includes the assumption of risk, release and limitation of liability, medical consent, event and venue requirements, personal-property provisions, privacy and no-recording requirements, and, where applicable, the media consent provisions for the men's and mixed portions of PODIUM.",
+        "I understand that my electronic acceptance will be associated with my PODIUM account and recorded with the date and time of acceptance and the applicable waiver version."
+      ]
+    },
+    {
+      "t": "footer",
+      "lines": [
+        "APP RECORD: Participant identity/account • Electronic signature or acceptance • Date and time • Waiver version",
+        "BFT MENA LLC  •  PODIUM Series 1  •  3 October 2026  •  Aspire Ladies Sports Hall, Aspire Zone, Doha, Qatar",
+        "**Media / Content Contact: info@bftmiddleeast.com**"
+      ]
+    }
+  ]
+}

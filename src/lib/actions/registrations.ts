@@ -151,6 +151,8 @@ const editSchema = z.object({
   two: editPerson.optional(),
   /** The team's membership version the form was opened on. */
   expectedVersion: z.number().int().min(0).optional(),
+  /** BFT MENA Full access confirmed a signed-in athlete's sign-in email changes. */
+  confirmAccountEmail: z.boolean().optional(),
 });
 
 /**
@@ -192,6 +194,7 @@ export async function updateRegistration(input: unknown): Promise<ActionResult> 
     one: person(data.one),
     ...(data.two ? { two: person(data.two) } : {}),
     ...(data.expectedVersion !== undefined ? { expectedVersion: data.expectedVersion } : {}),
+    ...(data.confirmAccountEmail ? { confirmAccountEmail: true } : {}),
   });
   if (!outcome.ok) return outcome;
 

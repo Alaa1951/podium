@@ -112,7 +112,12 @@ Raw movement inputs are stored; points and ranks are always **derived**
 
 Ranking happens **inside a bracket**, never across brackets — three categories ×
 three divisions = nine brackets. Equal totals share a rank and the next is
-skipped (1, 2, 2, 4). Only submitted scores reach the public board.
+skipped (1, 2, 2, 4). Only submitted scores reach the public board: each zone is
+submitted by its own judge, and a team joins the live ranking with its first
+submitted zone, its total climbing as the rest arrive. A zone not submitted yet
+shows a dash — a judge's draft never leaves the server (`src/lib/board-score.ts`).
+A score unlocked for correction stays on the board with its values as they stand,
+and the saved correction re-ranks the team at once.
 
 > **Open with BFT MENA.** The reference's prose worked example gives Zone 4 as
 > 26.10 for 02:41 remaining, which does not follow from the stated formula —

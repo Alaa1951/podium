@@ -4,6 +4,7 @@ import type { OtpPurpose } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 import { consumeLoginCode, type ProofResult, type ProvenUser } from "@/lib/auth-proof";
 import { prisma } from "@/lib/prisma";
+import { cooldownLeft, endCooldown, startCooldown } from "@/lib/rate-limit";
 import { generateOtp, hashSecret, normalizeEmail } from "@/lib/security";
 
 const TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
@@ -16,6 +17,36 @@ export function getOtpConfig() {
     maxAttempts: MAX_ATTEMPTS,
     resendCooldownSeconds: RESEND_COOLDOWN_SECONDS,
   };
+}
+
+// ── The gap between two codes to one address ────────────────────────────────
+// A new code replaces the last one, and email can be slow: a second code sent
+// while the first is still on its way is how people end up typing a code
+// that no longer works. So one address gets at most one code per
+// RESEND_COOLDOWN_SECONDS, from ANY door (sign-up, "send again", password
+// sign-in, the athlete door). Every code issued starts the gap; a door asked
+// for an address with no account starts it too, so a waiting address looks
+// the same whether or not it has an account (rate-limit.ts › cooldowns).
+
+const gapKey = (email: string) => `otp-gap:${normalizeEmail(email)}`;
+
+/** Seconds before another code may go to this address; 0 when one may. */
+export function codeGapLeft(email: string): number {
+  return cooldownLeft(gapKey(email));
+}
+
+/** Start the gap — for an address that got a code, or is answered as if it had. */
+export function startCodeGap(email: string): void {
+  startCooldown(gapKey(email), RESEND_COOLDOWN_SECONDS * 1000);
+}
+
+/**
+ * The code the gap was protecting can no longer be used — it signed somebody
+ * in, or wrong guesses locked it — so a new one may be asked for at once.
+ * Only somebody holding that mailbox's code can bring this about.
+ */
+function endCodeGap(email: string): void {
+  endCooldown(gapKey(email));
 }
 
 /**
@@ -51,6 +82,7 @@ export async function createOtpChallenge(params: {
       sentTo: normalizeEmail(params.sentTo),
     },
   });
+  startCodeGap(params.sentTo);
 
   return { code };
 }
@@ -68,7 +100,7 @@ export async function verifyOtpChallenge(params: {
   purpose: OtpPurpose;
   onProven?: (tx: Prisma.TransactionClient, user: ProvenUser) => Promise<void>;
 }): Promise<OtpVerification> {
-  return consumeLoginCode({
+  const result = await consumeLoginCode({
     db: prisma,
     userId: params.userId,
     code: params.code,
@@ -76,11 +108,18 @@ export async function verifyOtpChallenge(params: {
     maxAttempts: MAX_ATTEMPTS,
     onProven: params.onProven,
   });
+  if (result.ok) endCodeGap(result.verifiedEmail);
+  else if (result.reason === "attempts") {
+    const account = await prisma.user.findUnique({ where: { id: params.userId }, select: { email: true } });
+    if (account) endCodeGap(account.email);
+  }
+  return result;
 }
 
+/** Whether the newest UNUSED code is older than the cooldown (a used one holds nothing back). */
 export async function canResendOtp(params: { userId: string; purpose: OtpPurpose }) {
   const latest = await prisma.otpChallenge.findFirst({
-    where: { userId: params.userId, purpose: params.purpose },
+    where: { userId: params.userId, purpose: params.purpose, consumedAt: null },
     orderBy: { createdAt: "desc" },
   });
 

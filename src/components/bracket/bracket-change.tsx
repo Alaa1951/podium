@@ -27,6 +27,7 @@ import { CATEGORIES } from "@/lib/scoring";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CLOSED_ATHLETE: Record<string, string> = {
+  PROTECTED_SLOT: "Your team's wave was arranged by hand. Ask at the desk to change your category.",
   TEAM_EDIT_CLOSED: "Changes to your category and level closed on {when} (Qatar time). BFT MENA can still change it for you until your team has a score — ask at the desk.",
   WAVE_STARTED: "Your wave has started, so your category and level cannot change now.",
   TEAM_ALREADY_SCORED: "Your team has a score, so your category and level cannot change now.",
@@ -35,6 +36,7 @@ const CLOSED_ATHLETE: Record<string, string> = {
 };
 
 const CLOSED_STAFF: Record<string, string> = {
+  PROTECTED_SLOT: "This team runs manually in another category's block. Move it, or return it to Auto Assign on the Waves screen, before changing its category.",
   TEAM_EDIT_CLOSED: "Changes to this team's category and level closed on {when} (Qatar time). BFT MENA can still change it until the team has a score.",
   WAVE_STARTED: "This team's wave has started, so its category and level cannot change now.",
   TEAM_ALREADY_SCORED: "This team has a score, so its category and level cannot change now.",

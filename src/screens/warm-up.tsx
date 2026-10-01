@@ -31,7 +31,7 @@ export default async function WarmupPage(props: SeriesScreenProps, area: DeskAre
   const { user, series } = await requireDesk(props.params, area, canSeeWarmupCheckIn);
   const { t } = await getTranslator();
 
-  const { teams, waves } = await loadCheckIn(series.id, user);
+  const { teams, waves, waiverRequired } = await loadCheckIn(series.id, user);
   const base = area === "studio" ? `/studio/${series.slug}` : `/series/${series.slug}`;
 
   return (
@@ -65,7 +65,7 @@ export default async function WarmupPage(props: SeriesScreenProps, area: DeskAre
         </div>
       ) : null}
 
-      <WarmupBoard teams={teams} waves={waves} canMark={!user.viewAs && series.status !== "final" && canMarkWarmupReady(user)} />
+      <WarmupBoard teams={teams} waves={waves} canMark={!user.viewAs && series.status !== "final" && canMarkWarmupReady(user)} waiverRequired={waiverRequired} />
     </div>
   );
 }

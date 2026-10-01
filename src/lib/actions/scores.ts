@@ -320,8 +320,10 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
 
 /**
  * BFT MENA Full access only (`scores.unlock`, never grantable): returns a
- * submitted score — and every one of its zones — to draft, so it leaves the
- * public board while a judging dispute is settled.
+ * submitted score — and every one of its zones — to draft for correction.
+ * The team STAYS on the board: each zone keeps the time it was first submitted
+ * (`submittedAt`), which is what the board reads (board-score.ts), so the
+ * ranking holds while the correction is made and moves the moment it is saved.
  */
 export async function unlockScore(teamId: string): Promise<SaveScoreResult> {
   const user = await requireUser();

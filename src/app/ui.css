@@ -693,6 +693,43 @@ select.input { cursor: pointer; }
 
 .wave-card-empty { padding: 12px 0; font-size: 13px; color: var(--text-muted); }
 
+/* ── A team on the running order, and moving it by hand (components/setup) ─── */
+.setup-team-row { border: 1px solid var(--border); min-width: 0; }
+.setup-team-row[data-manual] { border-color: var(--status-warn-text); }
+.setup-team-main { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; }
+.setup-team-station { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.setup-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-heading); font-weight: 600; font-size: 15px; }
+.setup-team-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.setup-team-note { font-size: 12px; color: var(--text-secondary); margin-top: 4px; overflow-wrap: anywhere; }
+/* Where the Move button would be: why this team cannot move. */
+.setup-team-locked { max-width: 200px; margin: 0; }
+.setup-team-warn { color: var(--status-warn-text); }
+.move-panel { display: grid; gap: 10px; margin: 0 8px 8px; padding: 12px; min-width: 0; }
+/* Stacked at every width: the panel sits inside a team card, and a station reads "3 · exchange with #12 NAME". */
+.move-panel-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.move-panel-fields label { display: grid; gap: 4px; min-width: 0; }
+.move-panel-notes { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+.move-panel-confirm { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 10px 12px; cursor: pointer; }
+.move-panel-confirm input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.move-panel-warn { border-color: var(--status-warn-text); }
+.move-panel-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── The category schedule: Settings form and Waves summary (components/schedule) ── */
+.wave-board-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; border-bottom: 2px solid var(--text); padding-bottom: 12px; }
+.schedule-controls { display: grid; gap: 12px; margin-top: 14px; min-width: 0; }
+.schedule-controls-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.category-summary { display: grid; gap: 10px; min-width: 0; }
+.schedule-conflicts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.category-schedule-rows { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; min-width: 0; }
+.category-schedule-row {
+  display: grid; grid-template-columns: 28px minmax(90px, 1fr) minmax(120px, 160px) minmax(140px, 190px) auto;
+  align-items: end; gap: 10px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; min-width: 0;
+}
+.category-schedule-row label { display: grid; gap: 4px; min-width: 0; }
+.category-schedule-order { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-sunken); font-weight: 700; font-size: 12px; align-self: center; }
+.category-schedule-name { align-self: center; font-size: 15px; }
+.category-schedule-move { display: flex; gap: 4px; }
+
 /* ── A score's history ────────────────────────────────────────────────────
    Who changed what, and when. Kept to one line each: it is read to settle a
    question, not browsed. */
@@ -1244,3 +1281,58 @@ select.input { cursor: pointer; }
   .search-box { flex-basis: auto; }
   .search-box-clear { inset-inline-end: 72px; }
 }
+
+/* ── Waiver Declarations (screens/waivers.tsx, components/waivers) ─────────── */
+.waiver-screen { max-width: 860px; }
+.waiver-competitions, .waiver-language { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.waiver-summary { display: grid; gap: 10px; }
+.waiver-summary-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.waiver-summary-facts, .waiver-receipt-facts { display: grid; gap: 6px 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 0; }
+.waiver-summary-facts dt, .waiver-receipt-facts dt { font-size: 12px; color: var(--text-secondary); }
+.waiver-summary-facts dd, .waiver-receipt-facts dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.waiver-state-note { margin: 0; font-size: 14px; }
+.waiver-doc { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-md, 12px); padding: clamp(16px, 4vw, 36px); line-height: 1.65; font-size: 15px; margin: 12px 0; }
+.waiver-doc[dir="rtl"] { font-size: 16px; line-height: 1.85; }
+.waiver-doc p { margin: 0 0 10px; }
+.waiver-doc ul { margin: 0 0 10px; padding-inline-start: 22px; }
+.waiver-doc li { margin: 4px 0; }
+.waiver-title { text-align: center; font-weight: 700; margin-bottom: 16px; letter-spacing: 0.02em; }
+.waiver-title-main { font-size: 17px; margin-top: 6px; }
+.waiver-facts { width: 100%; border-collapse: collapse; margin: 12px 0 16px; }
+.waiver-facts th, .waiver-facts td { border: 1px solid var(--border-strong); padding: 8px 10px; text-align: start; vertical-align: top; }
+.waiver-facts th { width: 32%; background: var(--surface-sunken); font-weight: 700; }
+.waiver-box { border: 1px solid var(--border-strong); background: var(--surface-sunken); border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
+.waiver-box-title { display: block; margin-bottom: 6px; }
+.waiver-notice { text-align: center; }
+.waiver-heading { font-size: 16px; margin: 20px 0 8px; letter-spacing: 0.02em; }
+.waiver-footer { text-align: center; font-size: 12px; color: var(--text-secondary); display: grid; gap: 4px; margin-top: 18px; }
+.waiver-sign { display: grid; gap: 12px; margin: 12px 0; }
+.waiver-check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; cursor: pointer; }
+.waiver-check input { width: 22px; height: 22px; flex: none; margin-top: 2px; }
+.waiver-name { display: grid; gap: 6px; }
+/* A signature line, not a form field: the athlete writes their name on it. */
+.waiver-signature, .waiver-signature-shown { font-family: "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; font-size: 24px; }
+.waiver-signature { border: 0; border-bottom: 2px solid var(--text-secondary); border-radius: 0; background: transparent; padding: 6px 4px; min-height: 52px; }
+.waiver-signature:focus { outline: none; border-bottom-color: var(--bft-cyan); box-shadow: 0 2px 0 var(--bft-cyan); }
+.waiver-signed { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; }
+.waiver-history ul { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.waiver-history li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.waiver-receipt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.waiver-receipt-doc-title { font-size: 16px; margin: 20px 0 0; }
+.waiver-hash { font-size: 13px; }
+.waiver-prompt { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; padding: 8px 16px; background: rgba(217, 119, 6, 0.18); color: var(--status-warn-text); border-bottom: 1px solid var(--border-strong); font-size: 14px; font-weight: 600; text-align: center; }
+.waiver-card-action { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--status-warn-text); }
+.waiver-card { margin: 12px 0; }
+@media print {
+  .personal-rail, .plain-header, .mobile-tabbar, .waiver-prompt, .waiver-print, .waiver-competitions, .waiver-language, nav { display: none !important; }
+  body, .screen, .waiver-doc, .card { background: #fff !important; color: #000 !important; box-shadow: none !important; }
+  .waiver-doc { border: 0; padding: 0; }
+  .waiver-heading { break-after: avoid; }
+  .waiver-box, .waiver-facts tr { break-inside: avoid; }
+}
+.start-blockers { display: grid; gap: 10px; margin-bottom: 12px; }
+.start-blocker-team ul, .checkin-refusal ul { margin: 4px 0 0; padding-inline-start: 20px; }
+.checkin-refusal { display: grid; gap: 6px; margin-top: 8px; }
+.waiver-documents { display: grid; gap: 10px; margin: 12px 0; }
+.waiver-document-choice { display: grid; gap: 6px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 10px 12px; }
+.waiver-records { margin-top: 12px; }

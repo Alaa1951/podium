@@ -40,11 +40,16 @@ import { hashSecret, normalizeEmail, safeEqual } from "@/lib/security";
 export type ProofDb = PrismaClient;
 
 export type ProofRefusal =
-  /** No unconsumed, unexpired code/link. */
+  /**
+   * A code: the RIGHT code of one that has expired or was already used (a
+   * link: no unused, unexpired link).
+   */
   | "expired"
-  /** Too many wrong codes. */
+  /** The right code of an earlier email, replaced since by a newer code. */
+  | "superseded"
+  /** The right code, but too many wrong ones were typed against it first. */
   | "attempts"
-  /** Wrong code. */
+  /** Wrong code — or no code outstanding at all: the two answer alike. */
   | "invalid"
   /** The code/link was issued before recipients were recorded. */
   | "no_recipient"
@@ -109,9 +114,24 @@ async function recordProof(tx: Prisma.TransactionClient, user: { id: string; ema
   });
 }
 
+/** How far back an earlier code is still recognised, to say WHY it no longer works. */
+const EARLIER_CODES_MS = 24 * 60 * 60_000;
+const EARLIER_CODES_LOOKED_AT = 10;
+
 /**
  * Spend a sign-in code. `onProven` runs inside the transaction after the
  * proof is recorded; if it throws, nothing is kept — not even the proof.
+ *
+ * WHY A CODE IS REFUSED. Each new code replaces the one before it, and email
+ * can arrive late and out of order — so a person often types the code of an
+ * earlier email. That is said as such ("superseded"), and it does NOT count
+ * against the current code's attempts: typing a real code we sent is not a
+ * guess. Likewise the right code of an expired or used challenge is
+ * "expired", and the right code of a challenge locked by wrong guesses is
+ * "attempts". Each of those answers needs a real code from that mailbox, so
+ * none tells a stranger anything; everything else — a wrong code, or no code
+ * outstanding at all — is "invalid", the same answer an unknown address gets
+ * from the sign-in doors.
  */
 export async function consumeLoginCode(params: {
   db: ProofDb;
@@ -125,17 +145,31 @@ export async function consumeLoginCode(params: {
     const user = await lockUser(tx, params.userId);
     if (!user || user.archivedAt || user.status === "disabled") return { ok: false, reason: "account" };
 
+    const typed = hashSecret(params.code);
     const challenge = await tx.otpChallenge.findFirst({
       where: { userId: user.id, purpose: params.purpose, consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
     });
-    if (!challenge) return { ok: false, reason: "expired" };
-    if (challenge.attempts >= params.maxAttempts) return { ok: false, reason: "attempts" };
 
-    if (!safeEqual(challenge.codeHash, hashSecret(params.code))) {
-      await tx.otpChallenge.updateMany({ where: { id: challenge.id, consumedAt: null }, data: { attempts: { increment: 1 } } });
+    if (!challenge || !safeEqual(challenge.codeHash, typed)) {
+      // Not the current code. One we sent this account earlier?
+      const earlier = await tx.otpChallenge.findMany({
+        where: {
+          userId: user.id, purpose: params.purpose, createdAt: { gt: new Date(Date.now() - EARLIER_CODES_MS) },
+          ...(challenge ? { NOT: { id: challenge.id } } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take: EARLIER_CODES_LOOKED_AT,
+        select: { codeHash: true, createdAt: true },
+      });
+      const match = earlier.find((one) => safeEqual(one.codeHash, typed));
+      if (match) return { ok: false, reason: challenge && challenge.createdAt >= match.createdAt ? "superseded" : "expired" };
+      if (challenge) {
+        await tx.otpChallenge.updateMany({ where: { id: challenge.id, consumedAt: null }, data: { attempts: { increment: 1 } } });
+      }
       return { ok: false, reason: "invalid" };
     }
+    if (challenge.attempts >= params.maxAttempts) return { ok: false, reason: "attempts" };
 
     // Right code — but is it still the right mailbox? Either way this code is
     // finished with. Spent conditionally: of two submissions, one wins.

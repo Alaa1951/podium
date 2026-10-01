@@ -64,7 +64,7 @@ export function Leaderboard({
   const rows = useMemo(() => {
     const pool = data.teams.filter(
       (team) =>
-        team.submitted && team.category === category && team.division === division
+        team.scored && team.category === category && team.division === division
     );
     return rankAll(pool);
   }, [data.teams, category, division]);
@@ -165,7 +165,7 @@ export function Leaderboard({
         category={category}
         division={division}
         hasScores={(c, d) =>
-          data.teams.some((team) => team.submitted && team.category === c && team.division === d)
+          data.teams.some((team) => team.scored && team.category === c && team.division === d)
         }
         onPick={(c, d) => {
           setCategory(c);
@@ -232,4 +232,4 @@ export function Leaderboard({
   );
 }
 
-/** The bracket with the most submitted scores, or the first if none have any. */
+/** The bracket with the most teams on the ranking, or the first if none have any. */

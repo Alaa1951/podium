@@ -19,13 +19,13 @@ import {
 const hrefs = (role: string, home?: string) => personalNavItems(role, home).map((i) => i.href);
 
 describe("who gets which bar", () => {
-  it("gives a competitor their own team, wave, results and account", () => {
-    expect(hrefs("competitor")).toEqual(["/me", "/my-wave", "/results", "/account"]);
+  it("gives a competitor their own team, wave, waiver declarations, results and account", () => {
+    expect(hrefs("competitor")).toEqual(["/me", "/my-wave", "/waivers", "/results", "/account"]);
   });
 
-  it("gives a competitor the same four whatever their home resolved to", () => {
+  it("gives a competitor the same five whatever their home resolved to", () => {
     // A competitor working a zone still belongs on /me first.
-    expect(hrefs("competitor", "/my-wave")).toEqual(["/me", "/my-wave", "/results", "/account"]);
+    expect(hrefs("competitor", "/my-wave")).toEqual(["/me", "/my-wave", "/waivers", "/results", "/account"]);
   });
 
   it("gives anybody posted to a live zone the judge's bar, with the way back to their other screens", () => {

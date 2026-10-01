@@ -93,33 +93,41 @@ describe.skipIf(!enabled)("entrance and warm-up check-in on a real database", { 
 
   // ── Warm-up ───────────────────────────────────────────────────────────────
 
-  it("warm-up readiness and entrance attendance are stored apart: neither writes the other", async () => {
-    // Ready before arriving: allowed, and nobody is checked in by it.
-    expect(await setWarmupReady(prisma, volunteer, { teamId: "t1", ready: true })).toMatchObject({ ok: true, changed: true });
+  it("warm-up and entrance stay separate facts — warm-up needs the entrance, and leaving takes readiness back", async () => {
+    // Ready before arriving: refused, naming who is not here — and nobody is checked in by it.
+    expect(await setWarmupReady(prisma, volunteer, { teamId: "t1", ready: true })).toMatchObject({
+      ok: false, error: "PREREQUISITES", gaps: { athletes: [{ name: "Mona Saleh", gaps: ["entrance"] }, { name: "Sara Ali", gaps: ["entrance"] }] },
+    });
     let team = await teamRow(prisma);
-    expect(team.warmupReadyAt).not.toBeNull();
-    expect(team.attendedAt).toBeNull();
+    expect(team.warmupReadyAt).toBeNull();
     expect(team.competitors.every((seat) => seat.attendedAt === null)).toBe(true);
-    const readyAt = team.warmupReadyAt;
-
-    // Arriving does not change readiness; nor does undoing the arrival.
-    await setTeamArrival(prisma, organiser, { teamId: "t1", attended: true });
-    await setAthleteArrival(prisma, organiser, { competitorId: "seat-mona", attended: false });
-    await setTeamArrival(prisma, organiser, { teamId: "t1", attended: false });
-    expect((await teamRow(prisma)).warmupReadyAt).toEqual(readyAt);
 
     // Arriving never makes a team ready.
-    await setTeamArrival(prisma, gymB, { teamId: "t2", attended: true });
-    expect((await teamRow(prisma, "t2")).warmupReadyAt).toBeNull();
+    await setTeamArrival(prisma, organiser, { teamId: "t1", attended: true });
+    team = await teamRow(prisma);
+    expect(team.warmupReadyAt).toBeNull();
+    const arrived = team.attendedAt;
 
-    // Un-readying leaves the arrival alone.
-    const arrived = (await teamRow(prisma, "t2")).attendedAt;
-    await setWarmupReady(prisma, gymB, { teamId: "t2", ready: true });
-    await setWarmupReady(prisma, gymB, { teamId: "t2", ready: false });
-    team = await teamRow(prisma, "t2");
+    // Ready — for its wave — without writing its arrival.
+    expect(await setWarmupReady(prisma, volunteer, { teamId: "t1", ready: true })).toMatchObject({ ok: true, changed: true });
+    team = await teamRow(prisma);
+    expect(team).toMatchObject({ warmupWaveId: "w1", attendedAt: arrived });
+
+    // Warm-up check-out leaves the arrival alone.
+    await setWarmupReady(prisma, volunteer, { teamId: "t1", ready: false });
+    team = await teamRow(prisma);
     expect(team.warmupReadyAt).toBeNull();
     expect(team.attendedAt).toEqual(arrived);
     expect(team.competitors.every((seat) => seat.attendedAt)).toBe(true);
+
+    // Ready again; one athlete leaves the venue: readiness is taken back.
+    await setWarmupReady(prisma, volunteer, { teamId: "t1", ready: true });
+    await setAthleteArrival(prisma, organiser, { competitorId: "seat-mona", attended: false });
+    expect((await teamRow(prisma)).warmupReadyAt).toBeNull();
+
+    // A team in no wave has nothing to be ready for.
+    await setTeamArrival(prisma, gymB, { teamId: "t2", attended: true });
+    expect(await setWarmupReady(prisma, gymB, { teamId: "t2", ready: true })).toMatchObject({ ok: false, gaps: { gaps: ["no_wave"] } });
   });
 
   // ── A seat that changes hands ─────────────────────────────────────────────

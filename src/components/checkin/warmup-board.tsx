@@ -6,26 +6,32 @@ import { useDeferredValue, useEffect, useState, useTransition } from "react";
 import { SearchBox, useUrlFilters } from "@/components/app/search-box";
 import { useT } from "@/components/i18n/locale-provider";
 import { setWarmupReadiness } from "@/lib/actions/checkin";
-import { arrivalStatus, matchesWarmup, warmupGroups, warmupTotals, type CheckInTeam, type WarmupWave } from "@/lib/checkin";
+import { arrivalStatus, matchesWarmup, waiversDone, warmupGroups, warmupTotals, type CheckInTeam, type WarmupWave } from "@/lib/checkin";
+import type { TeamGaps } from "@/lib/readiness";
+import { gapLines, waiverBadge } from "@/lib/readiness-messages";
 import { CATEGORIES, DIVISIONS } from "@/lib/scoring";
+import { waiverSatisfied } from "@/lib/waivers/status";
+import { privacyReview } from "@/lib/category-schedule";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WARM-UP CHECK-IN — which teams are ready to compete.
 //
-// One checklist per wave, in running order, each team on its station. The
-// button marks a team READY once its preparation is complete. Beside it, for
-// reading only, is what the entrance desk recorded — arrived, partly arrived,
-// not arrived — so "here" and "ready" are never mistaken for each other:
-// arriving does not tick this list, and ticking it does not check anyone in.
+// One checklist per wave, in running order, each team on its station.
+// WARM-UP CHECK-IN marks a team ready for its wave; it needs every athlete
+// signed (their own waiver) and checked in at the entrance, and a refusal
+// says who is missing what. WARM-UP CHECK-OUT takes readiness back — always
+// allowed. Readiness belongs to one wave: a team moved to another wave shows
+// as not ready until it checks in again. Arriving never ticks this list.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FILTER_KEYS = ["q", "category", "division", "wave", "readiness"] as const;
+const FILTER_KEYS = ["q", "category", "division", "wave", "readiness", "waiver"] as const;
 
-export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; waves: WarmupWave[]; canMark: boolean }) {
+export function WarmupBoard({ teams, waves, canMark, waiverRequired = false }: { teams: CheckInTeam[]; waves: WarmupWave[]; canMark: boolean; waiverRequired?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [refusal, setRefusal] = useState<TeamGaps | null>(null);
   const [filters, setFilters] = useUrlFilters(FILTER_KEYS);
   const query = useDeferredValue(filters.q);
 
@@ -40,16 +46,17 @@ export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; w
   const groups = warmupGroups(teams, waves);
   const matches = (team: CheckInTeam) => matchesWarmup(team, { ...filters, q: query });
   const shown = teams.filter(matches).length;
-  const filtered = Boolean(filters.q || filters.category || filters.division || filters.wave || filters.readiness);
-  const readyNotArrived = teams.filter((team) => team.ready && arrivalStatus(team) !== "in").length;
+  const filtered = Boolean(filters.q || filters.category || filters.division || filters.wave || filters.readiness || filters.waiver);
 
   function mark(team: CheckInTeam) {
     if (!canMark) return;
     setError("");
+    setRefusal(null);
     startTransition(async () => {
       try {
         const result = await setWarmupReadiness({ teamId: team.id, ready: !team.ready });
-        if (!result.ok) {
+        if (!result.ok && result.error === "PREREQUISITES" && result.gaps) setRefusal(result.gaps);
+        else if (!result.ok) {
           setError(
             result.error === "SERIES_FINISHED"
               ? t("This competition is finished.")
@@ -83,12 +90,6 @@ export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; w
           <span className="stat-note">{t("not marked ready yet")}</span>
         </div>
       </div>
-
-      {readyNotArrived ? (
-        <div className="notice" style={{ marginTop: 12 }}>
-          {t("{count} ready team(s) are not fully checked in at the entrance. Readiness does not check anyone in.", { count: readyNotArrived })}
-        </div>
-      ) : null}
 
       <div className="list-toolbar">
         <SearchBox
@@ -135,8 +136,15 @@ export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; w
             <option value="ready">{t("Ready")}</option>
             <option value="pending">{t("Not ready yet")}</option>
           </select>
+          {waiverRequired ? (
+            <select className="input" value={filters.waiver} onChange={(event) => setFilters({ waiver: event.target.value })} aria-label={t("Waiver")}>
+              <option value="">{t("Any waiver status")}</option>
+              <option value="signed">{t("Everybody signed")}</option>
+              <option value="pending">{t("Waiver acceptance required")}</option>
+            </select>
+          ) : null}
           {filtered ? (
-            <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", wave: "", readiness: "" })}>
+            <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", wave: "", readiness: "", waiver: "" })}>
               {t("Clear")}
             </button>
           ) : null}
@@ -193,6 +201,16 @@ export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; w
                         {t(team.category)} · {t(team.division)}
                         {team.studio ? ` · ${team.studio}` : ""}
                       </div>
+                      {team.outsideBlock ? (
+                        <div className="reg-sub" data-testid="warmup-outside-block">
+                          <span className="badge badge-warn">
+                            {team.hostBlock
+                              ? t("Runs in the {block} block — competes as {category}", { block: t(team.hostBlock), category: t(team.category) })
+                              : t("Runs outside the category schedule — competes as {category}", { category: t(team.category) })}
+                          </span>
+                          {privacyReview(team.category, team.hostBlock ?? null) ? <span className="badge badge-danger" data-testid="warmup-privacy">{t("Privacy review before the wave")}</span> : null}
+                        </div>
+                      ) : null}
                       <div className="chip-row" style={{ marginTop: 6 }}>
                         {/* Read-only here: the entrance desk's fact, beside this desk's own. */}
                         <span className="reg-sub">{t("Entrance")}:</span>
@@ -205,11 +223,30 @@ export function WarmupBoard({ teams, waves, canMark }: { teams: CheckInTeam[]; w
                         )}
                         <span className="reg-sub">{t("Warm-up")}:</span>
                         {team.ready ? <span className="badge badge-ok">{t("Ready")}</span> : <span className="badge badge-warn">{t("Not ready yet")}</span>}
+                        {waiverRequired ? (
+                          <>
+                            <span className="reg-sub">{t("Waiver")}:</span>
+                            {waiversDone(team)
+                              ? <span className="badge badge-ok" data-testid="team-waivers">{t("Everybody signed")}</span>
+                              : team.athletes.filter((athlete) => !waiverSatisfied(athlete.waiver)).map((athlete) => {
+                                  const badge = waiverBadge(athlete.waiver)!;
+                                  return <span key={athlete.id} className={"badge " + badge.tone} data-testid="team-waivers">{athlete.fullName}: {t(badge.label)}</span>;
+                                })}
+                          </>
+                        ) : null}
                       </div>
+                      {refusal && refusal.team.id === team.id ? (
+                        <div className="notice-error checkin-refusal" role="alert" data-testid="warmup-refusal">
+                          <strong>{t("Not checked in at warm-up.")}</strong>
+                          <ul>
+                            {gapLines(refusal, t).map((line) => <li key={line.who}><strong>{line.who}:</strong> {line.what.join(" · ")}</li>)}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                     {canMark ? (
                       <button type="button" className={team.ready ? "btn btn-ghost" : "btn btn-primary"} disabled={pending} onClick={() => mark(team)}>
-                        {team.ready ? t("Undo ready") : t("Mark ready")}
+                        {team.ready ? t("Warm-up check-out") : t("Warm-up check-in")}
                       </button>
                     ) : null}
                   </li>

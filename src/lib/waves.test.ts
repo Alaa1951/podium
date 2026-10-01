@@ -22,6 +22,7 @@ function wave(number: number, status: WaveState["status"], extra: Partial<WaveSt
     capacity: 9,
     durationMinutes: 20,
     startTime: "09:00",
+    blockCategory: null,
     remainingMs: status === "running" ? 600_000 : null,
     endsAt: null,
     stoppedRemainingMs: null,
