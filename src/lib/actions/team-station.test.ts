@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => {
     updateTeam,
     transaction,
     revalidate: vi.fn(),
+    /** Settings → Category schedule › Auto Assign. */
+    autoAssign: { on: true },
     db: { team: { findFirst: findTeam, count: countTeams, update: updateTeam } },
   };
 });
@@ -70,12 +72,13 @@ beforeEach(() => {
   // NEXT test silently consumes it. That is how this file first went green
   // on the wrong data.
   vi.resetAllMocks();
+  mocks.autoAssign.on = true;
   mocks.requireAccess.mockResolvedValue({ id: "u1", role: "admin", viewAs: null });
   mocks.findOccupant.mockResolvedValue(null);
   mocks.transaction.mockImplementation(async (_seriesId, work) => work({ team: {
     ...mocks.db.team,
     findFirst: (args: { where: { station?: number } }) => args.where.station === undefined ? mocks.findTeam(args) : mocks.findOccupant(args),
-  }, zoneScore: { count: async () => 0 } }));
+  }, zoneScore: { count: async () => 0 }, series: { findUnique: async () => ({ autoAssignEnabled: mocks.autoAssign.on }) } }));
 });
 
 describe("setTeamStation", () => {
@@ -97,6 +100,16 @@ describe("setTeamStation", () => {
 
     expect(await setTeamStation({ teamId: "t1", station: 5 })).toEqual({ ok: false, error: "STATION_PROTECTED" });
     expect(mocks.updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("with Auto Assign switched off, swaps with a team running manually like any other", async () => {
+    mocks.autoAssign.on = false;
+    mocks.findTeam.mockResolvedValue(seatedIn(7));
+    mocks.findOccupant.mockResolvedValue({ id: "t2", slotManualAt: new Date() });
+    mocks.countTeams.mockResolvedValue(1);
+
+    expect(await setTeamStation({ teamId: "t1", station: 5 })).toEqual({ ok: true });
+    expect(mocks.updateTeam).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t1" }, data: expect.objectContaining({ station: 5 }) }));
   });
 
   // THE ONE THAT MATTERS. Capacity seven, station eight: there is no eighth

@@ -153,10 +153,7 @@ Scores on the floor from the judge sheet: the team on their station in their zon
 
 | Area | Screen | Can |
 | --- | --- | --- |
-| Competition | Wave schedule | View |
-| Competition | Wave control | View |
-| Competition | Zone teams | View |
-| Competition | Scores | View; Enter scores |
+| Competition | Scores | Enter scores |
 | Personal | Judge sheet | View |
 
 ### Volunteer
@@ -365,10 +362,10 @@ Decisions the code makes on purpose, or has not made yet:
 | Registrations | Check teams in on the day | `registrations.attendance` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
 | Registrations | Change a team's category or level at the athlete's request | `registrations.bracket` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
 | Registrations | Export the roster | `registrations.export` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Wave schedule | View | `waves.view` | role | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |
+| Wave schedule | View | `waves.view` | role | ✓ | ✓ | ✓ |  | ✓ | ✓ |  |
 | Wave schedule | Place teams into waves and stations | `waves.placeTeams` | role |  | ✓ | ✓ |  |  |  |  |
 | Wave schedule | Create waves and set times | `waves.edit` | role |  |  | ✓ |  |  |  |  |
-| Wave control | View | `waveControl.view` | role | ✓ |  | ✓ | ✓ |  |  |  |
+| Wave control | View | `waveControl.view` | role | ✓ |  | ✓ |  |  |  |  |
 | Wave control | All wave buttons (start the day, start, end, reset) | `waveControl.control` | role | ✓ |  | ✓ |  |  |  |  |
 | Wave control | Start the competition day | `waveControl.startDay` | role |  |  |  |  |  |  |  |
 | Wave control | Start a wave | `waveControl.start` | role |  |  |  |  |  |  |  |
@@ -379,9 +376,9 @@ Decisions the code makes on purpose, or has not made yet:
 | Check-in | Mark teams ready in warm-up | `checkIn.warmup` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
 | Waivers | Attach waiver versions and read signed records | `waivers.manage` | BFT MENA only |  |  |  |  |  |  |  |
 | T-shirts | View | `shirts.view` | role |  |  | ✓ |  |  |  |  |
-| Zone teams | View | `zoneStaff.view` | role | ✓ |  | ✓ | ✓ |  |  |  |
+| Zone teams | View | `zoneStaff.view` | role | ✓ |  | ✓ |  |  |  |  |
 | Zone teams | Put judges on zones and pick zone leaders | `zoneStaff.assign` | role | ✓ |  | ✓ |  |  |  |  |
-| Scores | View | `scores.view` | role | ✓ | ✓ | ✓ | ✓ |  |  |  |
+| Scores | View | `scores.view` | role | ✓ | ✓ | ✓ |  |  |  |  |
 | Scores | Enter scores | `scores.enter` | role | ✓ |  |  | ✓ |  |  |  |
 | Scores | Correct a submitted score | `scores.correct` | Full access only |  |  |  |  |  |  |  |
 | Scores | Unlock a submitted score | `scores.unlock` | Full access only |  |  |  |  |  |  |  |

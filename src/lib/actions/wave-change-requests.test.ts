@@ -39,7 +39,7 @@ beforeEach(() => {
   mocks.team.updateMany.mockResolvedValue({ count: 1 });
   mocks.wave.findFirst.mockResolvedValue({ id: "target", seriesId: "series", number: 2, startTime: "07:20", status: "pending", capacity: 7, updatedAt: date, teams: [{ station: 1 }] });
   mocks.schedule.findMany.mockResolvedValue([]);
-  mocks.transaction.mockImplementation(async (_id, work) => work({ team: mocks.team, wave: mocks.wave, user: mocks.user, waveChangeRequest: mocks.request, categorySchedule: mocks.schedule }));
+  mocks.transaction.mockImplementation(async (_id, work) => work({ team: mocks.team, wave: mocks.wave, user: mocks.user, waveChangeRequest: mocks.request, categorySchedule: mocks.schedule, series: { findUnique: async () => ({ autoAssignEnabled: true }) } }));
 });
 
 describe("requesting a team time change", () => {

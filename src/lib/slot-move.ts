@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Category } from "@/generated/prisma/enums";
 import { awardsWindows, clockLabel, clockMinutes, lateForAwards, outsideItsBlock, type AwardsWindow } from "@/lib/category-schedule";
-import { isScheduled, loadBlocks } from "@/lib/category-schedule-db";
+import { autoAssignOn, blocksGovern, loadBlocks } from "@/lib/category-schedule-db";
 import { lowestFreeStation } from "@/lib/floor";
 import { ScheduleError } from "@/lib/wave-schedule";
 
@@ -17,6 +17,9 @@ import { ScheduleError } from "@/lib/wave-schedule";
 // confirmed as such. So must a slot that finishes after the team's own
 // category has finished — its results would not be complete when that
 // category's awards begin.
+//
+// With Auto Assign switched off there are no blocks to keep to: neither
+// confirmation is asked for.
 //
 // It may NOT bypass anything else: the destination must be a wave that has
 // not started, with a free station inside its capacity — or the station of
@@ -37,7 +40,7 @@ type Target = { id: string; seriesId: string; number: number; status: string; ca
 /** What confirming a move to `target` would mean for a team of `category`. */
 export async function slotWarnings(tx: Prisma.TransactionClient, category: Category, target: Target): Promise<SlotWarnings> {
   const blocks = await loadBlocks(tx, target.seriesId);
-  const scheduled = isScheduled(blocks);
+  const scheduled = blocksGovern(await autoAssignOn(tx, target.seriesId), blocks);
   const exception = outsideItsBlock(category, target.blockCategory, scheduled) ? { hostBlock: target.blockCategory } : null;
   if (!scheduled) return { exception, awards: null };
   const waves = await tx.wave.findMany({ where: { seriesId: target.seriesId }, select: { startTime: true, durationMinutes: true, blockCategory: true } });

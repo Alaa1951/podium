@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { scheduleTransaction } from "@/lib/wave-schedule-db";
 import { touchesProtected, type ScheduleConflict } from "@/lib/category-schedule";
-import { isScheduled, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
+import { blocksGovern, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
 import { ScheduleError, scheduleError, TIME_PATTERN } from "@/lib/wave-schedule";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
@@ -180,7 +180,7 @@ export async function updateSeriesSettings(input: unknown): Promise<ActionResult
         capacity: data.waveCapacity, waveIntervalMinutes: data.waveIntervalMinutes,
         zoneWorkMinutes: data.zoneWorkMinutes, zoneBreakMinutes: data.zoneBreakMinutes,
       });
-      if (isScheduled(context.blocks)) {
+      if (blocksGovern(context.autoAssign, context.blocks)) {
         const blocking = planFor(context).conflicts.filter(touchesProtected);
         if (blocking.length) throw new ScheduleConflictError("PROTECTED_CONFLICT", blocking);
       }

@@ -39,17 +39,17 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.actor.mockResolvedValue(admin);
   mocks.transaction.mockImplementation(async (_id, work) => work({ series: mocks.series, wave: mocks.wave, team: mocks.team, zoneScore: mocks.zoneScore }));
-  mocks.series.findUnique.mockResolvedValue({ id: "s", name: "Series", status: "scheduled", archivedAt: null, firstWaveTime: "07:00", waveIntervalMinutes: 20, waveMinutes: 115 });
+  mocks.series.findUnique.mockResolvedValue({ id: "s", name: "Series", status: "scheduled", archivedAt: null, autoAssignEnabled: true, firstWaveTime: "07:00", waveIntervalMinutes: 20, waveMinutes: 115 });
   mocks.wave.count.mockResolvedValue(0);
   mocks.zoneScore.count.mockResolvedValue(0);
   mocks.wave.findMany.mockResolvedValue([{ id: "w1", number: 1, startTime: "08:12", status: "pending" }, { id: "w3", number: 3, startTime: "09:00", status: "pending" }]);
   mocks.team.findMany.mockResolvedValue([]);
-  mocks.schedule.loadScheduleContext.mockResolvedValue({ blocks: [] });
+  mocks.schedule.loadScheduleContext.mockResolvedValue({ blocks: [], autoAssign: true });
   mocks.schedule.isScheduled.mockReturnValue(true);
   mocks.schedule.planFor.mockReturnValue(plan);
   mocks.schedule.applyPlan.mockResolvedValue({ created: 1, kept: 0, renumbered: 0 });
   mocks.schedule.loadBlocks.mockResolvedValue([]);
-  mocks.wave.findUnique.mockResolvedValue({ id: "w1", seriesId: "s", status: "pending", series: { archivedAt: null, status: "scheduled" } });
+  mocks.wave.findUnique.mockResolvedValue({ id: "w1", seriesId: "s", status: "pending", series: { archivedAt: null, status: "scheduled", autoAssignEnabled: true } });
 });
 
 describe("Auto Assign by category — who, and what is refused before anything is written", () => {
@@ -75,6 +75,14 @@ describe("Auto Assign by category — who, and what is refused before anything i
   it("needs a complete category schedule — and leaves the current waves alone without one", async () => {
     mocks.schedule.isScheduled.mockReturnValue(false);
     expect(await autoAssignWaves({ seriesId: "s", perWave: 7 })).toEqual({ ok: false, error: "CATEGORY_SCHEDULE_MISSING" });
+    expect(mocks.schedule.applyPlan).not.toHaveBeenCalled();
+    expect(mocks.series.update).not.toHaveBeenCalled();
+  });
+
+  it("switched off in Settings, does not run and writes nothing", async () => {
+    mocks.schedule.loadScheduleContext.mockResolvedValue({ blocks: [], autoAssign: false });
+    expect(await autoAssignWaves({ seriesId: "s", perWave: 7 })).toEqual({ ok: false, error: "AUTO_ASSIGN_OFF" });
+    expect(mocks.schedule.planFor).not.toHaveBeenCalled();
     expect(mocks.schedule.applyPlan).not.toHaveBeenCalled();
     expect(mocks.series.update).not.toHaveBeenCalled();
   });
@@ -121,6 +129,18 @@ describe("arranging and editing estimated times", () => {
     expect(mocks.wave.update).not.toHaveBeenCalled();
     expect(mocks.wave.delete).not.toHaveBeenCalled();
     expect(mocks.team.updateMany).not.toHaveBeenCalled();
+  });
+  it("with Auto Assign switched off, arranges, re-times and deletes by hand — no block or running-manually refusal", async () => {
+    mocks.series.findUnique.mockResolvedValue({ id: "s", name: "Series", status: "scheduled", archivedAt: null, autoAssignEnabled: false, firstWaveTime: "07:00", waveIntervalMinutes: 20, waveMinutes: 115 });
+    mocks.wave.findUnique.mockResolvedValue({ id: "w1", seriesId: "s", status: "pending", series: { archivedAt: null, status: "scheduled", autoAssignEnabled: false } });
+    mocks.schedule.isScheduled.mockReturnValue(true);
+    mocks.team.findMany.mockResolvedValue([{ number: 12 }]);
+    expect(await arrangeWaveTimes({ seriesId: "s" })).toEqual({ ok: true });
+    expect(mocks.wave.update).toHaveBeenCalledWith({ where: { id: "w1" }, data: { startTime: "07:00" } });
+    mocks.wave.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "w1", number: 1, startTime: "09:00", status: "pending" });
+    expect(await saveWave({ seriesId: "s", waveId: "w1", number: 1, startTime: "09:40" })).toEqual({ ok: true });
+    expect(await deleteWave({ waveId: "w1" })).toEqual({ ok: true });
+    expect(mocks.wave.delete).toHaveBeenCalledWith({ where: { id: "w1" } });
   });
   it("validates the whole schedule before writing any times", async () => {
     mocks.series.findUnique.mockResolvedValue({ status: "scheduled", firstWaveTime: "23:50", waveIntervalMinutes: 20 });

@@ -3,7 +3,7 @@ import "server-only";
 import { teamScope, type CurrentUser } from "@/lib/access";
 import type { CheckInTeam, WarmupWave } from "@/lib/checkin";
 import { outsideItsBlock } from "@/lib/category-schedule";
-import { isScheduled, loadBlocks } from "@/lib/category-schedule-db";
+import { autoAssignOn, blocksGovern, loadBlocks } from "@/lib/category-schedule-db";
 import { onTheFloor } from "@/lib/ownership";
 import { prisma } from "@/lib/prisma";
 import { activeRelease, seatsOf, waiverStates } from "@/lib/waivers/waiver-db";
@@ -46,7 +46,7 @@ export async function loadCheckIn(
     loadBlocks(prisma, seriesId),
     activeRelease(prisma, seriesId),
   ]);
-  const scheduled = isScheduled(blocks);
+  const scheduled = blocksGovern(await autoAssignOn(prisma, seriesId), blocks);
   const states = await waiverStates(prisma, seriesId, await seatsOf(prisma, teams.map((team) => team.id)));
 
   return {

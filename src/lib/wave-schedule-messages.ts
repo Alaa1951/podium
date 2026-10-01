@@ -19,6 +19,7 @@ export function waveScheduleErrorMessage(error?: string) {
     case "NOT_ELIGIBLE": return "Time changes are available for teams assigned to a wave that has not started.";
     case "INVALID_INPUT": return "Check the form — a required value is missing or out of range.";
     case "CATEGORY_SCHEDULE_MISSING": return "Set every category's start time and break in Settings → Category schedule first. The current waves were kept.";
+    case "AUTO_ASSIGN_OFF": return "Auto Assign is switched off for this competition. Turn it on in Settings → Category schedule.";
     case "CATEGORY_SCHEDULE_ACTIVE": return "This competition has a category schedule: Auto Assign lays out the times of each block.";
     case "RESULTS_RECORDED": return "Scores have been recorded, so the running order cannot be rebuilt.";
     case "TEAM_ALREADY_SCORED": return "This team has a recorded score, so it cannot move.";

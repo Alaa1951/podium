@@ -7,7 +7,7 @@ import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
 import { CategorySummary } from "@/components/schedule/category-summary";
 import type { Category } from "@/generated/prisma/enums";
-import { saveCategorySchedule } from "@/lib/actions/category-schedule";
+import { saveCategorySchedule, setAutoAssign } from "@/lib/actions/category-schedule";
 import {
   DEFAULT_BLOCK_ORDER,
   MAX_BREAK_MINUTES,
@@ -17,6 +17,7 @@ import {
   type PlanTeam,
   type ScheduleConflict,
   type ScheduleTiming,
+  touchesProtected,
 } from "@/lib/category-schedule";
 import { planCategorySchedule } from "@/lib/category-schedule-plan";
 import { conflictMessage, PROTECTED_HINT } from "@/lib/category-schedule-messages";
@@ -32,6 +33,10 @@ import { conflictMessage, PROTECTED_HINT } from "@/lib/category-schedule-message
 // Nothing is invented: a competition that never had a schedule shows empty
 // times, and Auto Assign stays off until every category has one. Saving moves
 // no team; the next Auto Assign run lays the day out.
+//
+// The Auto Assign switch above it: off, the running order is built by hand —
+// times saved here hold nothing up, and the waves are timed on the Waves
+// screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Row = { category: Category; startTime: string; breakMinutes: string };
@@ -51,6 +56,7 @@ export function CategoryScheduleForm({
   timing,
   teams,
   fixed,
+  autoAssign,
   canEdit,
 }: {
   seriesId: string;
@@ -62,6 +68,8 @@ export function CategoryScheduleForm({
   teams: PlanTeam[];
   /** Waves holding teams running manually — kept exactly by Auto Assign. */
   fixed: FixedWave[];
+  /** Settings → Category schedule › Auto Assign. */
+  autoAssign: boolean;
   /** waves.edit on a floor account (access.ts › canBuildSchedule). */
   canEdit: boolean;
 }) {
@@ -76,6 +84,33 @@ export function CategoryScheduleForm({
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string; conflicts?: ScheduleConflict[] } | null>(null);
   useUnsavedChanges(JSON.stringify(rows) !== baseline);
 
+  // Shown switched at once; put back if the server refuses.
+  const [autoOn, setAutoOn] = useState(autoAssign);
+
+  function switchAutoAssign(enabled: boolean) {
+    const question = enabled
+      ? t("Turn Auto Assign on? It can then rebuild the running order by these blocks; teams moved by hand keep their slot. Nobody moves until somebody presses Auto-assign waves.")
+      : t("Turn Auto Assign off? Waves, times and teams are then arranged by hand only, and the category blocks no longer hold up any change. Nobody moves now.");
+    if (!window.confirm(question)) return;
+    setMessage(null);
+    setAutoOn(enabled);
+    startTransition(async () => {
+      try {
+        const result = await setAutoAssign({ seriesId, enabled });
+        if (!result.ok) {
+          setAutoOn(!enabled);
+          setMessage({ tone: "error", text: t(ERRORS[result.error] ?? "Something went wrong. Try again.") });
+          return;
+        }
+        setMessage({ tone: "ok", text: enabled ? t("Auto Assign is on.") : t("Auto Assign is off. Change wave times and move teams on the Waves screen.") });
+        router.refresh();
+      } catch {
+        setAutoOn(!enabled);
+        setMessage({ tone: "error", text: t("Could not save. Check your connection and try again.") });
+      }
+    });
+  }
+
   const blocks: BlockConfig[] = rows.map((row, index) => ({
     category: row.category,
     position: index + 1,
@@ -84,7 +119,9 @@ export function CategoryScheduleForm({
   }));
   const valid = validateBlockConfig(blocks);
   // A few dozen teams: planning on every keystroke is cheap, and the preview never lags the form.
-  const preview = valid.ok ? planCategorySchedule({ blocks: valid.blocks, timing, teams, fixed }) : null;
+  const planned = valid.ok ? planCategorySchedule({ blocks: valid.blocks, timing, teams, fixed }) : null;
+  // Off, a team running manually holds nothing up: its conflicts are not shown as if they would.
+  const preview = planned && !autoOn ? { ...planned, conflicts: planned.conflicts.filter((conflict) => !touchesProtected(conflict)) } : planned;
 
   const set = (index: number, patch: Partial<Row>) => setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   const move = (index: number, by: -1 | 1) =>
@@ -110,9 +147,11 @@ export function CategoryScheduleForm({
         setBaseline(JSON.stringify(rows));
         setMessage({
           tone: "ok",
-          text: result.conflicts.length
-            ? t("Saved. Resolve the conflicts below before running Auto Assign.")
-            : t("Saved. Auto Assign will lay the day out by these times; nobody has moved yet."),
+          text: !autoOn
+            ? t("Saved. Auto Assign is off, so no wave moved: set the wave times on the Waves screen.")
+            : result.conflicts.length
+              ? t("Saved. Resolve the conflicts below before running Auto Assign.")
+              : t("Saved. Auto Assign will lay the day out by these times; nobody has moved yet."),
         });
         router.refresh();
       } catch {
@@ -130,6 +169,18 @@ export function CategoryScheduleForm({
         )}
       </p>
       <p className="field-note">{t("Times are on {day}, Qatar time.", { day: dayLabel })}</p>
+
+      <div className={autoOn ? "notice" : "notice-warn"} data-testid="auto-assign-switch" style={{ margin: "12px 0" }}>
+        <label className="checkline">
+          <input type="checkbox" checked={autoOn} disabled={!canEdit || pending} onChange={(event) => switchAutoAssign(event.target.checked)} />
+          <strong>{t("Auto Assign")}</strong>
+        </label>
+        <p className="field-note" style={{ margin: "6px 0 0" }}>
+          {autoOn
+            ? t("On: Auto Assign builds the running order by these blocks, and changes that would break a block or move a team running manually are refused or need a confirmation.")
+            : t("Off: the running order is built by hand. Change any wave's time, category times and team slots freely — nothing is refused because of the category blocks, and nothing moves by itself.")}
+        </p>
+      </div>
 
       <fieldset disabled={!canEdit || pending} className="category-schedule-rows">
         {rows.map((row, index) => (

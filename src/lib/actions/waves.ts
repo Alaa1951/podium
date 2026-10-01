@@ -216,8 +216,9 @@ export async function saveWave(input: unknown): Promise<ActionResult> {
         if (!wave) throw new ScheduleError("NOT_FOUND");
         if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
         if (!startTime) throw new ScheduleError("INVALID_INPUT");
-        // A wave holding teams running manually moves them with it: only on purpose.
-        if ((wave.number !== number || wave.startTime !== startTime) && !confirmProtected) {
+        // A wave holding teams running manually moves them with it: only on
+        // purpose — unless Auto Assign is off, when every slot is set by hand.
+        if ((wave.number !== number || wave.startTime !== startTime) && !confirmProtected && series.autoAssignEnabled) {
           const held = await protectedIn(tx, [wave.id]);
           if (held.length) throw new ProtectedWaveError("PROTECTED_WAVE", held);
         }
@@ -247,10 +248,13 @@ export async function arrangeWaveTimes(input: unknown): Promise<ActionResult> {
       if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
       const waves = await tx.wave.findMany({ where: { seriesId }, orderBy: { number: "asc" } });
       if (series.status !== "scheduled" || waves.some(w => w.status !== "pending")) throw new ScheduleError("WAVE_STARTED");
-      // With a category schedule, times come from each category's block: Auto Assign lays them out.
-      if (isScheduled(await loadBlocks(tx, seriesId))) throw new ScheduleError("CATEGORY_SCHEDULE_ACTIVE");
-      const held = await protectedIn(tx, waves.map(w => w.id));
-      if (held.length) throw new ProtectedWaveError("PROTECTED_CONFLICT", held);
+      // With a category schedule, times come from each category's block: Auto
+      // Assign lays them out. Switched off, the times are the staff's again.
+      if (series.autoAssignEnabled) {
+        if (isScheduled(await loadBlocks(tx, seriesId))) throw new ScheduleError("CATEGORY_SCHEDULE_ACTIVE");
+        const held = await protectedIn(tx, waves.map(w => w.id));
+        if (held.length) throw new ProtectedWaveError("PROTECTED_CONFLICT", held);
+      }
       const times = waves.map((wave, index) => ({ id: wave.id, startTime: scheduledTime(series.firstWaveTime, series.waveIntervalMinutes, index) }));
       for (const time of times) await tx.wave.update({ where: { id: time.id }, data: { startTime: time.startTime } });
     });
@@ -278,8 +282,9 @@ export async function deleteWave(input: unknown): Promise<ActionResult> {
       if (wave.status !== "pending") throw new ScheduleError("WAVE_STARTED");
       const guard = deletionGuard(wave.series.status);
       if (!guard.allowed) throw new ScheduleError(guard.reason);
-      // Removing a wave would take a protected team off the running order: resolve it first.
-      const held = await protectedIn(tx, [wave.id]);
+      // Removing a wave would take a protected team off the running order:
+      // resolve it first — while Auto Assign is on to protect it.
+      const held = wave.series.autoAssignEnabled ? await protectedIn(tx, [wave.id]) : [];
       if (held.length) throw new ProtectedWaveError("PROTECTED_CONFLICT", held);
       await tx.team.updateMany({ where: { waveId: wave.id }, data: { waveId: null, station: null } });
       await tx.wave.delete({ where: { id: wave.id } });

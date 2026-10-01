@@ -41,11 +41,11 @@ vi.mock("@/lib/session", async () => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { saveCategorySchedule } from "@/lib/actions/category-schedule";
+import { saveCategorySchedule, setAutoAssign } from "@/lib/actions/category-schedule";
 import { autoAssignWaves } from "@/lib/actions/teams";
 import { moveTeam, returnToAutoAssign } from "@/lib/actions/team-slot";
 import { updateSeriesSettings } from "@/lib/actions/series";
-import { deleteWave } from "@/lib/actions/waves";
+import { arrangeWaveTimes, deleteWave, saveWave } from "@/lib/actions/waves";
 import { actors, createSchema, FITTING, layout, seed, team } from "@/lib/schedule-integration-fixture";
 
 const as = (actor: unknown) => { env.actor.current = actor; };
@@ -172,6 +172,54 @@ describe.skipIf(!env.on)("category schedule and Auto Assign on a real database",
     // Removing its wave.
     expect(await deleteWave({ waveId: (await team(prisma, 21)).waveId! })).toMatchObject({ ok: false, error: "PROTECTED_CONFLICT", teams: [21] });
     expect(await layout(prisma)).toEqual(before);
+  });
+
+  it("Auto Assign switched off — times, category starts and moves go through by hand, nothing refused; on again, the rules return", async () => {
+    await schedule();
+    await assign();
+    expect(await moveInto(21, 3, 6)).toEqual({ ok: true });
+    const held = (await team(prisma, 21)).waveId!;
+
+    // Only whoever builds the running order flips it.
+    for (const actor of [actors.judge, actors.volunteer, actors.gymA, actors.athlete]) {
+      as(actor);
+      expect(await setAutoAssign({ seriesId: "s1", enabled: false })).toEqual({ ok: false, error: "FORBIDDEN" });
+    }
+    as(actors.hq);
+    expect(await setAutoAssign({ seriesId: "s1", enabled: false })).toEqual({ ok: true });
+    expect(await prisma.series.findUniqueOrThrow({ where: { id: "s1" } })).toMatchObject({ autoAssignEnabled: false });
+    expect(await prisma.adminAuditLog.count({ where: { action: "event.auto_assign_changed", targetId: "s1" } })).toBe(1);
+
+    // Auto Assign does not run, and moves nobody.
+    const before = await layout(prisma);
+    expect(await assign()).toEqual({ ok: false, error: "AUTO_ASSIGN_OFF" });
+    expect(await layout(prisma)).toEqual(before);
+
+    // A category start that no longer fits the team placed by hand is saved (scenario 12 refuses it while on).
+    expect(await schedule({ Mixed: { startTime: "12:00" }, Womens: { startTime: "14:30" } })).toMatchObject({ ok: true });
+    expect(await prisma.categorySchedule.findUniqueOrThrow({ where: { seriesId_category: { seriesId: "s1", category: "Mixed" } } })).toMatchObject({ startTime: "12:00" });
+    // The wave holding it is re-timed without a confirmation, and the team goes with it.
+    const wave3 = await prisma.wave.findUniqueOrThrow({ where: { id: held } });
+    expect(await saveWave({ seriesId: "s1", waveId: held, number: wave3.number, startTime: "12:10" })).toEqual({ ok: true });
+    expect(await team(prisma, 21)).toMatchObject({ waveId: held, station: 6, waveRef: { startTime: "12:10" } });
+    // A Women team joins the Mixed wave with no exception or awards tick.
+    expect(await moveInto(22, wave3.number, 7, { confirmException: false, confirmAwards: false })).toEqual({ ok: true });
+    expect(await team(prisma, 22)).toMatchObject({ category: "Womens", waveId: held, station: 7 });
+    // Settings that no longer fit a placed team are saved too.
+    const series = await prisma.series.findUniqueOrThrow({ where: { id: "s1" } });
+    expect(await updateSeriesSettings({
+      seriesId: "s1", name: series.name, competitionDate: "2030-01-01T09:00", venue: "Venue", firstWaveTime: "09:00", waveIntervalMinutes: 20,
+      waveCapacity: 7, zoneWorkMinutes: 40, zoneBreakMinutes: 5, teamEditCloseHours: 24,
+    })).toEqual({ ok: true });
+    // Arrange time is offered despite the category schedule.
+    expect(await arrangeWaveTimes({ seriesId: "s1" })).toEqual({ ok: true });
+
+    // On again: a protected wave needs its confirmation, and Auto Assign is offered.
+    expect(await setAutoAssign({ seriesId: "s1", enabled: true })).toEqual({ ok: true });
+    const now = await prisma.wave.findUniqueOrThrow({ where: { id: held } });
+    expect(await saveWave({ seriesId: "s1", waveId: held, number: now.number, startTime: "12:30" })).toMatchObject({ ok: false, error: "PROTECTED_WAVE" });
+    expect(await arrangeWaveTimes({ seriesId: "s1" })).toEqual({ ok: false, error: "CATEGORY_SCHEDULE_ACTIVE" });
+    expect(await assign()).not.toEqual({ ok: false, error: "AUTO_ASSIGN_OFF" });
   });
 
   it("scenario 15 — Auto Assign and a manual move at the same moment: one is seen by the other, never overwritten", async () => {

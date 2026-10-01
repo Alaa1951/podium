@@ -101,6 +101,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
           timing={schedule.timing}
           teams={schedule.teams}
           fixed={schedule.fixed}
+          autoAssign={schedule.autoAssign}
           canEdit={!user.viewAs && canBuildSchedule(user) && series.status !== "final"}
         />
       </div>

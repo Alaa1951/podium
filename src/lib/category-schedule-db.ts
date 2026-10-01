@@ -39,6 +39,22 @@ export function isScheduled(blocks: readonly BlockConfig[]): boolean {
   return validateBlockConfig(blocks).ok;
 }
 
+/**
+ * Whether the category blocks and teams running manually GOVERN changes:
+ * Auto Assign is switched on (Series.autoAssignEnabled) and the schedule is
+ * complete. Off, the running order is built by hand — no block exception or
+ * awards warning to confirm, no protected team in the way.
+ */
+export function blocksGovern(autoAssign: boolean, blocks: readonly BlockConfig[]): boolean {
+  return autoAssign && isScheduled(blocks);
+}
+
+/** Settings → Category schedule › Auto Assign, for this competition. */
+export async function autoAssignOn(db: Db, seriesId: string): Promise<boolean> {
+  const series = await db.series.findUnique({ where: { id: seriesId }, select: { autoAssignEnabled: true } });
+  return series?.autoAssignEnabled ?? true;
+}
+
 export type ScheduleWave = {
   id: string;
   number: number;
@@ -58,6 +74,8 @@ export type ScheduleTeam = PlanTeam & {
 
 export type ScheduleContext = {
   seriesId: string;
+  /** Settings → Category schedule › Auto Assign. */
+  autoAssign: boolean;
   blocks: BlockConfig[];
   timing: ScheduleTiming;
   waves: ScheduleWave[];
@@ -76,7 +94,7 @@ export async function loadScheduleContext(db: Db, seriesId: string, overrides: T
   const [series, zoneCount, blocks, waves, teams] = await Promise.all([
     db.series.findUniqueOrThrow({
       where: { id: seriesId },
-      select: { waveIntervalMinutes: true, zoneWorkMinutes: true, zoneBreakMinutes: true, waveCapacity: true },
+      select: { waveIntervalMinutes: true, zoneWorkMinutes: true, zoneBreakMinutes: true, waveCapacity: true, autoAssignEnabled: true },
     }),
     db.zone.count({ where: { seriesId } }),
     loadBlocks(db, seriesId),
@@ -100,7 +118,7 @@ export async function loadScheduleContext(db: Db, seriesId: string, overrides: T
     zoneCount,
     overrides.capacity ?? series.waveCapacity
   );
-  return { seriesId, blocks, timing, waves, teams };
+  return { seriesId, autoAssign: series.autoAssignEnabled, blocks, timing, waves, teams };
 }
 
 /**

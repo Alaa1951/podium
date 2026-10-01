@@ -157,8 +157,9 @@ describe("the shipped roles", () => {
         "results.view", "scores.view", "settings.view", "shirts.view", "studios.view", "waveControl.control",
         "waveControl.view", "waves.edit", "waves.placeTeams", "waves.view", "zoneStaff.assign", "zoneStaff.view",
       ],
+      // Their own sheet only: never a list of every team (Waves, Score entry, Wave control).
       judge: [
-        "judgeSheet.view", "scores.enter", "scores.view", "waveControl.view", "waves.view", "zoneStaff.view",
+        "judgeSheet.view", "scores.enter",
       ],
       volunteer: [
         "checkIn.view", "checkIn.warmup", "marshalling.view", "registrations.attendance", "registrations.bracket",

@@ -17,11 +17,15 @@ import { waveScheduleErrorMessage } from "@/lib/wave-schedule-messages";
 // account. Auto Assign by category needs the category schedule first; it
 // shows what it will do before it is pressed, keeps every team running
 // manually where it is, and on a conflict changes nothing and says why.
+// Switched off in Settings (Category schedule › Auto Assign), the running
+// order is built by hand: Add wave, Arrange time, each wave's own time and
+// Move — nothing held up by the category blocks.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ScheduleControls({
   seriesId,
   scheduled,
+  autoAssign = true,
   plan,
   settingsHref,
   canBuild,
@@ -33,6 +37,8 @@ export function ScheduleControls({
 }: {
   seriesId: string;
   scheduled: boolean;
+  /** Settings → Category schedule › Auto Assign. */
+  autoAssign?: boolean;
   /** What Auto Assign would do now; null until the category schedule is complete. */
   plan: SchedulePlan | null;
   settingsHref: string;
@@ -67,7 +73,7 @@ export function ScheduleControls({
     setMessage({ tone: "error", text, conflicts: result.conflicts });
   }
 
-  function autoAssign() {
+  function runAutoAssign() {
     const question = manualCount
       ? t("Reassign every team that is not running manually? {count} team(s) running manually keep their wave and station.", { count: manualCount })
       : t("Reassign every team by the category schedule? Current waves and stations are replaced.");
@@ -97,17 +103,25 @@ export function ScheduleControls({
               onChange={(e) => setPerWave(Math.min(9, Math.max(1, Number(e.target.value) || 1)))} />
           </div>
           <button type="button" className="btn btn-secondary" onClick={addWave} disabled={pending}>{t("Add wave")}</button>
-          <button type="button" className="btn btn-primary" onClick={autoAssign} disabled={pending || !canRebuild || !scheduled}>
-            {pending ? <span className="spinner" /> : null}
-            {t("Auto-assign waves")}
-          </button>
+          {autoAssign ? (
+            <button type="button" className="btn btn-primary" onClick={runAutoAssign} disabled={pending || !canRebuild || !scheduled}>
+              {pending ? <span className="spinner" /> : null}
+              {t("Auto-assign waves")}
+            </button>
+          ) : null}
           {!scheduled ? (
             <button type="button" className="btn btn-secondary" onClick={arrangeTime} disabled={pending || !canRebuild || !waveCount}>{t("Arrange time")}</button>
           ) : null}
         </div>
       ) : null}
 
-      {!scheduled ? (
+      {!autoAssign ? (
+        <div className="notice" data-testid="auto-assign-off">
+          <strong>{t("Auto Assign is off.")}</strong>{" "}
+          {t("The running order is built by hand: change any wave's time, add waves and move teams freely — the category blocks hold nothing up. Nothing moves by itself.")}{" "}
+          <Link href={settingsHref} className="linkish">{t("Settings → Category schedule")} →</Link>
+        </div>
+      ) : !scheduled ? (
         <div className="notice" data-testid="schedule-missing">
           <strong>{t("No category schedule yet.")}</strong>{" "}
           {t("Auto Assign places each category in its own block, so it needs every category's start time and break first. The current waves are kept as they are.")}{" "}

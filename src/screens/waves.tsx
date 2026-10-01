@@ -74,7 +74,8 @@ export default async function WavesPage(props: SeriesScreenProps, detailId?: str
         canBuild={canBuildSchedule(user) && !user.viewAs}
         canPlace={canPlaceTeams(user) && !user.viewAs}
         canEditTeams={can(user, "registrations.edit") && !user.viewAs}
-        scheduled={schedule.scheduled}
+        scheduled={schedule.governs}
+        autoAssign={schedule.autoAssign}
         plan={schedule.plan}
         awards={schedule.awards}
         settingsHref={`${seriesHref(series.slug, "settings")}#category-schedule`}

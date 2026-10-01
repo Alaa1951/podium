@@ -29,6 +29,8 @@ export const AUDIT = {
   wavesAssigned: "event.waves_assigned",
   /** Settings → Category schedule: each block's start and break, before and after. */
   categoryScheduleChanged: "event.category_schedule_changed",
+  /** Settings → Category schedule › Auto Assign switched on or off. */
+  autoAssignChanged: "event.auto_assign_changed",
   /** A team placed in a slot by hand: it now runs manually. */
   teamSlotMoved: "team.slot_moved",
   /** A team handed back to Auto Assign: its protection removed, its slot kept for now. */

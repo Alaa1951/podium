@@ -211,16 +211,12 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     assignableBy: "bft_studio",
     accountTypes: ["organiser", "studio", "staff"],
     sortOrder: 40,
-    // As live: the sheet and score entry, and reading what the floor shows
-    // them — the waves, Wave control, the zone teams and the scores.
-    permissions: [
-      "judgeSheet.view",
-      "scores.enter",
-      "scores.view",
-      "waveControl.view",
-      "waves.view",
-      "zoneStaff.view",
-    ],
+    // The judge sheet and nothing else: their zone, their station, the team
+    // on it now or coming next, and its score. No Waves, Score entry, Wave
+    // control or zone lists — those show every team of the competition. A
+    // zone LEADER's extra powers come from the post, not from more keys
+    // (zone-staff.ts, canControlWave).
+    permissions: ["judgeSheet.view", "scores.enter"],
   },
   {
     key: "volunteer",

@@ -46,6 +46,7 @@ export function WaveBoard({
   canEditTeams,
   canRebuild = true,
   scheduled = false,
+  autoAssign = true,
   plan = null,
   awards = [],
   settingsHref,
@@ -65,7 +66,10 @@ export function WaveBoard({
   /** registrations.edit — mark an athlete as a studio's member or not. */
   canEditTeams: boolean;
   canRebuild?: boolean;
+  /** Category blocks govern: Auto Assign is on and the schedule is complete. */
   scheduled?: boolean;
+  /** Settings → Category schedule › Auto Assign. */
+  autoAssign?: boolean;
   plan?: SchedulePlan | null;
   /** Each category's planned awards period, from the waves as they stand. */
   awards?: AwardsWindow[];
@@ -197,6 +201,7 @@ export function WaveBoard({
         <ScheduleControls
           seriesId={seriesId}
           scheduled={scheduled}
+          autoAssign={autoAssign}
           plan={plan}
           settingsHref={settingsHref}
           canBuild={canBuild}

@@ -3,7 +3,7 @@ import type { WaveChangeStatus } from "@/generated/prisma/enums";
 import { can, isBft, type CurrentUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 import { awardsWindows, clockLabel, clockMinutes, lateForAwards, outsideItsBlock } from "@/lib/category-schedule";
-import { isScheduled } from "@/lib/category-schedule-db";
+import { blocksGovern } from "@/lib/category-schedule-db";
 
 export const preferenceLabels = { morning: "Morning", midday: "Midday", evening: "Evening" } as const;
 
@@ -19,7 +19,7 @@ export async function listWaveChangeRequests(user: CurrentUser, seriesId?: strin
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     include: {
       requestedBy: { select: { name: true, email: true } },
-      series: { select: { name: true, status: true } },
+      series: { select: { name: true, status: true, autoAssignEnabled: true } },
       team: { select: { name: true, number: true, category: true, division: true, updatedAt: true,
         archivedAt: true, waitlistedAt: true, waveId: true, waveRef: true } },
     },
@@ -36,9 +36,10 @@ export async function listWaveChangeRequests(user: CurrentUser, seriesId?: strin
     blocksBySeries.set(block.seriesId, [...(blocksBySeries.get(block.seriesId) ?? []), block]);
   }
   // What approving each destination would mean — the same rules the move is checked by (slot-move.ts).
-  const warn = (seriesId: string, category: (typeof rows)[number]["team"]["category"], wave: (typeof waves)[number]) => {
+  const warn = (row: (typeof rows)[number], wave: (typeof waves)[number]) => {
+    const { seriesId, team: { category } } = row;
     const blocks = blocksBySeries.get(seriesId) ?? [];
-    const scheduled = isScheduled(blocks);
+    const scheduled = blocksGovern(row.series.autoAssignEnabled, blocks);
     const late = scheduled
       ? lateForAwards(category, clockMinutes(wave.startTime) + wave.durationMinutes, awardsWindows(blocks, waves.filter(one => one.seriesId === seriesId)))
       : null;
@@ -64,7 +65,7 @@ export async function listWaveChangeRequests(user: CurrentUser, seriesId?: strin
     waves: waves.filter(wave => wave.seriesId === row.seriesId && wave.id !== row.team.waveId && wave.status === "pending").map(wave => ({
       id: wave.id, number: wave.number, startTime: wave.startTime, capacity: wave.capacity,
       occupied: wave.teams.length, version: wave.updatedAt.toISOString(),
-      ...warn(row.seriesId, row.team.category, wave),
+      ...warn(row, wave),
     })),
   }));
 }

@@ -178,4 +178,24 @@ export const AR_SCHEDULE: Phrases = {
   "The team on that station has a recorded score, so it cannot move. Choose another station.": "للفريق الذي على هذه المحطة درجة مسجّلة، فلا يمكن نقله. اختر محطة أخرى.",
   "Confirm the scheduling exception for the team you exchange places with.": "أكّد الاستثناء في الجدول للفريق الذي تتبادل معه المكان.",
   "Confirm the awards warning for the team you exchange places with.": "أكّد تنبيه التكريم للفريق الذي تتبادل معه المكان.",
+
+  // ── Settings → Category schedule › Auto Assign on/off ─────────────────────
+  "Auto Assign": "التوزيع التلقائي",
+  "On: Auto Assign builds the running order by these blocks, and changes that would break a block or move a team running manually are refused or need a confirmation.":
+    "مُفعّل: يبني التوزيع التلقائي ترتيب الموجات حسب هذه الفترات، وأي تغيير يكسر فترة أو ينقل فريقًا يعمل يدويًا يُرفض أو يحتاج إلى تأكيد.",
+  "Off: the running order is built by hand. Change any wave's time, category times and team slots freely — nothing is refused because of the category blocks, and nothing moves by itself.":
+    "متوقف: يُبنى ترتيب الموجات يدويًا. غيّر موعد أي موجة ومواعيد الفئات وأماكن الفرق بحرية — لا يُرفض شيء بسبب فترات الفئات، ولا يتحرك شيء من تلقاء نفسه.",
+  "Turn Auto Assign on? It can then rebuild the running order by these blocks; teams moved by hand keep their slot. Nobody moves until somebody presses Auto-assign waves.":
+    "تفعيل التوزيع التلقائي؟ سيمكنه حينها إعادة بناء ترتيب الموجات حسب هذه الفترات، وتحتفظ الفرق المنقولة يدويًا بأماكنها. لن يتحرك أحد حتى يضغط أحدهم «توزيع تلقائي للموجات».",
+  "Turn Auto Assign off? Waves, times and teams are then arranged by hand only, and the category blocks no longer hold up any change. Nobody moves now.":
+    "إيقاف التوزيع التلقائي؟ ستُرتَّب الموجات والمواعيد والفرق يدويًا فقط، ولن تمنع فترات الفئات أي تغيير. لن يتحرك أحد الآن.",
+  "Auto Assign is on.": "التوزيع التلقائي مُفعّل.",
+  "Auto Assign is off. Change wave times and move teams on the Waves screen.": "التوزيع التلقائي متوقف. غيّر مواعيد الموجات وانقل الفرق من شاشة الموجات.",
+  "Saved. Auto Assign is off, so no wave moved: set the wave times on the Waves screen.":
+    "تم الحفظ. التوزيع التلقائي متوقف، فلم تتحرك أي موجة: اضبط مواعيد الموجات من شاشة الموجات.",
+  "Auto Assign is off.": "التوزيع التلقائي متوقف.",
+  "The running order is built by hand: change any wave's time, add waves and move teams freely — the category blocks hold nothing up. Nothing moves by itself.":
+    "ترتيب الموجات يُبنى يدويًا: غيّر موعد أي موجة وأضف موجات وانقل الفرق بحرية — فترات الفئات لا تمنع شيئًا. لا يتحرك شيء من تلقاء نفسه.",
+  "Auto Assign is switched off for this competition. Turn it on in Settings → Category schedule.":
+    "التوزيع التلقائي متوقف لهذه المسابقة. فعّله من الإعدادات ← جدول الفئات.",
 };

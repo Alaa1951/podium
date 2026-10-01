@@ -9,8 +9,8 @@
  *              to Auto Assign.
  *   A VOLUNTEER sees the running order and the warm-up exception, but no
  *              schedule or placement buttons.
- *   A JUDGE    reads the Waves screen (as the live Judge role does), with no
- *              schedule or placement buttons, and never reaches the settings.
+ *   A JUDGE    never reaches the Waves screen or the settings: their own
+ *              judge sheet is all the Judge role opens.
  *
  * Every step presses what a person presses, then reads the database.
  */
@@ -246,17 +246,17 @@ test("category schedule, Auto Assign by category, and moving a team by hand", as
     await open(office, `/series/${id}/warm-up`);
     await expect(seen(office, '[data-testid="warmup-outside-block"]')).toHaveCount(1);
 
-    // ── Scenario 14: a volunteer and a judge see the waves, but cannot build or place; a judge has no settings ─
+    // ── Scenario 14: a volunteer sees the waves but cannot build or place; a judge reaches neither waves nor settings ─
     const desk = await as(volunteer);
     await showTeam(desk, 8);
     await expect(teamRow(desk, 8)).toBeVisible();
     await expect(desk.getByRole("button", { name: t("Move…"), exact: true })).toHaveCount(0);
     await expect(desk.getByRole("button", { name: t("Auto-assign waves"), exact: true })).toHaveCount(0);
     await capture(desk, "waves-volunteer");
-    // The Judge role reads the waves (waves.view, as on the live Roles screen) — nothing more.
+    // The Judge role works its own sheet only: the Waves list (every team) is not theirs.
     const referee = await as(judge);
     await visit(referee, `/series/${id}/waves`);
-    await expect(referee).toHaveURL(new RegExp("/waves$"));
+    await expect(referee).not.toHaveURL(new RegExp("/waves$"));
     await expect(referee.getByRole("button", { name: t("Auto-assign waves"), exact: true })).toHaveCount(0);
     await expect(referee.getByRole("button", { name: t("Move…"), exact: true })).toHaveCount(0);
     await visit(referee, `/series/${id}/settings`);

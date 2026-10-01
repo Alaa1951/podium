@@ -569,6 +569,12 @@ model Series {
   firstWaveTime    String    @default("09:00") // HH:mm
   /// Spacing between estimated starts, separate from the full floor duration.
   waveIntervalMinutes Int   @default(20)
+  /// Settings → Category schedule › Auto Assign. Off: the running order is
+  /// built by hand only — Auto Assign does not run, and neither the category
+  /// blocks nor teams running manually refuse or hold up a change to a wave,
+  /// a time or a team's slot. On again: Auto Assign is offered; teams moved
+  /// by hand meanwhile run manually and are kept where they are.
+  autoAssignEnabled Boolean @default(true)
   /// The whole wave, derived: zones × work + (zones − 1) × break. Kept on the
   /// row (and stamped onto each wave) so every clock reads one number.
   waveMinutes      Int       @default(20)

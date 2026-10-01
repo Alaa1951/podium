@@ -24,6 +24,9 @@ import { scheduleTransaction } from "@/lib/wave-schedule-db";
 // Assign or moves them first. Any other conflict (a block that would
 // overrun the next) is saved and reported: the preview shows it, and Auto
 // Assign will not run until it is resolved.
+//
+// With Auto Assign switched OFF (setAutoAssign) nothing is held for it: the
+// schedule is saved as typed, and the waves are timed by hand.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CategoryScheduleResult =
@@ -66,7 +69,7 @@ export async function saveCategorySchedule(input: unknown): Promise<CategorySche
       const after = describe(valid.blocks);
       if (before === after) return null;
       const conflicts = planFor(context, valid.blocks).conflicts;
-      const blocking = conflicts.filter(touchesProtected);
+      const blocking = context.autoAssign ? conflicts.filter(touchesProtected) : [];
       if (blocking.length) throw new ScheduleConflictError("PROTECTED_CONFLICT", blocking);
       await tx.categorySchedule.deleteMany({ where: { seriesId } });
       await tx.categorySchedule.createMany({ data: valid.blocks.map((block) => ({ seriesId, ...block })) });
@@ -83,4 +86,41 @@ export async function saveCategorySchedule(input: unknown): Promise<CategorySche
   });
   revalidateCompetitionViews();
   return { ok: true, conflicts: outcome.conflicts };
+}
+
+const switchSchema = z.object({ seriesId: z.string().min(1).max(191), enabled: z.boolean() });
+
+/**
+ * Settings → Category schedule › Auto Assign on or off. Off, the running
+ * order is built by hand: Auto Assign does not run, and wave times, category
+ * times and team moves are no longer held up by the category blocks or by
+ * teams running manually. Switching moves nobody.
+ */
+export async function setAutoAssign(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await getCurrentUser();
+  if (!actor) return { ok: false, error: "UNAUTHENTICATED" };
+  if (actor.viewAs || !canBuildSchedule(actor)) return { ok: false, error: "FORBIDDEN" };
+  const parsed = switchSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
+  const { seriesId, enabled } = parsed.data;
+  let changed: { name: string } | null;
+  try {
+    changed = await scheduleTransaction(seriesId, async (tx) => {
+      const series = await tx.series.findUnique({ where: { id: seriesId }, select: { name: true, status: true, archivedAt: true, autoAssignEnabled: true } });
+      if (!series || series.archivedAt) throw new ScheduleError("NOT_FOUND");
+      if (series.status === "final") throw new ScheduleError("SERIES_FINISHED");
+      if (series.autoAssignEnabled === enabled) return null;
+      await tx.series.update({ where: { id: seriesId }, data: { autoAssignEnabled: enabled } });
+      return { name: series.name };
+    });
+  } catch (error) {
+    return scheduleError(error);
+  }
+  if (!changed) return { ok: true };
+  await recordAudit({
+    actorId: actor.id, action: AUDIT.autoAssignChanged, targetType: "event", targetId: seriesId, targetLabel: changed.name,
+    detail: enabled ? "Auto Assign on" : "Auto Assign off — running order built by hand",
+  });
+  revalidateCompetitionViews();
+  return { ok: true };
 }

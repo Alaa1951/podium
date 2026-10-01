@@ -10,7 +10,7 @@ import { ScheduleError, scheduleError } from "@/lib/wave-schedule";
 import { scheduleTransaction } from "@/lib/wave-schedule-db";
 import { canBuildSchedule, canPlaceTeams } from "@/lib/access";
 import type { ScheduleConflict } from "@/lib/category-schedule";
-import { applyPlan, isScheduled, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
+import { applyPlan, autoAssignOn, isScheduled, loadScheduleContext, planFor, ScheduleConflictError } from "@/lib/category-schedule-db";
 import { getCurrentUser, requireAccess, teamScope } from "@/lib/session";
 
 export type ActionResult<T = undefined> =
@@ -28,7 +28,7 @@ const stationSchema = z.object({
  * Assign). If a team already stands there the two swap, provided the mover
  * may move that team too (a gym cannot shift another gym's team) and that
  * team is not itself running manually: a protected slot is never moved as a
- * side effect of somebody else's move.
+ * side effect of somebody else's move (while Auto Assign is on).
  */
 export async function setTeamStation(input: unknown): Promise<ActionResult> {
   const user = await getCurrentUser();
@@ -51,7 +51,8 @@ export async function setTeamStation(input: unknown): Promise<ActionResult> {
       if (await tx.zoneScore.count({ where: { status: "submitted", score: { teamId: team.id } } })) throw new ScheduleError("TEAM_ALREADY_SCORED");
       const occupant = await tx.team.findFirst({ where: { waveId: team.waveId, station: parsed.data.station }, select: { id: true, slotManualAt: true } });
       if (occupant && !await tx.team.count({ where: { id: occupant.id, ...teamScope(user) } })) throw new ScheduleError("STATION_TAKEN");
-      if (occupant?.slotManualAt) throw new ScheduleError("STATION_PROTECTED");
+      // While Auto Assign is off nothing is protected from it: the two simply swap.
+      if (occupant?.slotManualAt && await autoAssignOn(tx, found.seriesId)) throw new ScheduleError("STATION_PROTECTED");
       if (occupant) await tx.team.update({ where: { id: occupant.id }, data: { station: null } });
       await tx.team.update({ where: { id: team.id }, data: { station: parsed.data.station, slotManualAt: new Date() } });
       if (occupant) await tx.team.update({ where: { id: occupant.id }, data: { station: team.station } });
@@ -104,6 +105,8 @@ export async function autoAssignWaves(input: unknown): Promise<ActionResult> {
       // A recorded result is history: nobody is reseated over it.
       if (await tx.zoneScore.count({ where: { status: "submitted", score: { team: { seriesId } } } })) throw new ScheduleError("RESULTS_RECORDED");
       const context = await loadScheduleContext(tx, seriesId, { capacity: perWave });
+      // Switched off in Settings → Category schedule: the running order is built by hand.
+      if (!context.autoAssign) throw new ScheduleError("AUTO_ASSIGN_OFF");
       if (!isScheduled(context.blocks)) throw new ScheduleError("CATEGORY_SCHEDULE_MISSING");
       const plan = planFor(context);
       if (plan.conflicts.length) throw new ScheduleConflictError("SCHEDULE_CONFLICT", plan.conflicts);
