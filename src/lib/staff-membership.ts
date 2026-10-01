@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { can, isBft, isStudio, teamScope, type CurrentUser } from "@/lib/access";
 import { forgetAddressProof, PROOF_TX } from "@/lib/auth-proof";
 import { AUDIT, recordAuditIn } from "@/lib/audit";
-import { syncAfterMembershipChange } from "@/lib/membership-sync";
+import { reconcileDerivedLinks, syncAfterMembershipChange } from "@/lib/membership-sync";
 import { findEntryInSeries } from "@/lib/one-entry";
 import { membershipBarrier, registrantSeat, teamChangeWindow } from "@/lib/ownership";
 import { ensureParticipation } from "@/lib/participation";
@@ -22,11 +22,14 @@ import { registrationOpen } from "@/lib/visibility";
 //   · the audit line is written in the same transaction — no line, no change.
 //
 // WHEN (decision D3a): until 24 hours before the competition, whoever holds
-// the permission may; from then on, only BFT MENA Full access
-// (\`registrations.changeAfterClose\`, never grantable) — not a gym, not BFT
-// MENA Partial access, whatever roles they hold. The floor's barriers (a
-// finished competition, a score, a started wave) stop Full access too, for
-// any change of WHO is on the team.
+// the permission may; from then on, BFT MENA Full access
+// (`registrations.changeAfterClose`, never grantable) — and the organiser,
+// the gym or BFT MENA Partial access AT THE ATHLETE'S REQUEST: on the day an
+// athlete comes to the desk because their partner cannot compete, staff make
+// the change on a tick that says the athlete asked for it and approves it
+// (`assisted`, written into the audit line), like a category change. The
+// floor's barriers (a finished competition, a score, a started wave) stop
+// everybody, Full access too, for any change of WHO is on the team.
 //
 // WHAT counts as a change of who is on the team: a new seat, or a seat's
 // EMAIL changing — the email is who the seat is (seat-identity.ts), with or
@@ -59,7 +62,7 @@ export type StaffError =
   | "STALE_MEMBERSHIP" | "REGISTRANT_SEAT" | "TRANSFER_REQUIRED" | "REGISTRANT_EMAIL_LOCKED"
   | "SAME_ATHLETE" | "ATHLETE_NOT_FOUND" | "ALREADY_ENTERED" | "EMAIL_INVALID"
   | "LINKED_SEAT_EMAIL" | "DIVISION_LOCKED" | "INVALID_INPUT"
-  | "CONFIRM_ACCOUNT_EMAIL" | "ACCOUNT_EMAIL_TAKEN" | "OWN_ACCOUNT";
+  | "CONFIRM_ACCOUNT_EMAIL" | "ACCOUNT_EMAIL_TAKEN" | "OWN_ACCOUNT" | "ACCOUNT_DETAILS";
 
 class Refused extends Error {
   constructor(readonly code: StaffError) {
@@ -110,6 +113,8 @@ export type SwapInput = {
   transferOwnership?: boolean;
   /** The team's membership version the page was showing, when it sends one. */
   expectedVersion?: number;
+  /** Staff confirmed the athlete asked for this change and approves it. */
+  assisted?: boolean;
 };
 
 export type SwapOutcome = { ok: true; message: string; changed: boolean } | { ok: false; error: StaffError };
@@ -142,9 +147,10 @@ export async function swapSeat(db: PrismaClient, actor: StaffActor, input: SwapI
       if (!seat) throw new Refused("NOT_FOUND");
       const team = seat.team;
       barrierOrThrow(team);
-      if (!teamChangeWindow(team.series.competitionDate, now, hasFullAccess(actor)).open) throw new Refused("TEAM_EDIT_CLOSED");
+      const assisted = Boolean(input.assisted) && !hasFullAccess(actor);
+      if (!teamChangeWindow(team.series.competitionDate, now, hasFullAccess(actor) || assisted).open) throw new Refused("TEAM_EDIT_CLOSED");
       const deadline = registrationOpen({ role: actor.role, registrationClosesAt: team.series.registrationClosesAt, now });
-      if (!deadline.open) throw new Refused("REGISTRATION_CLOSED");
+      if (!deadline.open && !assisted) throw new Refused("REGISTRATION_CLOSED");
       if (input.expectedVersion !== undefined && input.expectedVersion !== team.membershipVersion) throw new Refused("STALE_MEMBERSHIP");
 
       const onRegistrantSeat = registrantSeat(team)?.id === seat.id;
@@ -202,7 +208,7 @@ export async function swapSeat(db: PrismaClient, actor: StaffActor, input: SwapI
       });
       await recordAuditIn(tx, {
         actorId: actor.id, action: AUDIT.teamMemberSwapped, targetType: "team", targetId: team.id, targetLabel: label,
-        detail: `position ${seat.position}: ${seat.fullName} → ${replacement.fullName} · version ${team.membershipVersion} → ${version}`,
+        detail: `position ${seat.position}: ${seat.fullName} → ${replacement.fullName} · version ${team.membershipVersion} → ${version}${assisted ? ` · ${ASSISTED}` : ""}`,
       });
       if (onRegistrantSeat) {
         await recordAuditIn(tx, {
@@ -396,8 +402,11 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
             : {}),
         },
       });
-      // Names and emails feed the partner snapshots: bring them in step.
-      await syncAfterMembershipChange(tx, { teamId: team.id, seriesId: team.seriesId, departedUserIds: [] });
+      // Names and emails feed the partner snapshots: bring them in step. Only
+      // somebody new on the team warms up again; a correction of the same
+      // athletes keeps the team's arrival and readiness.
+      if (membershipChanged) await syncAfterMembershipChange(tx, { teamId: team.id, seriesId: team.seriesId, departedUserIds: [] });
+      else await reconcileDerivedLinks(tx, team.id);
       // A bracket corrected on this form is the same fact as one changed at
       // the athlete's request (bracket-change.ts): the members' own entries
       // follow it, and the audit line says from what to what.
@@ -420,6 +429,128 @@ export async function editRegistration(db: PrismaClient, actor: StaffActor, inpu
           detail: `registrant ${registrant?.email ?? "—"} → ${registrantEmailAfter ?? "unknown (no email)"} (registration edited)`,
         });
       }
+      return { ok: true };
+    }, PROOF_TX)
+  );
+}
+
+// ── correcting one athlete ───────────────────────────────────────────────────
+
+/** What the audit line says of a change made at the athlete's request. */
+const ASSISTED = "staff-assisted: confirmed that the athlete asked for this change and approves it";
+
+export type SeatCorrection = {
+  competitorId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  dateOfBirth: Date | null;
+  /** Staff confirmed the athlete asked for this change and approves it. */
+  assisted?: boolean;
+  /** Full access confirmed a signed-in athlete's sign-in email changes. */
+  confirmAccountEmail?: boolean;
+  /** The team's membership version the page showed: a seat given to somebody else since is not corrected. */
+  expectedVersion?: number;
+};
+
+/**
+ * ONE ATHLETE PUT RIGHT — the same person, never a different one (that is a
+ * swap). The per-athlete panel on the team's page.
+ *
+ *   · An athlete without an account: name, email, phone, date of birth, by
+ *     anybody holding `registrations.edit` in scope. Their email is
+ *     corrected, not replaced — nothing of theirs is cleared.
+ *   · An athlete with an account: their name, email and phone ARE the
+ *     account's (queries.ts › toRosterRow). Full access corrects them, the
+ *     sign-in email on the confirming tick (correctEmail); anybody else may
+ *     correct the date of birth only (ACCOUNT_DETAILS).
+ *   · The registrant's email: BFT MENA's (REGISTRANT_EMAIL_LOCKED).
+ *   · After the cutoff: Full access, or staff on the athlete's request
+ *     (`assisted`). A finished competition is BFT MENA Full access's record.
+ *
+ * No barrier: nobody new is on the team, so the wave, the score and the
+ * team's arrival and readiness all stand.
+ */
+export async function correctSeat(db: PrismaClient, actor: StaffActor, input: SeatCorrection, now = new Date()): Promise<EditOutcome> {
+  const where = { id: input.competitorId, team: { archivedAt: null, ...teamScope(actor) } };
+  const located = await db.competitor.findFirst({ where, select: { team: { select: { seriesId: true } } } });
+  if (!located) return { ok: false, error: "NOT_FOUND" };
+
+  return run(() =>
+    db.$transaction(async (tx): Promise<EditOutcome> => {
+      await lockSeriesOf(tx, located.team.seriesId);
+      const seat = await tx.competitor.findFirst({
+        where,
+        select: {
+          id: true, position: true, fullName: true, email: true, phone: true, dateOfBirth: true, userId: true,
+          user: { select: { email: true, name: true, phone: true } },
+          team: {
+            select: {
+              id: true, seriesId: true, number: true, name: true, membershipVersion: true, ownership: true, registrantEmail: true, registrantUserId: true,
+              series: { select: { status: true, registrationClosesAt: true, competitionDate: true } },
+              competitors: { select: { id: true, position: true, email: true, userId: true } },
+            },
+          },
+        },
+      });
+      if (!seat) throw new Refused("NOT_FOUND");
+      const team = seat.team;
+      const full = hasFullAccess(actor);
+      const assisted = Boolean(input.assisted) && !full;
+      if (team.series.status === "final" && !full) throw new Refused("SERIES_FINISHED");
+      if (!teamChangeWindow(team.series.competitionDate, now, full || assisted).open) throw new Refused("TEAM_EDIT_CLOSED");
+      if (!assisted && !registrationOpen({ role: actor.role, registrationClosesAt: team.series.registrationClosesAt, now }).open) throw new Refused("REGISTRATION_CLOSED");
+      if (input.expectedVersion !== undefined && input.expectedVersion !== team.membershipVersion) throw new Refused("STALE_MEMBERSHIP");
+
+      // Measured against what the page showed: a signed-in seat reads as its account.
+      const name = input.fullName.trim();
+      const email = input.email?.trim() ? clean(input.email) : null;
+      const phone = input.phone?.trim() || null;
+      if (name.length < 2) throw new Refused("INVALID_INPUT");
+      if (email && !EMAIL.test(email)) throw new Refused("EMAIL_INVALID");
+      const shown = { name: seat.user?.name ?? seat.fullName, email: seat.user?.email ?? seat.email, phone: seat.user ? seat.user.phone : seat.phone };
+      const changed = {
+        name: normalizeName(shown.name) !== normalizeName(name),
+        email: clean(shown.email) !== clean(email),
+        phone: (shown.phone ?? null) !== phone,
+        dateOfBirth: !sameDay(seat.dateOfBirth, input.dateOfBirth),
+      };
+      const linked = Boolean(seat.userId && seat.user);
+      if (linked && !full && (changed.name || changed.email || changed.phone)) throw new Refused("ACCOUNT_DETAILS");
+
+      const lines: string[] = [];
+      const registrant = registrantSeat(team);
+      if (changed.email) {
+        if (registrant?.id === seat.id && !isBft(actor)) throw new Refused("REGISTRANT_EMAIL_LOCKED");
+        lines.push(await correctEmail(tx, actor, { seriesId: team.seriesId, target: seat, email, confirmed: Boolean(input.confirmAccountEmail) }));
+        if (registrant?.id === seat.id) {
+          await tx.team.update({
+            where: { id: team.id },
+            data: email ? { registrantEmail: email } : { ownership: "unknown", registrantEmail: null, registrantUserId: null },
+          });
+        }
+      }
+      if (linked && full && (changed.name || changed.phone)) {
+        await tx.user.update({ where: { id: seat.userId! }, data: { ...(changed.name ? { name } : {}), ...(changed.phone ? { phone } : {}) } });
+      }
+      await tx.competitor.update({
+        where: { id: seat.id },
+        data: {
+          fullName: name, normalizedName: normalizeName(name), phone, dateOfBirth: input.dateOfBirth,
+          ...(changed.email ? { email } : {}),
+        },
+      });
+      if (changed.name) lines.push(`position ${seat.position}: name ${shown.name} → ${name}`);
+      if (changed.phone) lines.push(`position ${seat.position}: phone corrected`);
+      if (changed.dateOfBirth) lines.push(`position ${seat.position}: date of birth corrected`);
+      if (!lines.length) return { ok: true };
+
+      // Names and emails feed the partner snapshots. Nobody new: arrival and readiness stand.
+      await reconcileDerivedLinks(tx, team.id);
+      await recordAuditIn(tx, {
+        actorId: actor.id, action: AUDIT.registrationUpdated, targetType: "team", targetId: team.id, targetLabel: `${team.number} ${team.name}`,
+        detail: ["athlete corrected", ...lines, ...(assisted ? [ASSISTED] : [])].join(" · "),
+      });
       return { ok: true };
     }, PROOF_TX)
   );

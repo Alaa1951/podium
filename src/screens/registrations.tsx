@@ -15,6 +15,8 @@ import { getTranslator } from "@/lib/i18n/server";
 import { getArchivedRoster, getScopedRoster } from "@/lib/queries";
 import { can, canAny, canAssistBracketChange, isAdmin, isBft } from "@/lib/access";
 import { BracketChange } from "@/components/bracket/bracket-change";
+import { TeamAthletesSection } from "@/components/admin/team-athletes-section";
+import { loadTeamAthletes } from "@/lib/team-athletes";
 import { loadBracketFacts } from "@/lib/bracket-data";
 import { getSeriesReport, money } from "@/lib/reports";
 import { crmIntakeFor, lastCrmSync } from "@/lib/crm/intake";
@@ -155,8 +157,10 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
     </section>
   ) : null;
 
+  // Each athlete with their own Edit button: correct them, or replace them (team-athletes-section.tsx).
+  const athletes = detailId ? await loadTeamAthletes(detailId, user, locale) : null;
   if (detailId) return <div className="screen"><RegisteredTable readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")} rows={rows} seriesId={series.id} canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
-              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{bracketPanel}{ownershipPanel}</div>;
+              canOverridePayment={!user.viewAs && isAdmin(user)} detailId={detailId} />{athletes ? <TeamAthletesSection team={athletes} /> : null}{bracketPanel}{ownershipPanel}</div>;
 
   return (
     <div className="screen">

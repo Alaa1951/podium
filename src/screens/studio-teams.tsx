@@ -1,6 +1,8 @@
 import { teamChangesCloseLabel, teamChangeWindow } from "@/lib/ownership";
 import { can, canAssistBracketChange } from "@/lib/access";
 import { loadBracketFacts } from "@/lib/bracket-data";
+import { TeamAthletesSection } from "@/components/admin/team-athletes-section";
+import { loadTeamAthletes } from "@/lib/team-athletes";
 import type { SeriesScreenProps } from "@/screens/types";
 import { notFound } from "next/navigation";
 
@@ -59,6 +61,8 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
   const closesAt = date(series.registrationClosesAt);
 
   if (detailId && !teams.some((team) => team.id === detailId)) notFound();
+  // On a team of its own: each athlete with an Edit button (team-athletes-section.tsx).
+  const athletes = detailId ? await loadTeamAthletes(detailId, user, locale) : null;
 
   return (
     <div className="screen">
@@ -114,6 +118,7 @@ export default async function StudioTeamsPage(props: SeriesScreenProps, detailId
         studios={studios.map((studio) => ({ id: studio.id, name: studio.name }))}
         open={deadline.open && can(user, "registrations.edit") && !user.viewAs}
       />
+      {athletes && !editMode ? <TeamAthletesSection team={athletes} /> : null}
     </div>
   );
 }

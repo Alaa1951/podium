@@ -33,7 +33,7 @@ import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 import * as mariadb from "mariadb";
 import { linkSeatsForUser } from "@/lib/link-seats";
 import { changeMembership, type MembershipInput } from "@/lib/membership-change";
-import { editRegistration, swapSeat } from "@/lib/staff-membership";
+import { correctSeat, editRegistration, swapSeat } from "@/lib/staff-membership";
 
 void spawn;
 const base = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
@@ -461,5 +461,50 @@ describe.skipIf(!enabled)("team membership on a real database", { timeout: 60_00
     await prisma.team.create({ data: { id: "t2", seriesId: "s1", number: 8, name: "OTHER", category: "Womens", division: "Open", competitors: { create: [{ position: 1, fullName: "Nour Hassan", normalizedName: "nour hassan", email: "nour.old@example.com", userId: "u-nour" }] } } });
     // Nour's ACCOUNT is on team 8 under an older address: her account email still finds it.
     expect(await editRegistration(prisma, staff, editForm({ email: "nour@example.com" }))).toEqual({ ok: false, error: "ALREADY_ENTERED" });
+  });
+
+  // ── On the day: staff at the athlete's request ────────────────────────────
+
+  it("after team changes close, the desk corrects an athlete at their request — arrival and readiness stand", async () => {
+    await prisma.series.update({ where: { id: "s1" }, data: { competitionDate: START } });
+    const wave = await prisma.wave.create({ data: { seriesId: "s1", number: 1, status: "pending" } });
+    const arrived = new Date();
+    await prisma.competitor.updateMany({ where: { teamId: "t1" }, data: { attendedAt: arrived } });
+    await prisma.competitor.update({ where: { id: "seat-mona" }, data: { userId: null } });
+    await prisma.team.update({ where: { id: "t1" }, data: { waveId: wave.id, attendedAt: arrived, warmupReadyAt: arrived, warmupWaveId: wave.id } });
+    const fix = { competitorId: "seat-mona", fullName: "Mona A. Saleh", email: "mona.saleh@example.com", phone: null, dateOfBirth: null };
+
+    expect(await correctSeat(prisma, desk, fix, at(3_600_000))).toEqual({ ok: false, error: "TEAM_EDIT_CLOSED" });
+    expect(await correctSeat(prisma, desk, { ...fix, assisted: true }, at(3_600_000))).toEqual({ ok: true });
+    expect(await seat("seat-mona")).toMatchObject({ fullName: "Mona A. Saleh", email: "mona.saleh@example.com", attendedAt: arrived });
+    const after = await prisma.team.findUniqueOrThrow({ where: { id: "t1" }, select: { membershipVersion: true, warmupWaveId: true, warmupReadyAt: true, attendedAt: true } });
+    expect(after).toMatchObject({ membershipVersion: 0, warmupWaveId: wave.id, attendedAt: arrived });
+    expect(after.warmupReadyAt).not.toBeNull();
+    expect(await participant("u-sara")).toMatchObject({ partnerName: "Mona A. Saleh", partnerEmail: "mona.saleh@example.com" });
+    const line = await prisma.adminAuditLog.findFirstOrThrow({ where: { action: "registration.updated", targetId: "t1" } });
+    expect(line.detail).toContain("staff-assisted: confirmed that the athlete asked for this change and approves it");
+    expect(line.actorId).toBe("u-desk");
+  });
+
+  it("on the day the gym replaces a partner at the athlete's request — until the wave starts, then nobody does", async () => {
+    await prisma.series.update({ where: { id: "s1" }, data: { competitionDate: START } });
+    const replaceMona = { competitorId: "seat-mona", fullName: "Lina Omar", email: "lina@example.com", assisted: true };
+    expect(await swapSeat(prisma, gym, { ...replaceMona, assisted: false }, at(3_600_000))).toEqual({ ok: false, error: "TEAM_EDIT_CLOSED" });
+    expect(await swapSeat(prisma, gym, replaceMona, at(3_600_000))).toMatchObject({ ok: true, changed: true });
+    expect(await seat("seat-mona")).toMatchObject({ fullName: "Lina Omar", email: "lina@example.com", userId: null });
+    expect(await teamRow()).toMatchObject({ membershipVersion: 1 });
+
+    const wave = await prisma.wave.create({ data: { seriesId: "s1", number: 1, status: "running", startedAt: new Date() } });
+    await prisma.team.update({ where: { id: "t1" }, data: { waveId: wave.id } });
+    expect(await swapSeat(prisma, gym, { ...replaceMona, fullName: "Someone Else", email: "else@example.com", expectedVersion: 1 }, at(3_600_000))).toEqual({ ok: false, error: "WAVE_STARTED" });
+    // A correction of the same athlete still goes through: nobody new is on the floor.
+    expect(await correctSeat(prisma, gym, { competitorId: "seat-mona", fullName: "Lina M. Omar", email: "lina@example.com", phone: null, dateOfBirth: null, assisted: true }, at(3_600_000))).toEqual({ ok: true });
+  });
+
+  it("below Full access, a signed-in athlete's name and email stay their account's — Full access corrects them", async () => {
+    const sara = { competitorId: "seat-sara", fullName: "Sara M. Ali", email: "sara@example.com", phone: null, dateOfBirth: null };
+    expect(await correctSeat(prisma, desk, sara)).toEqual({ ok: false, error: "ACCOUNT_DETAILS" });
+    expect(await correctSeat(prisma, staff, sara)).toEqual({ ok: true });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: "u-sara" } })).toMatchObject({ name: "Sara M. Ali" });
   });
 });

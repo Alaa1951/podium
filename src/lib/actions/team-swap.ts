@@ -22,7 +22,10 @@ import { swapSeat } from "@/lib/staff-membership";
 //   • the competition is finished        — the field is the record now
 //   • the team has a score               — a swap would rewrite who earned it
 //   • the wave is no longer `pending`    — they are on the floor
-//   • registration has closed            — for a gym; BFT MENA may still
+//   • registration has closed            — for a gym; BFT MENA may still, and
+//                                          a gym at the athlete's request
+//   • team changes have closed           — Full access, or staff at the
+//                                          athlete's request (`assisted`)
 //   • the page is out of date            — somebody changed the team first
 //   • the seat is the registrant's       — BFT MENA only, with a transfer
 //
@@ -51,6 +54,11 @@ const schema = z
     transferOwnership: z.boolean().optional(),
     /** The team's membership version the page showed. */
     expectedVersion: z.number().int().min(0).optional(),
+    /**
+     * Staff confirmed the athlete asked for this change and approves it —
+     * what lets the organiser or a gym make it after team changes close.
+     */
+    assisted: z.boolean().optional(),
   })
   .refine((data) => Boolean(data.replacementUserId) || Boolean(data.fullName), {
     message: "NAME_REQUIRED",

@@ -18,4 +18,16 @@ export const AR_TEAM_EDIT: Phrases = {
     "هذا البريد مستخدم بالفعل لحساب آخر في PODIUM. لوضع ذلك الحساب في الفريق، استخدم «استبدال» في صفحة الرياضي.",
   "You cannot change your own sign-in email here. Another Full access account can.":
     "لا يمكنك تغيير بريد تسجيل الدخول الخاص بك من هنا. يمكن لحساب آخر بصلاحية كاملة القيام بذلك.",
+
+  // The Athletes section of a team's page: an Edit button beside each athlete.
+  "Team changes closed on {when} (Qatar time). A change the athlete asks for can still be made here, on their request.":
+    "أُغلقت تعديلات الفرق في {when} (بتوقيت قطر). لا يزال من الممكن إجراء تعديل يطلبه الرياضي من هنا، بناءً على طلبه.",
+  "Has a PODIUM account": "لديه حساب في PODIUM",
+  "Correct details": "تصحيح البيانات",
+  "Replace with another person": "استبدال بشخص آخر",
+  "The same athlete: their check-in, warm-up and waiver stay.": "الرياضي نفسه: يبقى تسجيل حضوره وإحماؤه وإقراره كما هي.",
+  "Team changes are closed. Tick that the athlete asked for this change.":
+    "تعديلات الفرق مغلقة. ضع علامة تفيد بأن الرياضي طلب هذا التعديل.",
+  "This athlete signs in to PODIUM: their name, email and phone are their account's. They change them in their profile, or BFT MENA Full access does.":
+    "هذا الرياضي يسجّل الدخول إلى PODIUM: اسمه وبريده وهاتفه تخص حسابه. يغيّرها هو من ملفه الشخصي، أو تغيّرها BFT MENA بالصلاحية الكاملة.",
 };
