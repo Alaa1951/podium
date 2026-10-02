@@ -56,6 +56,7 @@ export type RegisteredRow = {
     fullName: string;
     phone: string | null;
     email: string | null;
+    registered?: { name: string; email: string | null; phone: string | null };
     studioName: string | null;
     /** Their portrait, or null for the shared default (athlete-photo.ts). */
     photoPath: string | null;
@@ -196,7 +197,26 @@ export function RegisteredTable({
         </div>
       ) : null}
 
-      {mobile ? <div className="mobile-list">{rows.map((row) => <DetailLink key={row.id} href={`${path}/${row.id}`}><span className="pd-num">#{row.number}</span><span className="mobile-list-faces">{row.people.map((person) => <AthleteAvatar key={person.fullName} photoPath={person.photoPath} name={person.fullName} size={28} />)}</span><div><strong>{row.name}</strong><small>{row.people.map((person) => person.fullName).join(" · ")}</small><small>{t(row.category)} · {t(row.division)} · {t("Wave")} {row.wave ?? "—"}</small></div><span className="badge">{t(row.paymentStatus)}</span><span aria-hidden="true">›</span></DetailLink>)}</div> : <div className="table-scroll" style={{ marginTop: 12 }}>
+      {mobile ? <div className="mobile-list">{rows.map((row) => (
+        <DetailLink key={row.id} href={`${path}/${row.id}`} className="mobile-list-card athlete-search-card">
+          <span className="pd-num">#{row.number}</span>
+          <span className="mobile-list-faces">{row.people.map((person) => <AthleteAvatar key={person.id} photoPath={person.photoPath} name={person.fullName} size={28} />)}</span>
+          <div>
+            <strong>{row.name}</strong>
+            {row.people.map((person) => <div key={person.id} className="athlete-search-contact">
+              <small>{person.fullName}</small>
+              {person.email ? <small dir="ltr">{person.email}</small> : null}
+              {person.phone ? <small dir="ltr" className="pd-num">{person.phone}</small> : null}
+              {person.registered?.name && person.registered.name !== person.fullName ? <small>{person.registered.name}</small> : null}
+              {person.registered?.email && person.registered.email !== person.email ? <small dir="ltr">{person.registered.email}</small> : null}
+              {person.registered?.phone && person.registered.phone !== person.phone ? <small dir="ltr" className="pd-num">{person.registered.phone}</small> : null}
+            </div>)}
+            <small>{t(row.category)} · {t(row.division)} · {t("Wave")} {row.wave ?? "—"}</small>
+            {row.waitlistedAt ? <small className="badge badge-warn">{t("Waiting list")}</small> : null}
+          </div>
+          <span className="badge">{t(row.paymentStatus)}</span><span aria-hidden="true">›</span>
+        </DetailLink>
+      ))}</div> : <div className="table-scroll" style={{ marginTop: 12 }}>
         <table className="table reg-table">
           <thead>
             <tr>

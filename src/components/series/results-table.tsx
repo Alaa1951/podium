@@ -5,9 +5,12 @@ import { usePathname } from "next/navigation";
 import { DetailLink, useListFilter } from "@/components/app/detail-link";
 import { useIsMobile } from "@/components/app/use-mobile";
 import { FilterSheet } from "@/components/app/filter-sheet";
+import { ListOverview } from "@/components/app/list-overview";
+import { SearchBox } from "@/components/app/search-box";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { fmt } from "@/lib/scoring";
+import { matchesSearch } from "@/lib/search";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE RESULTS, FOR THE PEOPLE RUNNING THE COMPETITION.
@@ -71,16 +74,10 @@ export function ResultsTable({
   const mobile = useIsMobile();
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     return rows.filter((row) => {
       if (bracket !== "all" && `${row.category} ${row.division}` !== bracket) return false;
       if (studio !== "all" && row.studioName !== studio) return false;
-      if (!needle) return true;
-      return (
-        row.name.toLowerCase().includes(needle) ||
-        String(row.number) === needle ||
-        row.competitors.some((person) => person.toLowerCase().includes(needle))
-      );
+      return matchesSearch(query, { text: [row.name, ...row.competitors], exact: [row.number] });
     });
   }, [rows, bracket, studio, query]);
 
@@ -94,6 +91,7 @@ export function ResultsTable({
   return (
     <>
       {/* ── The podiums ──────────────────────────────────────────────────── */}
+      <ListOverview label={t("Podiums")}>
       <h2 className="section-title">{t("Podiums")}</h2>
       <div className="podium-grid">
         {podiums.map((block) => (
@@ -122,19 +120,19 @@ export function ResultsTable({
       </div>
 
       {/* ── The whole field ──────────────────────────────────────────────── */}
+      </ListOverview>
       <h2 className="section-title" style={{ marginTop: 32 }}>
         {t("Every team")}
       </h2>
 
-      <div className="reg-filters">
-        <input
-          className="input"
-          type="search"
+      <div className="reg-filters mobile-search-toolbar">
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t("Search team, competitor or number…")}
-          aria-label={t("Search results")}
-          style={{ flex: "1 1 220px", minWidth: 0 }}
+          label={t("Search results")}
+          shown={visible.length}
+          total={rows.length}
         />
         <FilterSheet><select
           className="input"
@@ -162,10 +160,9 @@ export function ResultsTable({
             </option>
           ))}
         </select>
-        </FilterSheet><div className="reg-filters-count">
-          {visible.length === rows.length
-            ? `${rows.length} ${t("teams")} · ${scored} ${t("scored")}`
-            : `${visible.length} ${t("of")} ${rows.length}`}
+        </FilterSheet>
+        <div className="reg-filters-count">
+          {scored} {t("scored")}
           {exportHref ? (
             <a className="linkish" href={exportHref} style={{ marginInlineStart: 10 }}>
               {t("Export CSV")}

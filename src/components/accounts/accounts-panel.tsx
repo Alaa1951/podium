@@ -10,6 +10,7 @@ import { DetailLink } from "@/components/app/detail-link";
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { BlueprintCard } from "@/components/app/page-shell";
 import { SearchBox, useUrlFilters } from "@/components/app/search-box";
+import { FilterSheet } from "@/components/app/filter-sheet";
 import { matchesSearch } from "@/lib/search";
 import { useIsMobile } from "@/components/app/use-mobile";
 import { useLocale } from "@/components/i18n/locale-provider";
@@ -297,7 +298,7 @@ export function AccountsPanel({
   return (
     <>
       {!compose ? (
-        <div className="list-toolbar">
+        <div className="list-toolbar mobile-search-toolbar">
           <SearchBox
             value={filters.q}
             onChange={(q) => setFilters({ q })}
@@ -305,8 +306,10 @@ export function AccountsPanel({
             label={t("Search accounts")}
             shown={visible.length}
             total={accounts.length}
+            pending={query !== filters.q}
           />
           <div className="list-toolbar-filters">
+            <FilterSheet>
             <select className="input" value={filters.type} onChange={(event) => setFilters({ type: event.target.value })} aria-label={t("Account type")}>
               <option value="">{t("Every account type")}</option>
               {typesHere.map((type) => (
@@ -332,6 +335,7 @@ export function AccountsPanel({
                 <option value={NO_ROLE}>{t("No role (default)")}</option>
               </select>
             ) : null}
+            </FilterSheet>
             {filtering ? (
               <button type="button" className="btn btn-ghost" onClick={() => setFilters({ q: "", type: "", status: "", role: "" })}>
                 {t("Clear filters")}

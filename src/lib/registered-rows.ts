@@ -32,8 +32,9 @@ export function toRegisteredRow(team: RosterRow): RegisteredRow {
     people: team.competitors.map((person) => ({
       id: person.id,
       fullName: person.fullName,
-      phone: person.phone,
-      email: person.email,
+      phone: person.phone || person.registered?.phone || null,
+      email: person.email || person.registered?.email || null,
+      registered: person.registered,
       studioName: person.studioName,
       photoPath: person.photoPath,
     })),

@@ -12,6 +12,8 @@ export const AR_CONSOLE: Phrases = {
     "أنشئ واحدة، اختر الاستوديوهات المشاركة، والباقي يمشي.",
   "Create and choose studios": "أنشئ واختر الاستوديوهات",
   Overview: "نظرة عامة",
+  "Searching…": "جارٍ البحث…",
+  "Waiting for registration details.": "في انتظار استكمال بيانات التسجيل.",
   "Before the day": "قبل اليوم",
   "On the day": "يوم المسابقة",
   Setup: "الإعداد",

@@ -64,16 +64,19 @@ export function matchesSearch(query: string | null | undefined, fields: SearchFi
   const tokens = searchTokens(query);
   if (!tokens.length) return true;
   const text = fields.text.map(foldText).filter(Boolean);
-  const phones = (fields.phones ?? []).map((phone) => digitsOnly(foldText(phone))).filter(Boolean);
+  const phones = (fields.phones ?? []).map((phone) => digitsOnly(foldText(phone)).replace(/^00/, "")).filter(Boolean);
   const exact = (fields.exact ?? []).filter((value) => value !== null && value !== undefined).map((value) => String(value));
 
   return tokens.every((token) => {
     if (text.some((field) => field.includes(token))) return true;
-    if (/^\d+$/.test(token)) {
-      if (exact.includes(token)) return true;
+    if (/^\d+$/.test(token) && exact.includes(token)) return true;
+    // A pasted international number can contain +, dots or hyphens. Only
+    // strip those from numeric tokens, so names and emails keep their meaning.
+    if (/^[+\d.-]+$/.test(token)) {
+      const digits = digitsOnly(token).replace(/^00/, "");
       // Three digits or more before a phone is worth matching: "4" would
       // match every number in Qatar.
-      if (token.length >= 3 && phones.some((phone) => phone.includes(token))) return true;
+      if (digits.length >= 3 && phones.some((phone) => phone.includes(digits))) return true;
     }
     return false;
   });

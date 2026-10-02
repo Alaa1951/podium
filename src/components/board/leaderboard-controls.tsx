@@ -1,6 +1,7 @@
 "use client";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { SearchBox } from "@/components/app/search-box";
 import { BRACKETS } from "@/lib/scoring";
 import type { Category, Division } from "@/generated/prisma/enums";
 
@@ -63,7 +64,7 @@ export function BoardFilters({
   const t = useT();
 
   return (
-    <div className="board-filters">
+    <div className="board-filters mobile-search-toolbar">
       <select
         className="input input-dark"
         aria-label={t("Studio")}
@@ -79,13 +80,12 @@ export function BoardFilters({
         ))}
       </select>
 
-      <input
-        className="input input-dark"
-        type="search"
+      <SearchBox
+        inputClassName="input-dark"
         placeholder={t("Search by team or competitor…")}
         value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        aria-label={t("Search")}
+        onChange={onQuery}
+        label={t("Search")}
       />
     </div>
   );

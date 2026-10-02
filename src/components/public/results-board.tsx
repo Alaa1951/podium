@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { SearchBox } from "@/components/app/search-box";
+import { matchesSearch } from "@/lib/search";
 import { fmt } from "@/lib/scoring";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,14 +104,9 @@ export function PublicResultsBoard({
   }, [seriesSlug, category, division]);
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     return rows.filter((row) => {
       if (studio !== "__all" && row.studioName !== studio) return false;
-      if (!needle) return true;
-      return (
-        row.name.toLowerCase().includes(needle) ||
-        row.competitors.some((person) => person.toLowerCase().includes(needle))
-      );
+      return matchesSearch(query, { text: [row.name, ...row.competitors] });
     });
   }, [rows, studio, query]);
 
@@ -133,7 +130,7 @@ export function PublicResultsBoard({
         </div>
       </div>
 
-      <div className="pb-filters">
+      <div className="pb-filters mobile-search-toolbar">
         {showStudioColumn ? (
           <select
             className="pb-select"
@@ -150,13 +147,13 @@ export function PublicResultsBoard({
           </select>
         ) : null}
 
-        <input
-          className="pb-search"
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t("Search by team…")}
-          aria-label={t("Search by team")}
+          label={t("Search by team")}
+          shown={visible.length}
+          total={rows.length}
         />
       </div>
 

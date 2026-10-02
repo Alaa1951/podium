@@ -1,0 +1,30 @@
+.list-overview-toggle { display: none; }
+.athlete-search-contact { margin-top: 8px; overflow-wrap: anywhere; }
+.athlete-search-contact [dir="ltr"] { text-align: start; unicode-bidi: plaintext; }
+.search-box[data-counted="false"] .search-box-input { padding-inline-end: 48px !important; }
+.search-box[data-counted="false"] .search-box-clear, .search-box[data-counted="false"] .search-box-key { inset-inline-end: 10px; }
+html[data-mobile="true"] .list-overview-toggle { display: inline-flex; gap: 12px; min-height: 44px; margin-bottom: 8px; }
+html[data-mobile="true"] .list-overview:not([data-open]) > .list-overview-content { display: none; }
+html[data-mobile="true"] .mobile-search-toolbar {
+  position: sticky; top: var(--mobile-header-h); z-index: 55;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 0; margin-block: 8px 12px; scroll-margin-top: calc(var(--mobile-header-h) + 8px);
+  display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+html[data-mobile="true"] .reg-filters.mobile-search-toolbar { padding: 10px; }
+html[data-mobile="true"] .mobile-search-toolbar > .search-box { flex: 1 1 100%; }
+html[data-mobile="true"] .mobile-search-toolbar .list-toolbar-filters { flex-wrap: wrap; }
+html[data-mobile="true"] .mobile-search-toolbar .list-toolbar-filters > .btn { min-height: 44px; }
+html[data-mobile="true"] .search-box { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+html[data-mobile="true"] .search-box .search-box-input { padding-inline-end: 52px !important; }
+html[data-mobile="true"] .search-box-icon { top: 15px; }
+html[data-mobile="true"] .search-box .search-box-clear { inset-inline-end: 4px; top: 2px; width: 44px; height: 44px; }
+html[data-mobile="true"] .search-box-count { position: static; margin-top: 4px; min-height: 18px; white-space: normal; }
+html[data-mobile="true"] .mobile-search-toolbar .reg-filters-count { flex-basis: auto; }
+html[data-mobile="true"] .mobile-search-toolbar .reg-filters-count:empty { display: none; }
+html[data-mobile="true"] .mobile-list-card.athlete-search-card {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 10px;
+}
+html[data-mobile="true"] .mobile-list-card.athlete-search-card > div { grid-column: 1 / -1; grid-row: 2; }
+html[data-mobile="true"] .mobile-list-card.athlete-search-card > .badge { justify-self: end; }
+html[data-mobile="true"] .athlete-search-contact small { margin-top: 3px; }

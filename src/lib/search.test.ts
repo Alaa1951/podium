@@ -69,6 +69,19 @@ describe("matching a row", () => {
     expect(matchesSearch("120", { text: ["Team"], exact: [12] })).toBe(false);
   });
 
+  it.each(["+97455123456", "+974 5512-3456", "(974) 5512.3456", "0097455123456", "+٩٧٤ ٥٥١٢-٣٤٥٦", "ahmed +97455123456"])("finds a pasted phone: %s", (query) => {
+    expect(matchesSearch(query, row)).toBe(true);
+    expect(matchesSearch(query, { text: ["Ahmed Ali"], phones: ["+974 5512 9999"] })).toBe(false);
+  });
+
+  it("accepts an international dialing prefix in the stored phone", () => {
+    expect(matchesSearch("+97455123456", { text: [], phones: ["00974-5512-3456"] })).toBe(true);
+  });
+
+  it.each(["7746 4513", "7746", "٧٧٤٦", "+97477464513"])("finds a full or partial mobile number: %s", (query) => {
+    expect(matchesSearch(query, { text: ["Waiting athlete", "waiting@example.com"], phones: ["+974 7746 4513"] })).toBe(true);
+  });
+
   it("does not match a phone on one or two digits", () => {
     expect(matchesSearch("55", { text: ["x"], phones: ["55123456"] })).toBe(false);
   });

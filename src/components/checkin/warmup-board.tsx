@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 import { SearchBox, useUrlFilters } from "@/components/app/search-box";
+import { FilterSheet } from "@/components/app/filter-sheet";
+import { ListOverview } from "@/components/app/list-overview";
 import { useT } from "@/components/i18n/locale-provider";
 import { setWarmupReadiness } from "@/lib/actions/checkin";
 import { arrivalStatus, matchesWarmup, waiversDone, warmupGroups, warmupTotals, type CheckInTeam, type WarmupWave } from "@/lib/checkin";
@@ -74,7 +76,7 @@ export function WarmupBoard({ teams, waves, canMark, waiverRequired = false }: {
 
   return (
     <div className="checkin">
-      <div className="checkin-figures checkin-figures-wide">
+      <ListOverview><div className="checkin-figures checkin-figures-wide">
         <div className="stat-card">
           <span className="stat-label">{t("Teams")}</span>
           <span className="stat-value pd-num">{totals.teams}</span>
@@ -91,7 +93,8 @@ export function WarmupBoard({ teams, waves, canMark, waiverRequired = false }: {
         </div>
       </div>
 
-      <div className="list-toolbar">
+      </ListOverview>
+      <div className="list-toolbar mobile-search-toolbar">
         <SearchBox
           value={filters.q}
           onChange={(q) => setFilters({ q })}
@@ -99,8 +102,10 @@ export function WarmupBoard({ teams, waves, canMark, waiverRequired = false }: {
           label={t("Search warm-up")}
           shown={shown}
           total={teams.length}
+          pending={query !== filters.q}
         />
         <div className="list-toolbar-filters">
+          <FilterSheet>
           <select className="input" value={filters.wave} onChange={(event) => setFilters({ wave: event.target.value })} aria-label={t("Wave")}>
             <option value="">{t("All waves")}</option>
             {groups.map((group) =>
@@ -143,6 +148,7 @@ export function WarmupBoard({ teams, waves, canMark, waiverRequired = false }: {
               <option value="pending">{t("Waiver acceptance required")}</option>
             </select>
           ) : null}
+          </FilterSheet>
           {filtered ? (
             <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", wave: "", readiness: "", waiver: "" })}>
               {t("Clear")}

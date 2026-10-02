@@ -9,6 +9,7 @@ import { RegistrationEditor } from "@/components/admin/registration-editor";
 import { getSeriesStudios } from "@/lib/queries";
 import { teamStatus } from "@/lib/team-status";
 import { RegisteredFilters } from "@/components/admin/registered-filters";
+import { ListOverview } from "@/components/app/list-overview";
 import { RegisteredTable, type RegisteredRow } from "@/components/admin/registered-table";
 import { toRegisteredRow } from "@/lib/registered-rows";
 import { getTranslator } from "@/lib/i18n/server";
@@ -72,6 +73,18 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
   const waveFilter = typeof searchParams.wave === "string" ? searchParams.wave : "all";
   const category = typeof searchParams.category === "string" ? searchParams.category : "all";
   const division = typeof searchParams.division === "string" ? searchParams.division : "all";
+
+  // Incomplete CRM registrations have no confirmed bracket, payment or
+  // membership yet. They are searchable alongside teams in the all/waiting
+  // views, without inventing values for those filters or widening access.
+  const waitingRows = crmWaiting.filter((row) =>
+    place !== "field" && waveFilter !== "assigned" && category === "all" &&
+    division === "all" && payment === "all" && membership === "all" &&
+    matchesSearch(query, {
+      text: [row.contactName, row.email, row.partnerName, row.teamName],
+      phones: [row.phone],
+    })
+  );
 
   const filtered = teams.filter((team) => {
     if (category !== "all" && team.category !== category) return false;
@@ -188,6 +201,7 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         </div>
       </div>
 
+      <ListOverview>
       {crmStatus ? <CrmSyncBar status={crmStatus} /> : null}
 
       {waitingForOwner.length ? (
@@ -238,6 +252,8 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         </div>
       </div> : null}
 
+      </ListOverview>
+
       <RegisteredFilters
         category={category}
         division={division}
@@ -246,12 +262,14 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         place={place}
         membership={membership}
         wave={waveFilter}
-        showing={rows.length}
-        total={teams.length}
+        showing={rows.length + waitingRows.length}
+        total={teams.length + crmWaiting.length}
         studios={[]}
       />
 
-      <RegisteredTable
+      {query ? <CrmIntakeList rows={waitingRows} intro={t("Waiting for registration details.")} /> : null}
+
+      {rows.length > 0 || waitingRows.length === 0 ? <RegisteredTable
         readOnly={!canAny(user, ["registrations.attendance", "registrations.payment"]) || !!user.viewAs} canEdit={!user.viewAs && can(user, "registrations.edit")}
         rows={rows}
         archivedRows={archivedRows}
@@ -259,12 +277,10 @@ export default async function RegistrationsPage(props: SeriesScreenProps, detail
         seriesId={series.id}
         canArchive={series.status === "scheduled" && !user.viewAs && can(user, "registrations.archive")} canWaitlist={!user.viewAs && can(user, "registrations.waitlist")}
               canOverridePayment={!user.viewAs && isAdmin(user)}
-      />
+      /> : null}
 
       {/* Below the field, not hidden from it: these people registered too. */}
-      <CrmIntakeList
-        rows={crmWaiting}
-      />
+      {!query ? <CrmIntakeList rows={waitingRows} /> : null}
     </div>
   );
 }

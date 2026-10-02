@@ -4,6 +4,7 @@ import { resolveMySeries, meHref } from "@/lib/participation";
 
 import { PlainHeader } from "@/components/app/plain-header";
 import { PartnerCandidates } from "@/components/me/partner-candidates";
+import { PartnerSearch } from "@/components/me/partner-search";
 import { PartnerRequests, type PartnerRequestRow } from "@/components/me/partner-requests";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -154,26 +155,7 @@ export default async function PartnerFinderScreen(
         </strong>
       </p>
 
-      <form method="get" style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-        <input type="hidden" name="series" value={series.id} />
-        <input
-          className="input"
-          name="q"
-          defaultValue={query}
-          placeholder={t("Search by name…")}
-          maxLength={80}
-          style={{ flex: "1 1 200px" }}
-        />
-        <button type="submit" className="btn btn-secondary">
-          {t("Search")}
-        </button>
-      </form>
-
-      {total > 0 ? (
-        <p className="reg-sub" style={{ marginTop: 10 }}>
-          {t("{shown} of {total}", { shown, total })}
-        </p>
-      ) : null}
+      <PartnerSearch query={query} shown={shown} total={total} />
 
       <PartnerCandidates seriesId={series.id}
         rows={rows as PartnerCandidate[]}

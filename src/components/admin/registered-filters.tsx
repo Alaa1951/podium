@@ -1,11 +1,9 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
-
 import { useT } from "@/components/i18n/locale-provider";
 import { FilterSheet } from "@/components/app/filter-sheet";
 import { SearchBox } from "@/components/app/search-box";
+import { useServerSearch } from "@/components/app/use-server-search";
 import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 
 /**
@@ -39,46 +37,20 @@ export function RegisteredFilters({
   studios: string[];
 }) {
   const t = useT();
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const [pending, startTransition] = useTransition();
-  const [text, setText] = useState(query);
-
-  // The URL is the source of truth: a back button, or a link from the
-  // dashboard, has to be reflected in the box.
-  const [lastQuery, setLastQuery] = useState(query);
-  if (lastQuery !== query) {
-    setLastQuery(query);
-    setText(query);
-  }
-
-  function apply(changes: Record<string, string>) {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(changes)) {
-      if (!value || value === "all") next.delete(key);
-      else next.set(key, value);
-    }
-    startTransition(() => router.replace(`${pathname}?${next.toString()}`));
-  }
-
-  // Typing does not hammer the server: the search settles first.
-  useEffect(() => {
-    if (text === query) return;
-    const id = setTimeout(() => apply({ q: text }), 250);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  const { text, setText, apply, pending } = useServerSearch(query);
 
   const clear = query || category !== "all" || division !== "all" || payment !== "all" || place !== "all" || membership !== "all" || wave !== "all";
 
   return (
-    <div className="reg-filters">
+    <div className="reg-filters mobile-search-toolbar">
       <SearchBox
         value={text}
         onChange={setText}
         placeholder={t("Search athlete, team, email, phone, gym or team number…")}
         label={t("Search registrations")}
+        shown={showing}
+        total={total}
+        pending={pending}
       />
 
       <FilterSheet>
@@ -135,10 +107,8 @@ export function RegisteredFilters({
         ]}
       />
 
-      </FilterSheet><div className="reg-filters-count">
-        {showing === total
-          ? `${total} ${t("registered")}`
-          : `${showing} ${t("of")} ${total}`}
+      </FilterSheet>
+      <div className="reg-filters-count">
         {clear ? (
           <button
             type="button"

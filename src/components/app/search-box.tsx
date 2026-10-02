@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 
+import "./list-search.css";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE SEARCH BOX every long list uses.
 //
@@ -23,6 +25,9 @@ export function SearchBox({
   label,
   shown,
   total,
+  pending = false,
+  inputClassName = "",
+  maxLength,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -32,6 +37,9 @@ export function SearchBox({
   /** How many rows show, of how many — the count beside the box. */
   shown?: number;
   total?: number;
+  pending?: boolean;
+  inputClassName?: string;
+  maxLength?: number;
 }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
@@ -51,14 +59,14 @@ export function SearchBox({
 
   const counted = shown !== undefined && total !== undefined;
   return (
-    <div className="search-box">
+    <div className="search-box" data-counted={counted} aria-busy={pending}>
       <svg className="search-box-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
       </svg>
       <input
         ref={input}
-        className="input search-box-input"
+        className={`input search-box-input ${inputClassName}`}
         type="search"
         inputMode="search"
         enterKeyHint="search"
@@ -67,11 +75,17 @@ export function SearchBox({
         autoCapitalize="off"
         spellCheck={false}
         value={value}
+        maxLength={maxLength}
         placeholder={placeholder}
         aria-label={label}
         aria-keyshortcuts="/"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            input.current?.blur();
+            return;
+          }
           if (event.key !== "Escape") return;
           if (value) onChange("");
           else input.current?.blur();
@@ -86,7 +100,7 @@ export function SearchBox({
       )}
       {counted ? (
         <span className="search-box-count pd-num" aria-live="polite">
-          {shown === total ? t("{count} shown", { count: total }) : t("{shown} of {total}", { shown, total })}
+          {pending ? t("Searching…") : shown === total ? t("{count} shown", { count: total }) : t("{shown} of {total}", { shown, total })}
         </span>
       ) : null}
     </div>

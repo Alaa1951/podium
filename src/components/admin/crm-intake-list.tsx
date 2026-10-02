@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 
 import { CrmIntakeComplete } from "@/components/admin/crm-intake-complete";
+import { useIsMobile } from "@/components/app/use-mobile";
 import { useT } from "@/components/i18n/locale-provider";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ export function CrmIntakeList({
   intro?: string;
 }) {
   const t = useT();
+  const mobile = useIsMobile();
   const [open, setOpen] = useState<string | null>(null);
   /** What the last completion did. Lives here so it outlives the closing form. */
   const [done, setDone] = useState("");
@@ -98,7 +100,30 @@ export function CrmIntakeList({
         </div>
       ) : null}
 
-      <div className="table-scroll" style={{ marginTop: 10 }}>
+      {mobile ? <div className="mobile-list" style={{ marginTop: 10 }}>
+        {rows.map((row) => <div key={row.id} className="card athlete-search-card">
+          <strong>{row.teamName ?? row.contactName}</strong>
+          <div className="athlete-search-contact">
+            <div>{row.contactName}{row.partnerName ? ` · ${row.partnerName}` : ""}</div>
+            <div dir="ltr">{row.email ?? t("no email")}</div>
+            <div dir="ltr" className="pd-num">{row.phone ?? t("no phone")}</div>
+          </div>
+          <div className="chip-row" style={{ marginTop: 8 }}>
+            <span className="badge badge-warn">{t(row.missing)}</span>
+            <span className="reg-sub">{row.waitingDays >= 1 ? t("{n} days", { n: row.waitingDays }) : t("today")}</span>
+          </div>
+          <p className="reg-sub">{row.stageName ?? t("not in the pipeline")}</p>
+          {completable ? <>
+            <button type="button" className="btn btn-secondary" aria-expanded={open === row.id}
+              onClick={() => setOpen(open === row.id ? null : row.id)}>
+              {open === row.id ? t("Close") : t("Fill in what is missing")}
+            </button>
+            {open === row.id ? <CrmIntakeComplete intakeId={row.id} seriesId={seriesId!}
+              partnerName={row.partnerName} teamName={row.teamName} studioNames={studioNames}
+              onDone={(message) => { setOpen(null); if (message) setDone(message); }} /> : null}
+          </> : null}
+        </div>)}
+      </div> : <div className="table-scroll" style={{ marginTop: 10 }}>
         <table className="table reg-table">
           <thead>
             <tr>
@@ -169,7 +194,7 @@ export function CrmIntakeList({
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </section>
   );
 }

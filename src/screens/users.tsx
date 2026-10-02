@@ -2,6 +2,7 @@ import { competitionChoices } from "@/lib/competition-choice";
 import { notFound } from "next/navigation";
 
 import { AccessPanel } from "@/components/accounts/access-panel";
+import { ListOverview } from "@/components/app/list-overview";
 import { AccountsPanel, type AccountRow } from "@/components/accounts/accounts-panel";
 import { can } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
@@ -108,7 +109,7 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
         </div>
       </div>
 
-      <div className="stat-grid" style={{ marginBottom: 20 }}>
+      <ListOverview><div className="stat-grid" style={{ marginBottom: 20 }}>
         <div className="stat-card">
           <span className="stat-label">{t("Accounts")}</span>
           <span className="stat-value">{rows.length}</span>
@@ -134,7 +135,7 @@ export default async function PeoplePage(detailId?: string, editMode = false, co
             {invited > 0 ? t("invitations not yet used") : t("everyone is set up")}
           </span>
         </div>
-      </div>
+      </div></ListOverview>
 
       <AccountsPanel
         compose={compose}

@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 import { SearchBox, useUrlFilters } from "@/components/app/search-box";
+import { FilterSheet } from "@/components/app/filter-sheet";
+import { ListOverview } from "@/components/app/list-overview";
 import { BracketChange } from "@/components/bracket/bracket-change";
 import { CheckInTotalsPanel } from "@/components/checkin/checkin-totals";
 import { useT } from "@/components/i18n/locale-provider";
@@ -90,14 +92,14 @@ export function EntranceBoard({
 
   return (
     <div className="checkin">
-      <CheckInTotalsPanel
+      <ListOverview><CheckInTotalsPanel
         totals={totals}
         brackets={totalsByBracket(teams)}
         selected={{ category: filters.category, division: filters.division }}
         onSelect={(category, division) => setFilters({ category, division })}
-      />
+      /></ListOverview>
 
-      <div className="list-toolbar">
+      <div className="list-toolbar mobile-search-toolbar">
         <SearchBox
           value={filters.q}
           onChange={(q) => setFilters({ q })}
@@ -105,8 +107,10 @@ export function EntranceBoard({
           label={t("Search check-in")}
           shown={visible.length}
           total={teams.length}
+          pending={query !== filters.q}
         />
         <div className="list-toolbar-filters">
+          <FilterSheet>
           <select className="input" value={filters.category} onChange={(event) => setFilters({ category: event.target.value })} aria-label={t("Category")}>
             <option value="">{t("All categories")}</option>
             {CATEGORIES.map((value) => (
@@ -136,6 +140,7 @@ export function EntranceBoard({
               <option value="pending">{t("Waiver acceptance required")}</option>
             </select>
           ) : null}
+          </FilterSheet>
           {filtered ? (
             <button type="button" className="linkish" onClick={() => setFilters({ q: "", category: "", division: "", status: "", waiver: "" })}>
               {t("Clear")}

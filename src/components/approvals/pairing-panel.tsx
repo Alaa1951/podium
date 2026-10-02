@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
+import { SearchBox } from "@/components/app/search-box";
+import { matchesSearch } from "@/lib/search";
 import { pairAthletes } from "@/lib/actions/pairing";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,12 +86,11 @@ export function PairingPanel({
   // A filter, not just a sort. Five hundred names in a dropdown is not a list
   // anybody can use; the default narrows to the people this panel exists for.
   const visible = useMemo(() => {
-    const needle = search.trim().toLowerCase();
     return athletes.filter((athlete) => {
       if (onlyLooking && !athlete.lookingForPartner) return false;
       if (filterLevel && athlete.division !== filterLevel) return false;
       if (filterCategory && athlete.category !== filterCategory) return false;
-      if (needle && !athlete.name.toLowerCase().includes(needle)) return false;
+      if (!matchesSearch(search, { text: [athlete.name] })) return false;
       return true;
     });
   }, [athletes, onlyLooking, filterLevel, filterCategory, search]);
@@ -184,16 +185,17 @@ export function PairingPanel({
             ))}
           </select>
         </label>
-        <label style={{ flex: "1 1 100%" }}>
+        <div style={{ flex: "1 1 100%" }}>
           <span className="field-label">{t("Narrow the list")}</span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input
-              className="input"
+            <SearchBox
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
               placeholder={t("Search by name…")}
+              label={t("Narrow the list")}
               maxLength={80}
-              style={{ flex: "1 1 180px" }}
+              shown={visible.length}
+              total={athletes.length}
             />
             <select
               className="input"
@@ -234,10 +236,9 @@ export function PairingPanel({
             </button>
           </div>
           <span className="reg-sub" style={{ display: "block", marginTop: 6 }}>
-            {t("{shown} of {total}", { shown: visible.length, total: athletes.length })}
             {athletes.length === 500 ? ` · ${t("first 500")}` : ""}
           </span>
-        </label>
+        </div>
         <label style={{ flex: "1 1 200px" }}>
           <span className="field-label">{t("Athlete 1")}</span>
           <select className="input" value={firstId} disabled={pending} onChange={(e) => pickFirst(e.target.value)}>
