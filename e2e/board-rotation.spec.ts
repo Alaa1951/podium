@@ -32,7 +32,9 @@ for (const surface of ["signed-in", "public"] as const) {
         zones: { create: [{ id: `${id}-z1`, number: 1, name: "Test zone", inputs: { create: [{ id: `${id}-i1`, position: 1, label: "Points", divideBy: 1 }] } }] },
         waves: { create: [1, 2].map((number) => ({
           id: `${id}-w${number}`, number, startTime: "09:00", capacity: 50, durationMinutes: 120,
-          status: "running", startedAt: new Date(), endsAt: new Date(Date.now() + 120 * 60_000),
+          status: number === 1 ? "running" : "pending",
+          startedAt: number === 1 ? new Date() : null,
+          endsAt: number === 1 ? new Date(Date.now() + 120 * 60_000) : null,
         })) },
       } });
       let number = 0;
@@ -41,10 +43,11 @@ for (const surface of ["signed-in", "public"] as const) {
         for (let i = 0; i < (index === 3 ? 25 : 1); i++) {
           number++;
           const scored = index !== 0;
-          const wave = number === 2 ? 2 : 1;
+          const wave = number === 2 || index !== 3 ? 2 : 1;
           await db.team.create({ data: {
             id: `${id}-t${number}`, seriesId: id, number, name: `QA-${index}-${i + 1}`,
-            category: bracket.category, division: bracket.division, paymentStatus: "paid", wave, waveId: `${id}-w${wave}`, station: number,
+            category: bracket.category, division: bracket.division, paymentStatus: "paid", wave,
+            waveId: number === 3 ? null : `${id}-w${wave}`, station: number,
             competitors: { create: [1, 2].map((position) => ({ position, fullName: `Athlete ${number}-${position}`, normalizedName: `athlete ${number} ${position}` })) },
             score: { create: {
               status: scored ? "submitted" : "draft",
@@ -66,6 +69,9 @@ for (const surface of ["signed-in", "public"] as const) {
       const response = await page.request.get(api);
       expect(response.ok()).toBe(true);
       const payload = await response.json() as BoardPayload;
+      expect(payload.waves.find((wave) => wave.number === 2)?.status).toBe("pending");
+      expect(payload.teams.find((team) => team.number === 2)).toMatchObject({ scored: true, wave: 2 });
+      expect(payload.teams.find((team) => team.number === 3)).toMatchObject({ scored: true, wave: null });
       let polls = 0;
       await page.route(`**${api}`, async (route) => { polls++; await route.fulfill({ json: payload }); });
       await page.clock.install();
@@ -117,6 +123,10 @@ for (const surface of ["signed-in", "public"] as const) {
       await all.click();
       await expectBracket(3, 12);
       await expect(rows.first().locator(".rank-disc")).toHaveText("1");
+      await expect(rows.nth(1)).toContainText("QA-3-2");
+      await expect(rows.nth(1).locator(".rank-disc")).toHaveText("2");
+      await expect(rows.nth(2)).toContainText("QA-3-3");
+      await expect(rows.nth(2).locator(".rank-disc")).toHaveText("3");
       await beforeNextTurn();
       await expectBracket(3, 12);
       await expect(rows.first()).toContainText("QA-3-1");

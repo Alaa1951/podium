@@ -93,7 +93,7 @@ export function RunningBoard({
   const reached = summary.reached;
   const columns = columnsFor(data.zoneDefs.length);
 
-  const views = useMemo(() => bracketViews(data.teams, data.waves), [data.teams, data.waves]);
+  const views = useMemo(() => bracketViews(data.teams), [data.teams]);
   const stops = useMemo(() => bracketStops(views, marks), [views, marks]);
   const { cursor, restart, turn } = useBoardRotation(stops, rotate, firstMarkedBracket(marks));
   const view = views.find((one) => one.index === cursor.id);

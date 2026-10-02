@@ -2,7 +2,6 @@ import { BRACKETS, bracketIndex, rankAll } from "@/lib/scoring";
 import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 import type { BoardTeam } from "@/lib/board";
 import type { RotationStop } from "@/lib/board-rotation";
-import type { WaveState } from "@/lib/waves";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THE BOARD IS CURRENTLY SHOWING.
@@ -26,18 +25,11 @@ export type BracketView = {
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-/** Actual wave status: waves can start out of number order. */
-export function startedWaveTeams(teams: BoardTeam[], waves: readonly Pick<WaveState, "number" | "status">[]) {
-  const started = new Set(waves.filter((wave) => wave.status !== "pending").map((wave) => wave.number));
-  return teams.filter((team) => team.wave !== null && started.has(team.wave));
-}
-
-/** Each prize bracket gets its own ranks, across all its started waves. */
-export function bracketViews(teams: BoardTeam[], waves: readonly Pick<WaveState, "number" | "status">[]): BracketView[] {
-  const field = startedWaveTeams(teams, waves);
+/** Published zone scores enter their prize bracket regardless of wave state or assignment. */
+export function bracketViews(teams: BoardTeam[]): BracketView[] {
   return LIVE_BRACKET_ORDER.map((index) => {
     const bracket = BRACKETS[index];
-    const pool = field.filter((team) => team.category === bracket.category && team.division === bracket.division);
+    const pool = teams.filter((team) => team.category === bracket.category && team.division === bracket.division);
     return { index, teams: pool, rows: rankAll(pool.filter((team) => team.scored)) };
   });
 }

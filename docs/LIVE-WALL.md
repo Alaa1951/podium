@@ -33,8 +33,9 @@ chosen brackets and the blue highlight shows the bracket currently displayed.
 Pausing auto-rotate holds its page while incoming scores still update. Score
 polls preserve the current bracket, page and turn timer. The floor panel turns
 between running waves every **15 seconds** and lists stations, with no combined
-ranks or medals. A bracket includes assigned teams from waves actually started,
-even when waves start out of number order. Live ranks remain provisional;
+ranks or medals. A submitted zone puts a team in its bracket's ranking even
+when its wave has not started or it has no wave assignment. Draft-only scores
+stay out of the ranking. Live ranks remain provisional;
 published results still determine each bracket's final podium.
 
 **Live board 2** is the floor itself — a map of the room, and deliberately a
