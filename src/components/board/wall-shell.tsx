@@ -58,7 +58,11 @@ export function WallShell({
   // Full screen on the first gesture, and again after anything knocks the
   // browser out of it. Already full screen, there is nothing to ask for.
   useEffect(() => {
-    const enter = () => {
+    const enter = (event: Event) => {
+      // Entering fullscreen while a mobile sheet is opening can put that
+      // sheet behind the fullscreen element in WebKit. Leave dialog gestures
+      // to their controls; a background gesture still opens fullscreen.
+      if (event.target instanceof Element && event.target.closest('dialog, [aria-haspopup="dialog"]')) return;
       if (document.fullscreenElement) return;
       const root = document.documentElement as HTMLElement & {
         webkitRequestFullscreen?: () => void;

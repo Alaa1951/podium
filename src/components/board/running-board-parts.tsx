@@ -3,7 +3,6 @@
 import type { BoardTeam } from "@/lib/board";
 import { fmt } from "@/lib/scoring";
 import { teamLabel, type BoardDisplay } from "@/lib/visibility";
-import { Medal } from "@/components/board/medal";
 import { useT } from "@/components/i18n/locale-provider";
 
 // The pieces the running board is assembled from: its grid, its figures, a
@@ -146,11 +145,9 @@ function Zone({ value }: { value: string }) {
 
 export function FloorRow({
   team,
-  position,
   display,
 }: {
   team: BoardTeam;
-  position: number | null;
   display: BoardDisplay;
 }) {
   const t = useT();
@@ -162,24 +159,23 @@ export function FloorRow({
       data-team={team.number}
       style={{
         display: "grid",
-        gridTemplateColumns: "28px minmax(0,1fr) auto",
+        gridTemplateColumns: "auto minmax(0,1fr) auto",
         alignItems: "center",
         gap: 10,
         padding: "10px 14px",
         borderTop: "1px solid var(--board-border)",
-        // The leader carries on the panel head's blue, as on the reference board.
-        background: position === 1 ? "var(--podium-blue-deep)" : "transparent",
-        opacity: position === null ? 0.45 : 1,
+        opacity: team.scored ? 1 : 0.45,
       }}
     >
       <div
         className="display num"
         style={{
-          fontSize: 18,
-          color: position === 1 ? "#fff" : "var(--board-text-muted)",
+          fontSize: 12,
+          color: "var(--board-text-muted)",
         }}
+        title={t("Station")}
       >
-        {position ?? "·"}
+        {team.station ? `${t("Station")} ${team.station}` : "·"}
       </div>
       <div style={{ minWidth: 0 }}>
         <div
@@ -188,7 +184,7 @@ export function FloorRow({
             fontFamily: "var(--font-heading), sans-serif",
             fontWeight: 700,
             fontSize: 15,
-            color: position === 1 ? "#fff" : "var(--board-text)",
+            color: "var(--board-text)",
           }}
         >
           {label.primary}
@@ -201,16 +197,16 @@ export function FloorRow({
             fontSize: 11,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color: position === 1 ? "rgba(255,255,255,0.8)" : "var(--board-text-muted)",
+            color: "var(--board-text-muted)",
           }}
         >
-          {position !== null && position <= 3 ? <Medal rank={position} size={18} /> : null}
           {t(team.category)} {t(team.division)}
+          {` · ${t("Team")} ${team.number}`}
         </div>
       </div>
       <div
         className="display num"
-        style={{ fontSize: 17, color: position === 1 ? "#fff" : "var(--board-text)", whiteSpace: "nowrap" }}
+        style={{ fontSize: 17, color: "var(--board-text)", whiteSpace: "nowrap" }}
       >
         {team.scored ? fmt(team.total, 2) : "—"}
       </div>

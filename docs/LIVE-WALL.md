@@ -19,6 +19,24 @@ https://<domain>/live/<competition-slug>?board=2    live board 2
 **Live board 1** is the main board — what the signed-in board shows while the
 event runs: the wave clock, progress, the ranking's pages turning, the floor.
 
+It shows **one category + level at a time**, with independent ranks and podium
+colours. It finishes every page (12 teams per page) of that bracket before
+moving to the next level, then the next category. Every page and bracket turn
+takes **15 seconds**, including the return to the start of the cycle:
+Men Rookie → Men Open → Men Pro → Mixed Rookie → Mixed Open → Mixed Pro →
+Women Rookie → Women Open → Women Pro. Brackets without a submitted zone are
+skipped and enter the cycle once their first result arrives.
+
+Choosing chips restricts this playlist; choosing two never combines their
+scores. With no chips chosen, all populated brackets rotate. Check marks show
+chosen brackets and the blue highlight shows the bracket currently displayed.
+Pausing auto-rotate holds its page while incoming scores still update. Score
+polls preserve the current bracket, page and turn timer. The floor panel turns
+between running waves every **15 seconds** and lists stations, with no combined
+ranks or medals. A bracket includes assigned teams from waves actually started,
+even when waves start out of number order. Live ranks remain provisional;
+published results still determine each bracket's final podium.
+
 **Live board 2** is the floor itself — a map of the room, and deliberately a
 different screen from board 1: one column per zone (the event's own zones,
 in order), each column listing its stations top to bottom, and on every
@@ -44,7 +62,7 @@ The walls follow the event, not whoever opens them:
 | Event state                     | Both boards show                                      |
 | ------------------------------- | ----------------------------------------------------- |
 | Before the doors open           | The countdown; no team data                           |
-| Event running                   | Board 1: the main board · Board 2: the floor, 10s turn |
+| Event running                   | Board 1: independent brackets, 15s turn · Board 2: zone map |
 | Finished, results not published | "Results soon" hold                                   |
 | Results published               | The published leaderboard                             |
 

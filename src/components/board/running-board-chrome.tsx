@@ -5,10 +5,9 @@ import { FloorRow, Stat, statLabel } from "@/components/board/running-board-part
 import type { BoardTeam } from "@/lib/board";
 import { FLOOR_ROTATE_SECONDS } from "@/lib/waves";
 import { BRACKETS } from "@/lib/scoring";
+import { LIVE_BRACKET_ORDER } from "@/components/board/running-board-scope";
 import { FilterSheet } from "@/components/app/filter-sheet";
 
-/** The two selections that are not a bracket. */
-export { ALL_TEAMS, ON_FLOOR } from "@/components/board/running-board-scope";
 import type { BoardDisplay } from "@/lib/visibility";
 
 // The two fixed parts of the running board: the bar across the top that says
@@ -90,8 +89,8 @@ export function FloorPanel({
   focusNumber: number;
   waveClock: string;
   floor: {
-    scored: (BoardTeam & { rank: number })[];
-    pending: BoardTeam[];
+    teams: BoardTeam[];
+    scoredCount: number;
     total: number;
   };
   runningNumbers: number[];
@@ -115,7 +114,7 @@ export function FloorPanel({
           <div className="floor-panel-count num" data-testid="floor-count">
             {upcoming
               ? t("{count} teams in this wave", { count: floor.total })
-              : `${floor.scored.length} ${t("of")} ${floor.total} ${t("scored")}`}
+              : `${floor.scoredCount} ${t("of")} ${floor.total} ${t("scored")}`}
           </div>
         )}
 
@@ -139,11 +138,8 @@ export function FloorPanel({
       </div>
 
       <div className="floor-panel-rows">
-        {floor.scored.map((team) => (
-          <FloorRow key={team.id} team={team} position={team.rank} display={display} />
-        ))}
-        {floor.pending.map((team) => (
-          <FloorRow key={team.id} team={team} position={null} display={display} />
+        {floor.teams.map((team) => (
+          <FloorRow key={team.id} team={team} display={display} />
         ))}
         {done ? (
           <div className="floor-panel-empty" data-testid="floor-none">{t("No upcoming waves.")}</div>
@@ -155,32 +151,28 @@ export function FloorPanel({
   );
 }
 
-/** The nine brackets, plus "all" and "on the floor", plus auto-rotate. */
+/** Selected brackets form a playlist; the current bracket has its own highlight. */
 export function BracketChips({
   marks,
-  floorView,
-  runningNumbers,
+  current,
   populated,
   rotate,
   onAll,
-  onFloor,
   onToggleMark,
   onRotate,
 }: {
-  /** Brackets in the combined ranking — empty means the whole field. */
+  /** Empty marks include every populated bracket in the playlist. */
   marks: number[];
-  floorView: boolean;
-  runningNumbers: number[];
+  current: number | null;
   populated: number[];
   rotate: boolean;
   onAll: () => void;
-  onFloor: () => void;
-  /** Mark or unmark a bracket in the combined ranking. */
+  /** Include or exclude a bracket from the rotation. */
   onToggleMark: (index: number) => void;
   onRotate: () => void;
 }) {
   const t = useT();
-  const allActive = !floorView && marks.length === 0;
+  const allActive = marks.length === 0;
 
   return (
     // NOT `board-filters`: that is the public results' two-column grid
@@ -201,38 +193,31 @@ export function BracketChips({
           type="button"
           className="chip chip-dark"
           data-active={allActive || undefined}
+          aria-pressed={allActive}
           onClick={onAll}
         >
-          {t("All teams")}
+          {t("Rotate all brackets")}
         </button>
-        <button
-          type="button"
-          className="chip chip-dark"
-          data-active={floorView || undefined}
-          disabled={runningNumbers.length === 0}
-          onClick={onFloor}
-        >
-          {runningNumbers.length === 0
-            ? t("Nothing on the floor")
-            : `${t("Waves")} ${runningNumbers.join(" + ")} ${t("on floor")}`}
-        </button>
-
-        {/* A marked bracket is IN the combined ranking; marking one shows the
-            combined board at once, so the operator always sees the consequence
-            of the click. */}
-        {BRACKETS.map((bracket, index) => {
+        {LIVE_BRACKET_ORDER.map((index) => {
+          const bracket = BRACKETS[index];
           const markedNow = marks.includes(index);
+          const showing = current === index;
           return (
             <button
               key={`${bracket.category}-${bracket.division}`}
               type="button"
-              className="chip chip-dark"
-              data-active={markedNow || undefined}
+              className="chip chip-dark board-bracket-chip"
+              data-active={showing || undefined}
+              data-selected={markedNow || undefined}
+              data-current={showing || undefined}
+              data-bracket={index}
+              aria-pressed={markedNow}
+              aria-current={showing ? "true" : undefined}
               onClick={() => onToggleMark(index)}
-              title={markedNow ? t("In the ranking") : t("Not in the ranking")}
-              style={{ opacity: populated.includes(index) || markedNow ? 1 : 0.42 }}
+              title={showing ? t("Showing now") : markedNow ? t("Included in rotation") : t("Choose for rotation")}
+              style={{ opacity: populated.includes(index) || markedNow || showing ? 1 : 0.42 }}
             >
-              {markedNow ? "● " : "○ "}
+              <span aria-hidden="true">{markedNow ? "☑ " : "☐ "}</span>
               {t(bracket.category)} {t(bracket.division)}
             </button>
           );
@@ -242,6 +227,7 @@ export function BracketChips({
           type="button"
           className="chip chip-dark"
           data-active={rotate || undefined}
+          aria-pressed={rotate}
           onClick={onRotate}
           style={{ marginInlineStart: "auto" }}
         >

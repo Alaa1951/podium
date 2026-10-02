@@ -32,8 +32,7 @@ export const metadata = { title: "PODIUM — Live board" };
  *   /live/<slug>            live board 1 — the main board, the one the
  *                           signed-in board shows while the event runs.
  *   /live/<slug>?board=2    live board 2 — nothing but the wave(s) on the
- *                           floor this instant, turning between them every
- *                           ten seconds.
+ *                           floor this instant, laid out by zone and station.
  *
  * The venue hangs one display on each and the room reads them side by side.
  * Outside the live phase both show the same thing — countdown, hold, or the
@@ -77,8 +76,8 @@ export default async function LiveWallPage(props: PageProps<"/live/[series]">) {
     if (!payload) notFound();
 
     // Live: board 1 is the main board, board 2 is the floor on its own — a
-    // different screen for the room, turning between running waves every ten
-    // seconds. Published: the leaderboard, either way.
+    // different screen for the room, laid out by zone and station.
+    // Published: the leaderboard, either way.
     if (state.phase === "live") {
       content =
         board === "2" ? (

@@ -1,4 +1,5 @@
 import type { Category, WaveStatus } from "@/generated/prisma/enums";
+import { BOARD_TURN_SECONDS } from "@/lib/board-rotation";
 import { formatQatarDayKey, parseQatarWallTime } from "@/lib/qatar-time";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,9 +96,9 @@ export function isOverCapacity(wave: Pick<WaveState, "teamCount" | "capacity">) 
  *
  * With several on the floor the board cannot show them all at once and stay
  * legible from across a gym, so it shows one at a time and turns the page on a
- * timer — the same idea as the bracket rotation, at a shorter interval.
+ * timer — the same fifteen-second interval as bracket pages and levels.
  */
-export const FLOOR_ROTATE_SECONDS = 15;
+export const FLOOR_ROTATE_SECONDS = BOARD_TURN_SECONDS;
 
 export function floorRotation(runningNumbers: number[], tick: number) {
   if (runningNumbers.length === 0) return null;

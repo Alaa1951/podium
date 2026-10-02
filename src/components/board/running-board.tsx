@@ -1,30 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import type { BoardPayload } from "@/lib/board";
-import { clockFromMs, rankAll } from "@/lib/scoring";
+import { BRACKETS, clockFromMs } from "@/lib/scoring";
 import {
-  markedBracketsLabel,
-  markedBracketsTeams,
-  populatedBrackets,
-  inReachedWave,
-  scopeTitle,
-  teamsInScope,
+  bracketViews,
+  bracketStops,
+  firstMarkedBracket,
+  ROWS_PER_PAGE,
+  stationOrder,
   waveStateLabel,
 } from "@/components/board/running-board-scope";
+import { BOARD_TURN_SECONDS } from "@/lib/board-rotation";
+import { useBoardRotation } from "@/components/board/use-board-rotation";
 import type { BoardDisplay } from "@/lib/visibility";
-import { FLOOR_ROTATE_SECONDS, floorRotation } from "@/lib/waves";
 import { columnsFor, ScoreRow, statLabel } from "@/components/board/running-board-parts";
 import { remainingFor, useBoardClock } from "@/components/board/use-board-clock";
 import {
-  ALL_TEAMS,
   BoardHeader,
   BoardProgress,
   BracketChips,
   FloorPanel,
-  ON_FLOOR,
 } from "@/components/board/running-board-chrome";
 import { SponsorStrip } from "@/components/board/sponsor-strip";
 
@@ -40,16 +38,8 @@ import { SponsorStrip } from "@/components/board/sponsor-strip";
 // scores are polled, long rankings turn their own pages, and the pages keep
 // turning until someone stops them.
 //
-// THE SCOPE IS ONE RANKING, NOT A PLAYLIST. Marking brackets combines them —
-// every marked bracket's teams on one board, ranked against each other by
-// score. Nothing marked is the whole field; the floor chip is this instant.
-
-const PAGE_SECONDS = 14;
-
-// This is read from across a gym, not scrolled on a desk. Twelve rows fill a
-// wall screen at a size somebody out of breath can actually read; the rest
-// arrive on the next page, which turns itself.
-const ROWS_PER_PAGE = 12;
+// One prize bracket at a time: finish its pages, then its category's levels,
+// then the next category. Marks restrict the playlist, never merge rankings.
 
 
 export function RunningBoard({
@@ -66,16 +56,10 @@ export function RunningBoard({
 }) {
   const t = useT();
   const [data, setData] = useState(initial);
-  /** The combined-ranking scope: the marked brackets. Empty → the whole field
-   *  that has taken the floor so far. */
+  /** Empty marks rotate through every bracket with a submitted zone. */
   const [marks, setMarks] = useState<number[]>([]);
-  /** This instant on the floor, instead of a ranking. */
-  const [floorView, setFloorView] = useState(false);
-  /** ON is the resting state: the ranking's pages keep turning until someone
-   *  stops them. Only this toggle does that — picking chips reshapes the
-   *  ranking, it never freezes the board. */
+  /** Pausing turns never pauses incoming scores. */
   const [rotate, setRotate] = useState(true);
-  const [page, setPage] = useState(0);
 
   const [lastProp, setLastProp] = useState(initial);
   if (lastProp !== initial) {
@@ -92,13 +76,6 @@ export function RunningBoard({
   // in it so far.
   const summary = data.waveSummary;
   const runningNumbers = summary.runningNumbers;
-  const [floorTick, setFloorTick] = useState(0);
-
-  useEffect(() => {
-    if (runningNumbers.length <= 1) return;
-    const id = setInterval(() => setFloorTick((x) => x + 1), FLOOR_ROTATE_SECONDS * 1000);
-    return () => clearInterval(id);
-  }, [runningNumbers.length]);
 
   /**
    * The wave the floor panel and the header clock are currently showing: a
@@ -107,64 +84,33 @@ export function RunningBoard({
    */
   const idle = runningNumbers.length === 0;
   const nextWave = idle ? data.nextWave : null;
-  const focusNumber = floorRotation(runningNumbers, floorTick) ?? nextWave?.number ?? summary.lastNumber;
+  const floorStops = (idle ? (nextWave ? [nextWave.number] : []) : runningNumbers)
+    .map((number) => ({ id: number, pages: 1 }));
+  const { cursor: floorCursor } = useBoardRotation(floorStops);
+  const focusNumber = floorCursor.id ?? summary.lastNumber;
   const focusWave = data.waves.find((wave) => wave.number === focusNumber) ?? null;
 
-  // "The field so far" is every wave that has been started at all. A team in a
-  // wave nobody has run yet is not missing a score — it has not competed.
   const reached = summary.reached;
   const columns = columnsFor(data.zoneDefs.length);
 
-  // ── The rows on show ──────────────────────────────────────────────────────
-  // One ranking of the current scope: the marked brackets combined, the field
-  // so far, or this instant on the floor — always ranked by score, so the
-  // board can never show a row the progress bar has not counted. A team is on
-  // it from its first submitted zone (board-score.ts), not only once all are.
-  const scopedTeams = () => {
-    if (floorView) {
-      return teamsInScope({ teams: data.teams, selection: ON_FLOOR, reached, runningNumbers });
-    }
-    if (marks.length > 0) {
-      return markedBracketsTeams(data.teams, marks, reached);
-    }
-    return teamsInScope({ teams: data.teams, selection: ALL_TEAMS, reached, runningNumbers });
-  };
-
-  const rows = useMemo(
-    () => rankAll(scopedTeams().filter((team) => team.scored)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.teams, reached, runningNumbers, marks, floorView]
-  );
-
+  const views = useMemo(() => bracketViews(data.teams, data.waves), [data.teams, data.waves]);
+  const stops = useMemo(() => bracketStops(views, marks), [views, marks]);
+  const { cursor, restart, turn } = useBoardRotation(stops, rotate, firstMarkedBracket(marks));
+  const view = views.find((one) => one.index === cursor.id);
+  const rows = view?.rows ?? [];
   const pageCount = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
-  const currentPage = page % pageCount;
+  const currentPage = cursor.page;
   const visible = rows.slice(currentPage * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE + ROWS_PER_PAGE);
 
-  // ── Page turn ─────────────────────────────────────────────────────────────
-  // The ranking's pages keep turning until someone stops the ride.
-  useEffect(() => {
-    if (!rotate || pageCount <= 1) return;
-    const id = setInterval(() => setPage((p) => p + 1), PAGE_SECONDS * 1000);
-    return () => clearInterval(id);
-  }, [rotate, pageCount]);
-
   // ── Figures in the header ─────────────────────────────────────────────────
-  const inScope = scopedTeams();
-
-  const scopeDone = inScope.filter((x) => x.scored).length;
+  const inScope = view?.teams ?? [];
+  const scopeDone = rows.length;
   const scopePercent = inScope.length ? Math.round((scopeDone / inScope.length) * 100) : 0;
-
-  const eventPool = data.teams.filter((x) => inReachedWave(x, reached));
+  const eventPool = views.flatMap((one) => one.teams);
   const eventDone = eventPool.filter((x) => x.scored).length;
-
-  // Brackets holding at least one submitted score — the rest render dimmed.
-  const populated = useMemo(() => populatedBrackets(data.teams), [data.teams]);
-
-  const title = floorView
-    ? scopeTitle({ t, selection: ON_FLOOR, reached, runningNumbers })
-    : marks.length > 0
-      ? markedBracketsLabel(marks, t)
-      : scopeTitle({ t, selection: ALL_TEAMS, reached, runningNumbers });
+  const populated = views.filter((one) => one.rows.length > 0).map((one) => one.index);
+  const bracket = cursor.id === null ? null : BRACKETS[cursor.id];
+  const title = bracket ? `${t(bracket.category)} ${t(bracket.division)}` : t("Leaderboard");
 
   // The clock always counts something real. On the floor: the time left on
   // that wave. Between waves: the time to the next wave's scheduled start
@@ -204,16 +150,16 @@ export function RunningBoard({
   // is an empty panel, never the whole field.
   const upcoming = idle && Boolean(nextWave);
   const floor = useMemo(() => {
-    const onFloor = focusNumber ? data.teams.filter((team) => team.wave === focusNumber) : [];
+    const onFloor = idle && !nextWave ? [] : focusNumber ? data.teams.filter((team) => team.wave === focusNumber) : [];
     return {
-      scored: rankAll(onFloor.filter((team) => team.scored)),
-      pending: onFloor.filter((team) => !team.scored),
+      teams: stationOrder(onFloor),
+      scoredCount: onFloor.filter((team) => team.scored).length,
       total: onFloor.length,
     };
-  }, [data.teams, focusNumber]);
+  }, [data.teams, focusNumber, idle, nextWave]);
 
   return (
-    <div className="board" style={{ display: "flex", flexDirection: "column" }}>
+    <div className="board" data-testid="running-board" data-bracket={cursor.id ?? undefined} style={{ display: "flex", flexDirection: "column" }}>
       <BoardHeader
         title={title}
         seriesLabel={seriesLabel}
@@ -227,27 +173,17 @@ export function RunningBoard({
       />
       <BracketChips
         marks={marks}
-        floorView={floorView}
-        runningNumbers={runningNumbers}
+        current={cursor.id}
         populated={populated}
         rotate={rotate}
         onAll={() => {
           setMarks([]);
-          setFloorView(false);
-          setPage(0);
-        }}
-        onFloor={() => {
-          setFloorView(true);
-          setPage(0);
+          restart(bracketStops(views, []), null);
         }}
         onToggleMark={(index) => {
-          setFloorView(false);
-          setPage(0);
-          setMarks((current) =>
-            current.includes(index)
-              ? current.filter((one) => one !== index)
-              : [...current, index]
-          );
+          const next = marks.includes(index) ? marks.filter((one) => one !== index) : [...marks, index];
+          setMarks(next);
+          restart(bracketStops(views, next), firstMarkedBracket(next));
         }}
         onRotate={() => setRotate((v) => !v)}
       />
@@ -286,7 +222,7 @@ export function RunningBoard({
                 row={row}
                 display={display}
                 index={index}
-                showBracket={floorView || marks.length !== 1}
+                showBracket
                 columns={columns}
               />
             ))}
@@ -298,7 +234,7 @@ export function RunningBoard({
             </div>
           ) : null}
 
-          {pageCount > 1 ? (
+          {pageCount > 1 || stops.length > 1 ? (
             <div className="board-pager">
               <div style={statLabel}>
                 {t("Page")} {currentPage + 1} / {pageCount} ·{" "}
@@ -310,16 +246,19 @@ export function RunningBoard({
                 <button
                   type="button"
                   className="chip chip-dark"
-                  onClick={() => setPage((p) => (p - 1 + pageCount * 100) % pageCount)}
+                  onClick={() => turn(-1)}
                 >
                   {t("Prev")}
                 </button>
-                <button type="button" className="chip chip-dark" onClick={() => setPage((p) => p + 1)}>
+                <button type="button" className="chip chip-dark" onClick={() => turn(1)}>
                   {t("Next")}
                 </button>
               </div>
             </div>
           ) : null}
+          <div className="board-turn-note" style={statLabel}>
+            {rotate ? t("Pages, levels and categories turn every {n}s", { n: BOARD_TURN_SECONDS }) : t("Auto-rotate off")}
+          </div>
         </div>
 
         <FloorPanel

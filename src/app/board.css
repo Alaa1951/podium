@@ -86,6 +86,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A check marks a chosen bracket; the blue fill identifies what is on screen. */
+.board-bracket-chip[data-selected] { box-shadow: inset 0 0 0 1px var(--podium-blue-bright); }
+.board-bracket-chip[data-current] { outline: 2px solid var(--podium-blue-bright); outline-offset: 2px; }
+.board-turn-note { padding: 12px 0; white-space: normal !important; }
+
 /* On a narrow screen the zone columns go first — the total is what matters. */
 @media (max-width: 1024px) {
   .running-grid { grid-template-columns: minmax(0, 1fr) !important; }
@@ -94,6 +99,9 @@
   .zone-col { display: none !important; }
   .zone-grid,
   .zone-row { grid-template-columns: auto minmax(0, 1fr) auto !important; }
+  /* The public wall has no .board-frame: override the generic mobile form
+     grid here too, so Rank / Team / Total stay on one header row. */
+  html .running-grid .zone-head { grid-template-columns: 36px minmax(0, 1fr) 60px !important; }
 }
 
 /* ── The wall screen's frame ──────────────────────────────────────────────

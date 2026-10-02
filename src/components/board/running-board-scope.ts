@@ -1,101 +1,61 @@
-import { BRACKETS, bracketLabel } from "@/lib/scoring";
+import { BRACKETS, bracketIndex, rankAll } from "@/lib/scoring";
+import { SCHEDULE_CATEGORIES, SCHEDULE_DIVISIONS } from "@/lib/wave-schedule";
 import type { BoardTeam } from "@/lib/board";
+import type { RotationStop } from "@/lib/board-rotation";
+import type { WaveState } from "@/lib/waves";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THE BOARD IS CURRENTLY SHOWING.
 //
-// The operator board can be pointed at one bracket, at whatever is on the floor,
-// or at the whole field, and the heading, the figures and the progress bar all
-// have to agree about which. That agreement is worked out here, away from the
-// rendering, so there is one answer rather than three that happen to match.
+// A playlist of independent prize brackets. Marks restrict that playlist;
+// ranks, the heading and the progress bar always belong to ONE bracket.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The two selections that are not a bracket. */
-export const ALL_TEAMS = -1;
-export const ON_FLOOR = -2;
+export const ROWS_PER_PAGE = 12;
+
+/** Men, Mixed, Women; Rookie, Open, Pro within each category. */
+export const LIVE_BRACKET_ORDER = SCHEDULE_CATEGORIES.flatMap((category) =>
+  SCHEDULE_DIVISIONS.map((division) => bracketIndex(category, division)),
+);
+
+export type BracketView = {
+  index: number;
+  teams: BoardTeam[];
+  rows: (BoardTeam & { rank: number })[];
+};
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
-/** Which brackets have a team on the ranking — the rest are dimmed. */
-export function populatedBrackets(teams: BoardTeam[]) {
-  return BRACKETS.map((bracket, index) =>
-    teams.some(
-      (team) =>
-        team.scored &&
-        team.category === bracket.category &&
-        team.division === bracket.division
-    )
-      ? index
-      : -1
-  ).filter((index) => index >= 0);
+/** Actual wave status: waves can start out of number order. */
+export function startedWaveTeams(teams: BoardTeam[], waves: readonly Pick<WaveState, "number" | "status">[]) {
+  const started = new Set(waves.filter((wave) => wave.status !== "pending").map((wave) => wave.number));
+  return teams.filter((team) => team.wave !== null && started.has(team.wave));
 }
 
-/**
- * One ranking out of several brackets: every team whose bracket is marked,
- * whether or not it has scored yet — the caller filters to submitted rows
- * when it wants the ones that count.
- */
-/** In a wave that has been started — a team in no wave has not competed. */
-export const inReachedWave = (team: Pick<BoardTeam, "wave">, reached: number) => team.wave !== null && team.wave <= reached;
-
-export function markedBracketsTeams(teams: BoardTeam[], marks: number[], reached: number) {
-  const chosen = marks.map((index) => BRACKETS[index]);
-  return teams.filter(
-    (team) =>
-      inReachedWave(team, reached) &&
-      chosen.some((bracket) => team.category === bracket.category && team.division === bracket.division)
-  );
+/** Each prize bracket gets its own ranks, across all its started waves. */
+export function bracketViews(teams: BoardTeam[], waves: readonly Pick<WaveState, "number" | "status">[]): BracketView[] {
+  const field = startedWaveTeams(teams, waves);
+  return LIVE_BRACKET_ORDER.map((index) => {
+    const bracket = BRACKETS[index];
+    const pool = field.filter((team) => team.category === bracket.category && team.division === bracket.division);
+    return { index, teams: pool, rows: rankAll(pool.filter((team) => team.scored)) };
+  });
 }
 
-/** The combined scope's name, in the operator's own order. */
-export function markedBracketsLabel(marks: number[], t: Translate) {
-  return marks
-    .map((index) => {
-      const bracket = BRACKETS[index];
-      return `${t(bracket.category)} ${t(bracket.division)}`;
-    })
-    .join(" + ");
+/** Marks restrict a playlist, never combine scores. Empty brackets wait. */
+export function bracketStops(views: readonly BracketView[], marks: readonly number[]): RotationStop[] {
+  return views
+    .filter((view) => view.rows.length > 0 && (marks.length === 0 || marks.includes(view.index)))
+    .map((view) => ({ id: view.index, pages: Math.ceil(view.rows.length / ROWS_PER_PAGE) }));
 }
 
-/** The teams the current selection covers. */
-export function teamsInScope(params: {
-  teams: BoardTeam[];
-  selection: number;
-  reached: number;
-  runningNumbers: number[];
-}) {
-  const { teams, selection, reached, runningNumbers } = params;
-
-  if (selection === ALL_TEAMS) return teams.filter((team) => inReachedWave(team, reached));
-  if (selection === ON_FLOOR) return teams.filter((team) => team.wave !== null && runningNumbers.includes(team.wave));
-
-  const bracket = BRACKETS[selection];
-  return teams.filter(
-    (team) =>
-      team.category === bracket.category &&
-      team.division === bracket.division &&
-      inReachedWave(team, reached)
-  );
+export function firstMarkedBracket(marks: readonly number[]) {
+  return LIVE_BRACKET_ORDER.find((index) => marks.includes(index)) ?? null;
 }
 
-/** The heading, which names the selection rather than the competition. */
-export function scopeTitle(params: {
-  t: Translate;
-  selection: number;
-  reached: number;
-  runningNumbers: number[];
-}) {
-  const { t, selection, reached, runningNumbers } = params;
-
-  if (selection === ON_FLOOR) {
-    return runningNumbers.length > 1
-      ? `${t("On the floor")} · ${t("Waves")} ${runningNumbers.join(" + ")}`
-      : `${t("Wave")} ${runningNumbers[0] ?? reached} · ${t("On the floor")}`;
-  }
-  if (selection === ALL_TEAMS) {
-    return `${t("Overall")} · ${t("Waves")} 1–${Math.max(1, reached)}`;
-  }
-  return bracketLabel(BRACKETS[selection].category, BRACKETS[selection].division);
+/** Observing a station never implies a combined podium. */
+export function stationOrder(teams: readonly BoardTeam[]) {
+  return [...teams].sort((a, b) => (a.station ?? 99) - (b.station ?? 99) || a.number - b.number);
 }
 
 /** Where the day is, in one phrase, for the wall. */
