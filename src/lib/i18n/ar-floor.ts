@@ -51,6 +51,10 @@ export const AR_FLOOR: Phrases = {
   "Take {name} off this zone?": "إزالة {name} من هذه المنطقة؟",
   "Add a judge": "إضافة حكم",
   "Choose a person…": "اختر شخصًا…",
+  "Search by name or email…": "ابحث بالاسم أو البريد الإلكتروني…",
+  "Clear selection": "مسح الاختيار",
+  "No matching people. Try another name or email.": "لا توجد نتائج مطابقة. جرّب اسمًا أو بريدًا إلكترونيًا آخر.",
+  "No people available to add.": "لا يوجد أشخاص متاحون للإضافة.",
   As: "بصفة",
   "Nobody holds the Judge role yet. Give it to people from their Access panel first.":
     "لا أحد يحمل دور الحكم بعد. امنحه للأشخاص من لوحة الصلاحيات أولًا.",

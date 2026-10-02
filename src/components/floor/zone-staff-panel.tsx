@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { StaffPersonPicker } from "@/components/floor/staff-person-picker";
 import { useT } from "@/components/i18n/locale-provider";
 import { addZoneStaff, removeZoneStaff, setZoneStaffStation } from "@/lib/actions/zone-staff";
 
@@ -172,25 +173,13 @@ export function ZoneStaffPanel({
               ))}
 
               {canAssign ? (
-                <div className="form-row" style={{ alignItems: "flex-end", marginTop: 10 }}>
-                  <label style={{ flex: "2 1 200px" }}>
-                    <span className="field-label">{t("Add a judge")}</span>
-                    <select
-                      className="input"
-                      value={pick.userId}
-                      disabled={pending}
-                      onChange={(e) => setPicks((current) => ({ ...current, [zone.id]: { ...pick, userId: e.target.value } }))}
-                    >
-                      <option value="">{t("Choose a person…")}</option>
-                      {candidates
-                        .filter((person) => !onZone.has(person.id))
-                        .map((person) => (
-                          <option key={person.id} value={person.id}>
-                            {person.label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                <div className="form-row zone-staff-assignment" style={{ marginTop: 10 }}>
+                  <StaffPersonPicker
+                    candidates={candidates.filter((person) => !onZone.has(person.id))}
+                    value={pick.userId}
+                    disabled={pending}
+                    onChange={(userId) => setPicks((current) => ({ ...current, [zone.id]: { ...pick, userId } }))}
+                  />
                   <label style={{ flex: "1 1 120px" }}>
                     <span className="field-label">{t("As")}</span>
                     <select
@@ -209,7 +198,7 @@ export function ZoneStaffPanel({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    disabled={pending || !pick.userId}
+                    disabled={pending || !pick.userId || onZone.has(pick.userId)}
                     onClick={() => {
                       run(() => addZoneStaff({ zoneId: zone.id, userId: pick.userId, position: pick.position }));
                       setPicks((current) => ({ ...current, [zone.id]: { userId: "", position: "judge" } }));

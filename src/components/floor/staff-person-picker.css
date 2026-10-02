@@ -1,0 +1,28 @@
+.staff-person-picker { flex: 2 1 200px; min-width: 0; }
+.staff-person-input { position: relative; }
+.staff-person-input .input { padding-inline-end: 44px; }
+.staff-person-clear {
+  position: absolute; inset-inline-end: 0; top: 0; height: 100%; width: 44px;
+  border: 0; background: transparent; color: var(--text-secondary); font-size: 24px; cursor: pointer;
+}
+.staff-person-results {
+  margin-top: 6px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); overflow: hidden;
+}
+.staff-person-count { padding: 8px 12px; font-size: 12px; color: var(--text-secondary); }
+.staff-person-list { max-height: min(240px, 35dvh); overflow-y: auto; overscroll-behavior: contain; }
+.staff-person-option {
+  display: block; width: 100%; min-height: 48px; padding: 10px 12px; border: 0;
+  border-top: 1px solid var(--border); background: transparent; color: var(--text);
+  font: inherit; text-align: start; overflow-wrap: anywhere; cursor: pointer;
+}
+.staff-person-option:hover, .staff-person-option[data-active="true"], .staff-person-option[aria-selected="true"] {
+  background: var(--surface-sunken);
+}
+.zone-staff-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.zone-staff-assignment { align-items: flex-end; }
+.zone-staff-assignment > label { min-width: 0; }
+@media (max-width: 600px) {
+  .zone-staff-assignment .staff-person-picker { flex-basis: 100%; }
+  .zone-staff-assignment > .btn { min-height: 48px; }
+}
