@@ -77,7 +77,8 @@ export default async function CompetitionLayout({
     {
       title: "",
       items: allowed([
-        { href: at("board"), label: t("Live board"), key: "board.view" },
+        { href: at("board"), label: t("Live board 1"), key: "board.view" },
+        { href: `${at("board")}?board=2`, label: t("Live board 2"), key: "board.view" },
         ...(posts > 0 ? [{ href: "/my-wave", label: t("My score sheet"), key: "judgeSheet.view" as const }] : []),
         { href: at(), label: t("Overview"), key: "overview.view" },
       ]),

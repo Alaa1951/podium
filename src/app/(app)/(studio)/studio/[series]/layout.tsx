@@ -57,7 +57,8 @@ export default async function StudioSeriesLayout({
       items: [
         // The room's board — before the day it counts down and shows the
         // gym's own teams, on the day everyone's.
-        { href: `/series/${series.slug}/board`, label: t("Live board") },
+        { href: `/series/${series.slug}/board`, label: t("Live board 1") },
+        { href: `/series/${series.slug}/board?board=2`, label: t("Live board 2") },
         ...(judging ? [{ href: "/my-wave", label: t("My score sheet") }] : []),
         ...(can(user, "registrations.view") ? [{ href: at("teams"), label: t("Teams"), badge: teamCount }] : []),
         ...(can(user, "registrations.partners")

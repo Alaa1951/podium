@@ -56,10 +56,13 @@ export function RunningBoard({
   initial,
   display,
   seriesLabel,
+  pollHref,
 }: {
   initial: BoardPayload;
   display: BoardDisplay;
   seriesLabel: string;
+  /** Polls a custom endpoint when set — the public wall's phase-gated API. */
+  pollHref?: string;
 }) {
   const t = useT();
   const [data, setData] = useState(initial);
@@ -80,7 +83,7 @@ export function RunningBoard({
     setData(initial);
   }
 
-  const { elapsedMs, sinceRefresh } = useBoardClock(data, initial.seriesId, setData);
+  const { elapsedMs, sinceRefresh } = useBoardClock(data, initial.seriesId, setData, pollHref);
 
   // ── Which waves are on the floor ──────────────────────────────────────────
   // Several can be running at once. The board cannot show them all at once and

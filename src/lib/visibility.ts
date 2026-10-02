@@ -121,6 +121,36 @@ export function boardAccess(role: Role | "anonymous", phase: EventPhase): BoardA
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE VENUE WALL.
+//
+// /live/[series] is the link the venue's projector screens open: no account,
+// no chrome, just the board. It is deliberately NOT the signed-in board's
+// rules — a wall computer cannot be asked to keep a session alive — so it has
+// its own, narrower one, decided by the same eventPhase:
+//
+//   before   the countdown only, exactly what the room sees anyway and not a
+//            row of anyone's data.
+//   live     the board. That is the point of the link: the event is running
+//            and the room is watching it.
+//   results  finished but not yet published — the wall holds on a "results
+//            soon" screen. The URL is public, so showing the final ranking
+//            here would publish the results before resultsPublicAt does.
+//   public   the published leaderboard, the same view /results serves.
+//
+// Pure and tested (visibility.test.ts) like the rest of this file, because it
+// decides what a stranger with the link may read.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What the venue wall shows for an event in a given phase. */
+export type WallView = "countdown" | "board" | "results-hold";
+
+export function wallView(phase: EventPhase): WallView {
+  if (phase === "live" || phase === "public") return "board";
+  if (phase === "results") return "results-hold";
+  return "countdown";
+}
+
 /**
  * Whether this person reads the WHOLE field's board payload — what the rig
  * screens and the board's poll carry. boardAccess's "all" scope, or the floor

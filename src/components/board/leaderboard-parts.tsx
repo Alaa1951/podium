@@ -129,7 +129,13 @@ export function Row({
  * Polls the board and reports how long until the next refresh, so the screen
  * can say "updating in 0:12" the way BFT's own board does.
  */
-export function useRefreshCycle(seriesId: string, onData: (payload: BoardPayload) => void) {
+export function useRefreshCycle(
+  seriesId: string,
+  onData: (payload: BoardPayload) => void,
+  /** Where fresher boards come from. Defaults to the signed-in board's API;
+   *  the public wall passes its own (/api/live/...), which gates by phase. */
+  pollHref?: string
+) {
   const [remainingMs, setRemainingMs] = useState(POLL_SECONDS * 1000);
   // Set on mount rather than during render: reading the clock is impure, and a
   // re-render would otherwise restart the cycle.
@@ -146,14 +152,14 @@ export function useRefreshCycle(seriesId: string, onData: (payload: BoardPayload
 
   const pull = useCallback(async () => {
     try {
-      const res = await fetch(`/api/series/${seriesId}/board`, { cache: "no-store" });
+      const res = await fetch(pollHref ?? `/api/series/${seriesId}/board`, { cache: "no-store" });
       if (!res.ok) return;
       handler.current((await res.json()) as BoardPayload);
     } catch {
       // A dropped poll is not worth showing on a wall screen — the board keeps
       // the numbers it has and tries again on the next cycle.
     }
-  }, [seriesId]);
+  }, [seriesId, pollHref]);
 
   useEffect(() => {
     const id = setInterval(() => {

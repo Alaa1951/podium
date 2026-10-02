@@ -28,7 +28,10 @@ export function remainingFor(wave: WaveState | null, elapsedMs: number) {
 export function useBoardClock(
   data: BoardPayload,
   seriesId: string,
-  onData: (payload: BoardPayload) => void
+  onData: (payload: BoardPayload) => void,
+  /** Where fresher boards come from. Defaults to the signed-in board's API;
+   *  the public wall passes its own (/api/live/...), which gates by phase. */
+  pollHref?: string
 ) {
   const anchor = useRef<{ payload: BoardPayload; at: number } | null>(null);
   const lastPoll = useRef(0);
@@ -49,13 +52,13 @@ export function useBoardClock(
 
   const pull = useCallback(async () => {
     try {
-      const res = await fetch(`/api/series/${seriesId}/board`, { cache: "no-store" });
+      const res = await fetch(pollHref ?? `/api/series/${seriesId}/board`, { cache: "no-store" });
       if (!res.ok) return;
       handler.current((await res.json()) as BoardPayload);
     } catch {
       // A dropped poll is not worth showing on a wall screen.
     }
-  }, [seriesId]);
+  }, [seriesId, pollHref]);
 
   useEffect(() => {
     const id = setInterval(() => {

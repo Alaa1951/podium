@@ -28,6 +28,8 @@ export type LeaderboardProps = {
   ownStudioName: string | null;
   seriesLabel: string;
   backHref?: string;
+  /** Polls a custom endpoint when set — the public wall's phase-gated API. */
+  pollHref?: string;
 };
 
 export function Leaderboard({
@@ -38,6 +40,7 @@ export function Leaderboard({
   ownStudioName,
   seriesLabel,
   backHref,
+  pollHref,
 }: LeaderboardProps) {
   const t = useT();
   const [data, setData] = useState(initial);
@@ -58,7 +61,7 @@ export function Leaderboard({
     setData(initial);
   }
 
-  const refresh = useRefreshCycle(initial.seriesId, setData);
+  const refresh = useRefreshCycle(initial.seriesId, setData, pollHref);
 
   // ── Rows ──────────────────────────────────────────────────────────────────
   const rows = useMemo(() => {

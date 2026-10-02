@@ -16,6 +16,7 @@ import {
   teamEditOpen,
   scoreEntryOpen,
   teamLabel,
+  wallView,
   type EventTiming,
 } from "@/lib/visibility";
 
@@ -312,5 +313,28 @@ describe("teamLabel", () => {
         { showTeamName: false, showCompetitorNames: true, showStudioColumn: true }
       )
     ).toEqual({ primary: "IRON CLAUSE", secondary: null });
+  });
+});
+
+describe("wallView", () => {
+  // The wall link is public, so these four lines are the whole of what a
+  // stranger with the URL may read — pinned here like the rest of the phase
+  // rules rather than left to the screen that renders them.
+  it("shows the countdown before the event, and nothing of the field", () => {
+    expect(wallView("before")).toBe("countdown");
+  });
+
+  it("shows the board while the event runs — the point of the link", () => {
+    expect(wallView("live")).toBe("board");
+  });
+
+  it("holds the results back until they are published", () => {
+    // Finished but unpublished: the public URL must not leak the final
+    // ranking ahead of resultsPublicAt.
+    expect(wallView("results")).toBe("results-hold");
+  });
+
+  it("shows the published leaderboard once results are public", () => {
+    expect(wallView("public")).toBe("board");
   });
 });

@@ -17,11 +17,14 @@ export async function BoardFrame({
   back,
   name,
   seriesSlug,
+  boardView,
   children,
 }: {
   back: string;
   name: string;
   seriesSlug: string;
+  /** Which of the two live boards is on screen, for the switcher's highlight. */
+  boardView?: "1" | "2";
   children: React.ReactNode;
 }) {
   const [user, { t }, theme] = await Promise.all([getCurrentUser(), getTranslator(), getTheme()]);
@@ -38,7 +41,11 @@ export async function BoardFrame({
   const canOverview = studioMember || (!!user && user.role !== "studio" && user.role !== "competitor" && can(user, "overview.view"));
   const backHref = !user ? back : canOverview ? base : homeHref;
   const groups: NavGroup[] = contextual && user ? [
-    { title: "", items: [...(canOverview ? [{ href: base, label: t("Overview") }] : []), { href: `/series/${seriesSlug}/board`, label: t("Live board") }] },
+    { title: "", items: [
+      ...(canOverview ? [{ href: base, label: t("Overview") }] : []),
+      { href: `/series/${seriesSlug}/board`, label: t("Live board 1") },
+      { href: `/series/${seriesSlug}/board?board=2`, label: t("Live board 2") },
+    ] },
     { title: t("Sections"), items: [
       { href: `${base}/${studioMember ? "teams" : "registrations"}`, label: t(studioMember ? "Teams" : "Athletes"), permission: "registrations.view" as const },
       { href: `${base}/waves`, label: t("Waves"), permission: "waves.view" as const },
@@ -57,6 +64,16 @@ export async function BoardFrame({
           <BoardBrand size="sm" align="start" />
           <span className="board-frame-hint">‹ Menu</span>
         </Link>
+        {/* The two live boards, one tap apart — what the wall links show,
+            from inside the app. The board on screen is highlighted. */}
+        <div className="board-frame-switch">
+          <Link href={`/series/${seriesSlug}/board`} data-active={boardView !== "2"}>
+            {t("Live board 1")}
+          </Link>
+          <Link href={`/series/${seriesSlug}/board?board=2`} data-active={boardView === "2"}>
+            {t("Live board 2")}
+          </Link>
+        </div>
         <span className="board-frame-signout">
           <SignOutButton />
         </span>

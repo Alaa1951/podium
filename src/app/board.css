@@ -128,6 +128,32 @@
 /* Pushes the way out to the far end of the bar, away from the wordmark. */
 .board-frame-signout { margin-inline-start: auto; }
 
+/* The two live boards, one tap apart. Sits beside the wordmark; the board
+   currently on screen carries the lit border. */
+.board-frame-switch {
+  display: inline-flex;
+  gap: 6px;
+  margin-inline-start: clamp(14px, 2.4vw, 28px);
+}
+.board-frame-switch a {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--board-text-muted);
+  padding: 5px 10px;
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-pill);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.board-frame-switch a:hover { color: var(--board-text); }
+.board-frame-switch a[data-active="true"] {
+  color: var(--board-text);
+  border-color: var(--bft-cyan);
+}
+
 .board-frame-body {
   flex: 1;
   display: flex;
@@ -150,6 +176,235 @@
 .board-frame-mark:hover .board-frame-hint {
   color: var(--board-text);
   border-color: var(--bft-cyan);
+}
+
+/* ── The venue wall (/live/[series]) ──────────────────────────────────────
+   The board without the frame: no bar, no way out, nothing but the event.
+   The link is meant to BE the screen — it goes full screen on the first
+   click (wall-shell.tsx) and is sized in viewport units, so the same link
+   fills a projector, a TV or whichever laptop the venue found, at any
+   resolution they give us. */
+.wall-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--board-bg);
+}
+.wall-root > .board { flex: 1; }
+
+/* The one line of chrome the wall has, and only until the first click: what
+   full screen costs (one touch) and how to pay it. Pointer-events off, so a
+   tap aimed anywhere still lands. */
+.wall-fullscreen-hint {
+  position: fixed;
+  bottom: clamp(14px, 3vh, 28px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-pill);
+  padding: 8px 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ── Live board 2 — the floor, zone by zone (floor-board.tsx) ─────────────
+   A map of the room, not a table: one column per zone, its stations down the
+   column, and on every station the team standing there and the wave it came
+   with. The room reads it the way the room is built — find your zone, walk
+   to your station. Cyan carries it where board 1 is podium blue. */
+.floorboard {
+  padding: clamp(10px, 1.6vw, 24px) clamp(14px, 2.4vw, 36px) 0;
+  gap: 0;
+}
+
+.floorboard-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.floorboard-series {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(10px, 1.1vw, 13px);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+}
+.floorboard-kicker {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(12px, 1.5vw, 18px);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--bft-cyan);
+  margin-top: 4px;
+}
+.floorboard-top-side { text-align: end; }
+.floorboard-next {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(13px, 1.6vw, 22px);
+  color: var(--board-text);
+}
+.floorboard-updated {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(9px, 1vw, 12px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  margin-top: 4px;
+}
+
+.floorboard-zones {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(10px, 1.2vw, 18px);
+  padding: clamp(10px, 1.6vw, 20px) 0 clamp(10px, 1.4vw, 16px);
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  .floorboard-zones { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.floorzone {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--board-row);
+  border: 1px solid var(--board-border);
+  border-top: 3px solid var(--bft-cyan);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.floorzone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: clamp(8px, 1vw, 14px) clamp(10px, 1.1vw, 16px);
+  border-bottom: 1px solid var(--board-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+.floorzone-number {
+  font-size: clamp(16px, 1.9vw, 30px);
+  line-height: 1;
+  color: var(--board-text);
+}
+.floorzone-name {
+  margin-top: 3px;
+  font-size: clamp(9px, 0.95vw, 12px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floorzone-wave {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(10px, 1.05vw, 14px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #04252a;
+  background: var(--bft-cyan);
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+.floorzone-wave[data-changing] {
+  color: var(--board-text-muted);
+  background: transparent;
+  border: 1px solid var(--board-border-strong);
+}
+
+.floorzone-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.floorzone-row {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(6px, 0.7vw, 12px);
+  padding: 0 clamp(8px, 0.9vw, 14px);
+  border-bottom: 1px solid var(--board-border);
+  min-height: clamp(40px, 7.2vh, 78px);
+}
+.floorzone-row:last-child { border-bottom: none; }
+.floorzone-station {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(11px, 1.15vw, 17px);
+  color: var(--bft-cyan);
+  min-width: clamp(18px, 1.8vw, 30px);
+}
+.floorzone-teamwrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.floorzone-team {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(12px, 1.3vw, 19px);
+  color: var(--board-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floorzone-crew {
+  font-size: clamp(9px, 0.95vw, 13px);
+  letter-spacing: 0.04em;
+  color: var(--board-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floorzone-totals {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(6px, 0.7vw, 12px);
+}
+.floorzone-wavebadge {
+  font-family: var(--font-heading), sans-serif;
+  font-weight: 700;
+  font-size: clamp(8px, 0.85vw, 11px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  border: 1px solid var(--board-border-strong);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.floorzone-total {
+  font-size: clamp(12px, 1.3vw, 19px);
+  color: var(--board-text);
+  min-width: 2.2em;
+  text-align: end;
+}
+.floorzone-empty {
+  font-size: clamp(10px, 1vw, 13px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--board-text-muted);
+  opacity: 0.55;
 }
 
 /* ── The controls above the ranking ───────────────────────────────────────

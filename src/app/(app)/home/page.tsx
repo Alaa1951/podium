@@ -69,7 +69,8 @@ export default async function HomePage() {
     { href: `/series/${slug}/scores`, label: t("Score entry"), key: "scores.view" },
     { href: `/series/${slug}/results`, label: t("Results"), key: "results.view" },
     { href: `/series/${slug}/settings`, label: t("Settings"), key: "settings.view" },
-    { href: `/series/${slug}/board`, label: t("Live board"), key: "board.view" },
+    { href: `/series/${slug}/board`, label: t("Live board 1"), key: "board.view" },
+    { href: `/series/${slug}/board?board=2`, label: t("Live board 2"), key: "board.view" },
   ];
 
   const open = (doors: Door[]) => doors.filter((door) => canAny(user, [door.key, ...(door.also ?? [])]));

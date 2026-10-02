@@ -204,3 +204,24 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     }),
   };
 }
+
+/**
+ * "3 OCTOBER · 9:00 AM QATAR TIME" — the line under COMING SOON on the
+ * countdown gate, shared by the signed-in board and the public wall.
+ */
+export function formatBoardOpensAt(date: Date, locale: string) {
+  const day = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Qatar",
+  }).format(date);
+
+  const time = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Qatar",
+  }).format(date);
+
+  return `${day} · ${time} Qatar time`.toUpperCase();
+}

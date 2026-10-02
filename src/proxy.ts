@@ -29,6 +29,12 @@ const PUBLIC_PATHS = [
   // the matcher below appends one.)
   "/results",
   "/api/results",
+  // The venue wall — /live/[series], the link the room's projector screens
+  // open. No account holds a wall PC's session, so the link is public by
+  // design; what it shows is decided inside, by wallView (visibility.ts) —
+  // the countdown and the running board only, never unpublished results.
+  "/live",
+  "/api/live",
   // The privacy policy. Both app stores require a publicly reachable policy
   // URL, and reviewers visit it without an account; the footer of every
   // public screen links here too.

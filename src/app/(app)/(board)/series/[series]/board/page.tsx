@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 
 import { BoardFrame } from "@/components/board/board-frame";
 import { CountdownGate } from "@/components/board/countdown-gate";
+import { FloorBoard } from "@/components/board/floor-board";
 import { Leaderboard } from "@/components/board/leaderboard";
 import { RunningBoard } from "@/components/board/running-board";
-import { buildBoardPayload, remainingMs } from "@/lib/board";
+import { buildBoardPayload, formatBoardOpensAt, remainingMs } from "@/lib/board";
 import { getTranslator } from "@/lib/i18n/server";
 import { requireSeries, seriesHref } from "@/lib/require-series";
 import { can, getCurrentUser } from "@/lib/session";
@@ -44,6 +45,10 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
   const bft = user.role === "admin" || user.role === "staff";
   const previewing = searchParams.preview === "1" && bft;
 
+  // Live board 2 — ?board=2 is the floor alone, the wall link's second
+  // dashboard, from inside the app and under the signed-in access rules.
+  const board = searchParams.board === "2" ? "2" : "1";
+
   // The way back depends on who is watching: BFT MENA goes to the competition's
   // menu; a studio or competitor watching live goes to their own dashboard.
   const back =
@@ -58,12 +63,12 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
   if (phase === "before" && !previewing) {
     const opensAt = series.boardOpensAt ?? series.competitionDate;
     return (
-      <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
+      <BoardFrame back={back} name={series.name} seriesSlug={series.slug} boardView={board}>
       <CountdownGate
         remainingMs={remainingMs(opensAt) ?? 0}
-        opensAtLabel={formatOpensAt(opensAt, locale)}
+        opensAtLabel={formatBoardOpensAt(opensAt, locale)}
         seriesName={series.name}
-        previewHref={bft ? `${seriesHref(series.slug, "board")}?preview=1` : undefined}
+        previewHref={bft ? `${seriesHref(series.slug, "board")}?preview=1${board === "2" ? "&board=2" : ""}` : undefined}
       />
       </BoardFrame>
     );
@@ -71,14 +76,18 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
 
   if (phase === "live" || previewing) {
     return (
-      <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
-        <RunningBoard initial={payload} display={payload.display} seriesLabel={series.name} />
+      <BoardFrame back={back} name={series.name} seriesSlug={series.slug} boardView={board}>
+        {board === "2" ? (
+          <FloorBoard initial={payload} display={payload.display} seriesLabel={series.name} />
+        ) : (
+          <RunningBoard initial={payload} display={payload.display} seriesLabel={series.name} />
+        )}
       </BoardFrame>
     );
   }
 
   return (
-    <BoardFrame back={back} name={series.name} seriesSlug={series.slug}>
+    <BoardFrame back={back} name={series.name} seriesSlug={series.slug} boardView={board}>
     <Leaderboard
       initial={payload}
       display={payload.display}
@@ -89,22 +98,4 @@ export default async function BoardPage(props: PageProps<"/series/[series]/board
     />
     </BoardFrame>
   );
-}
-
-/** "3 OCTOBER · 9:00 AM QATAR TIME" — the line under COMING SOON. */
-function formatOpensAt(date: Date, locale: string) {
-  const day = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
-    day: "numeric",
-    month: "long",
-    timeZone: "Asia/Qatar",
-  }).format(date);
-
-  const time = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "Asia/Qatar",
-  }).format(date);
-
-  return `${day} · ${time} Qatar time`.toUpperCase();
 }

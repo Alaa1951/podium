@@ -92,7 +92,10 @@ export default async function CompetitionOverview(props: PageProps<"/series/[ser
         </div>
         <div className="screen-head-actions">
           <Link href={at("board")} className="btn btn-secondary">
-            {t("Live board")}
+            {t("Live board 1")}
+          </Link>
+          <Link href={`${at("board")}?board=2`} className="btn btn-secondary">
+            {t("Live board 2")}
           </Link>
           {can(user, "registrations.export") ? (
             <a href={`/api/series/${series.slug}/export`} className="btn btn-secondary">
