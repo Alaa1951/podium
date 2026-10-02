@@ -14,7 +14,7 @@ import { requireUser } from "@/lib/session";
 // PUTTING PEOPLE ON ZONES.
 //
 //   • zoneStaff.assign (supervisor / organiser / BFT MENA) puts people on a
-//     zone, picks its leader, and moves or removes anyone.
+//     zone, picks its leaders, and moves or removes anyone.
 //   • A zone's LEADER places the judges and reserves of their own zone on
 //     stations 1–9 — and nothing else.
 //   • Only people whose roles carry the judge sheet can be put on a zone.
@@ -53,19 +53,10 @@ export async function addZoneStaff(input: unknown): Promise<ZoneStaffResult> {
   const judges = person.role === "admin" || (theirs.includes("judgeSheet.view") && theirs.includes("scores.enter"));
   if (!judges) return { ok: false, error: "NOT_A_JUDGE" };
 
-  await prisma.$transaction(async (tx) => {
-    // One leader per zone: appointing a new one makes the old one a judge.
-    if (position === "leader") {
-      await tx.zoneStaff.updateMany({
-        where: { zoneId, position: "leader", NOT: { userId } },
-        data: { position: "judge" },
-      });
-    }
-    await tx.zoneStaff.upsert({
-      where: { zoneId_userId: { zoneId, userId } },
-      create: { seriesId: zone.seriesId, zoneId, userId, position, assignedById: actor.id },
-      update: { position, assignedById: actor.id },
-    });
+  await prisma.zoneStaff.upsert({
+    where: { zoneId_userId: { zoneId, userId } },
+    create: { seriesId: zone.seriesId, zoneId, userId, position, assignedById: actor.id },
+    update: { position, assignedById: actor.id },
   });
 
   await recordAudit({

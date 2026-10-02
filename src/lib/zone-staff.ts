@@ -9,9 +9,9 @@ import { prisma } from "@/lib/prisma";
 //
 // Access on the floor is per ZONE, not per wave: several waves pass through a
 // zone, and its people stay put for the whole competition. Each zone has one
-// leader (places the judges on stations, scores any station), judges (score
-// the team on their station) and reserves (the same as judges; the label is
-// for organising people).
+// or more leaders (they place the judges on stations, score any station),
+// judges (score the team on their station) and reserves (the same as judges;
+// the label is for organising people).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**

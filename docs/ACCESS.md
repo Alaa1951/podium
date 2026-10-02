@@ -200,7 +200,7 @@ Floor work is not only roles: it is a **post** on a zone of one competition (`Zo
 
 | Post | Scores | Also | Rule in |
 | --- | --- | --- | --- |
-| **Zone leader** (one per zone) | any station of their zone, for any wave that reached it — including a sheet a judge left open | places the zone's judges on stations (from their sheet); **starts the next wave** (Start only) | `zone-score-rules.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |
+| **Zone leader** (one or more per zone) | any station of their zone, for any wave that reached it — including a sheet a judge left open | places the zone's judges on stations (from their sheet); **starts the next wave** (Start only) | `zone-score-rules.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |
 | **Judge** | only the team on their own station, in the wave their zone is **on** | — | `zone-score-rules.ts`, `floor.ts › zoneDuty` |
 | **Reserve** | same as a judge, once placed on a station | — | `zone-score-rules.ts` |
 

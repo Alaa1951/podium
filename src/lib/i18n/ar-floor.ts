@@ -41,8 +41,8 @@ export const AR_FLOOR: Phrases = {
   "Your zone team": "فريق منطقتك",
   "Zone leader": "قائد المنطقة",
   Reserve: "احتياطي",
-  "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone.":
-    "الصلاحية على مستوى المنطقة، طوال البطولة. لكل منطقة قائد واحد يوزع الحكام والاحتياطيين على المحطات. الحكم يسجل درجات الفريق الموجود على محطته فقط، في أي موجة موجودة في منطقته.",
+  "Access is per zone, for the whole competition. Each zone can have one or more leaders, who place the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone.":
+    "الصلاحية على مستوى المنطقة، طوال البطولة. يمكن أن يكون لكل منطقة قائد واحد أو أكثر يوزع الحكام والاحتياطيين على المحطات. الحكم يسجل درجات الفريق الموجود على محطته فقط، في أي موجة موجودة في منطقته.",
   "No zone leader yet": "لا يوجد قائد للمنطقة بعد",
   "Nobody on this zone yet.": "لا يوجد أحد في هذه المنطقة بعد.",
   Station: "المحطة",

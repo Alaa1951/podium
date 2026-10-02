@@ -10,8 +10,8 @@ import { addZoneStaff, removeZoneStaff, setZoneStaffStation } from "@/lib/action
 // ─────────────────────────────────────────────────────────────────────────────
 // ZONE TEAMS — who works each zone for the whole competition.
 //
-// One leader per zone, then judges and reserves. Whoever holds
-// zoneStaff.assign puts people on zones and picks the leader; the leader
+// One or more leaders per zone, then judges and reserves. Whoever holds
+// zoneStaff.assign puts people on zones and picks the leaders; a leader
 // places judges on stations from their own sheet, and so can this panel.
 // Several people on one station is allowed, and shown as a warning.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export function ZoneStaffPanel({
       <h2 className="section-title">{title ?? t("Zone teams")}</h2>
       <p className="reg-sub" style={{ maxWidth: "70ch" }}>
         {t(
-          "Access is per zone, for the whole competition. Each zone has one leader, who places the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone."
+          "Access is per zone, for the whole competition. Each zone can have one or more leaders, who place the judges and reserves on the stations. A judge scores only the team on their station, in whichever wave is in their zone."
         )}
       </p>
       {error ? (

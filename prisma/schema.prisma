@@ -899,7 +899,7 @@ model Wave {
 }
 
 enum ZoneStaffPosition {
-  leader // one per zone: places judges on stations, scores any station
+  leader // places judges on stations, scores any station; a zone may hold several
   judge // scores the team on their station
   reserve // same as a judge; a label for organising people
 }
