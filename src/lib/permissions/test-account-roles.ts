@@ -67,6 +67,15 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     purpose: "A judge put on a zone as its LEADER: scores any station of the zone, places the zone's judges, starts the next wave.",
   },
   {
+    slug: "zone_leaders",
+    name: "TEST · Zone Leaders role",
+    accountType: "organiser",
+    roles: ["zone-leaders"],
+    post: "leader",
+    purpose:
+      "The Zone Leaders role, put on a zone as its leader: sees the competition as a viewer and Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no scoring, no desks, no settings.",
+  },
+  {
     slug: "judge",
     name: "TEST · Judge 1",
     accountType: "organiser",

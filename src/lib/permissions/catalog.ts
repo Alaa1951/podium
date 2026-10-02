@@ -254,6 +254,10 @@ export const CATALOG = {
         actions: {
           view: view(),
           assign: act("Put judges on zones and pick zone leaders", "توزيع الحكام وتحديد قادة المناطق"),
+          assignJudges: act(
+            "Put judges and reserves on the zones they lead — never leaders, never another zone",
+            "تعيين الحكام والاحتياطيين على المناطق التي يقودها فقط — دون القادة ودون أي منطقة أخرى"
+          ),
         },
       },
       scores: {

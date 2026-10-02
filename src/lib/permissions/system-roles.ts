@@ -219,6 +219,28 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     permissions: ["judgeSheet.view", "scores.enter"],
   },
   {
+    key: "zone-leaders",
+    name: "Zone Leaders",
+    nameAr: "قادة المناطق",
+    description:
+      "Sees the competition as a viewer (waves and teams, Wave control read-only) and staffs the zone they lead: judges and reserves on and off, never leaders, never another zone.",
+    assignableBy: "bft",
+    accountTypes: ["organiser"],
+    sortOrder: 45,
+    // A spectator with one job: staff the zone they lead. The zone itself is
+    // the leader POST (ZoneStaff), and zone-staff.ts checks it — the key
+    // below only says "this person may staff a zone they lead"; it names no
+    // zone. Everything else here is read-only viewing.
+    permissions: [
+      "competitions.view",
+      "overview.view",
+      "waves.view",
+      "waveControl.view",
+      "zoneStaff.view",
+      "zoneStaff.assignJudges",
+    ],
+  },
+  {
     key: "volunteer",
     name: "Volunteer",
     nameAr: "متطوع",

@@ -156,6 +156,21 @@ Scores on the floor from the judge sheet: the team on their station in their zon
 | Competition | Scores | Enter scores |
 | Personal | Judge sheet | View |
 
+### Zone Leaders
+
+Sees the competition as a viewer (waves and teams, Wave control read-only) and staffs the zone they lead: judges and reserves on and off, never leaders, never another zone.
+
+- **Given by:** BFT MENA only
+- **Meant for:** Organiser (event staff)
+
+| Area | Screen | Can |
+| --- | --- | --- |
+| Platform | Competitions | View _(BFT MENA accounts only)_ |
+| Competition | Overview | View |
+| Competition | Wave schedule | View |
+| Competition | Wave control | View |
+| Competition | Zone teams | View; Put judges and reserves on the zones they lead — never leaders, never another zone |
+
 ### Volunteer
 
 Moves athletes on the floor: sees Marshalling (where each wave is, where it goes next, who to call up), the wave schedule and the live board; runs entrance and warm-up check-in, and changes a team's category or level at the athlete's request.
@@ -271,6 +286,7 @@ One account per role, to walk the app as that role. BFT MENA Full access has non
 | `test_studio@bftmiddleeast.com` | Gym / Studio | Gym / Studio | — | A gym's own area, on the empty sandbox studio: its people, its teams, its waves. Sees no real studio's data. |
 | `test_organiser@bftmiddleeast.com` | Organiser (event staff) | Organiser | — | Runs the floor: waves, stations, Wave control (start, end, reset), zone teams; entrance and warm-up check-in; category or level changes at an athlete's request; creates, edits and pairs teams. |
 | `test_zone_leader@bftmiddleeast.com` | Organiser (event staff) | Judge | Zone leader | A judge put on a zone as its LEADER: scores any station of the zone, places the zone's judges, starts the next wave. |
+| `test_zone_leaders@bftmiddleeast.com` | Organiser (event staff) | Zone Leaders | Zone leader | The Zone Leaders role, put on a zone as its leader: sees the competition as a viewer and Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no scoring, no desks, no settings. |
 | `test_judge@bftmiddleeast.com` | Organiser (event staff) | Judge | Judge, station 1 | Judge 1, on station 1 of the zone: sees and scores only the station-1 team of the wave the zone is on. |
 | `test_judge2@bftmiddleeast.com` | Organiser (event staff) | Judge | Judge, station 2 | Judge 2, on station 2 of the same zone — to check that each judge sees only their own station. |
 | `test_volunteer@bftmiddleeast.com` | Organiser (event staff) | Volunteer | — | Sees the wave schedule, Marshalling and the live board; runs entrance and warm-up check-in; changes a team's category or level at an athlete's request. |
@@ -323,81 +339,82 @@ Decisions the code makes on purpose, or has not made yet:
 
 ## Permission matrix
 
-| Screen | Action | Key | Policy | BFT MENA Partial | Gym / Studio | Organiser | Judge | Volunteer | Coach | Athlete |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Platform** | | | |  |  |  |  |  |  |  |
-| Dashboard | View | `dashboard.view` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |
-| Competitions | View | `competitions.view` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |
-| Competitions | Create competitions | `competitions.create` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Studios | View | `studios.view` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |
-| Studios | Add studios | `studios.create` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Studios | Edit and deactivate studios | `studios.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Users | View | `users.view` | role | ✓ | ✓ |  |  |  |  |  |
-| Users | Invite people | `users.invite` | role | ✓ | ✓ |  |  |  |  |  |
-| Users | Edit name, email and account type | `users.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Users | Block and unblock | `users.disable` | role | ✓ | ✓ |  |  |  |  |  |
-| Users | Remove and restore | `users.delete` | role | ✓ | ✓ |  |  |  |  |  |
-| Users | Give and take away roles | `users.assignRoles` | role | ✓ | ✓ |  |  |  |  |  |
-| Users | Grant or lock single permissions | `users.overrides` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Sign-up requests | View | `approvals.view` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Sign-up requests | Approve and reject | `approvals.decide` | role | ✓ | ✓ |  |  |  |  |  |
-| Roles | View | `roles.view` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Roles | Create and edit roles | `roles.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Audit log | View | `audit.view` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Announcements | View | `announcements.view` | everyone | · | · | · | · | · | · | · |
-| Announcements | Send announcements | `announcements.send` | role | ✓ | ✓ |  |  |  |  |  |
-| **Competition** | | | |  |  |  |  |  |  |  |
-| Overview | View | `overview.view` | role | ✓ |  | ✓ |  |  |  |  |
-| Taking part | View | `competitionStudios.view` | role |  |  | ✓ |  |  |  |  |
-| Taking part | Choose the studios taking part | `competitionStudios.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Registrations | View | `registrations.view` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Registrations | Register teams | `registrations.create` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Registrations | Edit teams and athletes | `registrations.edit` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Registrations | Withdraw and restore teams | `registrations.archive` | role | ✓ | ✓ |  |  |  |  |  |
-| Registrations | Pair two athletes into a team | `registrations.pair` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Registrations | Change who is on a team after the 24-hour cutoff | `registrations.changeAfterClose` | Full access only |  |  |  |  |  |  |  |
-| Registrations | See athletes without a partner or a team | `registrations.partners` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Registrations | Admit entries from the waiting list | `registrations.waitlist` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |
-| Registrations | Confirm payment | `registrations.payment` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |
-| Registrations | Check teams in on the day | `registrations.attendance` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| Registrations | Change a team's category or level at the athlete's request | `registrations.bracket` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| Registrations | Export the roster | `registrations.export` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Wave schedule | View | `waves.view` | role | ✓ | ✓ | ✓ |  | ✓ | ✓ |  |
-| Wave schedule | Place teams into waves and stations | `waves.placeTeams` | role |  | ✓ | ✓ |  |  |  |  |
-| Wave schedule | Create waves and set times | `waves.edit` | role |  |  | ✓ |  |  |  |  |
-| Wave control | View | `waveControl.view` | role | ✓ |  | ✓ |  |  |  |  |
-| Wave control | All wave buttons (start the day, start, end, reset) | `waveControl.control` | role | ✓ |  | ✓ |  |  |  |  |
-| Wave control | Start the competition day | `waveControl.startDay` | role |  |  |  |  |  |  |  |
-| Wave control | Start a wave | `waveControl.start` | role |  |  |  |  |  |  |  |
-| Wave control | End a wave early (End now) | `waveControl.end` | role |  |  |  |  |  |  |  |
-| Wave control | Reset a wave to not started | `waveControl.reset` | role |  |  |  |  |  |  |  |
-| Marshalling | View | `marshalling.view` | role |  |  | ✓ |  | ✓ |  |  |
-| Check-in | View | `checkIn.view` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| Check-in | Mark teams ready in warm-up | `checkIn.warmup` | role | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| Waivers | Attach waiver versions and read signed records | `waivers.manage` | BFT MENA only |  |  |  |  |  |  |  |
-| T-shirts | View | `shirts.view` | role |  |  | ✓ |  |  |  |  |
-| Zone teams | View | `zoneStaff.view` | role | ✓ |  | ✓ |  |  |  |  |
-| Zone teams | Put judges on zones and pick zone leaders | `zoneStaff.assign` | role | ✓ |  | ✓ |  |  |  |  |
-| Scores | View | `scores.view` | role | ✓ | ✓ | ✓ |  |  |  |  |
-| Scores | Enter scores | `scores.enter` | role | ✓ |  |  | ✓ |  |  |  |
-| Scores | Correct a submitted score | `scores.correct` | Full access only |  |  |  |  |  |  |  |
-| Scores | Unlock a submitted score | `scores.unlock` | Full access only |  |  |  |  |  |  |  |
-| Results | View | `results.view` | role | ✓ | ✓ | ✓ |  |  | ✓ |  |
-| Results | Publish results to the public site | `results.publish` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Live board | View | `board.view` | everyone | · | · | · | · | · | · | · |
-| Competition settings | View | `settings.view` | role | ✓ |  | ✓ |  |  |  |  |
-| Competition settings | Edit settings, zones and scoring | `settings.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| Sponsors | Manage sponsor logos | `sponsors.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |
-| **Personal** | | | |  |  |  |  |  |  |  |
-| Home and profile | View | `home.view` | everyone | · | · | · | · | · | · | · |
-| Notifications | View | `notifications.view` | everyone | · | · | · | · | · | · | · |
-| My team | View | `athleteHome.view` | role | ✓ |  |  |  |  |  | ✓ |
-| My team | Edit my team | `athleteHome.editTeam` | role | ✓ |  |  |  |  |  | ✓ |
-| Partner | View | `partner.view` | role | ✓ |  |  |  |  |  | ✓ |
-| Partner | Change partner details | `partner.edit` | role | ✓ |  |  |  |  |  | ✓ |
-| Partner | Find a partner | `partner.browse` | role | ✓ |  |  |  |  |  | ✓ |
-| Partner | Send partner requests | `partner.request` | role | ✓ |  |  |  |  |  | ✓ |
-| Judge sheet | View | `judgeSheet.view` | role | ✓ |  |  | ✓ |  |  |  |
+| Screen | Action | Key | Policy | BFT MENA Partial | Gym / Studio | Organiser | Judge | Zone Leaders | Volunteer | Coach | Athlete |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Platform** | | | |  |  |  |  |  |  |  |  |
+| Dashboard | View | `dashboard.view` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |  |
+| Competitions | View | `competitions.view` | BFT MENA only | ✓ |  | ✓ |  | ✓ |  |  |  |
+| Competitions | Create competitions | `competitions.create` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Studios | View | `studios.view` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |  |
+| Studios | Add studios | `studios.create` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Studios | Edit and deactivate studios | `studios.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Users | View | `users.view` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Users | Invite people | `users.invite` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Users | Edit name, email and account type | `users.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Users | Block and unblock | `users.disable` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Users | Remove and restore | `users.delete` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Users | Give and take away roles | `users.assignRoles` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Users | Grant or lock single permissions | `users.overrides` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Sign-up requests | View | `approvals.view` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Sign-up requests | Approve and reject | `approvals.decide` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Roles | View | `roles.view` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Roles | Create and edit roles | `roles.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Audit log | View | `audit.view` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Announcements | View | `announcements.view` | everyone | · | · | · | · | · | · | · | · |
+| Announcements | Send announcements | `announcements.send` | role | ✓ | ✓ |  |  |  |  |  |  |
+| **Competition** | | | |  |  |  |  |  |  |  |  |
+| Overview | View | `overview.view` | role | ✓ |  | ✓ |  | ✓ |  |  |  |
+| Taking part | View | `competitionStudios.view` | role |  |  | ✓ |  |  |  |  |  |
+| Taking part | Choose the studios taking part | `competitionStudios.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Registrations | View | `registrations.view` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Registrations | Register teams | `registrations.create` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Registrations | Edit teams and athletes | `registrations.edit` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Registrations | Withdraw and restore teams | `registrations.archive` | role | ✓ | ✓ |  |  |  |  |  |  |
+| Registrations | Pair two athletes into a team | `registrations.pair` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Registrations | Change who is on a team after the 24-hour cutoff | `registrations.changeAfterClose` | Full access only |  |  |  |  |  |  |  |  |
+| Registrations | See athletes without a partner or a team | `registrations.partners` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Registrations | Admit entries from the waiting list | `registrations.waitlist` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |  |
+| Registrations | Confirm payment | `registrations.payment` | BFT MENA only | ✓ |  | ✓ |  |  |  |  |  |
+| Registrations | Check teams in on the day | `registrations.attendance` | role | ✓ | ✓ | ✓ |  |  | ✓ |  |  |
+| Registrations | Change a team's category or level at the athlete's request | `registrations.bracket` | role | ✓ | ✓ | ✓ |  |  | ✓ |  |  |
+| Registrations | Export the roster | `registrations.export` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Wave schedule | View | `waves.view` | role | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |
+| Wave schedule | Place teams into waves and stations | `waves.placeTeams` | role |  | ✓ | ✓ |  |  |  |  |  |
+| Wave schedule | Create waves and set times | `waves.edit` | role |  |  | ✓ |  |  |  |  |  |
+| Wave control | View | `waveControl.view` | role | ✓ |  | ✓ |  | ✓ |  |  |  |
+| Wave control | All wave buttons (start the day, start, end, reset) | `waveControl.control` | role | ✓ |  | ✓ |  |  |  |  |  |
+| Wave control | Start the competition day | `waveControl.startDay` | role |  |  |  |  |  |  |  |  |
+| Wave control | Start a wave | `waveControl.start` | role |  |  |  |  |  |  |  |  |
+| Wave control | End a wave early (End now) | `waveControl.end` | role |  |  |  |  |  |  |  |  |
+| Wave control | Reset a wave to not started | `waveControl.reset` | role |  |  |  |  |  |  |  |  |
+| Marshalling | View | `marshalling.view` | role |  |  | ✓ |  |  | ✓ |  |  |
+| Check-in | View | `checkIn.view` | role | ✓ | ✓ | ✓ |  |  | ✓ |  |  |
+| Check-in | Mark teams ready in warm-up | `checkIn.warmup` | role | ✓ | ✓ | ✓ |  |  | ✓ |  |  |
+| Waivers | Attach waiver versions and read signed records | `waivers.manage` | BFT MENA only |  |  |  |  |  |  |  |  |
+| T-shirts | View | `shirts.view` | role |  |  | ✓ |  |  |  |  |  |
+| Zone teams | View | `zoneStaff.view` | role | ✓ |  | ✓ |  | ✓ |  |  |  |
+| Zone teams | Put judges on zones and pick zone leaders | `zoneStaff.assign` | role | ✓ |  | ✓ |  |  |  |  |  |
+| Zone teams | Put judges and reserves on the zones they lead — never leaders, never another zone | `zoneStaff.assignJudges` | role |  |  |  |  | ✓ |  |  |  |
+| Scores | View | `scores.view` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
+| Scores | Enter scores | `scores.enter` | role | ✓ |  |  | ✓ |  |  |  |  |
+| Scores | Correct a submitted score | `scores.correct` | Full access only |  |  |  |  |  |  |  |  |
+| Scores | Unlock a submitted score | `scores.unlock` | Full access only |  |  |  |  |  |  |  |  |
+| Results | View | `results.view` | role | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
+| Results | Publish results to the public site | `results.publish` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Live board | View | `board.view` | everyone | · | · | · | · | · | · | · | · |
+| Competition settings | View | `settings.view` | role | ✓ |  | ✓ |  |  |  |  |  |
+| Competition settings | Edit settings, zones and scoring | `settings.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| Sponsors | Manage sponsor logos | `sponsors.edit` | BFT MENA only | ✓ |  |  |  |  |  |  |  |
+| **Personal** | | | |  |  |  |  |  |  |  |  |
+| Home and profile | View | `home.view` | everyone | · | · | · | · | · | · | · | · |
+| Notifications | View | `notifications.view` | everyone | · | · | · | · | · | · | · | · |
+| My team | View | `athleteHome.view` | role | ✓ |  |  |  |  |  |  | ✓ |
+| My team | Edit my team | `athleteHome.editTeam` | role | ✓ |  |  |  |  |  |  | ✓ |
+| Partner | View | `partner.view` | role | ✓ |  |  |  |  |  |  | ✓ |
+| Partner | Change partner details | `partner.edit` | role | ✓ |  |  |  |  |  |  | ✓ |
+| Partner | Find a partner | `partner.browse` | role | ✓ |  |  |  |  |  |  | ✓ |
+| Partner | Send partner requests | `partner.request` | role | ✓ |  |  |  |  |  |  | ✓ |
+| Judge sheet | View | `judgeSheet.view` | role | ✓ |  |  | ✓ |  |  |  |  |
 
 `·` always on for everyone signed in.
 
@@ -409,6 +426,7 @@ Decisions the code makes on purpose, or has not made yet:
 | Gym / Studio | BFT MENA | Gym / Studio |
 | Organiser | BFT MENA | Organiser (event staff), BFT MENA · Limited (Partial) access |
 | Judge | BFT MENA and studios | Organiser (event staff), Gym / Studio, BFT MENA · Limited (Partial) access |
+| Zone Leaders | BFT MENA | Organiser (event staff) |
 | Volunteer | BFT MENA | Organiser (event staff) |
 | Coach | BFT MENA | Organiser (event staff) |
 | Athlete | BFT MENA and studios | Athlete |

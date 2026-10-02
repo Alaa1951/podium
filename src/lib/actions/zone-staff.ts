@@ -15,6 +15,9 @@ import { requireUser } from "@/lib/session";
 //
 //   • zoneStaff.assign (supervisor / organiser / BFT MENA) puts people on a
 //     zone, picks its leaders, and moves or removes anyone.
+//   • zoneStaff.assignJudges (the Zone Leaders role) staffs only the zones
+//     the person LEADS — judges and reserves on, judges and reserves off;
+//     leaders stay out of their reach.
 //   • A zone's LEADER places the judges and reserves of their own zone on
 //     stations 1–9 — and nothing else.
 //   • Only people whose roles carry the judge sheet can be put on a zone.
@@ -33,7 +36,10 @@ const addSchema = z.object({
 /** Put a person on a zone (or change their position there). */
 export async function addZoneStaff(input: unknown): Promise<ZoneStaffResult> {
   const actor = await requireUser();
-  if (actor.viewAs || !isFloorAccount(actor) || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
+
+  const full = can(actor, "zoneStaff.assign");
+  if (!full && !can(actor, "zoneStaff.assignJudges")) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = addSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
@@ -47,6 +53,14 @@ export async function addZoneStaff(input: unknown): Promise<ZoneStaffResult> {
     }),
   ]);
   if (!zone || !person || person.status !== "active" || person.archivedAt) return { ok: false, error: "NOT_FOUND" };
+
+  // A judges-only assigner staffs the zones they lead, and never appoints
+  // leaders — that stays with zoneStaff.assign.
+  if (!full) {
+    if (position === "leader") return { ok: false, error: "FORBIDDEN" };
+    const leads = await prisma.zoneStaff.count({ where: { zoneId, userId: actor.id, position: "leader" } });
+    if (leads === 0) return { ok: false, error: "FORBIDDEN" };
+  }
 
   // Only a judge can judge: the role has to carry the sheet and score entry.
   const theirs = await loadPermissions(person.id, person.role);
@@ -121,16 +135,34 @@ export async function setZoneStaffStation(input: unknown): Promise<ZoneStaffResu
 /** Take a person off a zone. */
 export async function removeZoneStaff(input: unknown): Promise<ZoneStaffResult> {
   const actor = await requireUser();
-  if (actor.viewAs || !isFloorAccount(actor) || !can(actor, "zoneStaff.assign")) return { ok: false, error: "FORBIDDEN" };
+  if (actor.viewAs || !isFloorAccount(actor)) return { ok: false, error: "FORBIDDEN" };
+
+  const full = can(actor, "zoneStaff.assign");
+  if (!full && !can(actor, "zoneStaff.assignJudges")) return { ok: false, error: "FORBIDDEN" };
 
   const parsed = z.object({ staffId: z.string().min(1) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
 
   const row = await prisma.zoneStaff.findUnique({
     where: { id: parsed.data.staffId },
-    select: { id: true, seriesId: true, zone: { select: { number: true } }, user: { select: { email: true } } },
+    select: {
+      id: true,
+      seriesId: true,
+      position: true,
+      zoneId: true,
+      zone: { select: { number: true } },
+      user: { select: { email: true } },
+    },
   });
   if (!row) return { ok: false, error: "NOT_FOUND" };
+
+  // Same reach as putting someone on: a judges-only assigner removes judges
+  // and reserves from the zones they lead, and never a leader.
+  if (!full) {
+    if (row.position === "leader") return { ok: false, error: "FORBIDDEN" };
+    const leads = await prisma.zoneStaff.count({ where: { zoneId: row.zoneId, userId: actor.id, position: "leader" } });
+    if (leads === 0) return { ok: false, error: "FORBIDDEN" };
+  }
 
   await prisma.zoneStaff.delete({ where: { id: row.id } });
   await recordAudit({

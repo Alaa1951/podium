@@ -38,6 +38,9 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
   const buttons = { start: live && held.start, end: live && held.end, reset: live && held.reset };
   const canStartDay = live && held.startDay;
   const canAssign = live && can(user, "zoneStaff.assign");
+  // The Zone Leaders role: staffs only the zones they lead, and only judges
+  // and reserves — the panel hides leaders from them.
+  const canAssignJudges = live && !canAssign && can(user, "zoneStaff.assignJudges");
 
   const [teams, zones, staff, candidates] = await Promise.all([
     prisma.team.findMany({
@@ -51,8 +54,14 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
       select: { id: true, number: true, name: true },
     }),
     can(user, "zoneStaff.view") ? listZoneStaff(series.id) : Promise.resolve([]),
-    canAssign ? judgeCandidates() : Promise.resolve([]),
+    canAssign || canAssignJudges ? judgeCandidates() : Promise.resolve([]),
   ]);
+
+  const ledZoneIds = canAssignJudges
+    ? staff
+        .filter((zone) => zone.staff.some((row) => row.user.id === user.id && row.position === "leader"))
+        .map((zone) => zone.id)
+    : [];
 
   const byWave: Record<string, FloorTeam[]> = {};
   for (const team of teams) {
@@ -143,6 +152,8 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
           }))}
           candidates={candidates.map((person) => ({ id: person.id, label: person.name ? `${person.name} · ${person.email}` : person.email }))}
           canAssign={canAssign}
+          canAssignJudges={canAssignJudges}
+          ledZoneIds={ledZoneIds}
           stations={series.waveCapacity}
         />
       ) : null}

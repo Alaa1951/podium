@@ -13,6 +13,8 @@ import { addZoneStaff, removeZoneStaff, setZoneStaffStation } from "@/lib/action
 // One or more leaders per zone, then judges and reserves. Whoever holds
 // zoneStaff.assign puts people on zones and picks the leaders; a leader
 // places judges on stations from their own sheet, and so can this panel.
+// zoneStaff.assignJudges (the Zone Leaders role) staffs the zones they lead:
+// judges and reserves on and off, leaders out of reach.
 // Several people on one station is allowed, and shown as a warning.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -37,6 +39,8 @@ export function ZoneStaffPanel({
   zones,
   candidates,
   canAssign,
+  canAssignJudges = false,
+  ledZoneIds = [],
   canPlace = false,
   stations,
   title,
@@ -51,6 +55,10 @@ export function ZoneStaffPanel({
   stations: number;
   /** zoneStaff.assign: add, remove, pick the leader, place anyone. */
   canAssign: boolean;
+  /** zoneStaff.assignJudges: add and remove judges and reserves on ledZoneIds only. */
+  canAssignJudges?: boolean;
+  /** The zones of this competition the viewer leads — the reach of assignJudges. */
+  ledZoneIds?: string[];
   /** A zone leader: place the judges and reserves of these zones on stations. */
   canPlace?: boolean;
   title?: string;
@@ -97,6 +105,9 @@ export function ZoneStaffPanel({
           for (const row of zone.staff) if (row.station) counts.set(row.station, (counts.get(row.station) ?? 0) + 1);
           const pick = picks[zone.id] ?? { userId: "", position: "judge" as Position };
           const onZone = new Set(zone.staff.map((row) => row.userId));
+          // Full assigners work every zone; the judges-only role works the
+          // zones they lead, and leaders stay out of their reach.
+          const zoneAssignable = canAssign || (canAssignJudges && ledZoneIds.includes(zone.id));
           return (
             <section key={zone.id} className="card">
               <h3 style={{ marginTop: 0 }}>
@@ -143,9 +154,9 @@ export function ZoneStaffPanel({
                       ) : null}
                     </label>
                   ) : null}
-                  {canAssign ? (
+                  {canAssign || zoneAssignable ? (
                     <span style={{ display: "inline-flex", gap: 6 }}>
-                      {row.position !== "leader" ? (
+                      {canAssign && row.position !== "leader" ? (
                         <button
                           type="button"
                           className="chip-sm"
@@ -155,24 +166,26 @@ export function ZoneStaffPanel({
                           {t("Make leader")}
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        className="chip-sm"
-                        disabled={pending}
-                        onClick={() => {
-                          if (window.confirm(t("Take {name} off this zone?", { name: row.name }))) {
-                            run(() => removeZoneStaff({ staffId: row.id }));
-                          }
-                        }}
-                      >
-                        {t("Remove")}
-                      </button>
+                      {canAssign || row.position !== "leader" ? (
+                        <button
+                          type="button"
+                          className="chip-sm"
+                          disabled={pending}
+                          onClick={() => {
+                            if (window.confirm(t("Take {name} off this zone?", { name: row.name }))) {
+                              run(() => removeZoneStaff({ staffId: row.id }));
+                            }
+                          }}
+                        >
+                          {t("Remove")}
+                        </button>
+                      ) : null}
                     </span>
                   ) : null}
                 </div>
               ))}
 
-              {canAssign ? (
+              {zoneAssignable ? (
                 <div className="form-row zone-staff-assignment" style={{ marginTop: 10 }}>
                   <StaffPersonPicker
                     candidates={candidates.filter((person) => !onZone.has(person.id))}
@@ -192,7 +205,7 @@ export function ZoneStaffPanel({
                     >
                       <option value="judge">{t("Judge")}</option>
                       <option value="reserve">{t("Reserve")}</option>
-                      <option value="leader">{t("Zone leader")}</option>
+                      {canAssign ? <option value="leader">{t("Zone leader")}</option> : null}
                     </select>
                   </label>
                   <button
@@ -213,7 +226,7 @@ export function ZoneStaffPanel({
         })}
         {zones.length === 0 ? <p className="reg-sub">{t("This competition has no zones yet — add them in Settings.")}</p> : null}
       </div>
-      {canAssign && candidates.length === 0 ? (
+      {(canAssign || canAssignJudges) && candidates.length === 0 ? (
         <p className="reg-sub" style={{ marginTop: 10 }}>
           {t("Nobody holds the Judge role yet. Give it to people from their Access panel first.")}
         </p>

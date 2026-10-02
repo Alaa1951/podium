@@ -161,6 +161,11 @@ describe("the shipped roles", () => {
       judge: [
         "judgeSheet.view", "scores.enter",
       ],
+      // A spectator with one job: staff the zone they lead. Added 2026-10-02.
+      "zone-leaders": [
+        "competitions.view", "overview.view", "waveControl.view", "waves.view", "zoneStaff.assignJudges",
+        "zoneStaff.view",
+      ],
       volunteer: [
         "checkIn.view", "checkIn.warmup", "marshalling.view", "registrations.attendance", "registrations.bracket",
         "waves.view",
