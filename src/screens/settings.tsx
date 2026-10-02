@@ -131,7 +131,7 @@ export default async function SettingsPage(props: SeriesScreenProps, zoneId?: st
       </h2>
       <p className="reg-sub" style={{ marginTop: 4, marginBottom: 14, maxWidth: "70ch" }}>
         {t(
-          "Each competition carries its own sponsor rail — ten slots on the wall board and the published results. Logos are stored with the event, so a backup carries them too."
+          "Each competition carries its own sponsor rail, with no fixed sponsor limit. Every logo rotates on the wall board and the published results. Logos are stored with the event, so a backup carries them too."
         )}
       </p>
 

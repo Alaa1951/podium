@@ -293,8 +293,8 @@ export const AR_CONSOLE: Phrases = {
   "Sponsor rail off": "شريط الرعاة مُوقوف",
   "The rail is switched off for this event — the wall board and published results show only the event branding. Logos below are kept.":
     "الشريط مُوقوف على هذه البطولة — شاشة العرض والنتائج المنشورة تعرضان هوية البطولة فقط. الشعارات بالأسفل محفوظة.",
-  "Each competition carries its own sponsor rail — ten slots on the wall board and the published results. Logos are stored with the event, so a backup carries them too.":
-    "لكل بطولة شريط رعاة خاص بها — عشر خانات على شاشة العرض والنتائج المنشورة. تُحفظ الشعارات مع بيانات البطولة، فالنسخ الاحتياطي يشملها.",
+  "Each competition carries its own sponsor rail, with no fixed sponsor limit. Every logo rotates on the wall board and the published results. Logos are stored with the event, so a backup carries them too.":
+    "لكل بطولة شريط رعاة خاص بها، بدون حد ثابت لعدد الرعاة. تظهر كل الشعارات بالتناوب على شاشة العرض والنتائج المنشورة. تُحفظ الشعارات مع بيانات البطولة، فالنسخ الاحتياطي يشملها.",
 
   // ── Public results (publish switch + menu) ───────────────────────────────
   "Public results": "النتائج العامة",

@@ -19,8 +19,8 @@ import { requireAccess } from "@/lib/session";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
-/** The wall rail draws ten slots; beyond that a new logo would never be seen. */
-const MAX_SPONSORS = 10;
+/** Reserve the last database Int for the temporary position during a swap. */
+const SWAP_POSITION = 2_147_483_647;
 /** A display-class logo sits well under this; anything larger is a mistake. */
 const MAX_BYTES = 1_000_000;
 
@@ -31,7 +31,7 @@ const saveSchema = z.object({
   seriesId: z.string().min(1),
   sponsorId: z.string().optional(),
   alt: z.string().trim().min(1).max(80),
-  position: z.coerce.number().int().min(0).max(MAX_SPONSORS - 1),
+  position: z.coerce.number().int().min(0).max(SWAP_POSITION - 1),
   /** "data:image/png;base64,…" — straight from the file input on the client. */
   dataUrl: z.string().min(32),
 });
@@ -186,7 +186,7 @@ export async function moveSponsor(input: unknown): Promise<ActionResult> {
 
   const delta = parsed.data.direction === "up" ? -1 : 1;
   const targetPosition = sponsor.position + delta;
-  if (targetPosition < 0 || targetPosition >= MAX_SPONSORS) return { ok: true };
+  if (targetPosition < 0 || targetPosition >= SWAP_POSITION) return { ok: true };
 
   const neighbour = await prisma.sponsor.findUnique({
     where: { seriesId_position: { seriesId: sponsor.seriesId, position: targetPosition } },
@@ -194,15 +194,14 @@ export async function moveSponsor(input: unknown): Promise<ActionResult> {
   });
 
   // Swap: two rows cannot hold one position, so the neighbour steps onto a
-  // sentinel slot far outside the real rail (real positions are 0..9, so
-  // 9999 is always free) for a beat inside the transaction, then takes the
+  // reserved sentinel slot for a beat inside the transaction, then takes the
   // vacated slot. Using a nearby "aside" slot collided whenever the rail was
   // contiguous — that was the unique-constraint crash on Up/Down.
   await prisma.$transaction(async (tx) => {
     if (neighbour) {
       await tx.sponsor.update({
         where: { id: neighbour.id },
-        data: { position: MAX_SPONSORS + 1000 },
+        data: { position: SWAP_POSITION },
       });
     }
     await tx.sponsor.update({ where: { id: sponsor.id }, data: { position: targetPosition } });

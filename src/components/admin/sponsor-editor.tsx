@@ -12,15 +12,12 @@ import { deleteSponsor, moveSponsor, saveSponsor, setSponsorsEnabled } from "@/l
 // THE SPONSOR RAIL, EDITED.
 //
 // Each competition carries its own ordered set of sponsor marks. The wall
-// board and the published results draw ten slots; logos fill them in order and
-// empty slots stay visible as placeholders, so this screen manages at most ten
-// entries per event and the rail always shows where a sponsor will appear.
+// board and the published results rotate through every uploaded logo. New
+// entries fill unused positions first, with no fixed sponsor count.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type SponsorRow = { id: string; alt: string; position: number };
 
-/** The slot count the wall rail draws — placeholders fill whatever is left. */
-const SLOTS = 10;
 const MAX_BYTES = 1_000_000;
 
 export function SponsorEditor({
@@ -50,7 +47,9 @@ export function SponsorEditor({
   }
 
   const taken = new Set(sponsors.map((s) => s.position));
-  const freeSlots = Array.from({ length: SLOTS }, (_, i) => i).filter((i) => !taken.has(i));
+  let nextPosition = 0;
+  while (taken.has(nextPosition)) nextPosition++;
+  const lastPosition = Math.max(9, ...taken);
 
   function report(result: { ok: boolean; error?: string; message?: string }) {
     if (result.ok) {
@@ -86,8 +85,8 @@ export function SponsorEditor({
 
   function add() {
     setMessage("");
-    if (!file || !alt.trim() || freeSlots.length === 0) return;
-    const position = freeSlots[0];
+    if (!file || !alt.trim()) return;
+    const position = nextPosition;
     startTransition(async () =>
       report(await saveSponsor({ seriesId, alt, position, dataUrl: file.dataUrl }))
     );
@@ -112,7 +111,7 @@ export function SponsorEditor({
           {t("Sponsors")}
         </h2>
         <span className="reg-sub">
-          {sponsors.length} / {SLOTS} · {t("shown on the wall board and the published results")}
+          {sponsors.length} · {t("shown on the wall board and the published results")}
         </span>
 
         {/* The event-level switch. Logos are managed either way — an event can
@@ -193,7 +192,7 @@ export function SponsorEditor({
                       <button
                         type="button"
                         className="btn btn-sm btn-secondary"
-                        disabled={pending || sponsor.position >= SLOTS - 1}
+                        disabled={pending || sponsor.position >= lastPosition}
                         onClick={() => move(sponsor.id, "down")}
                       >
                         {t("Down")}
@@ -215,65 +214,58 @@ export function SponsorEditor({
         </div>
       )}
 
-      {/* The add form — disabled entirely once the rail is full. */}
-      <div className="card" style={{ opacity: freeSlots.length === 0 ? 0.55 : 1 }}>
-        {freeSlots.length === 0 ? (
-          <p className="reg-sub" style={{ margin: 0 }}>
-            {t("The rail is full — remove a logo to add another.")}
-          </p>
-        ) : (
-          <div className="form-grid">
-            <label>
-              <span className="field-label">{t("Sponsor name")}</span>
-              <input
-                className="input"
-                value={alt}
-                maxLength={80}
-                placeholder={t("Rogue Fitness")}
-                onChange={(e) => setAlt(e.target.value)}
-              />
-            </label>
+      <div className="card">
+        <div className="form-grid">
+          <label>
+            <span className="field-label">{t("Sponsor name")}</span>
+            <input
+              className="input"
+              value={alt}
+              maxLength={80}
+              placeholder={t("Rogue Fitness")}
+              onChange={(e) => setAlt(e.target.value)}
+            />
+          </label>
 
-            <label>
-              <span className="field-label">
-                {t("Logo file")} · PNG, JPG, WebP, SVG — &lt; 1 MB
+          <label>
+            <span className="field-label">
+              {t("Logo file")} · PNG, JPG, WebP, SVG — &lt; 1 MB
+            </span>
+            <input
+              ref={fileInput}
+              className="input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={(e) => pick(e.target.files?.[0])}
+            />
+          </label>
+
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending || !file || !alt.trim()}
+              onClick={add}
+            >
+              {pending ? <span className="spinner" /> : null}
+              {t("Add sponsor")}
+            </button>
+            {file ? (
+              <span className="reg-sub" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Image
+                  src={file.dataUrl}
+                  alt=""
+                  width={0}
+                  height={0}
+                  sizes="120px"
+                  style={{ height: 24, width: "auto", maxWidth: 120 }}
+                  unoptimized
+                />
+                {file.name}
               </span>
-              <input
-                ref={fileInput}
-                className="input"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                onChange={(e) => pick(e.target.files?.[0])}
-              />
-            </label>
-
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={pending || !file || !alt.trim()}
-                onClick={add}
-              >
-                {pending ? <span className="spinner" /> : null}
-                {t("Add sponsor")}
-              </button>
-              {file ? (
-                <span className="reg-sub" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Image
-                    src={file.dataUrl}
-                    alt=""
-                    width={0}
-                    height={0}
-                    sizes="120px"
-                    style={{ height: 24, width: "auto", maxWidth: 120 }}
-                    unoptimized
-                  />
-                  {file.name}
-                </span>
-              ) : null}
-            </div>
+            ) : null}
           </div>
-        )}
+        </div>
       </div>
     </section>
   );

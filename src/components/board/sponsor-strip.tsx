@@ -8,7 +8,7 @@ import { useIsMobile } from "@/components/app/use-mobile";
 
 /**
  * THE SPONSOR STRIP — the last band on the wall screen, drawn straight from the
- * approved reference: an "official partners" label, a rail of ten marks where
+ * approved reference: an "official partners" label, a rail of sponsor marks where
  * one is spotlighted at a time, and the program mark closing the row.
  *
  * The slots are always drawn, empty as dashed placeholders, so the wall shows
