@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Role } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseOverrides, resolveEffectivePermissions, type AccessInputs, type HeldRole } from "@/lib/permissions/resolve";
 import { DEFAULT_ROLE_FOR, systemRole } from "@/lib/permissions/system-roles";
@@ -10,10 +11,10 @@ import { DEFAULT_ROLE_FOR, systemRole } from "@/lib/permissions/system-roles";
  * none — its account type's default role. The stored row wins over the code
  * definition, because BFT MENA edits the stored row.
  */
-async function defaultRole(accountType: Role): Promise<HeldRole[]> {
+async function defaultRole(accountType: Role, db: Prisma.TransactionClient): Promise<HeldRole[]> {
   const key = DEFAULT_ROLE_FOR[accountType];
   if (!key) return [];
-  const row = await prisma.accessRole.findUnique({
+  const row = await db.accessRole.findUnique({
     where: { key },
     select: { key: true, name: true, permissions: true },
   });
@@ -23,8 +24,10 @@ async function defaultRole(accountType: Role): Promise<HeldRole[]> {
 }
 
 /** Everything the resolver needs about one account, read fresh. */
-export async function loadAccessInputs(userId: string, accountType: Role): Promise<AccessInputs> {
-  const row = await prisma.user.findUnique({
+export async function loadAccessInputs(
+  userId: string, accountType: Role, db: Prisma.TransactionClient = prisma
+): Promise<AccessInputs> {
+  const row = await db.user.findUnique({
     where: { id: userId },
     select: {
       approvalStatus: true,
@@ -41,15 +44,17 @@ export async function loadAccessInputs(userId: string, accountType: Role): Promi
     // A sign-up waiting for approval (or turned down) sees the general pages
     // only, whatever roles it may already carry.
     approved: (row?.approvalStatus ?? "approved") === "approved",
-    roles: held.length ? held : await defaultRole(accountType),
+    roles: held.length ? held : await defaultRole(accountType, db),
     overrides: parseOverrides(row?.permissionOverrides),
   };
 }
 
 /** The effective permission list for one account. */
-export async function loadPermissions(userId: string, accountType: Role): Promise<string[]> {
+export async function loadPermissions(
+  userId: string, accountType: Role, db: Prisma.TransactionClient = prisma
+): Promise<string[]> {
   if (accountType === "admin") return ["*"];
-  return resolveEffectivePermissions(await loadAccessInputs(userId, accountType));
+  return resolveEffectivePermissions(await loadAccessInputs(userId, accountType, db));
 }
 
 /**

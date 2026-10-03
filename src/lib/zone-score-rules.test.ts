@@ -124,9 +124,9 @@ describe("only the wave the zone is on", () => {
     expect(canWriteZoneScore(reserve)).toMatchObject({ reason: "WAVE_MOVED_ON" });
   });
 
-  it("lets the zone leader finish an earlier wave's sheet — the safety valve", () => {
-    const leader = { ...base, post: { position: "leader" as const, station: null }, onDuty: false };
-    expect(canWriteZoneScore(leader)).toEqual({ allowed: true, as: "leader" });
+  it("closes a leader's earlier wave when its zone window ended", () => {
+    const leader = { ...base, post: { position: "leader" as const, station: null }, onDuty: false, zoneEntryClosed: true };
+    expect(canWriteZoneScore(leader)).toEqual({ allowed: false, reason: "ZONE_ENTRY_CLOSED" });
   });
 
   it("still refuses everyone a wave that never reached the zone", () => {
@@ -161,5 +161,21 @@ describe("a post without the judge sheet", () => {
     expect(canWriteZoneScore({ ...base, user: noSheet })).toMatchObject({ reason: "FORBIDDEN" });
     const leader = { ...base, user: noSheet, post: { position: "leader" as const, station: null } };
     expect(canWriteZoneScore(leader)).toMatchObject({ reason: "FORBIDDEN" });
+  });
+});
+
+describe("the dedicated leader sheet", () => {
+  const user = { role: "organiser" as const, permissions: ["judgeSheet.leaderView", "scores.enter"] };
+  const leader = { ...base, user, post: { position: "leader" as const, station: null } };
+  it("allows every station only when the user actually leads this zone", () => {
+    expect(canWriteZoneScore({ ...leader, team: { station: 9 } })).toEqual({ allowed: true, as: "leader" });
+    expect(canWriteZoneScore({ ...leader, post: null })).toMatchObject({ reason: "FORBIDDEN" });
+    expect(canWriteZoneScore({ ...base, user })).toMatchObject({ reason: "FORBIDDEN" });
+    expect(canWriteZoneScore({ ...base, user, post: { position: "reserve", station: 3 } })).toMatchObject({ reason: "FORBIDDEN" });
+  });
+  it("closes leaders at the zone deadline while preserving judge timing", () => {
+    expect(canWriteZoneScore({ ...leader, zoneEntryClosed: true })).toMatchObject({ reason: "ZONE_ENTRY_CLOSED" });
+    expect(canWriteZoneScore({ ...leader, waveEnded: true })).toMatchObject({ reason: "ZONE_ENTRY_CLOSED" });
+    expect(canWriteZoneScore({ ...base, zoneEntryClosed: true })).toEqual({ allowed: true, as: "judge" });
   });
 });

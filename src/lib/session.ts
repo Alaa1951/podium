@@ -10,6 +10,7 @@ import { can, type CurrentUser, type PermissionKey } from "@/lib/access";
 import { loadPermissions } from "@/lib/permissions/load";
 import { hasLiveZonePost } from "@/lib/zone-staff";
 import { readViewAsState } from "@/lib/view-as";
+import { canOpenZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 // Resolving who is asking. The rules about what they may then do live in
 // access.ts and permissions/, which are pure and tested on their own — this
@@ -50,7 +51,7 @@ export function homeFor(role: Role): string {
  */
 export async function homeForUser(user: CurrentUser): Promise<string> {
   try {
-    if (can(user, "judgeSheet.view") && (await hasLiveZonePost(user.id))) return "/my-wave";
+    if (canOpenZoneScoreSheet(user) && (await hasLiveZonePost(user.id, new Date(), user))) return "/my-wave";
   } catch {
     // A refused route must never turn into a 500 because the grant lookup
     // hiccuped — the role's ordinary home is always a safe answer.

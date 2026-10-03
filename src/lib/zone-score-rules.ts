@@ -1,4 +1,5 @@
 import { can, type CurrentUser } from "@/lib/access";
+import { canViewZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHO MAY WRITE ONE ZONE OF ONE TEAM'S SCORE.
@@ -14,9 +15,9 @@ import { can, type CurrentUser } from "@/lib/access";
 //   Posts             a leader, judge or reserve writes only while they
 //                     hold the judge sheet (the Judge role): a post left
 //                     behind when the role is taken away opens nothing.
-//   Zone leader       any station of their own zone, for any wave that has
-//                     reached it, while the competition is running — the
-//                     zone's safety valve for a sheet a judge left open.
+//   Zone leader       any station of their own zone, after arrival and until
+//                     the end of that zone's changeover (no changeover after
+//                     the last zone). Earlier waves become read-only.
 //   Judge / reserve   only the team on their own station, and only in the
 //                     wave their zone is ON (floor.ts › waveOnDuty): while it
 //                     works there, in the changeover after, and until the
@@ -43,6 +44,8 @@ export type ZoneWriteFacts = {
   entryClosed?: boolean;
   /** The team's wave clock has run out (or the wave was ended). */
   waveEnded?: boolean;
+  /** The leader's zone window ended, or the supervisor ended the wave. */
+  zoneEntryClosed?: boolean;
 };
 
 export type ZoneWriteDecision =
@@ -54,6 +57,7 @@ export type ZoneWriteDecision =
         | "SCORE_LOCKED"
         | "SCORE_ENTRY_CLOSED"
         | "WAVE_CLOCK_ENDED"
+        | "ZONE_ENTRY_CLOSED"
         | "SERIES_NOT_LIVE"
         | "WAVE_NOT_HERE"
         | "WAVE_MOVED_ON"
@@ -76,10 +80,13 @@ export function canWriteZoneScore(facts: ZoneWriteFacts): ZoneWriteDecision {
     if (!post) return { allowed: false, reason: "WAVE_CLOCK_ENDED" };
   }
 
-  if (!post || !can(user, "judgeSheet.view")) return { allowed: false, reason: "FORBIDDEN" };
+  if (!post || !canViewZoneScoreSheet(user, post.position)) return { allowed: false, reason: "FORBIDDEN" };
   if (facts.seriesStatus !== "live") return { allowed: false, reason: "SERIES_NOT_LIVE" };
   if (!facts.reached) return { allowed: false, reason: "WAVE_NOT_HERE" };
-  if (post.position === "leader") return { allowed: true, as: "leader" };
+  if (post.position === "leader") {
+    if (facts.zoneEntryClosed || facts.waveEnded) return { allowed: false, reason: "ZONE_ENTRY_CLOSED" };
+    return { allowed: true, as: "leader" };
+  }
   if (!facts.onDuty) return { allowed: false, reason: "WAVE_MOVED_ON" };
   if (post.station === null) return { allowed: false, reason: "NO_STATION" };
   if (facts.team.station !== post.station) return { allowed: false, reason: "WRONG_STATION" };

@@ -12,10 +12,10 @@ import type { PermissionKey } from "./catalog.ts";
 // create a missing row (ensure-system-roles.ts never updates an existing one),
 // and as a fallback if a system row is somehow absent.
 //
-// KEPT IN SYNC WITH THE LIVE ROLES SCREEN, as of 2026-09-30: the permission
-// lists below are the live rows' own, so a fresh database, or a recreated row,
-// starts as the roles are really used — not thinner. permissions.test.ts pins
-// them to a snapshot: a difference from live is a review decision, not drift.
+// Based on the live Roles screen on 2026-09-30, with approved permission
+// changes accompanied by migrations for existing rows. A fresh database or
+// recreated row starts from these definitions. permissions.test.ts pins the
+// shipped permissions to a snapshot so changes remain review decisions.
 // BFT MENA's own custom roles (e.g. "Limited admin") are theirs and are not
 // shipped. The names, descriptions, assigners, account types and order could
 // not be read from live here and are unchanged.
@@ -207,7 +207,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Judge",
     nameAr: "حكم",
     description:
-      "Scores on the floor from the judge sheet: the team on their station in their zone. Placed as a zone LEADER, scores any station of that zone, places its judges on stations and starts the next wave.",
+      "Scores on the floor from the judge sheet: the team on their station in their zone. Placed as a zone LEADER, scores any station of that zone during work and changeover, places its judges on stations and starts the next wave.",
     assignableBy: "bft_studio",
     accountTypes: ["organiser", "studio", "staff"],
     sortOrder: 40,
@@ -223,14 +223,13 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     name: "Zone Leaders",
     nameAr: "قادة المناطق",
     description:
-      "Sees the competition as a viewer (waves and teams, Wave control read-only) and staffs the zone they lead: judges and reserves on and off, never leaders, never another zone.",
+      "Sees the competition as a viewer (waves and teams, Wave control read-only), enters scores for every station of the zones they lead while each zone is working or changing over, and staffs those zones: judges and reserves on and off, never leaders, never another zone.",
     assignableBy: "bft",
     accountTypes: ["organiser"],
     sortOrder: 45,
-    // A spectator with one job: staff the zone they lead. The zone itself is
-    // the leader POST (ZoneStaff), and zone-staff.ts checks it — the key
-    // below only says "this person may staff a zone they lead"; it names no
-    // zone. Everything else here is read-only viewing.
+    // The leader POST (ZoneStaff) determines the zone. leaderView opens only
+    // leader posts, without a judge leader's automatic Start or station
+    // placement powers. assignJudges still staffs only the zones they lead.
     permissions: [
       "competitions.view",
       "overview.view",
@@ -238,6 +237,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "waveControl.view",
       "zoneStaff.view",
       "zoneStaff.assignJudges",
+      "judgeSheet.leaderView",
+      "scores.enter",
     ],
   },
   {

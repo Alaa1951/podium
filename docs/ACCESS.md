@@ -16,7 +16,8 @@ A **role** says what a person can do; a **post** (Zone leader / Judge / Reserve,
 | **BFT MENA Partial** | The office's working set, as on the live Roles screen: **Registrations** end to end (create, edit, pair, withdraw, payment, the waiting list, export); **Users** (invite, edit, disable, delete, give roles, per-person overrides) and **Roles**; **Approvals**; competitions, studios, sponsors and **Settings**; **Score entry**; **Wave control** and zone teams; publishing results; the audit log; and the day's desks — **Entrance check-in**, **Warm-up check-in**, and changing a team's category or level at the athlete's request (any level, Pro included). | Correct or unlock a submitted score; change account types; create BFT MENA or gym accounts; change a stronger person's email or send them a reset link |
 | **Gym / Studio** | **Users:** invite its athletes and event staff, approve sign-ups that name it, give Athlete / Judge to its own people. **Registrations:** its own teams (edit, withdraw, pair; category or level at the athlete's request). **Entrance check-in / Warm-up check-in:** its own teams. **Waves:** view. **Scores / Results:** its own teams. **Announcements:** to its own people. | Wave control, Marshalling, payment, other gyms' data before the day; any floor button even if a role lists it |
 | **Organiser** (floor supervisor) | **Wave control:** start the day (on the competition's date), Start / End now / Reset a wave (Reset is refused once a zone of that wave is submitted); rig-screen links. **Entrance check-in:** each athlete or a whole team. **Warm-up check-in:** mark teams ready, wave by wave. **Marshalling:** view, check teams in. **Waves:** set the category schedule, create waves, set times, auto-assign, move a team by hand (it then runs manually) or return it to Auto Assign. **Zone teams:** put judges on zones, pick leaders, place stations. **Registrations:** view, check in, export (no money, no phone or email); create, edit and pair teams; change a team's category or level at the athlete's request. **Approvals, competitions, studios:** view. **T-shirts:** counts and list. **Scores / Results / Settings:** view. | Payment and the waiting list (BFT-only keys an organiser account never holds, though the role lists them), settings, the score console, corrections |
-| **Zone leader** (post) | **Judge sheet:** the zone's whole day, every station; scores any station once the wave reaches the zone; submits sheets a judge left open; places the zone's judges on stations; **Start** the next wave when Zone 1 is free. | End now / Reset; other zones |
+| **Zone Leaders** (role, with a leader post) | **Judge sheet:** every station of their assigned zones; types whole-number counts or uses the counter buttons during zone work and changeover. **Zone teams:** adds and removes judges and reserves on the zones they lead. **Wave control:** view. | Scores after the zone closes; Start / End now / Reset; placing stations; other zones |
+| **Judge assigned as a zone leader** (post) | **Judge sheet:** the zone's whole day, every station; scores any station during zone work and changeover; places the zone's judges on stations; **Start** the next wave when Zone 1 is free. | Scores after the zone closes; End now / Reset; other zones |
 | **Judge** (post) | **Judge sheet:** "You are on Zone Y · Station X"; every wave coming to that station today with the team, the athletes and whether they checked in; the next one highlighted with a countdown — before it starts. Scores **only** that station, only while the wave is in the zone. | Score before the wave arrives, after the next one comes, or another station; the console; either check-in desk; changing a team's category or level |
 | **Reserve** (post) | Until placed: the zone's whole day, every station, read-only. Once placed on a station: the same as a Judge. | Score before being placed |
 | **Volunteer** | **Marshalling:** where each wave is, where it goes next, who to call up — station by station, with names. **Entrance check-in** and **Warm-up check-in:** every team. Changes a team's category or level at the athlete's request. **Waves:** view. Live board. | Start or stop waves, score, change who is on a team, anything else |
@@ -146,7 +147,7 @@ Runs the floor of every competition: builds the waves and places teams, starts t
 
 ### Judge
 
-Scores on the floor from the judge sheet: the team on their station in their zone. Placed as a zone LEADER, scores any station of that zone, places its judges on stations and starts the next wave.
+Scores on the floor from the judge sheet: the team on their station in their zone. Placed as a zone LEADER, scores any station of that zone during work and changeover, places its judges on stations and starts the next wave.
 
 - **Given by:** BFT MENA and studios
 - **Meant for:** Organiser (event staff), Gym / Studio, BFT MENA · Limited (Partial) access
@@ -158,7 +159,7 @@ Scores on the floor from the judge sheet: the team on their station in their zon
 
 ### Zone Leaders
 
-Sees the competition as a viewer (waves and teams, Wave control read-only) and staffs the zone they lead: judges and reserves on and off, never leaders, never another zone.
+Sees the competition as a viewer (waves and teams, Wave control read-only), enters scores for every station of the zones they lead while each zone is working or changing over, and staffs those zones: judges and reserves on and off, never leaders, never another zone.
 
 - **Given by:** BFT MENA only
 - **Meant for:** Organiser (event staff)
@@ -170,6 +171,8 @@ Sees the competition as a viewer (waves and teams, Wave control read-only) and s
 | Competition | Wave schedule | View |
 | Competition | Wave control | View |
 | Competition | Zone teams | View; Put judges and reserves on the zones they lead — never leaders, never another zone |
+| Competition | Scores | Enter scores |
+| Personal | Judge sheet | View score sheets for zones they lead |
 
 ### Volunteer
 
@@ -211,11 +214,11 @@ Their own profile, partner, team and wave.
 
 ## On the floor: zone posts
 
-Floor work is not only roles: it is a **post** on a zone of one competition (`ZoneStaff`). Posts are set on **Wave control → Zone teams** by whoever holds `zoneStaff.assign` (the Organiser role, BFT MENA). Only people whose roles carry the judge sheet — `judgeSheet.view` and `scores.enter`, i.e. the **Judge** role — can be put on a zone. A post opens nothing once its holder loses the Judge role.
+Floor work is not only roles: it is a **post** on a zone of one competition (`ZoneStaff`). Posts are set on **Wave control → Zone teams** by whoever holds `zoneStaff.assign` (the Organiser role, BFT MENA). Judges and reserves need `judgeSheet.view` and `scores.enter`. Leaders may instead hold `judgeSheet.leaderView` and `scores.enter` (the **Zone Leaders** role); this qualifies them for leader posts only. The picker resolves personal grants and locks as well as roles. A post opens nothing once its holder loses the matching sheet permission.
 
 | Post | Scores | Also | Rule in |
 | --- | --- | --- | --- |
-| **Zone leader** (one or more per zone) | any station of their zone, for any wave that reached it — including a sheet a judge left open | places the zone's judges on stations (from their sheet); **starts the next wave** (Start only) | `zone-score-rules.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |
+| **Zone leader** (one or more per zone) | any station of their zone from arrival through changeover; closes at the end of changeover (end of work in the last zone), or immediately on End now | **Judge** sheet permission also places stations and starts the next wave; **leader-only** sheet permission grants neither | `zone-score-rules.ts`, `zone-sheet-access.ts`, `access.ts › canControlWave`, `actions/zone-staff.ts` |
 | **Judge** | only the team on their own station, in the wave their zone is **on** | — | `zone-score-rules.ts`, `floor.ts › zoneDuty` |
 | **Reserve** | same as a judge, once placed on a station | — | `zone-score-rules.ts` |
 
@@ -233,7 +236,7 @@ Below that, the **scoring card** shows **one team**: the one on the judge's stat
 | A wave is working in Zone N, or changing zones after it | the station's team, with the zone timer. "No team on your station in this wave" if the wave has none there. |
 | That wave has moved on, sheet not submitted | the team stays, marked "has left your zone — submit before the next wave arrives". |
 | That wave has moved on, sheet submitted | "No team on your zone or station right now", and when the next wave arrives. |
-| The next wave reaches Zone N | its team replaces the last one. A sheet still open from the last wave is closed for the judge; **the zone leader** (or BFT MENA in the console) submits it. |
+| The next wave reaches Zone N | its team replaces the last one. A sheet still open from the last wave is closed for the judge; **BFT MENA** handles any outstanding entry. |
 
 A wave appears on the sheet **by itself**: the sheet re-reads every 5 seconds, and exactly when the clock brings a wave into the zone. A wave ended early (End now) never reaches the zones it had not started — those zones never see its teams.
 
@@ -242,9 +245,12 @@ A judge or leader can write a zone only when **all** of these hold (`src/lib/zon
 1. the competition is **Running**;
 2. the team's wave has **reached that zone** (its work there began, before any early end);
 3. for a judge or reserve: that wave is the one the zone is **on** (not one it has moved on from);
-4. the zone is **not submitted** yet for that team (a submitted zone is locked);
-5. the competition's **score-entry cut-off** has not passed;
-6. a judge (not a leader) has been **placed on a station**, and it is the team's station.
+4. for a leader: that zone's work or changeover has **not ended**; the last zone closes at the end of work, and End now closes leader entry immediately;
+5. the zone is **not submitted** yet for that team (a submitted zone is locked);
+6. the competition's **score-entry cut-off** has not passed;
+7. a judge (not a leader) has been **placed on a station**, and it is the team's station.
+
+Leaders can type whole-number reps and rounds directly, with the counter buttons still available. Other zones' score values are excluded on the server before the sheet reaches the browser. The server checks the leader's assignment, permissions and closing time again inside the save transaction after waiting for locks. Closing a zone leaves saved drafts as drafts; nothing is submitted automatically.
 
 ## Scores
 
@@ -255,7 +261,7 @@ A judge or leader can write a zone only when **all** of these hold (`src/lib/zon
 | **Corrections** | BFT MENA Full access only | *Unlock for correction* returns a submitted score to draft; nobody else can be given `scores.correct` or `scores.unlock`. |
 
 - Organisers, judges, gyms and athletes **never** write from the console, whatever keys they hold (`canWriteScore`, `src/lib/access.ts`). The Judge role holds `scores.enter` for the floor; it does not open the console.
-- After a wave's clock ends, the console is closed for everyone but Full access. A judge can still submit the last wave's open sheet until the next wave reaches their zone; the zone leader can submit any open sheet of their zone until the score-entry cut-off.
+- After a wave's clock ends, the console is closed for everyone but Full access. A judge or reserve can still submit the last wave's open sheet until the next wave reaches their zone. A leader's entry closes at the end of that zone's changeover (work time in the last zone), or immediately if the wave is ended early; BFT MENA handles the outstanding entry through its existing console rules.
 - **Finisher (last zone) time** is what the wave clock had left when the team finished, and never more than one zone's work time (`finisherRemainingMs`, `src/lib/floor.ts`). The Stop button opens only when the last zone begins; ending a wave early records 0:00 for teams that never reached the finisher.
 
 ## Wave control
@@ -285,8 +291,8 @@ One account per role, to walk the app as that role. BFT MENA Full access has non
 | `test_bft_limited@bftmiddleeast.com` | BFT MENA · Limited (Partial) access | BFT MENA Partial | — | BFT MENA staff with the live BFT MENA Partial role: the console, competitions and the score console. |
 | `test_studio@bftmiddleeast.com` | Gym / Studio | Gym / Studio | — | A gym's own area, on the empty sandbox studio: its people, its teams, its waves. Sees no real studio's data. |
 | `test_organiser@bftmiddleeast.com` | Organiser (event staff) | Organiser | — | Runs the floor: waves, stations, Wave control (start, end, reset), zone teams; entrance and warm-up check-in; category or level changes at an athlete's request; creates, edits and pairs teams. |
-| `test_zone_leader@bftmiddleeast.com` | Organiser (event staff) | Judge | Zone leader | A judge put on a zone as its LEADER: scores any station of the zone, places the zone's judges, starts the next wave. |
-| `test_zone_leaders@bftmiddleeast.com` | Organiser (event staff) | Zone Leaders | Zone leader | The Zone Leaders role, put on a zone as its leader: sees the competition as a viewer and Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no scoring, no desks, no settings. |
+| `test_zone_leader@bftmiddleeast.com` | Organiser (event staff) | Judge | Zone leader | A judge put on a zone as its LEADER: scores any station during the zone's work and changeover, places the zone's judges, starts the next wave. |
+| `test_zone_leaders@bftmiddleeast.com` | Organiser (event staff) | Zone Leaders | Zone leader | The Zone Leaders role, put on a zone as its leader: enters numeric scores for every station of that zone during work and changeover; sees Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no Start, desks or settings. |
 | `test_judge@bftmiddleeast.com` | Organiser (event staff) | Judge | Judge, station 1 | Judge 1, on station 1 of the zone: sees and scores only the station-1 team of the wave the zone is on. |
 | `test_judge2@bftmiddleeast.com` | Organiser (event staff) | Judge | Judge, station 2 | Judge 2, on station 2 of the same zone — to check that each judge sees only their own station. |
 | `test_volunteer@bftmiddleeast.com` | Organiser (event staff) | Volunteer | — | Sees the wave schedule, Marshalling and the live board; runs entrance and warm-up check-in; changes a team's category or level at an athlete's request. |
@@ -396,7 +402,7 @@ Decisions the code makes on purpose, or has not made yet:
 | Zone teams | Put judges on zones and pick zone leaders | `zoneStaff.assign` | role | ✓ |  | ✓ |  |  |  |  |  |
 | Zone teams | Put judges and reserves on the zones they lead — never leaders, never another zone | `zoneStaff.assignJudges` | role |  |  |  |  | ✓ |  |  |  |
 | Scores | View | `scores.view` | role | ✓ | ✓ | ✓ |  |  |  |  |  |
-| Scores | Enter scores | `scores.enter` | role | ✓ |  |  | ✓ |  |  |  |  |
+| Scores | Enter scores | `scores.enter` | role | ✓ |  |  | ✓ | ✓ |  |  |  |
 | Scores | Correct a submitted score | `scores.correct` | Full access only |  |  |  |  |  |  |  |  |
 | Scores | Unlock a submitted score | `scores.unlock` | Full access only |  |  |  |  |  |  |  |  |
 | Results | View | `results.view` | role | ✓ | ✓ | ✓ |  |  |  | ✓ |  |
@@ -415,6 +421,7 @@ Decisions the code makes on purpose, or has not made yet:
 | Partner | Find a partner | `partner.browse` | role | ✓ |  |  |  |  |  |  | ✓ |
 | Partner | Send partner requests | `partner.request` | role | ✓ |  |  |  |  |  |  | ✓ |
 | Judge sheet | View | `judgeSheet.view` | role | ✓ |  |  | ✓ |  |  |  |  |
+| Judge sheet | View score sheets for zones they lead | `judgeSheet.leaderView` | role |  |  |  |  | ✓ |  |  |  |
 
 `·` always on for everyone signed in.
 

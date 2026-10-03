@@ -5,7 +5,7 @@
  * them the right facts from the database — every wave of the competition,
  * the team's own wave, the post, the clock.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireUser: vi.fn(),
@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   findPost: vi.fn(),
   findWaves: vi.fn(),
   transaction: vi.fn(),
+  lock: vi.fn(),
+  permissions: vi.fn(),
 }));
 
 vi.mock("@/lib/session", async () => {
@@ -43,6 +45,7 @@ vi.mock("@/lib/queries", () => ({
 vi.mock("@/lib/wave-clock", () => ({
   floorTimingFor: vi.fn(async () => ({ workMinutes: 15, breakMinutes: 5, zoneCount: 4 })),
 }));
+vi.mock("@/lib/permissions/load", () => ({ loadPermissions: mocks.permissions }));
 vi.mock("@/lib/audit", () => ({ recordAudit: vi.fn(), AUDIT: {} }));
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: vi.fn() }));
 
@@ -78,10 +81,14 @@ beforeEach(() => {
   mocks.requireUser.mockResolvedValue(judge);
   mocks.countTeam.mockResolvedValue(1);
   mocks.findPost.mockResolvedValue({ position: "judge", station: 1 });
+  mocks.permissions.mockImplementation(async () => (await mocks.requireUser()).permissions);
   // The write itself: an empty score, then the entry, no audit worth checking.
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
-      $queryRaw: vi.fn(),
+      $queryRaw: mocks.lock,
+      team: { findUnique: mocks.findTeam },
+      zoneStaff: { findUnique: mocks.findPost },
+      wave: { findMany: mocks.findWaves },
       score: { findUnique: vi.fn(async () => null), upsert: vi.fn(async () => ({ id: "score", status: "draft" })), update: vi.fn() },
       zoneEntry: { upsert: vi.fn() },
       scoreAudit: { createMany: vi.fn() },
@@ -89,6 +96,7 @@ beforeEach(() => {
     })
   );
 });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("a judge writes only the wave their zone is on", () => {
   it("scores the team working in their zone", async () => {
@@ -133,13 +141,13 @@ describe("a judge writes only the wave their zone is on", () => {
   });
 });
 
-describe("the zone leader is the safety valve", () => {
-  it("finishes an earlier wave's open sheet after the next wave arrived", async () => {
+describe("the zone leader's bounded entry window", () => {
+  it("refuses an earlier wave's open sheet after its transition ended", async () => {
     mocks.requireUser.mockResolvedValue(leader);
     mocks.findPost.mockResolvedValue({ position: "leader", station: null });
     mocks.findTeam.mockResolvedValue(teamOn("w1", 4));
     mocks.findWaves.mockResolvedValue([wave("w1", 25), wave("w2", 3)]);
-    expect(await write(1)).toEqual({ ok: true });
+    expect(await write(1)).toEqual({ ok: false, error: "ZONE_ENTRY_CLOSED" });
   });
 
   it("but never a wave that did not reach the zone", async () => {
@@ -148,5 +156,56 @@ describe("the zone leader is the safety valve", () => {
     mocks.findTeam.mockResolvedValue(teamOn("w1", 4));
     mocks.findWaves.mockResolvedValue([wave("w1", 5)]);
     expect(await write(3)).toEqual({ ok: false, error: "WAVE_NOT_HERE" });
+  });
+
+  it.each([5, 15, 19.999])("allows every station during work and changeover at minute %s", async (minutes) => {
+    mocks.requireUser.mockResolvedValue({ ...leader, permissions: ["judgeSheet.leaderView", "scores.enter"] });
+    mocks.findPost.mockResolvedValue({ position: "leader", station: null });
+    mocks.findTeam.mockResolvedValue(teamOn("w1", 9));
+    mocks.findWaves.mockResolvedValue([wave("w1", minutes)]);
+    expect(await write(1)).toEqual({ ok: true });
+  });
+
+  it.each([20, 20.001, 75])("closes at or after the changeover boundary, minute %s", async (minutes) => {
+    mocks.requireUser.mockResolvedValue(leader);
+    mocks.findPost.mockResolvedValue({ position: "leader", station: null });
+    mocks.findTeam.mockResolvedValue(teamOn("w1"));
+    mocks.findWaves.mockResolvedValue([wave("w1", minutes)]);
+    expect(await write(1)).toEqual({ ok: false, error: "ZONE_ENTRY_CLOSED" });
+  });
+
+  it("rechecks the deadline after waiting for the team lock", async () => {
+    vi.useFakeTimers();
+    mocks.requireUser.mockResolvedValue(leader);
+    mocks.findPost.mockResolvedValue({ position: "leader", station: null });
+    mocks.findTeam.mockResolvedValue(teamOn("w1"));
+    mocks.findWaves.mockResolvedValue([wave("w1", 19.99)]);
+    mocks.lock.mockImplementation(async (sql: TemplateStringsArray) => {
+      if (sql.join("").includes("Team")) vi.setSystemTime(Date.now() + 1000);
+    });
+    expect(await write(1)).toEqual({ ok: false, error: "ZONE_ENTRY_CLOSED" });
+    expect(mocks.lock.mock.calls[0][0].join("")).toContain("Wave");
+    expect(mocks.lock.mock.calls[1][0].join("")).toContain("Team");
+  });
+
+  it("rereads a removed leader post and revoked role after waiting", async () => {
+    mocks.requireUser.mockResolvedValue(leader);
+    mocks.findTeam.mockResolvedValue(teamOn("w1"));
+    mocks.findWaves.mockResolvedValue([wave("w1", 5)]);
+    mocks.findPost.mockResolvedValueOnce({ position: "leader", station: null }).mockResolvedValue(null);
+    expect(await write(1)).toEqual({ ok: false, error: "FORBIDDEN" });
+    mocks.findPost.mockResolvedValue({ position: "leader", station: null });
+    mocks.permissions.mockResolvedValue([]);
+    expect(await write(1)).toEqual({ ok: false, error: "FORBIDDEN" });
+  });
+
+  it("refuses a last-zone write at the wave end and an early End now", async () => {
+    mocks.requireUser.mockResolvedValue(leader);
+    mocks.findPost.mockResolvedValue({ position: "leader", station: null });
+    mocks.findTeam.mockResolvedValue(teamOn("w1"));
+    mocks.findWaves.mockResolvedValue([wave("w1", 75)]);
+    expect(await write(4)).toEqual({ ok: false, error: "ZONE_ENTRY_CLOSED" });
+    mocks.findWaves.mockResolvedValue([wave("w1", 10, "complete", 1)]);
+    expect(await write(1)).toEqual({ ok: false, error: "ZONE_ENTRY_CLOSED" });
   });
 });

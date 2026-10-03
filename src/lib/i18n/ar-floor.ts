@@ -66,6 +66,22 @@ export const AR_FLOOR: Phrases = {
   "Submit zone": "إرسال المنطقة",
   Submitted: "تم الإرسال",
   Open: "مفتوحة",
+  Closed: "مقفولة",
+  "Earlier waves": "الموجات السابقة",
+  "You are on the floor as a zone leader.": "أنت على أرض البطولة كقائد زون.",
+  "Every team in your assigned zones. Enter scores during work and changeover; after that, ask BFT MENA for corrections.":
+    "كل فرق الزونات المعيّن قائدًا عليها. سجّل الدرجات أثناء العمل والانتقال؛ بعد ذلك اطلب التصحيح من BFT MENA.",
+  "has left your zone — entry is closed. Ask BFT MENA for corrections.":
+    "خرجت من الزون — إدخال الدرجات اتقفل. اطلب التصحيح من BFT MENA.",
+  "Score entry for this zone has ended. Ask BFT MENA for any correction.":
+    "وقت إدخال الدرجات للزون دي انتهى. اطلب أي تصحيح من BFT MENA.",
+  "Some changes were not saved before entry closed. Ask BFT MENA to record them.":
+    "فيه تغييرات لم تُحفظ قبل قفل الإدخال. اطلب من BFT MENA تسجيلها.",
+  "Enter a whole number within the allowed range.": "اكتب عددًا صحيحًا في النطاق المسموح.",
+  "This wave restarted. Reload your score sheet before entering scores.":
+    "الموجة دي بدأت من جديد. حدّث ورقة الدرجات قبل ما تسجّل درجات.",
+  "The next wave has reached your zone, so this team is closed for you. Ask BFT MENA for any correction.":
+    "الموجة الجاية وصلت الزون بتاعتك، فالفريق ده اتقفل عليك. اطلب أي تصحيح من BFT MENA.",
   "You are not on a zone yet.": "لم يتم وضعك في أي منطقة بعد.",
   "The supervisor puts judges on zones from Wave control, and your zone leader places you on a station.":
     "المشرف يضع الحكام في المناطق من شاشة التحكم في الموجات، وقائد منطقتك يضعك على محطة.",

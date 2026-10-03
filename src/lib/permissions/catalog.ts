@@ -338,7 +338,10 @@ export const CATALOG = {
       judgeSheet: {
         label: "Judge sheet",
         labelAr: "ورقة الحكم",
-        actions: { view: view() },
+        actions: {
+          view: view(),
+          leaderView: act("View score sheets for zones they lead", "عرض درجات المناطق التي يقودها فقط"),
+        },
       },
     },
   },

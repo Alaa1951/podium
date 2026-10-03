@@ -11,6 +11,7 @@ import { requireSeries, seriesHref } from "@/lib/require-series";
 import { countWaitingList } from "@/lib/waiting-list";
 import { getCurrentUser, homeForUser } from "@/lib/session";
 import { getTheme } from "@/lib/theme-server";
+import { canOpenZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,12 @@ export default async function CompetitionLayout({
     countWaitingList(series.id, { includeIntake: isBft(user), scope: teamScope(user) }),
     // Somebody who also works a zone of this competition: their sheet is one
     // press away from the console, not only from the page they landed on.
-    can(user, "judgeSheet.view") ? prisma.zoneStaff.count({ where: { userId: user.id, seriesId: series.id } }) : Promise.resolve(0),
+    canOpenZoneScoreSheet(user)
+      ? prisma.zoneStaff.count({ where: {
+          userId: user.id, seriesId: series.id,
+          ...(!can(user, "judgeSheet.view") ? { position: "leader" as const } : {}),
+        } })
+      : Promise.resolve(0),
   ]);
 
   // The public results item mirrors what a stranger sees at /results: it only
@@ -79,7 +85,7 @@ export default async function CompetitionLayout({
       items: allowed([
         { href: at("board"), label: t("Live board 1"), key: "board.view" },
         { href: `${at("board")}?board=2`, label: t("Live board 2"), key: "board.view" },
-        ...(posts > 0 ? [{ href: "/my-wave", label: t("My score sheet"), key: "judgeSheet.view" as const }] : []),
+        ...(posts > 0 ? [{ href: "/my-wave", label: t("My score sheet"), key: "judgeSheet.view" as const, also: ["judgeSheet.leaderView" as const] }] : []),
         { href: at(), label: t("Overview"), key: "overview.view" },
       ]),
     },

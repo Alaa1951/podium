@@ -5,14 +5,15 @@ import { startTransition, useEffect, useMemo, useSyncExternalStore } from "react
 import { createScoreAutosaveQueue, type AutosaveResult, type ScorePatch } from "@/lib/score-autosave";
 
 /** The writer is memoized by team/zone identity, so queued work cannot ever
- * move to a different team when a route changes. */
-export function useScoreAutosave(write: (values: ScorePatch) => Promise<AutosaveResult>) {
-  const queue = useMemo(() => createScoreAutosaveQueue((values) => new Promise((resolve, reject) => {
+ * move to a different team when a route changes. An optional identity starts
+ * a fresh queue after a wave restart or an explicitly reopened entry. */
+export function useScoreAutosave(write: (values: ScorePatch) => Promise<AutosaveResult>, identity?: string) {
+  const { queue } = useMemo(() => ({ identity, queue: createScoreAutosaveQueue((values) => new Promise((resolve, reject) => {
     startTransition(async () => {
       try { resolve(await write(values)); }
       catch (error) { reject(error); }
     });
-  })), [write]);
+  })) }), [write, identity]);
   const state = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
 
   useEffect(() => {
@@ -28,5 +29,5 @@ export function useScoreAutosave(write: (values: ScorePatch) => Promise<Autosave
     };
   }, [queue]);
 
-  return { ...state, enqueue: queue.enqueue, flush: queue.flush, retry: queue.retry };
+  return { ...state, enqueue: queue.enqueue, flush: queue.flush, retry: queue.retry, terminate: queue.terminate };
 }

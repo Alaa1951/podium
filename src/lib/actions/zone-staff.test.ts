@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   countStaff: vi.fn(),
   findStaffRow: vi.fn(),
   deleteStaff: vi.fn(),
+  updateStaff: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ requireUser: mocks.requireUser }));
@@ -40,16 +41,19 @@ vi.mock("@/lib/prisma", () => ({
       count: mocks.countStaff,
       findUnique: mocks.findStaffRow,
       delete: mocks.deleteStaff,
+      update: mocks.updateStaff,
     },
   },
 }));
 
-import { addZoneStaff, removeZoneStaff } from "@/lib/actions/zone-staff";
+import { addZoneStaff, removeZoneStaff, setZoneStaffStation } from "@/lib/actions/zone-staff";
 
 const actor = { id: "assigner-1", viewAs: null };
 
 /** The actor's permission set: full, judges-only, or neither. */
-const holds = (...keys: string[]) => mocks.can.mockImplementation((_user, key: string) => keys.includes(key));
+const holds = (...keys: string[]) => mocks.can.mockImplementation((user, key: string) =>
+  user.permissions ? user.role === "admin" || user.permissions.includes(key) : keys.includes(key)
+);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -110,6 +114,14 @@ describe("addZoneStaff — the Zone Leaders role (zoneStaff.assignJudges)", () =
     expect(result).toEqual({ ok: false, error: "FORBIDDEN" });
     expect(mocks.upsertStaff).not.toHaveBeenCalled();
   });
+
+  it.each(["judge", "reserve"])("cannot demote an existing leader to %s through upsert", async (position) => {
+    holds("zoneStaff.assignJudges");
+    mocks.countStaff.mockResolvedValue(1);
+    mocks.findStaffRow.mockResolvedValue({ position: "leader" });
+    expect(await addZoneStaff({ zoneId: "zone-1", userId: "user-2", position })).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(mocks.upsertStaff).not.toHaveBeenCalled();
+  });
 });
 
 describe("removeZoneStaff", () => {
@@ -155,5 +167,44 @@ describe("both roles alike", () => {
     const result = await addZoneStaff({ zoneId: "zone-1", userId: "user-2", position: "judge" });
     expect(result).toEqual({ ok: false, error: "NOT_A_JUDGE" });
     expect(mocks.upsertStaff).not.toHaveBeenCalled();
+  });
+});
+
+describe("leader-only score sheet access", () => {
+  beforeEach(() => {
+    holds("zoneStaff.assign");
+    mocks.loadPermissions.mockResolvedValue(["judgeSheet.leaderView", "scores.enter"]);
+  });
+
+  it("allows a supervisor to appoint a Zone Leaders account as leader", async () => {
+    expect(await addZoneStaff({ zoneId: "zone-1", userId: "user-2", position: "leader" })).toEqual({ ok: true });
+    expect(mocks.upsertStaff).toHaveBeenCalled();
+  });
+
+  it.each(["judge", "reserve"])("does not qualify the account as %s", async (position) => {
+    expect(await addZoneStaff({ zoneId: "zone-1", userId: "user-2", position })).toEqual({ ok: false, error: "NOT_A_JUDGE" });
+    expect(mocks.upsertStaff).not.toHaveBeenCalled();
+  });
+
+  it("honors a personal lock on score entry when appointing a leader", async () => {
+    mocks.loadPermissions.mockResolvedValue(["judgeSheet.leaderView"]);
+    expect(await addZoneStaff({ zoneId: "zone-1", userId: "user-2", position: "leader" })).toEqual({ ok: false, error: "NOT_A_JUDGE" });
+    expect(mocks.upsertStaff).not.toHaveBeenCalled();
+  });
+
+  it("does not grant station placement to the new sheet permission", async () => {
+    holds("judgeSheet.leaderView", "scores.enter", "zoneStaff.assignJudges");
+    mocks.findStaffRow.mockResolvedValue({ id: "s1", zoneId: "zone-1", seriesId: "series-1", userId: "judge", position: "judge", zone: { number: 1 } });
+    mocks.countStaff.mockResolvedValue(1);
+    expect(await setZoneStaffStation({ staffId: "s1", station: 1 })).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(mocks.updateStaff).not.toHaveBeenCalled();
+  });
+
+  it("preserves station placement for a Judge who leads the zone", async () => {
+    holds("judgeSheet.view", "scores.enter");
+    mocks.findStaffRow.mockResolvedValue({ id: "s1", zoneId: "zone-1", seriesId: "series-1", userId: "judge", position: "judge", zone: { number: 1 } });
+    mocks.countStaff.mockResolvedValue(1);
+    expect(await setZoneStaffStation({ staffId: "s1", station: 1 })).toEqual({ ok: true });
+    expect(mocks.updateStaff).toHaveBeenCalledWith({ where: { id: "s1" }, data: { station: 1 } });
   });
 });

@@ -11,6 +11,7 @@ import {
   remainingClock,
   waveOnDuty,
   zoneArrival,
+  zoneScoreEntryClosesAt,
   zoneDuty,
   type FloorWave,
   waveLengthMinutes,
@@ -86,6 +87,23 @@ const row = (id: string, startedAt: Date | null, status: "pending" | "running" |
   status,
   startedAt,
   endsAt: endsAt ?? (startedAt ? new Date(startedAt.getTime() + 75 * 60_000) : null),
+});
+
+describe("the leader's zone entry deadline", () => {
+  it("includes the changeover and omits it for the last zone", () => {
+    expect(zoneScoreEntryClosesAt(row("w1", start), 0, FOUR)).toEqual(at(20));
+    expect(zoneScoreEntryClosesAt(row("w1", start), 1, FOUR)).toEqual(at(40));
+    expect(zoneScoreEntryClosesAt(row("w1", start), 3, FOUR)).toEqual(at(75));
+  });
+  it("clips a zone at an early end and handles zero changeover", () => {
+    expect(zoneScoreEntryClosesAt(row("w1", start, "complete", at(10)), 0, FOUR)).toEqual(at(10));
+    expect(zoneScoreEntryClosesAt(row("w1", start), 0, { ...FOUR, breakMinutes: 0 })).toEqual(at(15));
+  });
+  it("has no window before start, after reset, or for a missing zone", () => {
+    expect(zoneScoreEntryClosesAt(row("w1", null, "pending"), 0, FOUR)).toBeNull();
+    expect(zoneScoreEntryClosesAt(row("w1", start, "pending"), 0, FOUR)).toBeNull();
+    expect(zoneScoreEntryClosesAt(row("w1", start), 4, FOUR)).toBeNull();
+  });
 });
 
 describe("when a wave reaches a zone", () => {

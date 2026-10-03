@@ -64,7 +64,7 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     accountType: "organiser",
     roles: ["judge"],
     post: "leader",
-    purpose: "A judge put on a zone as its LEADER: scores any station of the zone, places the zone's judges, starts the next wave.",
+    purpose: "A judge put on a zone as its LEADER: scores any station during the zone's work and changeover, places the zone's judges, starts the next wave.",
   },
   {
     slug: "zone_leaders",
@@ -73,7 +73,7 @@ export const TEST_ACCOUNTS: TestAccountDef[] = [
     roles: ["zone-leaders"],
     post: "leader",
     purpose:
-      "The Zone Leaders role, put on a zone as its leader: sees the competition as a viewer and Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no scoring, no desks, no settings.",
+      "The Zone Leaders role, put on a zone as its leader: enters numeric scores for every station of that zone during work and changeover; sees Wave control read-only; adds and removes judges and reserves on the zone they lead and no other, never leaders; no Start, desks or settings.",
   },
   {
     slug: "judge",

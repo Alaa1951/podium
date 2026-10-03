@@ -66,7 +66,7 @@ test("a judge sees their zone, their station and its team — never the whole fi
   const context = await browser.newContext({ ...info.project.use, baseURL: origin });
   await context.addCookies([
     { name: "podium_locale", value: locale, url: origin },
-    { name: "next-auth.session-token", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
+    { name: process.env.MOBILE_QA_PRODUCTION === "1" ? "__Secure-next-auth.session-token" : "next-auth.session-token", secure: process.env.MOBILE_QA_PRODUCTION === "1", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
       token: { sub: judge.id, id: judge.id, email: judge.email, name: judge.name, role: "organiser", studioId: null, status: "active", locale, expiresAt: Date.now() + 3_600_000, refreshedAt: Date.now() } }) },
   ]);
   const page = await context.newPage();

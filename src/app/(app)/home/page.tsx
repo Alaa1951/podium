@@ -8,6 +8,7 @@ import { can, canAny, type PermissionKey } from "@/lib/access";
 import { getTranslator } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { homeForUser, requireUser } from "@/lib/session";
+import { canOpenZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 export const dynamic = "force-dynamic";
 
@@ -79,9 +80,13 @@ export default async function HomePage() {
   const platformDoors = user.role === "staff" ? open(platform) : [];
   // A post is worked through the judge sheet: without it (the Judge role
   // taken away) a leftover post opens nothing, so it offers nothing either.
-  const grant = can(user, "judgeSheet.view")
+  const grant = canOpenZoneScoreSheet(user)
     ? await prisma.zoneStaff.findFirst({
-        where: { userId: user.id, series: { status: { in: ["scheduled", "live"] } } },
+        where: {
+          userId: user.id,
+          ...(!can(user, "judgeSheet.view") ? { position: "leader" as const } : {}),
+          series: { status: { in: ["scheduled", "live"] }, archivedAt: null },
+        },
         select: { id: true },
       })
     : null;

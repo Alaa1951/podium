@@ -965,6 +965,7 @@ select.input { cursor: pointer; }
   font-size: 22px;
   text-align: end;
 }
+.team-entry-count .team-entry-number { min-width: 0; flex: 1; text-align: center; }
 
 .team-entry-foot { display: flex; align-items: center; gap: 16px; }
 .team-entry-save {

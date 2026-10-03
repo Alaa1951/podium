@@ -10,13 +10,14 @@ import { WaveFloor, type FloorTeam } from "@/components/floor/wave-floor";
 import { JudgeDay } from "@/components/floor/judge-day";
 import { WaveChangePanel } from "@/components/me/wave-change-panel";
 import { can } from "@/lib/access";
-import { zoneArrival, zoneDuty, type FloorTiming } from "@/lib/floor";
+import { zoneArrival, zoneDuty, zoneScoreEntryClosesAt, type FloorTiming } from "@/lib/floor";
 import { getTranslator } from "@/lib/i18n/server";
 import { loadJudgeDay } from "@/lib/judge-day";
 import { prisma } from "@/lib/prisma";
 import { getSeriesWaves, getSeriesZones } from "@/lib/queries";
 import { homeFor, requireUser } from "@/lib/session";
 import { judgePostsFor, listZoneStaff } from "@/lib/zone-staff";
+import { canOpenZoneScoreSheet, canViewZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +39,10 @@ function clock(ms: number | null) {
  * clock changes something, so a started wave appears on its own. The server
  * writes by the same rules (saveZoneScore).
  *
- * A zone LEADER sees every station of their zone, finishes any sheet a judge
- * left open, places the judges and reserves on stations, and starts the next
- * wave. An athlete with no post sees their own wave.
+ * A zone LEADER sees every station of their zone and can score until that
+ * wave's changeover ends. Earlier sheets stay visible for reference. The
+ * existing judge-sheet permission also permits station placement and Start.
+ * An athlete with no post sees their own wave.
  */
 type Post = Awaited<ReturnType<typeof judgePostsFor>>[number];
 
@@ -75,9 +77,11 @@ function dayAhead(post: Post, day: Parameters<typeof JudgeDay>[0]["day"] | null,
 export default async function MyWavePage(detailId?: string, requestedSeries?: string) {
   const user = await requireUser();
   const { t } = await getTranslator();
-  // Posts are worked through the Judge sheet: without it (the Judge role
-  // taken away) a leftover ZoneStaff row opens nothing.
-  const posts = can(user, "judgeSheet.view") ? await judgePostsFor(user.id) : [];
+  // Leader-only sheet access opens actual leader posts, never leftover judge
+  // or reserve assignments and never another zone's score entry.
+  const posts = canOpenZoneScoreSheet(user)
+    ? (await judgePostsFor(user.id)).filter((post) => canViewZoneScoreSheet(user, post.position))
+    : [];
 
   if (posts.length === 0 && user.role === "competitor" && !detailId) {
     const selected = await resolveMySeries(user.id, requestedSeries);
@@ -151,7 +155,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
         getSeriesZones(post.seriesId),
         prisma.series.findUnique({
           where: { id: post.seriesId },
-          select: { zoneWorkMinutes: true, zoneBreakMinutes: true },
+          select: { status: true, zoneWorkMinutes: true, zoneBreakMinutes: true, scoreEntryClosesAt: true },
         }),
         prisma.wave.findMany({
           where: { seriesId: post.seriesId, NOT: { startedAt: null } },
@@ -173,8 +177,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       //   • a judge or reserve: the team on their station, in the wave their
       //     zone is ON — nothing that has not reached the zone, nothing the
       //     zone has moved on from, no other station;
-      //   • the zone leader: every station of that wave, and any earlier
-      //     wave's sheet still not submitted (the zone's safety valve).
+      //   • the zone leader: every station of every reached wave; earlier
+      //     waves remain visible with the same deadline enforced on writes.
       const duty = zoneDuty(waves, zoneIndex, timing, now);
       const leader = post.position === "leader";
       const reachedWaves = waves.filter((wave) => zoneArrival(wave, zoneIndex, timing, now) !== null);
@@ -198,7 +202,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
               competitors: { select: { fullName: true }, orderBy: { position: "asc" } },
               score: {
                 select: {
-                  entries: { select: { inputId: true, value: true } },
+                  updatedAt: true,
+                  entries: { where: { input: { zoneId: post.zone.id } }, select: { inputId: true, value: true } },
                   zones: { where: { zoneId: post.zone.id, status: "submitted" }, select: { zoneId: true } },
                 },
               },
@@ -208,6 +213,17 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
       const toEntry = (team: (typeof teams)[number]): ZoneEntryTeam => {
         const wave = shownWaves.find((row) => row.id === team.waveId)!;
+        const zoneDeadline = leader ? zoneScoreEntryClosesAt(wave, zoneIndex, timing) : null;
+        const seriesDeadline = series?.scoreEntryClosesAt ?? null;
+        const seriesClosesFirst = !!seriesDeadline && (!zoneDeadline || seriesDeadline <= zoneDeadline);
+        const deadline = seriesClosesFirst ? seriesDeadline : zoneDeadline;
+        const deadlineReason = seriesClosesFirst ? "SCORE_ENTRY_CLOSED" : "ZONE_ENTRY_CLOSED";
+        const inputIds = new Set(zone?.inputs.map((input) => input.id) ?? []);
+        const entryClosedReason = user.viewAs || !can(user, "scores.enter") ? "FORBIDDEN"
+          : (series?.status ?? post.series.status) !== "live" ? "SERIES_NOT_LIVE"
+          : seriesDeadline && now >= seriesDeadline ? "SCORE_ENTRY_CLOSED"
+          : leader && (wave.status !== "running" || !zoneDeadline || now >= zoneDeadline) ? "ZONE_ENTRY_CLOSED"
+          : null;
         return {
           id: team.id,
           number: team.number,
@@ -215,10 +231,15 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
           station: team.station,
           competitors: team.competitors.map((person) => person.fullName),
           waveNumber: wave.number,
-          values: Object.fromEntries((team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value])),
+          waveStartedAt: wave.startedAt?.toISOString() ?? null,
+          values: Object.fromEntries((team.score?.entries ?? []).filter((entry) => inputIds.has(entry.inputId)).map((entry) => [entry.inputId, entry.value])),
+          scoreRevision: team.score?.updatedAt.toISOString() ?? null,
           locked: (team.score?.zones.length ?? 0) > 0,
           waveEndsAt: wave.endsAt?.toISOString() ?? null,
           finisherWorkMinutes: timing.workMinutes,
+          entryClosesAt: deadline?.toISOString() ?? null,
+          entryDeadlineReason: deadlineReason,
+          entryClosedReason,
         };
       };
 
@@ -249,7 +270,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       // only — canControlWave). Shown: the waves on the floor and the next
       // one to go, which is all a leader decides about.
       const leaderFloor =
-        leader && post.series.status === "live"
+        leader && can(user, "judgeSheet.view") && post.series.status === "live"
           ? await (async () => {
               const all = await getSeriesWaves(post.seriesId);
               const next = all
@@ -279,8 +300,8 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       return {
         post,
         zone,
-        // The wave this zone is on. Once it has left the zone, only a sheet
-        // still open stays — to be submitted before the next wave arrives.
+        // The wave this zone is on. Leaders retain reference cards after
+        // closure; a judge keeps only an unsubmitted sheet after departure.
         current: duty.wave
           ? {
               waveNumber: duty.wave.number,
@@ -289,16 +310,16 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
               teams: teams
                 .filter((team) => team.waveId === duty.wave!.id)
                 .map(toEntry)
-                .filter((team) => duty.phase !== "left" || !team.locked || !!detailId),
+                .filter((team) => leader || duty.phase !== "left" || !team.locked || !!detailId),
             }
           : null,
         next: duty.next ? { waveNumber: duty.next.wave.number, inTime: clock(duty.next.inMs) } : null,
-        // The leader's safety valve: earlier waves' sheets nobody submitted.
+        // Earlier reached waves are reference cards once their zone closes.
         earlier: leader
           ? teams
               .filter((team) => team.waveId !== duty.wave?.id)
               .map(toEntry)
-              .filter((team) => !team.locked || !!detailId)
+              .sort((a, b) => a.waveNumber - b.waveNumber || (a.station ?? Infinity) - (b.station ?? Infinity) || a.number - b.number)
           : [],
         // When this panel next changes by the clock alone — the sheet
         // re-reads itself right then, not up to a poll later.
@@ -320,7 +341,9 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
       <div className="screen-head">
         <div>
           <h1>{t("Your score sheet")}</h1>
-          <p>{t("The team on your station, in whichever wave is in your zone. It changes by itself when the next wave arrives.")}</p>
+          <p>{t(posts.some((post) => post.position === "leader")
+            ? "Every team in your assigned zones. Enter scores during work and changeover; after that, ask BFT MENA for corrections."
+            : "The team on your station, in whichever wave is in your zone. It changes by itself when the next wave arrives.")}</p>
         </div>
       </div>
 
@@ -369,11 +392,13 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
                   ? t("working · {time} left", { time: current.remaining })
                   : current.phase === "break"
                     ? t("changing zones · {time}", { time: current.remaining })
-                    : t("has left your zone — submit before the next wave arrives.")}
+                    : t(post.position === "leader"
+                      ? "has left your zone — entry is closed. Ask BFT MENA for corrections."
+                      : "has left your zone — submit before the next wave arrives.")}
               </p>
               <div className="zone-entries">
                 {current.teams.map((team) => (
-                  <ZoneEntryCard key={team.id} team={team} zone={zone} />
+                  <ZoneEntryCard key={team.id} team={team} zone={zone} canEnterCountDirectly={post.position === "leader"} />
                 ))}
                 {current.teams.length === 0 ? (
                   <p className="reg-sub">
@@ -408,10 +433,10 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
           {earlier.length ? (
             <>
-              <h3 style={{ marginTop: 18 }}>{t("Still to submit from earlier waves")}</h3>
+              <h3 style={{ marginTop: 18 }}>{t("Earlier waves")}</h3>
               <div className="zone-entries">
                 {earlier.map((team) => (
-                  <ZoneEntryCard key={team.id} team={team} zone={zone} />
+                  <ZoneEntryCard key={team.id} team={team} zone={zone} canEnterCountDirectly={post.position === "leader"} />
                 ))}
               </div>
             </>
@@ -453,7 +478,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
               }))}
               candidates={[]}
               canAssign={false}
-              canPlace={!user.viewAs}
+              canPlace={!user.viewAs && can(user, "judgeSheet.view")}
               stations={post.series.waveCapacity}
             />
           ) : null}

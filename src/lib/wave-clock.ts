@@ -65,8 +65,8 @@ export async function fillFinisherTimes(
     // A sweep may already have opened a REPEATABLE READ snapshot before
     // waiting for this team. FOR UPDATE is a current read, so it sees a judge's
     // captured time committed while we waited instead of overwriting it.
-    const current = await db.$queryRaw<{ id: string; inputId: string | null; value: number | null }[]>`
-      SELECT s.id, e.inputId, e.value
+    const current = await db.$queryRaw<{ id: string; updatedAt: Date; inputId: string | null; value: number | null }[]>`
+      SELECT s.id, s.updatedAt, e.inputId, e.value
       FROM Score s LEFT JOIN ZoneEntry e ON e.scoreId = s.id
       WHERE s.teamId = ${score.teamId}
       FOR UPDATE
@@ -86,6 +86,10 @@ export async function fillFinisherTimes(
         update: { value },
       });
     }
+    // Clock autofill changes the same snapshot as manual score entry. Bump
+    // its revision from the current locked read, even within one millisecond.
+    const revision = new Date(Math.max(Date.now(), current[0].updatedAt.getTime() + 1));
+    await db.score.update({ where: { id: current[0].id }, data: { updatedAt: revision } });
     filled += 1;
   }
   return filled;

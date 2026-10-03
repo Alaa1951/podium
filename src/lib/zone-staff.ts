@@ -1,8 +1,11 @@
 import "server-only";
 
-import { normalizeStoredPermissions } from "@/lib/permissions/catalog";
+import { parseOverrides, resolveEffectivePermissions } from "@/lib/permissions/resolve";
+import { DEFAULT_ROLE_FOR, systemRole } from "@/lib/permissions/system-roles";
 import { formatQatarDayKey } from "@/lib/qatar-time";
 import { prisma } from "@/lib/prisma";
+import { canAssignZoneScorePost, canViewZoneScoreSheet } from "@/lib/zone-sheet-access";
+import type { CurrentUser } from "@/lib/access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ZONE STAFF — who works which zone of a competition.
@@ -15,27 +18,40 @@ import { prisma } from "@/lib/prisma";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * People who may be put on a zone: active accounts holding a role that
- * carries the judge sheet. The Judge role is the usual one; a custom role
- * that includes the sheet counts the same.
+ * People who may be put on a zone, with eligibility for each kind of post.
+ * Resolve roles and personal locks together so the picker matches the action.
  */
 export async function judgeCandidates() {
-  const roles = await prisma.accessRole.findMany({ select: { id: true, permissions: true } });
-  const judging = roles
-    .filter((role) => normalizeStoredPermissions(role.permissions).includes("judgeSheet.view"))
-    .map((role) => role.id);
-  if (!judging.length) return [];
-  return prisma.user.findMany({
+  const roles = await prisma.accessRole.findMany({ select: { key: true, name: true, permissions: true } });
+  const people = await prisma.user.findMany({
     where: {
       status: "active",
       archivedAt: null,
       // A sign-up still waiting holds only the general pages, so putting it on
       // a zone would fail (NOT_A_JUDGE) — leave it off the list until approved.
       approvalStatus: "approved",
-      accessRoles: { some: { accessRoleId: { in: judging } } },
+      role: { not: "competitor" },
     },
     orderBy: [{ name: "asc" }, { email: "asc" }],
-    select: { id: true, name: true, email: true },
+    select: {
+      id: true, name: true, email: true, role: true, permissionOverrides: true,
+      accessRoles: { select: { accessRole: { select: { key: true, name: true, permissions: true } } } },
+    },
+  });
+  return people.flatMap((person) => {
+    const held = person.accessRoles.map(({ accessRole }) => accessRole);
+    const defaultKey = DEFAULT_ROLE_FOR[person.role];
+    const fallback = roles.find((role) => role.key === defaultKey) ?? (defaultKey ? systemRole(defaultKey) : undefined);
+    const permissions = resolveEffectivePermissions({
+      accountType: person.role,
+      approved: true,
+      roles: held.length ? held : fallback ? [fallback] : [],
+      overrides: parseOverrides(person.permissionOverrides),
+    });
+    const user = { role: person.role, permissions };
+    const canJudge = canAssignZoneScorePost(user, "judge");
+    const canLead = canAssignZoneScorePost(user, "leader");
+    return canJudge || canLead ? [{ id: person.id, name: person.name, email: person.email, canJudge, canLead }] : [];
   });
 }
 
@@ -83,11 +99,18 @@ export async function judgePostsFor(userId: string) {
  * judge sheet, where the day's waves are waiting for them before the first
  * one goes.
  */
-export async function hasLiveZonePost(userId: string, now = new Date()): Promise<boolean> {
+export async function hasLiveZonePost(
+  userId: string,
+  now = new Date(),
+  sheetUser?: Pick<CurrentUser, "role" | "permissions">
+): Promise<boolean> {
   const posts = await prisma.zoneStaff.findMany({
     where: { userId, series: { status: { in: ["live", "scheduled"] }, archivedAt: null } },
-    select: { series: { select: { status: true, competitionDate: true } } },
+    select: { position: true, series: { select: { status: true, competitionDate: true } } },
   });
   const today = formatQatarDayKey(now);
-  return posts.some(({ series }) => series.status === "live" || formatQatarDayKey(series.competitionDate) === today);
+  return posts.some(({ position, series }) =>
+    (!sheetUser || canViewZoneScoreSheet(sheetUser, position)) &&
+    (series.status === "live" || formatQatarDayKey(series.competitionDate) === today)
+  );
 }

@@ -9,6 +9,7 @@ import { loadPermissions } from "@/lib/permissions/load";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { requireUser } from "@/lib/session";
+import { canAssignZoneScorePost } from "@/lib/zone-sheet-access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUTTING PEOPLE ON ZONES.
@@ -20,7 +21,8 @@ import { requireUser } from "@/lib/session";
 //     leaders stay out of their reach.
 //   • A zone's LEADER places the judges and reserves of their own zone on
 //     stations 1–9 — and nothing else.
-//   • Only people whose roles carry the judge sheet can be put on a zone.
+//   • Judge/reserve posts need the judge sheet. Leaders may instead carry
+//     leader-only sheet access. Either kind also needs score entry.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ZoneStaffResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -60,12 +62,18 @@ export async function addZoneStaff(input: unknown): Promise<ZoneStaffResult> {
     if (position === "leader") return { ok: false, error: "FORBIDDEN" };
     const leads = await prisma.zoneStaff.count({ where: { zoneId, userId: actor.id, position: "leader" } });
     if (leads === 0) return { ok: false, error: "FORBIDDEN" };
+    const existing = await prisma.zoneStaff.findUnique({
+      where: { zoneId_userId: { zoneId, userId } },
+      select: { position: true },
+    });
+    if (existing?.position === "leader") return { ok: false, error: "FORBIDDEN" };
   }
 
-  // Only a judge can judge: the role has to carry the sheet and score entry.
+  // Leader-only sheet access qualifies for leader posts only.
   const theirs = await loadPermissions(person.id, person.role);
-  const judges = person.role === "admin" || (theirs.includes("judgeSheet.view") && theirs.includes("scores.enter"));
-  if (!judges) return { ok: false, error: "NOT_A_JUDGE" };
+  if (!canAssignZoneScorePost({ role: person.role, permissions: theirs }, position)) {
+    return { ok: false, error: "NOT_A_JUDGE" };
+  }
 
   await prisma.zoneStaff.upsert({
     where: { zoneId_userId: { zoneId, userId } },

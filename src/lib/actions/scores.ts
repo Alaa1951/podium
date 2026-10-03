@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
 import { notifyBoardChanged } from "@/lib/board-events";
-import { waveOnDuty, zoneArrival } from "@/lib/floor";
+import { waveOnDuty, zoneArrival, zoneScoreEntryClosesAt } from "@/lib/floor";
+import { loadPermissions } from "@/lib/permissions/load";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
 import { getSeriesZones } from "@/lib/queries";
@@ -16,20 +17,24 @@ import { allInputs, isComplete, validateEntries, type ZoneDef } from "@/lib/zone
 const optionalInt = z
   .union([z.string(), z.number(), z.null()])
   .optional()
-  .transform((value) => {
+  .transform((value, ctx) => {
     if (value === null || value === "" || value === undefined) return null;
     const n = Number(value);
-    return Number.isFinite(n) ? Math.trunc(n) : null;
+    if (!Number.isSafeInteger(n) || (typeof value === "string" && !value.trim())) {
+      ctx.addIssue({ code: "custom", message: "Expected a whole number" });
+      return z.NEVER;
+    }
+    return n;
   });
 
 export type SaveScoreResult =
-  | { ok: true }
+  | { ok: true; revision?: string }
   | { ok: false; error: string; fields?: { inputId: string; code: string }[] };
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 class ScoreWriteRefused extends Error {
-  constructor(readonly code: "SCORE_LOCKED" | "INCOMPLETE") {
+  constructor(readonly code: string) {
     super(code);
   }
 }
@@ -50,14 +55,18 @@ async function writeEntries(
     canCorrect: boolean;
     targetZoneId?: string;
     submitZones: string[] | "complete";
+    /** Floor permissions and clocks must be checked after waiting for Team. */
+    authorize?: () => Promise<void>;
   }
 ) {
   await tx.$queryRaw`SELECT id FROM Team WHERE id = ${params.teamId} FOR UPDATE`;
+  await params.authorize?.();
   const current = await tx.score.findUnique({
     where: { teamId: params.teamId },
     select: {
       id: true,
       status: true,
+      updatedAt: true,
       entries: { select: { inputId: true, value: true } },
       zones: { select: { zoneId: true, status: true } },
     },
@@ -93,10 +102,13 @@ async function writeEntries(
   }
 
   const known = new Map(allInputs(params.zones).map((input) => [input.id, input]));
+  // One strictly increasing revision for the whole transaction. A delayed
+  // sheet refresh must never replace values acknowledged by a newer save.
+  const revision = new Date(Math.max(Date.now(), (current?.updatedAt?.getTime() ?? 0) + 1));
   const score = await tx.score.upsert({
     where: { teamId: params.teamId },
-    create: { teamId: params.teamId, status: "draft" },
-    update: {},
+    create: { teamId: params.teamId, status: "draft", updatedAt: revision },
+    update: { updatedAt: revision },
   });
 
   for (const [inputId, value] of Object.entries(next)) {
@@ -138,10 +150,10 @@ async function writeEntries(
   if (params.zones.length > 0 && submittedZones >= params.zones.length && score.status !== "submitted") {
     await tx.score.update({
       where: { id: score.id },
-      data: { status: "submitted", submittedAt: now, submittedById: params.userId },
+      data: { status: "submitted", submittedAt: now, submittedById: params.userId, updatedAt: revision },
     });
   }
-  return changed.length;
+  return { changed: changed.length, revision: revision.toISOString() };
 }
 
 // ── One zone, from the judge sheet ───────────────────────────────────────────
@@ -155,6 +167,8 @@ const saveZoneSchema = z.object({
   submit: z.boolean().default(false),
   /** A live counter write needs no refresh of the judge's whole sheet. */
   autosave: z.boolean().default(false),
+  /** A card from a previous Reset/start must not score the new run. */
+  waveStartedAt: z.string().datetime().optional(),
 });
 
 /**
@@ -171,7 +185,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
 
   const parsed = saveZoneSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { teamId, zoneId, values, submit, autosave } = parsed.data;
+  const { teamId, zoneId, values, submit, autosave, waveStartedAt } = parsed.data;
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -228,9 +242,13 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
     zoneSubmitted: team.score?.zones.some((row) => row.zoneId === zoneId && row.status === "submitted") ?? false,
     entryClosed: !!team.series.scoreEntryClosesAt && now >= team.series.scoreEntryClosesAt,
     waveEnded: !!wave?.endsAt && wave.endsAt <= now,
+    zoneEntryClosed: !!wave && (wave.status === "complete" || (zoneScoreEntryClosesAt(wave, zoneIndex, timing)?.getTime() ?? Infinity) <= now.getTime()),
   });
   if (!decision.allowed) return { ok: false, error: decision.reason };
   if (decision.as === "console" && !inScope) return { ok: false, error: "FORBIDDEN" };
+  if ((decision.as === "leader" || decision.as === "judge") && waveStartedAt && wave?.startedAt?.toISOString() !== waveStartedAt) {
+    return { ok: false, error: "WAVE_RESTARTED" };
+  }
 
   // Only this zone's inputs; anything else in the request is dropped.
   const next: Record<string, number | null> = {};
@@ -240,11 +258,49 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
   const errors = validateEntries([zone], next);
   if (errors.length) return { ok: false, error: "INVALID_SCORE", fields: errors };
 
+  let revision: string | undefined;
   try {
-    await prisma.$transaction((tx) => writeEntries(tx, {
-      teamId, userId: user.id, zones, next,
-      canCorrect: can(user, "scores.correct"), targetZoneId: zoneId, submitZones: submit ? [zoneId] : [],
-    }));
+    const written = await prisma.$transaction(async (tx) => {
+      const floorWriter = decision.as === "leader" || decision.as === "judge";
+      // Wave transitions lock Wave before Team. Use the same order; once
+      // those locks are held, an End now or Reset cannot cross this write.
+      if (floorWriter && team.waveId) await tx.$queryRaw`SELECT id FROM Wave WHERE id = ${team.waveId} FOR UPDATE`;
+      return writeEntries(tx, {
+        teamId, userId: user.id, zones, next,
+        canCorrect: can(user, "scores.correct"), targetZoneId: zoneId, submitZones: submit ? [zoneId] : [],
+        authorize: floorWriter ? async () => {
+          const fresh = await tx.team.findUnique({
+            where: { id: teamId },
+            select: { waveId: true, seriesId: true, station: true, archivedAt: true,
+              series: { select: { status: true, archivedAt: true, scoreEntryClosesAt: true } } },
+          });
+          if (!fresh || fresh.archivedAt || fresh.series.archivedAt) throw new ScoreWriteRefused("NOT_FOUND");
+          if (fresh.waveId !== team.waveId || fresh.seriesId !== team.seriesId) throw new ScoreWriteRefused("FORBIDDEN");
+          const [permissions, freshPost, freshTiming, freshWaves] = await Promise.all([
+            loadPermissions(user.id, user.role, tx),
+            tx.zoneStaff.findUnique({ where: { zoneId_userId: { zoneId, userId: user.id } }, select: { position: true, station: true } }),
+            floorTimingFor(fresh.seriesId, tx),
+            tx.wave.findMany({ where: { seriesId: fresh.seriesId, NOT: { startedAt: null } }, select: { id: true, status: true, startedAt: true, endsAt: true } }),
+          ]);
+          const checkedAt = new Date();
+          const freshWave = freshWaves.find((row) => row.id === fresh.waveId);
+          if (freshWave?.startedAt?.getTime() !== wave?.startedAt?.getTime()) throw new ScoreWriteRefused("WAVE_RESTARTED");
+          const closesAt = freshWave ? zoneScoreEntryClosesAt(freshWave, zoneIndex, freshTiming) : null;
+          const freshDecision = canWriteZoneScore({
+            user: { ...user, permissions }, post: freshPost, team: fresh,
+            seriesStatus: fresh.series.status,
+            reached: !!freshWave && zoneArrival(freshWave, zoneIndex, freshTiming, checkedAt) !== null,
+            onDuty: !!freshWave && waveOnDuty(freshWaves, zoneIndex, freshTiming, checkedAt)?.id === freshWave.id,
+            zoneSubmitted: false, // writeEntries reads the submit locks next.
+            entryClosed: !!fresh.series.scoreEntryClosesAt && checkedAt >= fresh.series.scoreEntryClosesAt,
+            waveEnded: !!freshWave?.endsAt && freshWave.endsAt <= checkedAt,
+            zoneEntryClosed: !!freshWave && (freshWave.status === "complete" || !!closesAt && checkedAt >= closesAt),
+          });
+          if (!freshDecision.allowed) throw new ScoreWriteRefused(freshDecision.reason);
+        } : undefined,
+      });
+    }, { isolationLevel: "ReadCommitted" });
+    revision = written.revision;
   } catch (error) {
     if (error instanceof ScoreWriteRefused) return { ok: false, error: error.code };
     throw error;
@@ -263,7 +319,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
   }
 
   if (!autosave || submit) revalidateCompetitionViews();
-  return { ok: true };
+  return autosave ? { ok: true, revision } : { ok: true };
 }
 
 // ── A whole team, from the console ───────────────────────────────────────────
@@ -361,7 +417,9 @@ export async function unlockScore(teamId: string): Promise<SaveScoreResult> {
 
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM Team WHERE id = ${teamId} FOR UPDATE`;
-    await tx.score.update({ where: { teamId }, data: { status: "draft" } });
+    const current = await tx.score.findUnique({ where: { teamId }, select: { updatedAt: true } });
+    const revision = new Date(Math.max(Date.now(), (current?.updatedAt?.getTime() ?? 0) + 1));
+    await tx.score.update({ where: { teamId }, data: { status: "draft", updatedAt: revision } });
     await tx.zoneScore.updateMany({ where: { scoreId: team.score!.id }, data: { status: "draft" } });
     await tx.scoreAudit.create({
       data: {

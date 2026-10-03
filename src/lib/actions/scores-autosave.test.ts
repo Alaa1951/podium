@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   notifyBoardChanged: vi.fn(),
   revalidate: vi.fn(),
   recordAudit: vi.fn(),
+  permissions: vi.fn(),
+  lockWave: vi.fn(),
 }));
 
 vi.mock("@/lib/session", async () => {
@@ -39,6 +41,7 @@ vi.mock("@/lib/wave-clock", () => ({
 vi.mock("@/lib/audit", () => ({ recordAudit: mocks.recordAudit, AUDIT: { zoneScoreSaved: "zone-score-saved" } }));
 vi.mock("@/lib/board-events", () => ({ notifyBoardChanged: mocks.notifyBoardChanged }));
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: mocks.revalidate }));
+vi.mock("@/lib/permissions/load", () => ({ loadPermissions: mocks.permissions }));
 
 import { saveScore, saveZoneScore, unlockScore } from "@/lib/actions/scores";
 import type { ZoneDef } from "@/lib/zones";
@@ -65,6 +68,7 @@ let team: {
   score: {
     id: string;
     status: "draft" | "submitted";
+    updatedAt?: Date;
     entries: { inputId: string; value: number | null }[];
     zones: { zoneId: string; status: "draft" | "submitted" }[];
   };
@@ -76,7 +80,7 @@ const onWave = (minutesAgo = 5) => [{
 }];
 const currentValues = () => Object.fromEntries(team.score.entries.map(({ inputId, value }) => [inputId, value]));
 const consoleTap = (values = { "reps-1": 1 }) => saveScore({ teamId: team.id, values, autosave: true });
-const judgeTap = (values = { "reps-1": 1 }) => saveZoneScore({ teamId: team.id, zoneId: "zone-1", values, autosave: true });
+const judgeTap = (values: Record<string, number | null> = { "reps-1": 1 }) => saveZoneScore({ teamId: team.id, zoneId: "zone-1", values, autosave: true });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -105,11 +109,20 @@ beforeEach(() => {
     else team.score.zones.push({ zoneId: create.zoneId, status: create.status });
   });
   mocks.readScore.mockImplementation(async () => structuredClone(team.score));
-  mocks.writeScore.mockImplementation(async ({ data }: { data: { status: "draft" | "submitted" } }) => { team.score.status = data.status; });
+  mocks.writeScore.mockImplementation(async ({ data }: { data: { status: "draft" | "submitted"; updatedAt?: Date } }) => {
+    team.score.status = data.status;
+    if (data.updatedAt) team.score.updatedAt = data.updatedAt;
+  });
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
     const result = await fn({
-      $queryRaw: mocks.lockTeam,
-      score: { findUnique: mocks.readScore, upsert: vi.fn(async () => ({ id: team.score.id, status: team.score.status })), update: mocks.writeScore },
+      $queryRaw: (sql: TemplateStringsArray, ...values: unknown[]) => sql.join("").includes("FROM Wave") ? mocks.lockWave(sql, ...values) : mocks.lockTeam(sql, ...values),
+      team: { findUnique: mocks.findTeam },
+      zoneStaff: { findUnique: mocks.findPost },
+      wave: { findMany: mocks.findWaves },
+      score: { findUnique: mocks.readScore, upsert: vi.fn(async ({ update }: { update: { updatedAt: Date } }) => {
+        team.score.updatedAt = update.updatedAt;
+        return { id: team.score.id, status: team.score.status };
+      }), update: mocks.writeScore },
       zoneEntry: { upsert: mocks.writeEntry },
       scoreAudit: { createMany: mocks.auditChanges, create: vi.fn() },
       zoneScore: {
@@ -122,6 +135,32 @@ beforeEach(() => {
     return result;
   });
   mocks.notifyBoardChanged.mockImplementation(() => { commitOrder.push("notify"); });
+  mocks.permissions.mockImplementation(async () => (await mocks.requireUser()).permissions);
+});
+
+describe("typed score values", () => {
+  it.each([1.5, "1.5", "nope", " ", Number.MAX_SAFE_INTEGER + 1])("refuses %s without rounding or writing", async (value) => {
+    mocks.requireUser.mockResolvedValue(judge);
+    expect(await saveZoneScore({ teamId: team.id, zoneId: "zone-1", values: { "reps-1": value }, autosave: true })).toEqual({ ok: false, error: "INVALID_INPUT" });
+    expect(mocks.writeEntry).not.toHaveBeenCalled();
+  });
+  it("allows typed zero and preserves a deliberate cleared draft", async () => {
+    mocks.requireUser.mockResolvedValue(judge);
+    expect(await judgeTap({ "reps-1": 0 })).toMatchObject({ ok: true });
+    expect(currentValues()["reps-1"]).toBe(0);
+    expect(await judgeTap({ "reps-1": null })).toMatchObject({ ok: true });
+    expect(currentValues()["reps-1"]).toBeNull();
+  });
+  it("refuses a negative count on the server", async () => {
+    mocks.requireUser.mockResolvedValue(judge);
+    expect(await judgeTap({ "reps-1": -1 })).toMatchObject({ ok: false, error: "INVALID_SCORE" });
+    expect(mocks.writeEntry).not.toHaveBeenCalled();
+  });
+  it("refuses a value outside the database integer range rather than failing to save", async () => {
+    mocks.requireUser.mockResolvedValue(judge);
+    expect(await judgeTap({ "reps-1": 2_147_483_648 })).toMatchObject({ ok: false, error: "INVALID_SCORE" });
+    expect(mocks.writeEntry).not.toHaveBeenCalled();
+  });
 });
 
 describe("live console counter writes", () => {
@@ -169,18 +208,28 @@ describe("live judge counter writes", () => {
   beforeEach(() => { mocks.requireUser.mockResolvedValue(judge); });
 
   it("persists repeated taps without submitting the judge's zone", async () => {
-    expect(await judgeTap()).toEqual({ ok: true });
-    expect(await judgeTap({ "reps-1": 2 })).toEqual({ ok: true });
+    expect(await judgeTap()).toMatchObject({ ok: true });
+    expect(await judgeTap({ "reps-1": 2 })).toMatchObject({ ok: true });
     expect(currentValues()).toEqual({ "reps-1": 2 });
     expect(mocks.writeZone).not.toHaveBeenCalled();
     expect(mocks.revalidate).not.toHaveBeenCalled();
     expect(commitOrder).toEqual(["commit", "notify", "commit", "notify"]);
   });
 
+  it("returns increasing saved revisions even when the previous revision is ahead of the clock", async () => {
+    team.score.updatedAt = new Date("2099-01-01T00:00:00.000Z");
+    expect(await judgeTap()).toEqual({ ok: true, revision: "2099-01-01T00:00:00.001Z" });
+    expect(await judgeTap({ "reps-1": 2 })).toEqual({ ok: true, revision: "2099-01-01T00:00:00.002Z" });
+    expect(team.score.updatedAt?.toISOString()).toBe("2099-01-01T00:00:00.002Z");
+    mocks.requireUser.mockResolvedValue({ id: "admin", role: "admin", permissions: ["*"] });
+    expect(await unlockScore(team.id)).toEqual({ ok: true });
+    expect(team.score.updatedAt?.toISOString()).toBe("2099-01-01T00:00:00.003Z");
+  });
+
   it("keeps previous inputs in a zone and ignores inputs belonging to another zone", async () => {
     mocks.findWaves.mockResolvedValue(onWave(25));
     team.score.entries = [{ inputId: "reps-2", value: 20 }, { inputId: "metres-2", value: 1500 }];
-    expect(await saveZoneScore({ teamId: team.id, zoneId: "zone-2", values: { "reps-2": 21, "reps-3": 99 }, autosave: true })).toEqual({ ok: true });
+    expect(await saveZoneScore({ teamId: team.id, zoneId: "zone-2", values: { "reps-2": 21, "reps-3": 99 }, autosave: true })).toMatchObject({ ok: true });
     expect(currentValues()).toEqual({ "reps-2": 21, "metres-2": 1500 });
     expect(mocks.writeEntry).toHaveBeenCalledTimes(1);
   });
@@ -188,7 +237,7 @@ describe("live judge counter writes", () => {
   it("explicitly submits using stored inputs as well as the final patch, even with autosave set", async () => {
     mocks.findWaves.mockResolvedValue(onWave(25));
     team.score.entries = [{ inputId: "metres-2", value: 1500 }];
-    expect(await saveZoneScore({ teamId: team.id, zoneId: "zone-2", values: { "reps-2": 21 }, autosave: true, submit: true })).toEqual({ ok: true });
+    expect(await saveZoneScore({ teamId: team.id, zoneId: "zone-2", values: { "reps-2": 21 }, autosave: true, submit: true })).toMatchObject({ ok: true });
     expect(team.score.zones).toEqual([{ zoneId: "zone-2", status: "submitted" }]);
     expect(mocks.recordAudit).toHaveBeenCalledTimes(1);
     expect(mocks.revalidate).toHaveBeenCalledTimes(1);

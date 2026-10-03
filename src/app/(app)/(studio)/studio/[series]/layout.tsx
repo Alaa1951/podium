@@ -11,6 +11,7 @@ import { requireRole } from "@/lib/session";
 import { getStudioSeriesBySlug } from "@/lib/studio-queries";
 import { getTheme } from "@/lib/theme-server";
 import { canComposeAnnouncements } from "@/lib/notification-access";
+import { canOpenZoneScoreSheet } from "@/lib/zone-sheet-access";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +47,11 @@ export default async function StudioSeriesLayout({
   // A gym owner who also judges this competition: the sheet is theirs to
   // reach from here, not only from the link they land on.
   const judging =
-    can(user, "judgeSheet.view") &&
-    (await prisma.zoneStaff.count({ where: { userId: user.id, seriesId: series.id } })) > 0;
+    canOpenZoneScoreSheet(user) &&
+    (await prisma.zoneStaff.count({ where: {
+      userId: user.id, seriesId: series.id,
+      ...(!can(user, "judgeSheet.view") ? { position: "leader" as const } : {}),
+    } })) > 0;
 
   const at = (section: string) => `/studio/${series.slug}/${section}`;
 

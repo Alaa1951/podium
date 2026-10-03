@@ -19,6 +19,7 @@ test("search a long zone assignment list and save each position", async ({ page,
   const locale = info.project.name.includes("-ar-") ? "ar" : "en";
   const origin = info.project.use.baseURL!;
   const judgeRole = await db.accessRole.findUniqueOrThrow({ where: { key: "judge" } });
+  const leaderRole = await db.accessRole.findUniqueOrThrow({ where: { key: "zone-leaders" } });
   const admin = await db.user.create({ data: {
     id: `${id}-admin`, name: "Assignment QA", email: `${id}-admin@staff-qa.invalid`,
     role: "admin", status: "active", approvalStatus: "approved",
@@ -39,13 +40,13 @@ test("search a long zone assignment list and save each position", async ({ page,
     for (const [index, person] of people.entries()) {
       await db.user.create({ data: {
         ...person, id: `${id}-p${index}`, role: "organiser", status: "active", approvalStatus: "approved",
-        accessRoles: { create: { accessRoleId: judgeRole.id } },
+        accessRoles: { create: { accessRoleId: index === 1 ? leaderRole.id : judgeRole.id } },
       } });
     }
     await context.addCookies([
       { name: "podium_locale", value: locale, url: origin },
       { name: "podium_theme", value: info.project.name.endsWith("light") ? "light" : "dark", url: origin },
-      { name: "next-auth.session-token", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
+      { name: process.env.MOBILE_QA_PRODUCTION === "1" ? "__Secure-next-auth.session-token" : "next-auth.session-token", secure: process.env.MOBILE_QA_PRODUCTION === "1", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
         token: { sub: admin.id, id: admin.id, email: admin.email, name: admin.name, role: "admin", studioId: null,
           status: "active", locale, expiresAt: Date.now() + 3_600_000, refreshedAt: Date.now() } }) },
     ]);
@@ -75,6 +76,12 @@ test("search a long zone assignment list and save each position", async ({ page,
     await expect(input).toHaveValue("");
 
     for (const [index, position] of ["judge", "leader", "reserve"].entries()) {
+      if (index === 1) {
+        await input.fill(people[index].email);
+        await expect(options).toHaveCount(0); // Leader-only permission cannot be assigned a judge post.
+        await input.press("Escape");
+      }
+      await zone.locator(".zone-staff-assignment select").selectOption(position);
       await input.fill(index === 0 ? `${id} ali ahmed` : index === 1 ? `${id} احمد ابراهيم` : people[index].email);
       await expect(options).toHaveCount(1);
       await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -83,7 +90,6 @@ test("search a long zone assignment list and save each position", async ({ page,
         await zone.screenshot({ path: `.mobile-qa/staff-search/${info.project.name}-results.png` });
       }
       await options.click();
-      await zone.locator(".zone-staff-assignment select").selectOption(position);
       await add.click();
       await expect.poll(async () => (await db.zoneStaff.findUnique({ where: {
         zoneId_userId: { zoneId: `${id}-z1`, userId: `${id}-p${index}` },

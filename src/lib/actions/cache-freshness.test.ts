@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), requireAccess: vi.fn(), requireAnyAccess: vi.fn(), requireUser: vi.fn(), getCurrentUser: vi.fn(), findTeam: vi.fn(), updateTeam: vi.fn(),
-  updateScore: vi.fn(), scoreAudit: vi.fn(), transaction: vi.fn(), zoneScores: vi.fn(),
+  readScore: vi.fn(), updateScore: vi.fn(), scoreAudit: vi.fn(), transaction: vi.fn(), zoneScores: vi.fn(),
   audit: vi.fn(), revalidate: vi.fn(), updateSeats: vi.fn(),
 }));
 
@@ -29,7 +29,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   $queryRaw: vi.fn(),
   waiverRelease: { findFirst: vi.fn(async () => null) },
   attendanceEvent: { createMany: vi.fn() },
-  score: { update: mocks.updateScore }, scoreAudit: { create: mocks.scoreAudit },
+  score: { findUnique: mocks.readScore, update: mocks.updateScore }, scoreAudit: { create: mocks.scoreAudit },
   zoneScore: { updateMany: mocks.zoneScores },
   $transaction: mocks.transaction,
 } }));
@@ -47,6 +47,7 @@ beforeEach(() => {
   mocks.requireAnyAccess.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.requireUser.mockResolvedValue({ id: "admin", role: "admin" });
   mocks.getCurrentUser.mockResolvedValue({ id: "admin", role: "admin" });
+  mocks.readScore.mockResolvedValue({ updatedAt: new Date(0) });
   mocks.findTeam.mockResolvedValue({ id: "team", seriesId: "database-id-not-a-slug", number: 101, name: "TEAM", paymentStatus: "pending", score: { id: "score" }, attendedAt: null, archivedAt: null, waitlistedAt: null, waveId: null, warmupReadyAt: null, warmupWaveId: null, series: { status: "live", archivedAt: null }, competitors: [{ id: "seat", attendedAt: null }] });
   // Both forms: a list of writes (scores), or a callback given the client (check-in).
   mocks.transaction.mockImplementation(async (work: Promise<unknown>[] | ((tx: unknown) => unknown)) =>

@@ -124,9 +124,9 @@ describe("the shipped roles", () => {
     expect(asStaff).toEqual(expect.arrayContaining(["registrations.payment", "registrations.waitlist"]));
   });
 
-  it("match the live Roles screen (2026-09-30), key for key — a change here is a review decision", () => {
-    // The live rows win in a running database; this snapshot is what a fresh
-    // or recreated row starts from. Change it only together with live.
+  it("pin shipped role permissions, including the approved Zone Leaders score entry", () => {
+    // Stored rows win in a running database. Approved permission changes
+    // update this snapshot together with a migration for existing rows.
     const shipped = Object.fromEntries(SYSTEM_ROLES.map((def) => [def.key, [...def.permissions].sort()]));
     expect(shipped).toEqual({
       "bft-partial": [
@@ -161,9 +161,9 @@ describe("the shipped roles", () => {
       judge: [
         "judgeSheet.view", "scores.enter",
       ],
-      // A spectator with one job: staff the zone they lead. Added 2026-10-02.
+      // Leader-only sheet access keeps automatic judge-leader Start separate.
       "zone-leaders": [
-        "competitions.view", "overview.view", "waveControl.view", "waves.view", "zoneStaff.assignJudges",
+        "competitions.view", "judgeSheet.leaderView", "overview.view", "scores.enter", "waveControl.view", "waves.view", "zoneStaff.assignJudges",
         "zoneStaff.view",
       ],
       volunteer: [
@@ -183,6 +183,15 @@ describe("the shipped roles", () => {
 
   it("keep studios out of score entry", () => {
     expect(systemRole("gym-studio")!.permissions).not.toContain("scores.enter");
+  });
+
+  it("give Zone Leaders score entry without judge or wave control powers", () => {
+    const permissions = systemRole("zone-leaders")!.permissions;
+    expect(permissions).toEqual(expect.arrayContaining(["judgeSheet.leaderView", "scores.enter"]));
+    for (const key of ["judgeSheet.view", "waveControl.start", "waveControl.control", "zoneStaff.assign"]) {
+      expect(permissions).not.toContain(key);
+    }
+    expect(policyOf("judgeSheet.leaderView")).toBe("role");
   });
 
   it("name a default role for every non-admin account type that needs one", () => {

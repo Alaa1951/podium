@@ -135,6 +135,16 @@ export type FloorWave = {
   endsAt: Date | null;
 };
 
+/** The leader's last instant for this team's zone, including its changeover.
+ * The last zone has no changeover. An early End now shortens the window.
+ * Arrival and a running status are checked separately by the write rules. */
+export function zoneScoreEntryClosesAt(wave: FloorWave, zoneIndex: number, timing: FloorTiming): Date | null {
+  const window = zoneWindows(timing)[zoneIndex];
+  if (!wave.startedAt || !window || wave.status === "pending") return null;
+  const closesAt = wave.startedAt.getTime() + window.breakEndMs;
+  return new Date(Math.min(closesAt, wave.endsAt?.getTime() ?? Infinity));
+}
+
 /**
  * When a wave's work in a zone began, as epoch ms — or null when it has not
  * got there: not started (or reset), not arrived yet, or ENDED before that

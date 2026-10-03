@@ -89,6 +89,9 @@ export type ZoneDef = {
 /** What a team recorded, keyed by ZoneInput id. Absent or null = not entered. */
 export type EntryValues = Record<string, number | null | undefined>;
 
+/** ZoneEntry.value is a signed SQL Int, including inputs with no movement cap. */
+export const MAX_ENTRY_VALUE = 2_147_483_647;
+
 // ── Arithmetic ───────────────────────────────────────────────────────────────
 //
 // Everything is counted in HUNDREDTHS of a point, as whole numbers, and divided
@@ -213,7 +216,7 @@ export function validateEntries(zones: ZoneDef[], values: EntryValues): EntryErr
       continue;
     }
     if (value < 0) errors.push({ inputId: input.id, code: "NEGATIVE" });
-    else if (input.maxValue !== null && value > input.maxValue) {
+    else if (value > Math.min(input.maxValue ?? MAX_ENTRY_VALUE, MAX_ENTRY_VALUE)) {
       errors.push({ inputId: input.id, code: "OVER_MAX" });
     }
   }

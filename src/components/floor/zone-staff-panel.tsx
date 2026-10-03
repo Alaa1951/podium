@@ -46,7 +46,7 @@ export function ZoneStaffPanel({
   title,
 }: {
   zones: { id: string; number: number; name: string; staff: ZoneStaffRow[] }[];
-  candidates: { id: string; label: string }[];
+  candidates: { id: string; label: string; canJudge: boolean; canLead: boolean }[];
   /**
    * How many stations the floor actually runs — the competition's capacity,
    * not MAX_STATIONS. A judge cannot stand at a rig that is not set up, and
@@ -188,7 +188,9 @@ export function ZoneStaffPanel({
               {zoneAssignable ? (
                 <div className="form-row zone-staff-assignment" style={{ marginTop: 10 }}>
                   <StaffPersonPicker
-                    candidates={candidates.filter((person) => !onZone.has(person.id))}
+                    candidates={candidates.filter((person) =>
+                      !onZone.has(person.id) && (pick.position === "leader" ? person.canLead : person.canJudge)
+                    )}
                     value={pick.userId}
                     disabled={pending}
                     onChange={(userId) => setPicks((current) => ({ ...current, [zone.id]: { ...pick, userId } }))}
@@ -199,9 +201,14 @@ export function ZoneStaffPanel({
                       className="input"
                       value={pick.position}
                       disabled={pending}
-                      onChange={(e) =>
-                        setPicks((current) => ({ ...current, [zone.id]: { ...pick, position: e.target.value as Position } }))
-                      }
+                      onChange={(e) => {
+                        const position = e.target.value as Position;
+                        const person = candidates.find((candidate) => candidate.id === pick.userId);
+                        const eligible = person && (position === "leader" ? person.canLead : person.canJudge);
+                        setPicks((current) => ({
+                          ...current, [zone.id]: { position, userId: eligible ? pick.userId : "" },
+                        }));
+                      }}
                     >
                       <option value="judge">{t("Judge")}</option>
                       <option value="reserve">{t("Reserve")}</option>

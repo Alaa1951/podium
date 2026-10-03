@@ -150,7 +150,12 @@ export default async function WaveControlPage(props: SeriesScreenProps) {
               email: row.user.email,
             })),
           }))}
-          candidates={candidates.map((person) => ({ id: person.id, label: person.name ? `${person.name} · ${person.email}` : person.email }))}
+          candidates={candidates.map((person) => ({
+            id: person.id,
+            label: person.name ? `${person.name} · ${person.email}` : person.email,
+            canJudge: person.canJudge,
+            canLead: person.canLead,
+          }))}
           canAssign={canAssign}
           canAssignJudges={canAssignJudges}
           ledZoneIds={ledZoneIds}
