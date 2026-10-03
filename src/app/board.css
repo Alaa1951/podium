@@ -634,6 +634,11 @@
   border-top: 1px solid rgba(242, 242, 243, 0.25);
 }
 
+.sponsor-bar:has(.sponsor-track) {
+  flex-shrink: 0;
+  padding-block: 8px 16px;
+}
+
 .sponsor-bar-label {
   font-family: var(--font-heading), sans-serif;
   font-weight: 700;
@@ -646,7 +651,7 @@
 
 .sponsor-track {
   position: relative;
-  height: 50px;
+  height: 64px;
   overflow: hidden;
 }
 
@@ -663,9 +668,11 @@
 .sponsor-slot {
   /* Fixed, because the rail steps by exactly one slot and gap (sponsor-strip.tsx). */
   width: 120px;
-  height: 34px;
+  height: 44px;
   flex: none;
   display: grid;
+  /* An intrinsic image must not expand the grid row beyond the logo slot. */
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   transform-origin: center;
   transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease;
@@ -673,6 +680,26 @@
   transform: scale(0.88);
 }
 .sponsor-slot[data-on] { opacity: 1; transform: scale(1.3); }
+
+.sponsor-slot img {
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* Reserve the partner strip even when a shorter wall needs to scroll rows. */
+@media (min-width: 901px) {
+  html[data-mobile="false"] :is(.wall-root, .board-frame):has(.running-grid) {
+    height: 100dvh;
+    min-height: 0;
+  }
+  html[data-mobile="false"] :is(.wall-root > .board, .board-frame-body > .board):has(.running-grid) {
+    min-height: 0;
+  }
+  html[data-mobile="false"] .running-grid {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
 
 /* Until a logo is uploaded: a dashed frame that says what belongs here. */
 .sponsor-placeholder {
