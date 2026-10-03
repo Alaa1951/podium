@@ -187,14 +187,16 @@ export const AR_CONSOLE: Phrases = {
   "stage not in any pipeline": "المرحلة ليست ضمن أي pipeline",
   "A sync is already running. Give it a moment.": "هناك مزامنة جارية بالفعل. انتظر لحظة.",
   "The CRM sync is switched off.": "مزامنة الـ CRM متوقفة.",
-  "Payment is recorded in the CRM and arrives here on the next sync.":
-    "الدفع يُسجَّل في الـ CRM ويصل هنا مع المزامنة التالية.",
+  "CRM payments appear here after sync. Payments confirmed here stay paid when the CRM still says unpaid.":
+    "المدفوعات المسجّلة في الـ CRM تظهر هنا بعد المزامنة. الدفع المؤكّد هنا يظل مدفوعًا حتى لو أظهر الـ CRM أنه غير مدفوع.",
   "Override: mark paid": "تجاوز: تسجيل كمدفوع",
   "Override: mark unpaid": "تجاوز: تسجيل كغير مدفوع",
-  "For the door only. The next sync writes whatever the CRM says.":
-    "للباب فقط. المزامنة التالية تكتب ما يقوله الـ CRM.",
-  "Recorded here. The CRM is still the record — update it too.":
-    "سُجّل هنا. الـ CRM ما زال هو السجل — حدّثه أيضًا.",
+  "For payments at the door. A payment confirmed here stays paid; CRM refunds still apply.":
+    "للمدفوعات عند الدخول. الدفع المؤكّد هنا يظل مدفوعًا؛ واسترداد المبلغ في الـ CRM يظل ساريًا.",
+  "Payment confirmed. Update the CRM too; an unpaid CRM status will not undo this confirmation.":
+    "تم تأكيد الدفع. حدّث الـ CRM أيضًا؛ ظهور الدفع فيه كغير مدفوع لن يلغي هذا التأكيد.",
+  "Marked unpaid here. Update the CRM too.":
+    "تم التسجيل هنا كغير مدفوع. حدّث الـ CRM أيضًا.",
   Note: "ملاحظة",
   "Confirmed takings": "المحصّل المؤكد",
   "not on the board": "لا يظهر على الـ board",

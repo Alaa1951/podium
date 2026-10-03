@@ -74,15 +74,13 @@ export function RowPair({
               <div>
                 <div className="console-group-title">{t("Payment")}</div>
 
-                {/* THE CRM OWNS THE MONEY. It is where registrations arrive
-                    and where payment is taken, and the sync writes what it
-                    says — so this panel reads rather than writes.
+                {/* Registrations and payments normally arrive from the CRM.
+                    A staff-confirmed payment at the door is also authoritative.
 
                     The override below is for one situation: somebody standing
                     at the door on the morning, and the CRM not to hand. It is
-                    the full admin's alone, and it says out loud that the next
-                    poll can undo it, because it can: if the CRM still says
-                    unpaid, the sync will say unpaid again. */}
+                    the full admin's alone. A stale unpaid CRM stage cannot undo
+                    that paid confirmation; an actual CRM refund still applies. */}
                 {paid ? (
                   <div style={{ marginTop: 8 }}>
                     <div className="pd-num" style={{ fontSize: 20, fontWeight: 600 }}>
@@ -98,7 +96,7 @@ export function RowPair({
                   <p style={{ marginTop: 8 }}>{t("Awaiting payment")}</p>
                 )}
                 <p className="reg-sub" style={{ marginTop: 10 }}>
-                  {t("Payment is recorded in the CRM and arrives here on the next sync.")}
+                  {t("CRM payments appear here after sync. Payments confirmed here stay paid when the CRM still says unpaid.")}
                 </p>
 
                 {canOverridePayment ? (
@@ -113,7 +111,7 @@ export function RowPair({
                       {paid ? t("Override: mark unpaid") : t("Override: mark paid")}
                     </button>
                     <div className="reg-sub" style={{ marginTop: 4 }}>
-                      {t("For the door only. The next sync writes whatever the CRM says.")}
+                      {t("For payments at the door. A payment confirmed here stays paid; CRM refunds still apply.")}
                     </div>
                   </div>
                 ) : null}

@@ -157,6 +157,17 @@ that release is the same build with `ATHLETE_SEAT_LINKING=off` in `.env`
 Backups run nightly at 03:00 via root cron → `/opt/backups` (keeps 14).
 Restore one: `gunzip < /opt/backups/<file>.sql.gz | mariadb pudem`.
 
+### Payments confirmed at the door
+
+The admin payment override in Registrations records the person who confirmed
+payment. A later CRM sync preserves that paid status and its confirmation when
+the CRM still says unpaid. A CRM refund still applies and clears the local
+confirmation. Update the CRM as well so both systems reflect the payment.
+
+The sync checks this protection when planning updates and again when writing
+them, so an older sync snapshot cannot undo a payment just confirmed by staff.
+Marking an entry unpaid locally does not protect it from later CRM payment data.
+
 ### Reviewed CRM registration consolidation
 
 `scripts/merge-crm-registrations.mjs` consolidates a reviewed pair of registrations

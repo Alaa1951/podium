@@ -44,6 +44,8 @@ export type ExistingTeam = {
   externalId: string | null;
   source: string;
   paymentStatus: PaymentStatus;
+  /** A staff confirmation of a paid registration takes precedence over an unpaid CRM stage. */
+  confirmedById?: string | null;
   amountMinor: number | null;
   billingNumber: string | null;
 };
@@ -367,7 +369,9 @@ export function reconcile(snapshot: Snapshot): Action[] {
       // in the wrong bracket with nobody having touched anything.
       const draft = draftFrom(contact, payment, snapshot.studioNames, snapshot.registrationClosesAt);
       const changes: MoneyChanges = {};
-      if (existing.paymentStatus !== payment) changes.paymentStatus = payment;
+      const manuallyPaid = existing.paymentStatus === "paid" && Boolean(existing.confirmedById);
+      const keepConfirmation = manuallyPaid && payment === "pending";
+      if (existing.paymentStatus !== payment && !keepConfirmation) changes.paymentStatus = payment;
       if (draft.ok) {
         if (draft.draft.amountMinor !== null && draft.draft.amountMinor !== existing.amountMinor) {
           changes.amountMinor = draft.draft.amountMinor;
@@ -377,7 +381,7 @@ export function reconcile(snapshot: Snapshot): Action[] {
         }
       }
       if (Object.keys(changes).length === 0) {
-        actions.push({ kind: "skip", externalId: contact.id, reason: "already in step" });
+        actions.push({ kind: "skip", externalId: contact.id, reason: keepConfirmation ? "staff-confirmed payment retained" : "already in step" });
       } else {
         actions.push({ kind: "update", externalId: contact.id, teamId: existing.id, changes });
       }

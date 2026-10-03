@@ -392,6 +392,19 @@ describe("reconcile", () => {
     expect(actions[0]).toMatchObject({ kind: "skip", reason: "already in step" });
   });
 
+  it("keeps a staff-confirmed paid registration when the CRM still says unpaid", () => {
+    const existing: ExistingTeam = { id: "t1", externalId: "c1", source: "ghl", paymentStatus: "paid", confirmedById: "staff", amountMinor: null, billingNumber: null };
+    const actions = reconcile(snapshot({ contacts: [contact("c1")], opportunities: [opportunity("c1", STAGE.registeredNotPaid)], teams: [existing] }));
+    expect(actions[0]).toMatchObject({ kind: "skip", reason: "staff-confirmed payment retained" });
+  });
+
+  it("still applies an actual CRM refund to a staff-confirmed paid registration", () => {
+    const existing: ExistingTeam = { id: "t1", externalId: "c1", source: "ghl", paymentStatus: "paid", confirmedById: "staff", amountMinor: null, billingNumber: null };
+    const actions = reconcile(snapshot({ contacts: [contact("c1")], opportunities: [opportunity("c1", STAGE.registeredNotPaid)],
+      pipelines: [{ id: "pipe-1", name: "Refunds", stages: [{ id: STAGE.registeredNotPaid, name: "Processed" }] }], teams: [existing] }));
+    expect(actions[0]).toMatchObject({ kind: "update", teamId: "t1", changes: { paymentStatus: "refunded" } });
+  });
+
   it("holds a contact with no opportunity rather than guessing its state", () => {
     const actions = reconcile(snapshot({ contacts: [contact("c1")], opportunities: [] }));
     expect(actions[0]).toMatchObject({

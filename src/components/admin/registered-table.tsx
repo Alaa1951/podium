@@ -18,10 +18,9 @@ import { useIsMobile } from "@/components/app/use-mobile";
 // Everyone who entered this round: who they are, how to reach them, whether
 // their money landed, whether they turned up, and which wave they are in.
 //
-// PAYMENT IS SHOWN HERE, NEVER CHANGED HERE. The CRM owns the money, and the
-// sync writes what it says: a button on this screen would be a second place to
-// change a figure that has an owner elsewhere, and the next poll would quietly
-// undo whoever pressed it.
+// Payments normally arrive from the CRM. The admin's door override records a
+// confirmed payment here, protected from stale unpaid CRM stages. CRM refunds
+// still apply.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RegisteredRow = {
@@ -84,8 +83,8 @@ export function RegisteredTable({
   /** May this viewer hand out a place, or take one back? */
   canWaitlist: boolean;
   /**
-   * The door override. A full admin only, and deliberately not the same
-   * question as `readOnly` — the CRM owns the money whoever is looking.
+   * The door override. A full admin only: reading a registration does not
+   * authorise confirming its payment.
    */
   canOverridePayment?: boolean;
   /** registrations.edit — the Edit link on a registration. */
@@ -145,15 +144,17 @@ export function RegisteredTable({
     startTransition(async () => report(await restoreTeam(seriesId, rowId)));
   }
 
-  // THE DOOR OVERRIDE. Not a payment screen coming back: it writes the one
-  // field, says so, and the next poll reconciles it against the CRM.
+  // The door override records a payment confirmation. The CRM should also be
+  // updated; its stale unpaid stage cannot undo a payment confirmed here.
   function overridePayment(row: RegisteredRow, status: "pending" | "paid") {
     setMessage("");
     startTransition(async () => {
       const result = await setPayment({ teamId: row.id, status });
       if (!result.ok) setMessage(t("Something went wrong. Try again."));
       else {
-        setMessage(t("Recorded here. The CRM is still the record — update it too."));
+        setMessage(t(status === "paid"
+          ? "Payment confirmed. Update the CRM too; an unpaid CRM status will not undo this confirmation."
+          : "Marked unpaid here. Update the CRM too."));
         router.refresh();
       }
     });

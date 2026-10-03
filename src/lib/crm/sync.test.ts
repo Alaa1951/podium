@@ -65,10 +65,11 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
       findUnique: vi.fn(async (): Promise<{ id: string } | null> => null),
     },
     team: {
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async (): Promise<object[]> => []),
       // `nextTeamNumber` reads the highest number through this one.
       findFirst: vi.fn(async () => null),
       update: vi.fn(async () => ({})),
+      updateMany: vi.fn<(args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }>>().mockResolvedValue({ count: 1 }),
       findUnique: vi.fn(async (): Promise<object | null> => null),
       create: vi.fn(async () => ({ id: "t", number: 101, name: "X" })),
     },
@@ -86,6 +87,69 @@ function emptyClient() {
     listOpportunities: vi.fn(async () => []),
   };
 }
+
+function paymentClient(stage: string) {
+  return {
+    ...emptyClient(),
+    listPipelines: vi.fn(async () => [{ id: "pipeline", name: "Podium Series 1", stages: [{ id: "stage", name: stage }] }]),
+    listContacts: vi.fn(async () => [{ id: "crm-person", customFields: [] }]),
+    listOpportunities: vi.fn(async () => [{ id: "opportunity", contactId: "crm-person", pipelineId: "pipeline", pipelineStageId: "stage", status: "open" }]),
+  };
+}
+
+describe("CRM payment writes after a staff confirmation", () => {
+  const team = (paymentStatus: "paid" | "pending", confirmedById: string | null = null) => ({
+    id: "team", externalId: "crm-person", source: "ghl", paymentStatus, confirmedById, amountMinor: null, billingNumber: null,
+  });
+
+  it("does not plan or write an unpaid status over an existing staff confirmation", async () => {
+    const db = fakeDb();
+    db.team.findMany.mockResolvedValue([team("paid", "staff")]);
+    expect(await runSync({ prisma: db as never, client: paymentClient("Registered but Not Paid") as never })).toMatchObject({ ok: true, updated: 0 });
+    expect(db.team.updateMany).not.toHaveBeenCalled();
+    const read = db.team.findMany.mock.calls[0] as unknown as [{ select: { confirmedById: boolean } }];
+    expect(read[0].select.confirmedById).toBe(true);
+  });
+
+  it.each([
+    { before: "paid" as const, stage: "Registered but Not Paid" },
+    { before: "pending" as const, stage: "Paid – Registered" },
+  ])("does not erase a confirmation made while the $stage poll was in flight", async ({ before, stage }) => {
+    const db = fakeDb();
+    const current = team("paid", "staff");
+    db.team.findMany.mockResolvedValue([team(before)]);
+    db.team.updateMany.mockImplementation(async ({ where, data }) => {
+      if (where.OR && current.paymentStatus === "paid" && current.confirmedById !== null) return { count: 0 };
+      Object.assign(current, data);
+      return { count: 1 };
+    });
+    expect(await runSync({ prisma: db as never, client: paymentClient(stage) as never })).toMatchObject({ ok: true, updated: 0, skipped: 1 });
+    expect(db.team.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: {
+      id: "team", OR: [{ paymentStatus: { not: "paid" } }, { confirmedById: null }],
+    } }));
+    expect(current).toMatchObject({ paymentStatus: "paid", confirmedById: "staff" });
+  });
+
+  it("continues to apply CRM refunds to staff-confirmed payments", async () => {
+    const db = fakeDb();
+    const current = team("paid", "staff");
+    db.team.findMany.mockResolvedValue([structuredClone(current)]);
+    db.team.updateMany.mockImplementation(async ({ where, data }) => {
+      expect(where).toEqual({ id: "team" });
+      Object.assign(current, data);
+      return { count: 1 };
+    });
+    expect(await runSync({ prisma: db as never, client: paymentClient("Refunded") as never })).toMatchObject({ ok: true, updated: 1 });
+    expect(current).toMatchObject({ paymentStatus: "refunded", confirmedById: null });
+  });
+
+  it("continues to update payments that have no staff confirmation", async () => {
+    const db = fakeDb();
+    db.team.findMany.mockResolvedValue([team("pending")]);
+    expect(await runSync({ prisma: db as never, client: paymentClient("Paid – Registered") as never })).toMatchObject({ ok: true, updated: 1 });
+    expect(db.team.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ paymentStatus: "paid", confirmedById: null, paidAt: expect.any(Date) }) }));
+  });
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -374,17 +438,19 @@ describe("runSync", () => {
 
     expect(result).toMatchObject({ ok: true, created: 0, updated: 1 });
     expect(db.team.create).not.toHaveBeenCalled();
-    // The existing team becomes the CRM's, money and all.
+    // Adoption links the existing team; payment uses the guarded money path.
     expect(db.team.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "signup-team" },
         data: expect.objectContaining({
           externalId: "crm-1",
           source: "ghl",
-          paymentStatus: "paid",
         }),
       })
     );
+    expect(db.team.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "signup-team" }), data: expect.objectContaining({ paymentStatus: "paid" }),
+    }));
   });
 
   // One matching email means the PARTNER changed, and which pair is the real

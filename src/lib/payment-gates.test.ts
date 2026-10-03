@@ -47,6 +47,10 @@ const ALLOWED = new Set([
   // it exactly as `payments.ts` does. It decides nothing about competing —
   // `isCompeting` still stands between a paid team and the board.
   "lib/crm/sync.ts",
+  // CRM reconciliation compares money to retain a staff-confirmed payment
+  // when a stale CRM stage says unpaid. This plans payment writes only;
+  // registration eligibility still comes from isCompeting, including waitlist.
+  "lib/crm/reconcile.ts",
 ]);
 
 /** Every .ts/.tsx under src, excluding tests and the generated client. */

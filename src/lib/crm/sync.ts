@@ -5,7 +5,7 @@ import { prisma as defaultPrisma } from "@/lib/prisma";
 import { createCrmClient, type CrmClient } from "@/lib/crm/client";
 import { admitIfRoom } from "@/lib/crm/admit";
 import { assertFieldMap } from "@/lib/crm/field-map";
-import { reconcile, summarise, type Action, type Snapshot } from "@/lib/crm/reconcile";
+import { reconcile, summarise, type Action, type MoneyChanges, type Snapshot } from "@/lib/crm/reconcile";
 import { findEntryInSeries } from "@/lib/one-entry";
 import { createTeam } from "@/lib/team-create";
 
@@ -113,6 +113,7 @@ async function readSnapshot(db: Db, client: CrmClient, seriesId: string): Promis
         externalId: true,
         source: true,
         paymentStatus: true,
+        confirmedById: true,
         amountMinor: true,
         billingNumber: true,
       },
@@ -178,6 +179,26 @@ async function studioIdFor(
   }
 }
 
+/** The write-time guard also covers a staff confirmation made after the poll's snapshot. */
+async function writeCrmMoney(db: Db, teamId: string, changes: MoneyChanges, now: Date) {
+  const { paymentStatus } = changes;
+  const updated = await db.team.updateMany({
+    where: {
+      id: teamId,
+      // A stale paid/unpaid stage must neither undo a staff-confirmed payment
+      // nor erase its attribution. An actual CRM refund still reaches PODIUM.
+      ...(paymentStatus === undefined || paymentStatus === "refunded" ? {} : {
+        OR: [{ paymentStatus: { not: "paid" as const } }, { confirmedById: null }],
+      }),
+    },
+    data: {
+      ...changes,
+      ...(paymentStatus === undefined ? {} : { paidAt: paymentStatus === "paid" ? now : null, confirmedById: null }),
+    },
+  });
+  return updated.count > 0;
+}
+
 /** Carry out one action. Returns what happened, never throws for a bad record. */
 async function apply(
   db: Db,
@@ -203,21 +224,7 @@ async function apply(
   }
 
   if (action.kind === "update") {
-    const { paymentStatus } = action.changes;
-    await db.team.update({
-      where: { id: action.teamId },
-      data: {
-        ...action.changes,
-        // Mirrors `setPayment`: the timestamp follows the status. There is no
-        // `confirmedById` — nobody at BFT MENA confirmed this one, the CRM
-        // did, and naming a person who was asleep is worse than naming none.
-        ...(paymentStatus === undefined
-          ? {}
-          : { paidAt: paymentStatus === "paid" ? now : null, confirmedById: null }),
-      },
-    });
-
-    return "updated";
+    return await writeCrmMoney(db, action.teamId, action.changes, now) ? "updated" : "skipped";
   }
 
   const { draft } = action;
@@ -277,12 +284,11 @@ async function apply(
           // MENA already said who registered it.
           ...(mine.ownership === "unknown" && owner.ownership === "registrant" ? owner : {}),
           rawPayload: draft.raw as never,
-          paymentStatus: draft.paymentStatus,
-          paidAt: draft.paymentStatus === "paid" ? now : null,
-          amountMinor: draft.amountMinor,
-          billingNumber: draft.billingNumber,
         },
       });
+      await writeCrmMoney(db, mine.id, {
+        paymentStatus: draft.paymentStatus, amountMinor: draft.amountMinor, billingNumber: draft.billingNumber,
+      }, now);
       await db.crmIntake
         .deleteMany({ where: { seriesId, externalId: draft.externalId } })
         .catch(() => undefined);
