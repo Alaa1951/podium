@@ -4,7 +4,7 @@ import { onTheFloor } from "@/lib/ownership";
 import type { Category, Division, SeriesStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { getSeries, getSeriesTeams, getSeriesWaves, getSeriesZones } from "@/lib/queries";
-import type { BoardDisplay } from "@/lib/visibility";
+import { eventPhase, type BoardDisplay } from "@/lib/visibility";
 import { nextWaveStart, summariseWaves, type WaveState, type WaveSummary } from "@/lib/waves";
 import { athletePhoto } from "@/lib/athlete-photo";
 import { boardScore, type BoardZoneScore } from "@/lib/board-score";
@@ -44,17 +44,16 @@ export type BoardTeam = {
   /** Every zone submitted and none unlocked: the score is final. */
   submitted: boolean;
   /**
-   * At least one zone submitted: the team is on the ranking. Zones are judged
-   * one by one, so a team climbs the board as they arrive (board-score.ts).
+   * At least one zone published: the team is on the ranking. Live saved entries
+   * appear while judges count; submission remains separate (board-score.ts).
    */
   scored: boolean;
   /** Points per zone, in board order — as many as the series defines. The
    *  board used to carry four named fields and could only draw Series 1.
-   *  A zone never submitted carries 0 and `submitted: false`, never the
-   *  judge's draft; one unlocked for correction carries its values as they
-   *  stand, so the correction moves the team the moment it is saved. */
+   *  `submitted` on a board zone means its points can be shown, including live
+   *  saved values. The team's `submitted` above remains its final lock state. */
   zones: BoardZoneScore[];
-  /** The submitted zones only. */
+  /** Published zones, including saved live entries. */
   total: number;
 };
 
@@ -154,6 +153,17 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     hasTeams: wave.teamCount > 0,
   }));
   const at = new Date(now);
+  const waveSummary = summariseWaves(waves);
+  const phase = eventPhase({
+    status: series.status,
+    teamCount: series._count.teams,
+    wavesTotal: waveSummary.total,
+    wavesComplete: waveSummary.complete,
+    wavesRunning: waveSummary.running,
+    boardOpensAt: series.boardOpensAt,
+    resultsPublicAt: series.resultsPublicAt,
+    now: at,
+  });
   const upNext = ordered.flatMap((zone, index) => {
     const visit = zoneSchedule(planned, index, timing, at).find((row) => row.state === "coming");
     return visit ? [{ zoneNumber: zone.number, wave: visit.number, inMs: visit.workStartsAt.getTime() - now, estimated: visit.estimated }] : [];
@@ -165,7 +175,7 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     competitionDate: series.competitionDate.toISOString(),
     status: series.status,
     waves,
-    waveSummary: summariseWaves(waves),
+    waveSummary,
     nextWave: nextWaveStart(waves, series.competitionDate, now),
     zoneDefs: zones.map((zone) => ({ id: zone.id, number: zone.number, name: zone.name })),
     waveMinutes: series.waveMinutes,
@@ -183,7 +193,10 @@ export async function buildBoardPayload(idOrSlug: string): Promise<BoardPayload 
     sponsorsEnabled: series.sponsorsEnabled,
     upNext,
     teams: onBoard.map((team) => {
-      const score = boardScore(team.zones, team.publishedZones);
+      const liveZones = phase === "live"
+        ? zones.filter((zone) => zone.inputs.some((input) => team.values[input.id] != null)).map((zone) => zone.id)
+        : [];
+      const score = boardScore(team.zones, team.publishedZones, liveZones);
       return {
         id: team.id,
         number: team.number,

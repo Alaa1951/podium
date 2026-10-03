@@ -2,6 +2,7 @@ import type { Phrases } from "@/lib/i18n/phrases";
 
 /** Phrases exposed by the mobile screens and their independent editors. */
 export const AR_MOBILE: Phrases = {
+  "Saving…": "جارٍ الحفظ…",
   "Could not save. Check your connection and try again.": "تعذّر تأكيد الحفظ. راجع اتصالك وحاول مرة أخرى.",
   "Could not load. Check your connection and try again.": "تعذّر التحميل. راجع اتصالك وحاول مرة أخرى.",
   "This screen is unavailable or this account does not have access to it.": "هذه الشاشة غير متاحة أو ليس لدى حسابك صلاحية الوصول إليها.",

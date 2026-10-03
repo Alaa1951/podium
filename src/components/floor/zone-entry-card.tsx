@@ -1,22 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, useTransition } from "react";
 
 import { useUnsavedChanges } from "@/components/app/mobile-runtime";
 import { useT } from "@/components/i18n/locale-provider";
 import { ClockField } from "@/components/scores/clock-field";
 import { FinisherStop } from "@/components/scores/finisher-clock";
 import { halfOf, show } from "@/components/scores/score-grid-row";
+import { useScoreAutosave } from "@/components/scores/use-score-autosave";
 import { saveZoneScore } from "@/lib/actions/scores";
 import { fmt } from "@/lib/scoring";
+import type { ScorePatch } from "@/lib/score-autosave";
 import { groupInputs, isComplete, isCounted, keepTyping, zonePoints, type EntryValues, type ZoneDef } from "@/lib/zones";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ONE TEAM, ONE ZONE — what a judge scores.
 //
 // The judge stands at one station of one zone; this card is the team in front
-// of them, with only that zone's movements. Save keeps a draft; Submit locks
+// of them, with only that zone's movements. Every edit saves a draft; Submit locks
 // the zone (only BFT MENA Full access can change it after). In the last zone
 // the End button stops the wave clock for this team and submits at once.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,8 +56,13 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<EntryValues>(team.values);
+  const draftRef = useRef<EntryValues>(team.values);
+  useLayoutEffect(() => { draftRef.current = draft; }, [draft]);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const saveDraft = useCallback((values: ScorePatch) => saveZoneScore({
+    teamId: team.id, zoneId: zone.id, values, submit: false, autosave: true,
+  }), [team.id, zone.id]);
+  const autosave = useScoreAutosave(saveDraft);
 
   // The server re-read this team: take what it now holds.
   // The server re-read this team — the sheet's poll, another card's save, the
@@ -66,36 +73,42 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
   const [seen, setSeen] = useState(team);
   if (seen !== team) {
     setSeen(team);
-    setDraft(keepTyping([zone], draft, seen.values, team.values, team.locked ? [zone.id] : []));
+    setDraft(seen.id !== team.id ? team.values : keepTyping([zone], draft, seen.values, team.values, team.locked ? [zone.id] : []));
     setError("");
   }
 
-  const dirty = zone.inputs.some((input) => (draft[input.id] ?? null) !== (team.values[input.id] ?? null));
-  useUnsavedChanges(dirty && !saved);
+  useUnsavedChanges(autosave.dirty || pending);
   const locked = team.locked;
   const complete = isComplete([zone], draft);
 
-  function set(inputId: string, value: number | null) {
-    setSaved(false);
-    setDraft((current) => ({ ...current, [inputId]: value }));
+  function set(inputId: string, value: number | null | ((current: number) => number)) {
+    const nextValue = typeof value === "function" ? value(draftRef.current[inputId] ?? 0) : value;
+    const next = { ...draftRef.current, [inputId]: nextValue };
+    draftRef.current = next;
+    setDraft(next);
+    setError("");
+    autosave.enqueue({ [inputId]: nextValue });
   }
 
-  function save(submit: boolean, values: EntryValues = draft) {
+  function save(submit: boolean) {
     if (submit && !window.confirm(t("Submit Zone {zone} for {team}? It locks once submitted.", { zone: zone.number, team: team.name }))) return;
     setError("");
     startTransition(async () => {
       try {
+        if (!await autosave.flush()) return;
+        if (!submit) return;
         const result = await saveZoneScore({
           teamId: team.id,
           zoneId: zone.id,
-          values: Object.fromEntries(zone.inputs.map((input) => [input.id, values[input.id] ?? null])),
+          // The queue already saved the latest fields. Submit the server's
+          // merged zone so another operator's fields are never overwritten.
+          values: {},
           submit,
         });
         if (!result.ok) {
           setError(t(ERRORS[result.error] ?? "Something went wrong. Try again."));
           return;
         }
-        setSaved(true);
         router.refresh();
       } catch {
         setError(t("Could not save. Check your connection and try again."));
@@ -104,7 +117,7 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
   }
 
   return (
-    <section className="card zone-entry" data-dirty={dirty || undefined} data-locked={locked || undefined}>
+    <section className="card zone-entry" data-dirty={autosave.dirty || undefined} data-locked={locked || undefined}>
       <div className="zone-entry-head">
         <span className="station-number" title={t("Station")}>
           {team.station ?? "—"}
@@ -139,10 +152,12 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
                 workMinutes={team.finisherWorkMinutes}
                 disabled={pending}
                 onCapture={({ minutes, seconds }) => {
-                  const next = { ...draft, [group.minutes.id]: minutes, [group.seconds.id]: seconds };
+                  const next = { ...draftRef.current, [group.minutes.id]: minutes, [group.seconds.id]: seconds };
+                  draftRef.current = next;
                   setDraft(next);
+                  autosave.enqueue({ [group.minutes.id]: minutes, [group.seconds.id]: seconds });
                   // End is the finish: record the time and submit the zone.
-                  save(isComplete([zone], next), next);
+                  save(isComplete([zone], next));
                 }}
               />
             ) : null}
@@ -155,7 +170,7 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
                 className="team-entry-stepper"
                 disabled={locked || pending}
                 aria-label={`${t(group.input.label)} +1`}
-                onClick={() => set(group.input.id, Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999))}
+                onClick={() => set(group.input.id, (current) => Math.min(current + 1, group.input.maxValue ?? 9999))}
               >
                 +1
               </button>
@@ -164,7 +179,7 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
                 className="team-entry-stepper-minus"
                 disabled={locked || pending}
                 aria-label={`${t(group.input.label)} −1`}
-                onClick={() => set(group.input.id, Math.max(0, (draft[group.input.id] ?? 0) - 1))}
+                onClick={() => set(group.input.id, (current) => Math.max(0, current - 1))}
               >
                 −1
               </button>
@@ -198,10 +213,9 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
         </span>
         {!locked ? (
           <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-secondary" disabled={pending || !dirty} onClick={() => save(false)}>
-              {pending ? <span className="spinner" /> : null}
-              {saved && !dirty ? t("Saved") : t("Save")}
-            </button>
+            <span role="status" aria-live="polite">
+              {autosave.saving ? <><span className="spinner" /> {t("Saving…")}</> : autosave.saved ? t("Saved") : null}
+            </span>
             <button type="button" className="btn btn-primary" disabled={pending || !complete} onClick={() => save(true)}>
               {t("Submit zone")}
             </button>
@@ -209,9 +223,12 @@ export function ZoneEntryCard({ team, zone }: { team: ZoneEntryTeam; zone: ZoneD
         ) : null}
       </div>
 
-      {error ? (
+      {error || autosave.error ? (
         <div className="notice-error" role="alert" style={{ marginTop: 8 }}>
-          {error}
+          {error || t(autosave.error === "NETWORK_ERROR"
+            ? "Could not save. Check your connection and try again."
+            : ERRORS[autosave.error!] ?? "Something went wrong. Try again.")}
+          {autosave.error ? <button type="button" className="btn btn-secondary btn-sm" onClick={autosave.retry} style={{ marginInlineStart: 8 }}>{t("Try again")}</button> : null}
         </div>
       ) : null}
     </section>

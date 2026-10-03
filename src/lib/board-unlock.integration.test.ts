@@ -4,7 +4,8 @@
  *
  * A team is on the board from its first submitted zone. Unlocking its score
  * keeps it there, with its values as they stand; the saved correction re-ranks
- * it at once. A zone never submitted never shows, draft or not.
+ * it at once. Live boards also show counters while their zones stay open;
+ * final results retain the submitted-zone gate.
  *
  *   INTEGRATION_DB=1 npx vitest run src/lib/board-unlock.integration.test.ts
  */
@@ -86,9 +87,12 @@ describe.skipIf(!env.on)("the board and a score unlocked for correction", { time
     expect((await prisma.score.findUniqueOrThrow({ where: { teamId: "t1" } })).status).toBe("submitted");
   });
 
-  it("a zone never submitted never reaches the board — draft or not", async () => {
+  it("a live draft reaches the board without locking it; final results omit it", async () => {
     const draftOnly = await onBoard("t2");
-    expect(draftOnly).toMatchObject({ scored: false, submitted: false, total: 0 });
+    expect(draftOnly).toMatchObject({ scored: true, submitted: false, total: 900 });
+    expect(await prisma.zoneScore.count({ where: { score: { teamId: "t2" } } })).toBe(0);
+    await prisma.series.update({ where: { id: "s1" }, data: { status: "final" } });
+    expect(await onBoard("t2")).toMatchObject({ scored: false, submitted: false, total: 0 });
     expect(JSON.stringify(await buildBoardPayload("s1"))).not.toContain("900");
   });
 });

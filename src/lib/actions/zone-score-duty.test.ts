@@ -81,7 +81,8 @@ beforeEach(() => {
   // The write itself: an empty score, then the entry, no audit worth checking.
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
-      score: { upsert: vi.fn(async () => ({ id: "score", status: "draft" })), update: vi.fn() },
+      $queryRaw: vi.fn(),
+      score: { findUnique: vi.fn(async () => null), upsert: vi.fn(async () => ({ id: "score", status: "draft" })), update: vi.fn() },
       zoneEntry: { upsert: vi.fn() },
       scoreAudit: { createMany: vi.fn() },
       zoneScore: { upsert: vi.fn(), count: vi.fn(async () => 0) },

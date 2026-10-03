@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useBoardUpdates } from "@/components/board/use-board-updates";
 import type { BoardPayload, BoardTeam } from "@/lib/board";
 import { BRACKETS, fmt } from "@/lib/scoring";
 import { teamLabel, type BoardDisplay } from "@/lib/visibility";
@@ -140,26 +141,11 @@ export function useRefreshCycle(
   // Set on mount rather than during render: reading the clock is impure, and a
   // re-render would otherwise restart the cycle.
   const nextAt = useRef(0);
-  const handler = useRef(onData);
-
-  useEffect(() => {
-    handler.current = onData;
-  }, [onData]);
+  const pull = useBoardUpdates(seriesId, onData, pollHref);
 
   useEffect(() => {
     nextAt.current = Date.now() + POLL_SECONDS * 1000;
   }, []);
-
-  const pull = useCallback(async () => {
-    try {
-      const res = await fetch(pollHref ?? `/api/series/${seriesId}/board`, { cache: "no-store" });
-      if (!res.ok) return;
-      handler.current((await res.json()) as BoardPayload);
-    } catch {
-      // A dropped poll is not worth showing on a wall screen — the board keeps
-      // the numbers it has and tries again on the next cycle.
-    }
-  }, [seriesId, pollHref]);
 
   useEffect(() => {
     const id = setInterval(() => {

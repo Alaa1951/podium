@@ -32,4 +32,17 @@ describe("boardScore — what the wall shows of a team's score", () => {
   it("an unknown or stale zone id counts for nothing", () => {
     expect(boardScore(zones, ["gone"])).toMatchObject({ scored: false, total: 0 });
   });
+
+  it("live saved partial zones appear immediately without requiring submission", () => {
+    const score = boardScore(zones, ["z2"], ["z1", "z4"]);
+    expect(score.scored).toBe(true);
+    expect(score.total).toBe(4227.1);
+    expect(score.zones.map((zone) => [zone.submitted, zone.points])).toEqual([
+      [true, 4190], [true, 23.6], [false, 0], [true, 13.5],
+    ]);
+  });
+
+  it("the same zone published and live is counted once", () => {
+    expect(boardScore(zones, ["z2"], ["z2"]).total).toBe(23.6);
+  });
 });

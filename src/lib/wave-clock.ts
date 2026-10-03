@@ -37,9 +37,10 @@ export const waveLengthFor = (timing: FloorTiming) => Math.max(1, waveLengthMinu
  *
  * "Competed" means the team has a score row at all — somebody entered
  * something for it. A no-show gets nothing invented for it.
+ * The caller's transaction holds each Team lock through its wave transition.
  */
 export async function fillFinisherTimes(
-  db: Db,
+  db: Prisma.TransactionClient,
   wave: { id: string; seriesId: string },
   remainingMs: number
 ): Promise<number> {
@@ -54,12 +55,24 @@ export async function fillFinisherTimes(
   const { minutes, seconds } = remainingClock(remainingMs);
   const scores = await db.score.findMany({
     where: { team: { waveId: wave.id, archivedAt: null } },
-    select: { id: true, entries: { select: { inputId: true, value: true } } },
+    orderBy: { teamId: "asc" },
+    select: { teamId: true },
   });
 
   let filled = 0;
   for (const score of scores) {
-    const timed = score.entries.some(
+    await db.$queryRaw`SELECT id FROM Team WHERE id = ${score.teamId} FOR UPDATE`;
+    // A sweep may already have opened a REPEATABLE READ snapshot before
+    // waiting for this team. FOR UPDATE is a current read, so it sees a judge's
+    // captured time committed while we waited instead of overwriting it.
+    const current = await db.$queryRaw<{ id: string; inputId: string | null; value: number | null }[]>`
+      SELECT s.id, e.inputId, e.value
+      FROM Score s LEFT JOIN ZoneEntry e ON e.scoreId = s.id
+      WHERE s.teamId = ${score.teamId}
+      FOR UPDATE
+    `;
+    if (!current.length) continue;
+    const timed = current.some(
       (entry) => (entry.inputId === minutesId || entry.inputId === secondsId) && entry.value !== null
     );
     if (timed) continue;
@@ -68,8 +81,8 @@ export async function fillFinisherTimes(
       [secondsId, seconds],
     ] as const) {
       await db.zoneEntry.upsert({
-        where: { scoreId_inputId: { scoreId: score.id, inputId } },
-        create: { scoreId: score.id, inputId, value },
+        where: { scoreId_inputId: { scoreId: current[0].id, inputId } },
+        create: { scoreId: current[0].id, inputId, value },
         update: { value },
       });
     }

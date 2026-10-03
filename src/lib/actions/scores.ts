@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { notifyBoardChanged } from "@/lib/board-events";
 import { waveOnDuty, zoneArrival } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
@@ -27,11 +28,17 @@ export type SaveScoreResult =
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
+class ScoreWriteRefused extends Error {
+  constructor(readonly code: "SCORE_LOCKED" | "INCOMPLETE") {
+    super(code);
+  }
+}
+
 /**
- * Write values for one team, audit what changed, and settle the per-zone
- * locks. `submitZones` are the zones this write submits; when every zone of
- * the competition is submitted the team's score becomes `submitted` — that is
- * what the board and the results count.
+ * Serialize every score write and unlock on the team row, including a team's
+ * first score. Read locks, values and completeness only after that lock: a
+ * counter request waiting behind a submission must never rewrite its zone.
+ * `complete` submits each complete open zone; an explicit zone must be complete.
  */
 async function writeEntries(
   tx: Tx,
@@ -40,10 +47,51 @@ async function writeEntries(
     userId: string;
     zones: ZoneDef[];
     next: Record<string, number | null>;
-    previous: Map<string, number | null>;
-    submitZones: string[];
+    canCorrect: boolean;
+    targetZoneId?: string;
+    submitZones: string[] | "complete";
   }
 ) {
+  await tx.$queryRaw`SELECT id FROM Team WHERE id = ${params.teamId} FOR UPDATE`;
+  const current = await tx.score.findUnique({
+    where: { teamId: params.teamId },
+    select: {
+      id: true,
+      status: true,
+      entries: { select: { inputId: true, value: true } },
+      zones: { select: { zoneId: true, status: true } },
+    },
+  });
+  const previous = new Map((current?.entries ?? []).map((entry) => [entry.inputId, entry.value]));
+  const lockedZones = new Set((current?.zones ?? []).filter((zone) => zone.status === "submitted").map((zone) => zone.zoneId));
+  const next = { ...params.next };
+  if (!params.canCorrect) {
+    if (current?.status === "submitted" || (params.targetZoneId && lockedZones.has(params.targetZoneId))) {
+      throw new ScoreWriteRefused("SCORE_LOCKED");
+    }
+    // The desktop grid sends unchanged locked fields too. Keep those zones'
+    // original submitter and values; reject any attempt to change them.
+    for (const zone of params.zones) {
+      if (!lockedZones.has(zone.id)) continue;
+      for (const inputDef of zone.inputs) {
+        if (!(inputDef.id in next)) continue;
+        if ((next[inputDef.id] ?? null) !== (previous.get(inputDef.id) ?? null)) throw new ScoreWriteRefused("SCORE_LOCKED");
+        delete next[inputDef.id];
+      }
+    }
+  }
+
+  const merged = Object.fromEntries(
+    allInputs(params.zones).map((inputDef) => [inputDef.id, inputDef.id in next ? next[inputDef.id] : previous.get(inputDef.id) ?? null])
+  );
+  const submitZones = params.submitZones === "complete"
+    ? params.zones.filter((zone) => !lockedZones.has(zone.id) && isComplete([zone], merged)).map((zone) => zone.id)
+    : params.submitZones;
+  for (const zoneId of submitZones) {
+    const zone = params.zones.find((zone) => zone.id === zoneId);
+    if (!zone || !isComplete([zone], merged)) throw new ScoreWriteRefused("INCOMPLETE");
+  }
+
   const known = new Map(allInputs(params.zones).map((input) => [input.id, input]));
   const score = await tx.score.upsert({
     where: { teamId: params.teamId },
@@ -51,7 +99,7 @@ async function writeEntries(
     update: {},
   });
 
-  for (const [inputId, value] of Object.entries(params.next)) {
+  for (const [inputId, value] of Object.entries(next)) {
     await tx.zoneEntry.upsert({
       where: { scoreId_inputId: { scoreId: score.id, inputId } },
       create: { scoreId: score.id, inputId, value },
@@ -59,8 +107,8 @@ async function writeEntries(
     });
   }
 
-  const changed = Object.keys(params.next).filter(
-    (inputId) => (params.previous.get(inputId) ?? null) !== (params.next[inputId] ?? null)
+  const changed = Object.keys(next).filter(
+    (inputId) => (previous.get(inputId) ?? null) !== (next[inputId] ?? null)
   );
   if (changed.length) {
     await tx.scoreAudit.createMany({
@@ -69,15 +117,15 @@ async function writeEntries(
         // The movement's label, not its id — an audit line has to be readable
         // a year later, when the id means nothing to anyone.
         field: known.get(inputId)?.label ?? inputId,
-        oldValue: params.previous.get(inputId) == null ? null : String(params.previous.get(inputId)),
-        newValue: params.next[inputId] === null ? null : String(params.next[inputId]),
+        oldValue: previous.get(inputId) == null ? null : String(previous.get(inputId)),
+        newValue: next[inputId] === null ? null : String(next[inputId]),
         operatorId: params.userId,
       })),
     });
   }
 
   const now = new Date();
-  for (const zoneId of params.submitZones) {
+  for (const zoneId of submitZones) {
     await tx.zoneScore.upsert({
       where: { scoreId_zoneId: { scoreId: score.id, zoneId } },
       create: { scoreId: score.id, zoneId, status: "submitted", submittedAt: now, submittedById: params.userId },
@@ -105,6 +153,8 @@ const saveZoneSchema = z.object({
   values: z.record(z.string(), optionalInt),
   /** Submit locks the zone. A zone can only be submitted complete. */
   submit: z.boolean().default(false),
+  /** A live counter write needs no refresh of the judge's whole sheet. */
+  autosave: z.boolean().default(false),
 });
 
 /**
@@ -121,7 +171,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
 
   const parsed = saveZoneSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { teamId, zoneId, values, submit } = parsed.data;
+  const { teamId, zoneId, values, submit, autosave } = parsed.data;
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
@@ -190,15 +240,16 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
   const errors = validateEntries([zone], next);
   if (errors.length) return { ok: false, error: "INVALID_SCORE", fields: errors };
 
-  const previous = new Map((team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value]));
-  if (submit) {
-    const merged = Object.fromEntries(zone.inputs.map((inputDef) => [inputDef.id, inputDef.id in next ? next[inputDef.id] : previous.get(inputDef.id) ?? null]));
-    if (!isComplete([zone], merged)) return { ok: false, error: "INCOMPLETE" };
+  try {
+    await prisma.$transaction((tx) => writeEntries(tx, {
+      teamId, userId: user.id, zones, next,
+      canCorrect: can(user, "scores.correct"), targetZoneId: zoneId, submitZones: submit ? [zoneId] : [],
+    }));
+  } catch (error) {
+    if (error instanceof ScoreWriteRefused) return { ok: false, error: error.code };
+    throw error;
   }
-
-  await prisma.$transaction((tx) =>
-    writeEntries(tx, { teamId, userId: user.id, zones, next, previous, submitZones: submit ? [zoneId] : [] })
-  );
+  notifyBoardChanged(team.seriesId);
 
   if (submit) {
     await recordAudit({
@@ -211,7 +262,7 @@ export async function saveZoneScore(input: unknown): Promise<SaveScoreResult> {
     });
   }
 
-  revalidateCompetitionViews();
+  if (!autosave || submit) revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -222,6 +273,8 @@ const saveScoreSchema = z.object({
   /** Keyed by ZoneInput id — the form is built from the series' definition,
    *  so this action has no idea what the movements are and does not need one. */
   values: z.record(z.string(), optionalInt),
+  /** Keep counting after a complete zone: only an explicit submit locks it. */
+  autosave: z.boolean().default(false),
 });
 
 /**
@@ -242,7 +295,7 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
 
   const parsed = saveScoreSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "INVALID_INPUT" };
-  const { teamId, values } = parsed.data;
+  const { teamId, values, autosave } = parsed.data;
 
   const team = await prisma.team.findFirst({
     where: { id: teamId, ...teamScope(user) },
@@ -274,47 +327,18 @@ export async function saveScore(input: unknown): Promise<SaveScoreResult> {
   const errors = validateEntries(zones, next);
   if (errors.length) return { ok: false, error: "INVALID_SCORE", fields: errors };
 
-  const previous = new Map((team.score?.entries ?? []).map((entry) => [entry.inputId, entry.value]));
-
-  // A zone a judge has submitted is locked zone by zone, not only when the
-  // whole team is: the console may not rewrite it (Full access corrects). The
-  // grid sends every field back, so an unchanged value is simply dropped.
-  const lockedZones = new Set((team.score?.zones ?? []).filter((row) => row.status === "submitted").map((row) => row.zoneId));
-  if (!can(user, "scores.correct")) {
-    for (const zone of zones) {
-      if (!lockedZones.has(zone.id)) continue;
-      for (const inputDef of zone.inputs) {
-        if (!(inputDef.id in next)) continue;
-        if ((next[inputDef.id] ?? null) !== (previous.get(inputDef.id) ?? null)) return { ok: false, error: "SCORE_LOCKED" };
-        delete next[inputDef.id];
-      }
-    }
+  try {
+    await prisma.$transaction((tx) => writeEntries(tx, {
+      teamId, userId: user.id, zones, next,
+      canCorrect: can(user, "scores.correct"), submitZones: autosave ? [] : "complete",
+    }));
+  } catch (error) {
+    if (error instanceof ScoreWriteRefused) return { ok: false, error: error.code };
+    throw error;
   }
 
-  // Only a COMPLETE zone is submitted and locked. Submitting every zone on
-  // every save locked the zones nobody had filled in yet — a team saved from
-  // the console before its wave reached Zone 2 had Zone 2 locked, empty, and
-  // its judges could not score it.
-  const merged = Object.fromEntries(
-    allInputs(zones).map((inputDef) => [inputDef.id, inputDef.id in next ? next[inputDef.id] : previous.get(inputDef.id) ?? null])
-  );
-  // A zone already submitted keeps its judge as the one who submitted it.
-  const submitZones = zones
-    .filter((zone) => !lockedZones.has(zone.id) && isComplete([zone], merged))
-    .map((zone) => zone.id);
-
-  await prisma.$transaction((tx) =>
-    writeEntries(tx, {
-      teamId,
-      userId: user.id,
-      zones,
-      next,
-      previous,
-      submitZones,
-    })
-  );
-
-  revalidateCompetitionViews();
+  notifyBoardChanged(team.seriesId);
+  if (!autosave) revalidateCompetitionViews();
   return { ok: true };
 }
 
@@ -335,20 +359,21 @@ export async function unlockScore(teamId: string): Promise<SaveScoreResult> {
   });
   if (!team?.score) return { ok: false, error: "NOT_FOUND" };
 
-  await prisma.$transaction([
-    prisma.score.update({ where: { teamId }, data: { status: "draft" } }),
-    prisma.zoneScore.updateMany({ where: { scoreId: team.score.id }, data: { status: "draft" } }),
-    prisma.scoreAudit.create({
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM Team WHERE id = ${teamId} FOR UPDATE`;
+    await tx.score.update({ where: { teamId }, data: { status: "draft" } });
+    await tx.zoneScore.updateMany({ where: { scoreId: team.score!.id }, data: { status: "draft" } });
+    await tx.scoreAudit.create({
       data: {
-        scoreId: team.score.id,
+        scoreId: team.score!.id,
         field: "status",
         oldValue: "submitted",
         newValue: "draft",
         reason: "unlocked for correction",
         operatorId: user.id,
       },
-    }),
-  ]);
+    });
+  });
 
   await recordAudit({
     actorId: user.id,
@@ -359,6 +384,7 @@ export async function unlockScore(teamId: string): Promise<SaveScoreResult> {
     detail: "returned to draft, every zone reopened",
   });
 
+  notifyBoardChanged(team.seriesId);
   revalidateCompetitionViews();
   return { ok: true };
 }

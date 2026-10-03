@@ -1,12 +1,11 @@
 /**
- * THE LIVE BOARD RANKS A TEAM FROM ITS FIRST SUBMITTED ZONE — in a real browser.
+ * THE LIVE BOARD RANKS A TEAM FROM ITS FIRST SAVED COUNTER — in a real browser.
  *
  * Zones are judged and submitted one by one. A running wave of four paid teams:
  * one with all four zones submitted, one with two (and a draft typed in a
  * third), one with one, and one with only a draft. The ranking must hold the
- * first three, names and all, in order of what has been submitted; a zone not
- * submitted is a dash; the draft-only team waits unranked on the floor panel;
- * and no draft value reaches the page.
+ * four teams, names and all, in order of the saved live values. Unentered zones
+ * are dashes; saving counters does not submit or lock their zones.
  */
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
@@ -27,7 +26,7 @@ test.afterAll(async () => { await db.$disconnect(); });
 // Zone → [raw value, divideBy]: 4190, 23.6, 250, 13.5 as on the reference board.
 const ZONES = [[1, 1], [2, 10], [3, 1], [4, 10]] as const;
 
-test("a team is ranked from its first submitted zone, and no draft reaches the wall", async ({ page, context }, info) => {
+test("live counters rank teams while unentered zones remain dashes", async ({ page, context }, info) => {
   test.setTimeout(240_000);
   const locale = info.project.name.includes("-ar-") ? "ar" : "en";
   const t = createTranslator(locale);
@@ -71,64 +70,67 @@ test("a team is ranked from its first submitted zone, and no draft reaches the w
 
   await context.addCookies([
     { name: "podium_locale", value: locale, url: origin },
-    { name: "next-auth.session-token", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
+    { name: process.env.MOBILE_QA_PRODUCTION === "1" ? "__Secure-next-auth.session-token" : "next-auth.session-token", secure: process.env.MOBILE_QA_PRODUCTION === "1", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
       token: { sub: hq.id, id: hq.id, email: hq.email, name: hq.name, role: "admin", studioId: null, status: "active", locale, expiresAt: Date.now() + 3_600_000, refreshedAt: Date.now() } }) },
   ]);
   await mkdir(".mobile-qa/board", { recursive: true });
 
   try {
     await page.goto(`/series/${id}/board`);
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-mobile-ready", "true");
     const ranking = page.locator(".running-grid .zone-row:visible");
-    await expect(ranking).toHaveCount(3);
+    await expect(ranking).toHaveCount(4);
     await expect(page.getByText(t("No scores in this bracket yet"))).toHaveCount(0);
 
-    // In order of what has been submitted — names and athletes on every row.
+    // Saved live values contribute even before a judge submits the zone.
     const rows = await ranking.allInnerTexts();
-    expect(rows[0]).toContain("RAW ORDER");
-    expect(rows[0]).toContain("Rania Zaid");
-    expect(rows[0]).toContain("4,477.10");
+    expect(rows[0]).toContain("GRIT WORKS");
+    expect(rows[0]).toContain("Youssef Darwish");
+    expect(rows[0]).toContain("11,900.60");
     // Bracket, wave, athletes and team number under the name, as on the reference board.
     expect(rows[0]).toContain(`${t("Mens")} ${t("Pro")}`);
-    expect(rows[0]).toContain(`${t("Team")} 180`);
-    expect(rows[1]).toContain("GRIT WORKS");
-    expect(rows[1]).toContain("Youssef Darwish");
-    expect(rows[1]).toContain("4,123.60");
-    expect(rows[2]).toContain("APEX HOUSE");
-    expect(rows[2]).toContain("Bilal Khalil");
-    expect(rows[2]).toContain("3,970.00");
-    // Zones not submitted are dashes: two on GRIT WORKS, three on APEX HOUSE.
+    expect(rows[0]).toContain(`${t("Team")} 181`);
+    expect(rows[1]).toContain("NORTH FORGE");
+    expect(rows[1]).toContain("Aisha Khalil");
+    expect(rows[1]).toContain("9,999.00");
+    expect(rows[2]).toContain("RAW ORDER");
+    expect(rows[2]).toContain("Rania Zaid");
+    expect(rows[2]).toContain("4,477.10");
+    expect(rows[3]).toContain("APEX HOUSE");
+    expect(rows[3]).toContain("Bilal Khalil");
+    expect(rows[3]).toContain("3,970.00");
+    // Only zones with no entered values are dashes.
     // (A phone shows no zone columns — only the total.)
     const zoneCells = (row: number) => ranking.nth(row).locator(".zone-col:visible").allInnerTexts();
     if (await ranking.first().locator(".zone-col").first().isVisible()) {
-      expect(await zoneCells(0)).toEqual(["4,190", "23.60", "250", "13.50"]);
-      expect(await zoneCells(1)).toEqual(["4,100", "23.60", "—", "—"]);
-      expect(await zoneCells(2)).toEqual(["3,970", "—", "—", "—"]);
+      expect(await zoneCells(0)).toEqual(["4,100", "23.60", "7,777", "—"]);
+      expect(await zoneCells(1)).toEqual(["9,999", "—", "—", "—"]);
+      expect(await zoneCells(2)).toEqual(["4,190", "23.60", "250", "13.50"]);
+      expect(await zoneCells(3)).toEqual(["3,970", "—", "—", "—"]);
     }
 
-    // The floor panel: three ranked, the draft-only team waiting unranked.
+    // All four teams have entered values on the live board.
     const panel = page.locator(".floor-panel:visible");
-    await expect(panel.getByTestId("floor-count")).toHaveText(`3 ${t("of")} 4 ${t("scored")}`);
+    await expect(panel.getByTestId("floor-count")).toHaveText(`4 ${t("of")} 4 ${t("scored")}`);
     await expect(panel.locator('[data-testid="floor-row"]')).toHaveCount(4);
-    await expect(panel.locator('[data-testid="floor-row"][data-team="183"]')).toContainText("—");
+    await expect(panel.locator('[data-testid="floor-row"][data-team="183"]')).toContainText("9,999");
 
-    // No draft value anywhere — not on the page, not in what the board polls.
+    // The live payload includes draft counters, without finalizing the score.
     const html = await page.content();
-    expect(html).not.toContain("9,999");
-    expect(html).not.toContain("7,777");
+    expect(html).toContain("9,999");
+    expect(html).toContain("7,777");
     const payload = await (await page.request.get(`/api/series/${id}/board`)).json();
     const forge = payload.teams.find((team: { name: string }) => team.name === "NORTH FORGE");
-    expect(forge).toMatchObject({ scored: false, submitted: false, total: 0 });
-    expect(JSON.stringify(payload)).not.toMatch(/9999|7777/);
+    expect(forge).toMatchObject({ scored: true, submitted: false, total: 9999 });
     await page.screenshot({ path: `.mobile-qa/board/${info.project.name}-ranking.png` });
 
-    // The draft-only team's first zone is submitted: it joins the ranking.
+    // Finalizing its first zone leaves the same live value and ranking.
     const forgeScore = await db.score.findFirstOrThrow({ where: { teamId: `${id}-t183` } });
     await db.zoneScore.create({ data: { scoreId: forgeScore.id, zoneId: `${id}-z1`, status: "submitted", submittedAt: new Date() } });
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-mobile-ready", "true");
     await expect(ranking).toHaveCount(4);
-    expect((await ranking.first().innerText())).toContain("NORTH FORGE");
+    expect((await ranking.nth(1).innerText())).toContain("NORTH FORGE");
     await expect(panel.getByTestId("floor-count")).toHaveText(`4 ${t("of")} 4 ${t("scored")}`);
   } finally {
     await db.series.delete({ where: { id } });
@@ -175,14 +177,14 @@ test("a score unlocked for correction stays on the board, and the saved correcti
 
   await context.addCookies([
     { name: "podium_locale", value: locale, url: origin },
-    { name: "next-auth.session-token", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
+    { name: process.env.MOBILE_QA_PRODUCTION === "1" ? "__Secure-next-auth.session-token" : "next-auth.session-token", secure: process.env.MOBILE_QA_PRODUCTION === "1", url: origin, value: await encode({ secret: process.env.NEXTAUTH_SECRET!,
       token: { sub: hq.id, id: hq.id, email: hq.email, name: hq.name, role: "admin", studioId: null, status: "active", locale, expiresAt: Date.now() + 3_600_000, refreshedAt: Date.now() } }) },
   ]);
   await mkdir(".mobile-qa/board", { recursive: true });
   const ranking = page.locator(".running-grid .zone-row:visible");
   const board = async () => {
     await page.goto(`/series/${id}/board`);
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-mobile-ready", "true");
     return ranking.allInnerTexts();
   };
 
@@ -195,7 +197,7 @@ test("a score unlocked for correction stays on the board, and the saved correcti
 
     // BFT MENA opens GRIT WORKS on the score sheet and unlocks it for correction.
     await page.goto(`/series/${id}/scores`);
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-mobile-ready", "true");
     await page.locator(".grid-team", { hasText: "GRIT WORKS" }).click();
     const editor = page.locator(".grid-expanded");
     await editor.getByRole("button", { name: t("Unlock for correction") }).click();
@@ -211,7 +213,7 @@ test("a score unlocked for correction stays on the board, and the saved correcti
 
     // The correction: Zone 1 is 4,500, not 4,100. Saved, it re-ranks the team.
     await page.goto(`/series/${id}/scores`);
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-mobile-ready", "true");
     await page.locator(".grid-team", { hasText: "GRIT WORKS" }).click();
     await editor.locator('input[type="number"]').first().fill("4500");
     await editor.getByRole("button", { name: t("Submit score") }).click();

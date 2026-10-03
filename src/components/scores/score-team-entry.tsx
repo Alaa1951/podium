@@ -1,13 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, useTransition } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { ClockField } from "@/components/scores/clock-field";
 import { FinisherStop } from "@/components/scores/finisher-clock";
+import { useScoreAutosave } from "@/components/scores/use-score-autosave";
 import { saveScore } from "@/lib/actions/scores";
 import { fmt } from "@/lib/scoring";
+import type { ScorePatch } from "@/lib/score-autosave";
 import { teamStatus, teamStatusLabel, teamStatusTone } from "@/lib/team-status";
 import {
   groupInputs,
@@ -67,46 +69,54 @@ export function ScoreTeamEntry({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<EntryValues>(team.values);
+  const draftRef = useRef<EntryValues>(team.values);
+  useLayoutEffect(() => { draftRef.current = draft; }, [draft]);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const saveDraft = useCallback((values: ScorePatch) => saveScore({ teamId: team.id, values, autosave: true }), [team.id]);
+  const autosave = useScoreAutosave(saveDraft);
 
   // The server re-read this team: values still being typed are kept, a zone a
   // judge has just submitted takes the server's values (see ScoreGridRow).
   const [seen, setSeen] = useState(team);
   if (seen !== team) {
     setSeen(team);
-    setDraft(keepTyping(zones, draft, seen.values, team.values, team.lockedZones ?? []));
+    setDraft(seen.id !== team.id ? team.values : keepTyping(zones, draft, seen.values, team.values, canEditAfterClose ? [] : team.lockedZones ?? []));
     setError("");
   }
 
   // The budget is a studio's limit, and only a studio's — see ScoreGridRow.
   const spent = budgetApplies && team.scoreEdits >= editBudget;
   const waveLocked = waveEnded && !canEditAfterClose;
-  const locked = spent || frozen || waveLocked;
+  const locked = spent || frozen || waveLocked || (team.submitted && !canEditAfterClose);
+  const zoneLocked = (zoneId: string) => locked || (!canEditAfterClose && (team.lockedZones ?? []).includes(zoneId));
   const total = totalPoints(zones, draft);
   const rank = 1 + team.peerTotals.filter((peer) => peer > total).length;
   const dirty = zones.some((zone) =>
     zone.inputs.some((input) => (draft[input.id] ?? null) !== (team.values[input.id] ?? null))
   );
   const status = teamStatus(team);
-  useUnsavedChanges(dirty && !saved);
+  useUnsavedChanges(autosave.dirty || pending);
 
-  function set(inputId: string, value: number | null) {
-    setSaved(false);
-    setDraft((d) => ({ ...d, [inputId]: value }));
+  function set(inputId: string, value: number | null | ((current: number) => number)) {
+    const nextValue = typeof value === "function" ? value(draftRef.current[inputId] ?? 0) : value;
+    const next = { ...draftRef.current, [inputId]: nextValue };
+    draftRef.current = next;
+    setDraft(next);
+    setError("");
+    autosave.enqueue({ [inputId]: nextValue });
   }
 
-  function save(values: EntryValues = draft) {
+  function submit() {
     setError("");
-    setSaved(false);
     startTransition(async () => {
       try {
-        const result = await saveScore({ teamId: team.id, values });
+        if (!await autosave.flush()) return;
+        // Finalization reads the merged server values after the latest tap.
+        const result = await saveScore({ teamId: team.id, values: {} });
         if (!result.ok) {
           setError(scoreErrorMessage(result.error, t));
           return;
         }
-        setSaved(true);
         router.refresh();
       } catch { setError(t("Could not save. Check your connection and try again.")); }
     });
@@ -114,8 +124,8 @@ export function ScoreTeamEntry({
 
   return (
     <div className="team-entry">
-      <button type="button" className="team-entry-back" onClick={() => {
-        if (!dirty || saved || window.confirm(t("You have unsaved changes. Leave this screen?"))) onBack();
+      <button type="button" className="team-entry-back" disabled={pending} onClick={() => {
+        startTransition(async () => { if (await autosave.flush()) onBack(); });
       }}>
         ← {t("Back to the list")}
       </button>
@@ -165,7 +175,7 @@ export function ScoreTeamEntry({
                 <ClockField
                   minutes={halfOf(group.minutes.id, group.minutes.maxValue, draft)}
                   seconds={halfOf(group.seconds.id, group.seconds.maxValue, draft)}
-                  disabled={locked || pending}
+                  disabled={zoneLocked(zone.id) || pending}
                   onChange={set}
                   label={t("Time remaining")}
                 />
@@ -173,15 +183,17 @@ export function ScoreTeamEntry({
                   <FinisherStop
                     endsAt={waveEndsAt}
                     workMinutes={finisherWorkMinutes}
-                    disabled={locked || pending}
+                    disabled={zoneLocked(zone.id) || pending}
                     onCapture={({ minutes, seconds }) => {
                       const next = {
-                        ...draft,
+                        ...draftRef.current,
                         [group.minutes.id]: minutes,
                         [group.seconds.id]: seconds,
                       };
+                      draftRef.current = next;
                       setDraft(next);
-                      save(next);
+                      autosave.enqueue({ [group.minutes.id]: minutes, [group.seconds.id]: seconds });
+                      submit();
                     }}
                   />
                 ) : null}
@@ -194,12 +206,12 @@ export function ScoreTeamEntry({
                   <button
                     type="button"
                     className="team-entry-stepper"
-                    disabled={locked || pending}
+                    disabled={zoneLocked(zone.id) || pending}
                     aria-label={`${t(group.input.label)} +1`}
                     onClick={() =>
                       set(
                         group.input.id,
-                        Math.min((draft[group.input.id] ?? 0) + 1, group.input.maxValue ?? 9999)
+                        (current) => Math.min(current + 1, group.input.maxValue ?? 9999)
                       )
                     }
                   >
@@ -208,9 +220,9 @@ export function ScoreTeamEntry({
                   <button
                     type="button"
                     className="team-entry-stepper-minus"
-                    disabled={locked || pending}
+                    disabled={zoneLocked(zone.id) || pending}
                     aria-label={`${t(group.input.label)} −1`}
-                    onClick={() => set(group.input.id, Math.max(0, (draft[group.input.id] ?? 0) - 1))}
+                    onClick={() => set(group.input.id, (current) => Math.max(0, current - 1))}
                   >
                     −1
                   </button>
@@ -233,7 +245,7 @@ export function ScoreTeamEntry({
                   max={group.input.maxValue ?? undefined}
                   aria-label={t(group.input.label)}
                   value={show(draft[group.input.id])}
-                  disabled={locked || pending}
+                  disabled={zoneLocked(zone.id) || pending}
                   onChange={(e) =>
                     set(
                       group.input.id,
@@ -257,19 +269,26 @@ export function ScoreTeamEntry({
         </span>
       </div>
 
+      <div role="status" aria-live="polite">
+        {autosave.saving ? <><span className="spinner" /> {t("Saving…")}</> : autosave.saved ? t("Saved") : null}
+      </div>
+
       <button
         type="button"
-        className="btn btn-primary team-entry-save"
-        onClick={() => save()}
-        disabled={locked || pending || zones.length === 0 || !dirty}
+        className="btn btn-primary team-entry-save team-entry-submit"
+        onClick={submit}
+        disabled={locked || pending || zones.length === 0 || !zones.some((zone) => zone.inputs.every((input) => draft[input.id] != null))}
       >
         {pending ? <span className="spinner" /> : null}
-        {locked ? t("Locked") : saved && !dirty ? t("Saved") : t("Save")}
+        {locked ? t("Locked") : t("Submit score")}
       </button>
 
-      {error ? (
+      {error || autosave.error ? (
         <div className="notice-error" role="alert">
-          {error}
+          {error || (autosave.error === "NETWORK_ERROR"
+            ? t("Could not save. Check your connection and try again.")
+            : scoreErrorMessage(autosave.error!, t))}
+          {autosave.error ? <button type="button" className="btn btn-secondary btn-sm" onClick={autosave.retry} style={{ marginInlineStart: 8 }}>{t("Try again")}</button> : null}
         </div>
       ) : null}
     </div>

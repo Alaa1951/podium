@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useBoardUpdates } from "@/components/board/use-board-updates";
 import type { BoardPayload } from "@/lib/board";
 import type { WaveState } from "@/lib/waves";
 
@@ -35,12 +36,8 @@ export function useBoardClock(
 ) {
   const anchor = useRef<{ payload: BoardPayload; at: number } | null>(null);
   const lastPoll = useRef(0);
-  const handler = useRef(onData);
   const [clock, setClock] = useState({ elapsedMs: 0, sinceRefresh: 0 });
-
-  useEffect(() => {
-    handler.current = onData;
-  }, [onData]);
+  const pull = useBoardUpdates(seriesId, onData, pollHref);
 
   useEffect(() => {
     anchor.current = { payload: data, at: Date.now() };
@@ -49,16 +46,6 @@ export function useBoardClock(
   useEffect(() => {
     lastPoll.current = Date.now();
   }, []);
-
-  const pull = useCallback(async () => {
-    try {
-      const res = await fetch(pollHref ?? `/api/series/${seriesId}/board`, { cache: "no-store" });
-      if (!res.ok) return;
-      handler.current((await res.json()) as BoardPayload);
-    } catch {
-      // A dropped poll is not worth showing on a wall screen.
-    }
-  }, [seriesId, pollHref]);
 
   useEffect(() => {
     const id = setInterval(() => {
