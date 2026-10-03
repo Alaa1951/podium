@@ -52,13 +52,31 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
 
   // One wave at a time is how the floor actually runs, so the sheet narrows to
   // it — while the placings beside each row still come from the whole field.
-  const waveFilter = typeof searchParams.wave === "string" ? Number(searchParams.wave) : null;
+  //
+  // The filter is REAL membership — the wave row a team stands in (waveId) —
+  // not the loose `Team.wave` number, which defaults to 1 before a team is
+  // placed at all: a team admitted late but never seated used to inflate the
+  // first wave's sheet with rows it never held. Those teams get their own
+  // "Without wave" view (`?wave=none`) instead.
+  const waveParam = typeof searchParams.wave === "string" ? searchParams.wave : null;
+  const numberByWaveId = new Map(waves.map((wave) => [wave.id, wave.number]));
+  const selectedWave = waveParam && waveParam !== "none" ? waves.find((wave) => String(wave.number) === waveParam) : null;
   const shown = detailId
     ? teams.filter((team) => team.id === detailId)
-    : waveFilter
-      ? teams.filter((team) => team.wave === waveFilter)
-      : teams;
-  const waveNumbers = [...new Set(teams.map((team) => team.wave))].sort((a, b) => a - b);
+    : waveParam === "none"
+      ? teams.filter((team) => !team.waveId)
+      : selectedWave
+        ? teams.filter((team) => team.waveId === selectedWave.id)
+        : waveParam
+          ? []
+          : teams;
+  const placedTeams = teams.filter((team) => team.waveId !== null);
+  const unplacedCount = teams.length - placedTeams.length;
+  const waveNumbers = [
+    ...new Set(placedTeams.flatMap((team) => (team.waveId ? [numberByWaveId.get(team.waveId)] : []))),
+  ]
+    .filter((number): number is number => number !== undefined)
+    .sort((a, b) => a - b);
   const here = seriesHref(series.slug, "scores");
 
   // When each wave clock runs out — the finisher stop reads it per team.
@@ -73,15 +91,17 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
     name: team.name,
     category: team.category,
     division: team.division,
-    wave: team.wave,
+    wave: team.waveId ? team.wave : null,
     station: team.station,
     competitors: team.competitors.map((person) => person.fullName),
     submitted: team.submitted,
     lockedZones: team.lockedZones,
     scoreEdits: team.scoreEdits,
-    waveEndsAt: waveEndsAt[team.wave] ?? null,
+    // An unplaced team holds no clock: wave 1's ended clock must not read as
+    // theirs (it used to show them "Wave clock finished").
+    waveEndsAt: team.waveId ? waveEndsAt[team.wave] ?? null : null,
     finisherWorkMinutes: series.zoneWorkMinutes,
-    waveEnded: waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
+    waveEnded: team.waveId && waveEndsAt[team.wave] ? new Date(waveEndsAt[team.wave]) <= new Date() : false,
     paymentStatus: team.paymentStatus,
     waitlistedAt: team.waitlistedAt,
     groupPortraitPath: team.groupPortraitPath,
@@ -131,9 +151,9 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
         ) : null}
       </div>
 
-      {waveNumbers.length > 1 ? (
+      {waveNumbers.length > 1 || unplacedCount > 0 ? (
         <div className="chip-row" style={{ marginBottom: 14 }}>
-          <Link href={here} className="chip" data-active={waveFilter === null || undefined}>
+          <Link href={here} className="chip" data-active={waveParam === null || undefined}>
             {t("All waves")}
           </Link>
           {waveNumbers.map((number) => (
@@ -141,11 +161,20 @@ export default async function ScoresPage(props: SeriesScreenProps, detailId?: st
               key={number}
               href={`${here}?wave=${number}`}
               className="chip"
-              data-active={waveFilter === number || undefined}
+              data-active={selectedWave?.number === number || undefined}
             >
               {t("Wave")} {number}
             </Link>
           ))}
+          {unplacedCount > 0 ? (
+            <Link
+              href={`${here}?wave=none`}
+              className="chip"
+              data-active={waveParam === "none" || undefined}
+            >
+              {t("Without wave")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

@@ -9,7 +9,13 @@ export type GridTeam = {
   name: string;
   category: string;
   division: string;
-  wave: number;
+  /**
+   * The number of the wave the team actually STANDS in (its waveId), or null
+   * when it holds no place yet. Not the loose `Team.wave` number, which
+   * defaults to 1 before a team is placed — reading that here put teams that
+   * were never seated under the first wave's sheet.
+   */
+  wave: number | null;
   competitors: string[];
   submitted: boolean;
   scoreEdits: number;

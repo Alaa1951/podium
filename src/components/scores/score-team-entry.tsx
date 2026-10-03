@@ -153,7 +153,7 @@ export function ScoreTeamEntry({
           <span className="team-entry-name">{team.name}</span>
           <span className="grid-team-people">{team.competitors.join(" · ")}</span>
           <span className="grid-team-bracket">
-            {t(team.category)} · {t(team.division)} · {t("Wave")} {team.wave}
+            {t(team.category)} · {t(team.division)} · {team.wave === null ? t("Without wave") : `${t("Wave")} ${team.wave}`}
           </span>
         </span>
         <span className={`badge ${teamStatusTone(status)}`}>{t(teamStatusLabel(status))}</span>

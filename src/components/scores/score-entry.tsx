@@ -27,7 +27,8 @@ export type SelectedTeam = {
   name: string;
   category: string;
   division: string;
-  wave: number;
+  /** The wave the team stands in, or null when it has not been placed (score-grid-types.ts). */
+  wave: number | null;
   competitors: string[];
   submitted: boolean;
   scoreEdits: number;
@@ -162,7 +163,8 @@ export function ScoreEntry({
               color: "var(--podium-blue)",
             }}
           >
-            {t(team.category)} {t(team.division)} · {t("Wave")} {team.wave} · {t("Team")}{" "}
+            {t(team.category)} {t(team.division)} ·{" "}
+            {team.wave === null ? t("Without wave") : `${t("Wave")} ${team.wave}`} · {t("Team")}{" "}
             {team.number}
           </div>
           <div

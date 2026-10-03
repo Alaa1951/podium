@@ -48,7 +48,7 @@ export default async function StudioResultsPage(props: SeriesScreenProps, detail
     name: team.name,
     category: team.category,
     division: team.division,
-    wave: team.wave,
+    wave: team.waveId ? team.wave : null,
     competitors: team.competitors.map((person) => person.fullName),
     submitted: team.submitted,
     scoreEdits: team.scoreEdits,

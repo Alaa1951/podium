@@ -148,6 +148,7 @@ export const AR_CORE: Phrases = {
   "Find team": "ابحث عن فريق",
   "Team name, number or competitor": "اسم الفريق أو رقمه أو اسم لاعب",
   "All waves": "كل الموجات",
+  "Without wave": "بدون موجة",
   "Search or pick a team on the left to enter scores.":
     "ابحث أو اختر فريقًا من القائمة لإدخال النتائج.",
   "Zone 1 /// Strength": "المنطقة ١ /// القوة",
