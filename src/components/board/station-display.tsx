@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useT } from "@/components/i18n/locale-provider";
 import { useBoardClock } from "@/components/board/use-board-clock";
@@ -11,10 +11,43 @@ import { nextOnStation, stationView, zoneStations, type StationView } from "@/li
 
 type UpNext = ReturnType<typeof nextOnStation>;
 
+const timeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Qatar", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
 /** "12:05" for a countdown on a wall screen. */
 function countdown(ms: number) {
   const { minutes, seconds } = remainingClock(ms);
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * When the payload's countdown points at, as the venue's wall clock. `inMs`
+ * already has the payload's age subtracted (nextOnStation), so now + inMs is
+ * the arrival — steady as the clock ticks, because both sides move together.
+ * Rendered only once mounted: the server's clock is not this device's, and a
+ * wall time baked into the first HTML would fight the hydration.
+ */
+const arrivalWallTime = (inMs: number, nowMs: number) => timeFormat.format(new Date(nowMs + inMs));
+
+/**
+ * The device clock, once the browser has taken over — null on the server and
+ * the first paint, so no wall time is baked into HTML that hydration must then
+ * fight. Ticks every second, like the countdowns it labels (judge-day.tsx
+ * keeps its wall clock the same way).
+ */
+function useWallClock() {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setNow(Date.now());
+    });
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      active = false;
+      clearInterval(tick);
+    };
+  }, []);
+  return now;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,12 +85,12 @@ export function StationDisplay({
 
   const { elapsedMs } = useBoardClock(data, initial.seriesId, setData);
   const view = stationView({ waves: data.waves, teams: data.teams, zoneNumber, station });
-  // Nobody on the rig: say who is coming, so the pair can be called over
-  // before their clock starts. Older payloads (a cached page) have no list.
-  const next =
-    view.state === "idle"
-      ? nextOnStation({ upNext: data.upNext ?? [], teams: data.teams, zoneNumber, station, elapsedMs })
-      : null;
+  // WHO RIDES IN NEXT — on this rig, in the next wave to reach this zone, with
+  // the athletes' names and the time it starts. Shown whatever the screen is
+  // doing (a pair working, a rig unused, an idle floor): the judge calls the
+  // next pair over during the changeover and checks them against THIS, before
+  // their clock ever starts. Older payloads (a cached page) have no list.
+  const next = nextOnStation({ upNext: data.upNext ?? [], teams: data.teams, zoneNumber, station, elapsedMs });
 
   return (
     <div className="station-screen">
@@ -69,6 +102,7 @@ export function StationDisplay({
         <span className="station-screen-rig display">{station}</span>
       </div>
       <StationBody view={view} next={next} />
+      {view.state !== "idle" && next ? <StationNextStrip next={next} /> : null}
     </div>
   );
 }
@@ -84,6 +118,7 @@ export function ZoneStationsDisplay({
   zoneName: string | null;
 }) {
   const t = useT();
+  const now = useWallClock();
   const [data, setData] = useState(initial);
   const [lastProp, setLastProp] = useState(initial);
   if (lastProp !== initial) {
@@ -138,12 +173,22 @@ export function ZoneStationsDisplay({
           ))}
         </div>
       )}
+      {/* While the zone holds a wave, the one coming next still gets a line —
+          the changeover is when its pairs are called over and briefed. */}
+      {rigs.length > 0 && coming ? (
+        <p className="station-screen-wave">
+          {t("Up next")} · {t("Wave")} {coming.wave}
+          {now !== null ? ` · ${arrivalWallTime(coming.inMs, now)}` : ""} · {countdown(coming.inMs - elapsedMs)}
+          {coming.estimated ? ` (${t("estimated")})` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 function StationBody({ view, next }: { view: StationView; next: UpNext }) {
   const t = useT();
+  const now = useWallClock();
 
   if (view.state === "idle") {
     if (next?.team) {
@@ -153,7 +198,11 @@ function StationBody({ view, next }: { view: StationView; next: UpNext }) {
             {t("Up next")} · {t("Wave")} {next.wave}
           </span>
           <h1 className="station-screen-team display">{next.team.name}</h1>
+          {next.team.competitors.filter(Boolean).length ? (
+            <p className="station-screen-people">{next.team.competitors.filter(Boolean).join(" & ")}</p>
+          ) : null}
           <p className="station-screen-idle">
+            {now !== null ? `${arrivalWallTime(next.inMs, now)} · ` : ""}
             {t("in {time}", { time: countdown(next.inMs) })}
             {next.estimated ? ` (${t("estimated")})` : ""}
           </p>
@@ -225,5 +274,32 @@ function StationBody({ view, next }: { view: StationView; next: UpNext }) {
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * THE STRIP UNDER THE PAIR ON THE RIG — who comes next, on this exact rig, and
+ * when. It stays while somebody works and through the changeover, so the judge
+ * and the incoming pair match each other to a name BEFORE the wave starts and
+ * the score sheet opens.
+ */
+function StationNextStrip({ next }: { next: NonNullable<UpNext> }) {
+  const t = useT();
+  const now = useWallClock();
+  const athletes = next.team ? next.team.competitors.filter(Boolean) : [];
+  return (
+    <footer className="station-screen-next">
+      <span>{t("Up next on this rig")}</span>
+      <span className="station-screen-next-team">
+        {t("Wave")} {next.wave}
+        {next.team ? ` · ${next.team.name}` : ""}
+      </span>
+      {athletes.length ? <span className="station-screen-next-people">{athletes.join(" & ")}</span> : null}
+      <span className="pd-num">
+        {now !== null ? `${arrivalWallTime(next.inMs, now)} · ` : ""}
+        {t("in {time}", { time: countdown(next.inMs) })}
+        {next.estimated ? ` (${t("estimated")})` : ""}
+      </span>
+    </footer>
   );
 }

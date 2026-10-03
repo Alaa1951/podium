@@ -120,6 +120,7 @@ export const AR_FLOOR: Phrases = {
   "Open the screen for my rig": "افتح شاشة محطتي",
   "My score sheet": "ورقة درجاتي",
   "Open the screen for my zone": "افتح شاشة منطقتي",
+  "Up next on this rig": "التالي على هذه المحطة",
 
   // ── The judge's day ────────────────────────────────────────────────────────
   "You are on Zone {zone} · Station {station}": "أنت في المنطقة {zone} · المحطة {station}",

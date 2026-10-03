@@ -315,7 +315,7 @@ export default async function MyWavePage(detailId?: string, requestedSeries?: st
 
   return (
     <div className="screen">
-      <SheetRefresher seconds={5} changeInMs={Math.min(...panels.map((panel) => panel.changeInMs))} />
+      <SheetRefresher seconds={5} changeInMs={Math.min(...panels.map((panel) => panel.changeInMs))} seriesSlugs={boards.map((board) => board.slug).join(",")} />
       <PlainHeader roleLabel={user.name ?? t("Judge")} homeHref="/my-wave" />
       <div className="screen-head">
         <div>

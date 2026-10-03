@@ -5,6 +5,7 @@ import { isCompeting } from "@/lib/team-status";
 import { z } from "zod";
 
 import { AUDIT, recordAudit } from "@/lib/audit";
+import { notifyBoardChanged } from "@/lib/board-events";
 import { finisherRemainingMs, MAX_STATIONS, zoneOneFreeAt } from "@/lib/floor";
 import { prisma } from "@/lib/prisma";
 import { revalidateCompetitionViews } from "@/lib/revalidate-competition";
@@ -67,6 +68,10 @@ export async function controlWave(input: unknown): Promise<ActionResult> {
   // Fresh reads: the readiness check must see what it waited for (wave-schedule-db.ts).
   const result = await scheduleTransaction(found.seriesId, tx => controlLocked(tx, parsed.data, actor.role === "admin"), { freshReads: true });
   if (!result.ok) return result;
+  // Start, End and Reset all move the floor: push every board screen now, so
+  // rigs and walls show the new wave within a second instead of on their next
+  // ten-second poll — a judge must not meet a team their screens never named.
+  notifyBoardChanged(found.seriesId);
   await recordAudit({ actorId: actor.id, action: AUDIT.waveControlled, targetType: "event", targetId: found.seriesId,
     detail: "wave=" + parsed.data.waveId + " action=" + parsed.data.action + (result.message ? " " + result.message : "") });
   revalidateCompetitionViews();
@@ -173,6 +178,8 @@ export async function startCompetitionDay(input: unknown): Promise<ActionResult>
     data: { status: "live" },
   });
   if (started.count === 0) return { ok: false, error: "NOT_SCHEDULED" };
+  // The day opening changes every sheet and board: push, don't let them poll.
+  notifyBoardChanged(series.id);
 
   await recordAudit({
     actorId: actor.id,

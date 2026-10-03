@@ -797,6 +797,39 @@
   color: #9a9aff;
 }
 
+/* Who rides in after the pair on the rig — shown through the work and the
+   changeover too, so the incoming pair is matched to the screen by name
+   before their wave starts and the score sheet opens. */
+.station-screen-next {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: clamp(8px, 1.5vw, 24px);
+  margin-top: clamp(8px, 1.5vh, 18px);
+  padding-top: clamp(8px, 1.5vh, 18px);
+  border-top: 1px solid rgba(154, 154, 255, 0.35);
+  font-size: clamp(13px, 1.8vw, 28px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a9aff;
+}
+.station-screen-next-team {
+  color: #e6e6ff;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.station-screen-next-people {
+  color: #c6c6ff;
+  letter-spacing: 0;
+  text-transform: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* One screen for a whole zone, when there are fewer screens than rigs. */
 .station-grid {
   flex: 1;

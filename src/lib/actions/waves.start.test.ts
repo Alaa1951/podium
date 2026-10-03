@@ -10,8 +10,9 @@ const mocks = vi.hoisted(() => {
     wave: { findUnique: vi.fn(), findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     zone: { count: vi.fn().mockResolvedValue(3) },
     zoneScore: { count: vi.fn().mockResolvedValue(0) },
+    zoneInput: { findMany: vi.fn().mockResolvedValue([]) },
   };
-  return { tx, user: vi.fn(), blockers: vi.fn(), audit: vi.fn() };
+  return { tx, user: vi.fn(), blockers: vi.fn(), audit: vi.fn(), notify: vi.fn() };
 });
 // Readiness (waiver, entrance, warm-up) is its own check, tested against a
 // real database in wave-start.integration.test.ts; here it answers "ready".
@@ -21,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: { wave: { findUnique: vi.fn().mockResol
 vi.mock("@/lib/wave-schedule-db", () => ({ scheduleTransaction: (_series: string, work: (tx: unknown) => unknown) => work(mocks.tx), waveRowFor: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit, AUDIT: { waveControlled: "wave" } }));
 vi.mock("@/lib/revalidate-competition", () => ({ revalidateCompetitionViews: vi.fn() }));
+vi.mock("@/lib/board-events", () => ({ notifyBoardChanged: mocks.notify }));
 
 import { controlWave } from "@/lib/actions/waves";
 
@@ -129,5 +131,29 @@ describe("the series-scoped emergency readiness override", () => {
     mocks.tx.zoneScore.count.mockResolvedValue(1);
     expect(await controlWave({ waveId: "w1", action: "reset" })).toEqual({ ok: false, error: "WAVE_HAS_SCORES" });
     expect(mocks.tx.wave.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("the live board push", () => {
+  it("rides every successful start, finish and reset — and never a refusal", async () => {
+    mocks.tx.wave.findUnique.mockResolvedValue(wave([team(1, 2)]));
+    await controlWave({ waveId: "w1", action: "start" });
+    expect(mocks.notify).toHaveBeenCalledWith("s1");
+
+    mocks.notify.mockClear();
+    mocks.tx.wave.findUnique.mockResolvedValue({ ...wave([team(1, 2)]), status: "running", endsAt: new Date(Date.now() + 60_000) });
+    await controlWave({ waveId: "w1", action: "finish" });
+    expect(mocks.notify).toHaveBeenCalledWith("s1");
+
+    mocks.notify.mockClear();
+    mocks.user.mockResolvedValue({ id: "hq", role: "admin", permissions: [] });
+    mocks.tx.wave.findUnique.mockResolvedValue({ ...wave([team(1, 2)]), status: "complete" });
+    await controlWave({ waveId: "w1", action: "reset" });
+    expect(mocks.notify).toHaveBeenCalledWith("s1");
+
+    mocks.notify.mockClear();
+    mocks.tx.wave.findUnique.mockResolvedValue(wave([]));
+    expect(await controlWave({ waveId: "w1", action: "start" })).toEqual({ ok: false, error: "NO_TEAMS" });
+    expect(mocks.notify).not.toHaveBeenCalled();
   });
 });
