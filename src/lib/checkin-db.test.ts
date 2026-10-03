@@ -5,9 +5,9 @@
  * needs the entrance, that a check-out takes readiness back — and that every
  * change leaves one row of history.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setAthleteArrival, setTeamArrival, setWarmupReady, syncTeamArrival, type CheckInActor } from "@/lib/checkin-db";
+import { setAthleteArrival, setTeamArrival, setWarmupReady, syncTeamArrival, teamCheck, type CheckInActor } from "@/lib/checkin-db";
 import { resolveEffectivePermissions } from "@/lib/permissions/resolve";
 import { systemRole, type AccountType } from "@/lib/permissions/system-roles";
 
@@ -88,6 +88,7 @@ const arriveAll = () => row.seats.forEach((seat) => (seat.attendedAt = EARLIER))
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("EVENT_READINESS_OVERRIDE_SERIES_ID", "");
   writes = [];
   events = [];
   teamWhere = [];
@@ -99,6 +100,8 @@ beforeEach(() => {
     seats: [{ id: "seat-mona", fullName: "Mona Saleh", attendedAt: null, userId: "u-mona" }, { id: "seat-sara", fullName: "Sara Ali", attendedAt: null, userId: "u-sara" }],
   };
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("who may check in and out", () => {
   it.each([["an Organiser", organiser], ["a Volunteer", volunteer], ["a Gym / Studio account", gym], ["BFT MENA Partial", partial], ["BFT MENA Full", admin]])(
@@ -282,5 +285,85 @@ describe("warm-up check-in and check-out", () => {
     row.series.status = "final";
     expect(await setWarmupReady(db, admin, { teamId: "t1", ready: true })).toEqual({ ok: false, error: "SERIES_FINISHED" });
     expect(writes).toEqual([]);
+  });
+});
+
+describe("an event-scoped readiness override", () => {
+  beforeEach(() => {
+    vi.stubEnv("EVENT_READINESS_OVERRIDE_SERIES_ID", "s1");
+    release = { id: "r1" };
+    row.seats[1].userId = null;
+    // The linked athlete has no acceptance; the other athlete has no account.
+    signed = [];
+  });
+
+  it("allows whole-team arrival without changing either athlete's waiver state", async () => {
+    expect(await setTeamArrival(db, organiser, { teamId: "t1", attended: true }, NOW)).toMatchObject({
+      ok: true, changed: true, detail: expect.stringContaining("event-day readiness override"),
+    });
+    expect(row.seats.map((seat) => seat.attendedAt)).toEqual([NOW, NOW]);
+    expect(row.attendedAt).toEqual(NOW);
+    expect(events).toHaveLength(2);
+    expect(events.every((event) => event.reason === "event-day readiness override")).toBe(true);
+    expect((await teamCheck(tx as never, row)).athletes.map((one) => one.waiver)).toEqual(["pending", "no_account"]);
+    expect(signed).toEqual([]);
+  });
+
+  it.each(["seat-mona", "seat-sara"])("allows only the requested athlete %s to arrive", async (competitorId) => {
+    expect(await setAthleteArrival(db, volunteer, { competitorId, attended: true }, NOW)).toMatchObject({ ok: true, changed: true });
+    expect(row.seats.find((seat) => seat.id === competitorId)?.attendedAt).toEqual(NOW);
+    expect(row.seats.find((seat) => seat.id !== competitorId)?.attendedAt).toBeNull();
+    expect(row.attendedAt).toBeNull();
+    expect(events).toEqual([{ kind: "entrance_in", competitorId, waveId: null, reason: "event-day readiness override", actorId: "u-vol" }]);
+    expect((await teamCheck(tx as never, row)).athletes.map((one) => one.waiver)).toEqual(["pending", "no_account"]);
+    expect(signed).toEqual([]);
+  });
+
+  it("allows warm-up without entrance arrival and records only warm-up readiness", async () => {
+    expect(await setWarmupReady(db, organiser, { teamId: "t1", ready: true }, NOW)).toMatchObject({ ok: true, changed: true });
+    expect(row).toMatchObject({ warmupReadyAt: NOW, warmupWaveId: "w3", attendedAt: null });
+    expect(row.seats.map((seat) => seat.attendedAt)).toEqual([null, null]);
+    expect(writes).toEqual([{ table: "team", data: { warmupReadyAt: NOW, warmupWaveId: "w3" } }]);
+    expect(events).toEqual([{ kind: "warmup_in", competitorId: null, waveId: "w3", reason: "event-day readiness override", actorId: "u-org" }]);
+    expect((await teamCheck(tx as never, row)).athletes.map((one) => one.waiver)).toEqual(["pending", "no_account"]);
+    expect(signed).toEqual([]);
+  });
+
+  it("does not bypass any prerequisites for a different competition", async () => {
+    vi.stubEnv("EVENT_READINESS_OVERRIDE_SERIES_ID", "other-series");
+    expect(await setTeamArrival(db, organiser, { teamId: "t1", attended: true }, NOW)).toMatchObject({ ok: false, error: "PREREQUISITES" });
+    expect(await setAthleteArrival(db, organiser, { competitorId: "seat-sara", attended: true }, NOW)).toMatchObject({ ok: false, error: "PREREQUISITES" });
+    expect(await setWarmupReady(db, organiser, { teamId: "t1", ready: true }, NOW)).toMatchObject({
+      ok: false, error: "PREREQUISITES", gaps: { athletes: [{ gaps: ["waiver", "entrance"] }, { gaps: ["account", "entrance"] }] },
+    });
+    expect(writes).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
+  it("still denies an actor without desk permissions", async () => {
+    expect(await setTeamArrival(db, judge, { teamId: "t1", attended: true }, NOW)).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await setAthleteArrival(db, judge, { competitorId: "seat-sara", attended: true }, NOW)).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(await setWarmupReady(db, judge, { teamId: "t1", ready: true }, NOW)).toEqual({ ok: false, error: "FORBIDDEN" });
+    expect(tx.team.findFirst).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+
+  it("still requires a registration holding a place on both desks", async () => {
+    row.waitlistedAt = EARLIER;
+    expect(await setTeamArrival(db, organiser, { teamId: "t1", attended: true }, NOW)).toMatchObject({ ok: false, gaps: { gaps: ["registration"], athletes: [] } });
+    expect(await setAthleteArrival(db, organiser, { competitorId: "seat-sara", attended: true }, NOW)).toMatchObject({ ok: false, gaps: { gaps: ["registration"], athletes: [] } });
+    expect(await setWarmupReady(db, organiser, { teamId: "t1", ready: true }, NOW)).toMatchObject({ ok: false, gaps: { gaps: ["registration"], athletes: [] } });
+    expect(writes).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
+  it("still requires a wave and athletes before warm-up", async () => {
+    row.waveId = null;
+    expect(await setWarmupReady(db, organiser, { teamId: "t1", ready: true }, NOW)).toMatchObject({ ok: false, gaps: { gaps: ["no_wave"], athletes: [] } });
+    row.waveId = "w3";
+    row.seats = [];
+    expect(await setWarmupReady(db, organiser, { teamId: "t1", ready: true }, NOW)).toMatchObject({ ok: false, gaps: { gaps: ["no_athletes"], athletes: [] } });
+    expect(writes).toEqual([]);
+    expect(events).toEqual([]);
   });
 });

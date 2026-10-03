@@ -19,6 +19,7 @@ import { fillFinisherTimes, waveLengthFor } from "@/lib/wave-clock";
 import { isScheduled, loadBlocks } from "@/lib/category-schedule-db";
 import type { TeamGaps } from "@/lib/readiness";
 import { waveStartBlockers } from "@/lib/wave-start-check";
+import { isEventReadinessOverridden } from "@/lib/event-readiness-override";
 import { protectedIn, ProtectedWaveError } from "@/lib/wave-protection";
 
 const protectedResult = (error: unknown): ActionResult | null =>
@@ -90,9 +91,10 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
         const incomplete = wave.teams.filter(team => isCompeting(team) && team._count.competitors < 2).map(team => team.number);
         if (incomplete.length) return { ok: false, error: "INCOMPLETE_TEAM", teams: incomplete };
       }
-      // Every athlete of every team: registered, signed, at the venue, and
-      // the team ready for THIS wave. No bypass, for anybody.
-      const blockers = await waveStartBlockers(tx, wave.id, wave.seriesId);
+      // The scoped emergency override waives operational readiness only.
+      // Team/athlete locks and structural start checks remain in force.
+      const readinessOverridden = isEventReadinessOverridden(wave.series);
+      const blockers = await waveStartBlockers(tx, wave.id, wave.seriesId, readinessOverridden);
       if (blockers.length) return { ok: false, error: "NOT_READY", blockers };
       const timing = { workMinutes: wave.series.zoneWorkMinutes, breakMinutes: wave.series.zoneBreakMinutes,
         zoneCount: await tx.zone.count({ where: { seriesId: wave.seriesId } }) };
@@ -102,7 +104,7 @@ async function controlLocked(tx: Prisma.TransactionClient, input: z.infer<typeof
       if (freeAt) return { ok: false, error: "ZONE_OCCUPIED", freeInMs: freeAt.getTime() - now.getTime() };
       const minutes = waveLengthFor(timing);
       await tx.wave.update({ where: { id: wave.id }, data: { status: "running", durationMinutes: minutes, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000) } });
-      return { ok: true, message: `(wave ${wave.number}, ${wave.teams.length} teams, every athlete signed, checked in and ready)` };
+      return { ok: true, message: `(wave ${wave.number}, ${wave.teams.length} teams, ${readinessOverridden ? "emergency readiness override: waiver, entrance and warm-up requirements waived" : "every athlete signed, checked in and ready"})` };
     }
     case "finish": {
       // A finished competition's floor is history: its results stand on it.

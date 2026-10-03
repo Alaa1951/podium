@@ -14,7 +14,7 @@ import { seatsOf, waiverStates } from "@/lib/waivers/waiver-db";
 // (readiness.ts). Nothing is dropped to make it startable.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function waveStartBlockers(tx: Prisma.TransactionClient, waveId: string, seriesId: string): Promise<TeamGaps[]> {
+export async function waveStartBlockers(tx: Prisma.TransactionClient, waveId: string, seriesId: string, readinessOverridden = false): Promise<TeamGaps[]> {
   const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM Team WHERE waveId = ${waveId} FOR UPDATE`;
   if (!locked.length) return [];
   const ids = locked.map((row) => row.id);
@@ -26,12 +26,15 @@ export async function waveStartBlockers(tx: Prisma.TransactionClient, waveId: st
     select: { id: true, number: true, name: true, waveId: true, warmupReadyAt: true, warmupWaveId: true },
   });
   const seats = await seatsOf(tx, teams.map((team) => team.id));
-  const states = await waiverStates(tx, seriesId, seats);
+  // An authorised, series-scoped emergency waives the operational checks,
+  // without changing signatures/attendance or dropping the row locks above.
+  // The no-athletes structural check still runs through startBlockers.
+  const states = readinessOverridden ? null : await waiverStates(tx, seriesId, seats);
   const checks: TeamCheck[] = teams.map((team) => ({
     id: team.id, number: team.number, name: team.name, inField: true, waveId: team.waveId,
-    readyForWaveId: team.warmupReadyAt ? team.warmupWaveId : null,
+    readyForWaveId: readinessOverridden ? waveId : team.warmupReadyAt ? team.warmupWaveId : null,
     athletes: seats.filter((seat) => seat.teamId === team.id).map((seat) => ({
-      id: seat.competitorId, name: seat.fullName, waiver: states.get(seat.competitorId)!, arrived: Boolean(seat.attendedAt),
+      id: seat.competitorId, name: seat.fullName, waiver: states ? states.get(seat.competitorId)! : "not_required", arrived: readinessOverridden || Boolean(seat.attendedAt),
     })),
   }));
   return startBlockers(checks, waveId);

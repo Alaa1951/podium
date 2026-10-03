@@ -168,6 +168,21 @@ The sync checks this protection when planning updates and again when writing
 them, so an older sync snapshot cannot undo a payment just confirmed by staff.
 Marking an entry unpaid locally does not protect it from later CRM payment data.
 
+### Event-day readiness override
+
+Set `EVENT_READINESS_OVERRIDE_SERIES_ID` to the exact competition database ID
+to waive waiver acceptance, entrance arrival and warm-up readiness as operational
+prerequisites for that competition. Unset it to restore the normal requirements.
+The override preserves permissions, registration and station checks, row locks,
+wave timing and score protection. It does not sign waivers or mark anyone arrived.
+Actual check-ins and wave starts record the override in their history/audit.
+
+The 3 October 2026 emergency was applied to the running server chunks with a
+private rollback manifest under `/opt/backups/event-readiness-hotfix-*`, and a
+`90-event-readiness.conf` service drop-in. Before any later normal deployment,
+include the matching source implementation and retain or remove the drop-in
+deliberately. A build made from older source would restore the original gates.
+
 ### Reviewed CRM registration consolidation
 
 `scripts/merge-crm-registrations.mjs` consolidates a reviewed pair of registrations

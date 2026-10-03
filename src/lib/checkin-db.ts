@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { canCheckInEntrance, canMarkWarmupReady, teamScope, type CurrentUser } from "@/lib/access";
 import { entranceGaps, warmupGaps, type TeamCheck, type TeamGaps } from "@/lib/readiness";
 import { seatsOf, waiverStates } from "@/lib/waivers/waiver-db";
+import { isEventReadinessOverridden } from "@/lib/event-readiness-override";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRITING THE TWO CHECK-INS, AND THE TWO CHECK-OUTS.
@@ -139,15 +140,16 @@ export function setTeamArrival(
         // The first check-in time stands, for each person and for the team.
         if (here.length === seats.length && (team.attendedAt || !seats.length)) return { ok: true, changed: false, team: label, detail: "" };
         const check = await teamCheck(tx, team);
-        const missing = entranceGaps(check.athletes);
+        const overridden = isEventReadinessOverridden({ id: team.seriesId });
+        const missing = overridden ? [] : entranceGaps(check.athletes);
         if (!check.inField || missing.length) {
           throw new Refused("PREREQUISITES", { team: { id: team.id, number: team.number, name: team.name }, gaps: check.inField ? [] : ["registration"], athletes: missing });
         }
         const arriving = seats.filter((seat) => !seat.attendedAt);
         await tx.competitor.updateMany({ where: { teamId: team.id, attendedAt: null }, data: { attendedAt: now } });
         if (!team.attendedAt) await tx.team.update({ where: { id: team.id }, data: { attendedAt: now } });
-        await record(tx, team, actor.id, arriving.map((seat) => ({ kind: "entrance_in", competitorId: seat.id })));
-        return { ok: true, changed: true, team: label, detail: `checked in (${seats.length} of ${seats.length} athletes)` };
+        await record(tx, team, actor.id, arriving.map((seat) => ({ kind: "entrance_in", competitorId: seat.id, ...(overridden ? { reason: "event-day readiness override" } : {}) })));
+        return { ok: true, changed: true, team: label, detail: `checked in (${seats.length} of ${seats.length} athletes)${overridden ? "; event-day readiness override" : ""}` };
       }
       if (!here.length && !team.attendedAt) return { ok: true, changed: false, team: label, detail: "" };
       await tx.competitor.updateMany({ where: { teamId: team.id, NOT: { attendedAt: null } }, data: { attendedAt: null } });
@@ -180,15 +182,16 @@ export async function setAthleteArrival(
 
       if (input.attended) {
         const check = await teamCheck(tx, team);
-        const missing = entranceGaps(check.athletes.filter((one) => one.id === seat.id));
+        const missing = isEventReadinessOverridden({ id: team.seriesId }) ? [] : entranceGaps(check.athletes.filter((one) => one.id === seat.id));
         if (!check.inField || missing.length) {
           throw new Refused("PREREQUISITES", { team: { id: team.id, number: team.number, name: team.name }, gaps: check.inField ? [] : ["registration"], athletes: missing });
         }
       }
       await tx.competitor.update({ where: { id: seat.id }, data: { attendedAt: input.attended ? now : null } });
       await syncTeamArrival(tx, team.id);
-      await record(tx, team, actor.id, [{ kind: input.attended ? "entrance_in" : "entrance_out", competitorId: seat.id }]);
-      if (input.attended) return { ok: true, changed: true, team: label, detail: `${seat.fullName} checked in` };
+      const overridden = input.attended && isEventReadinessOverridden({ id: team.seriesId });
+      await record(tx, team, actor.id, [{ kind: input.attended ? "entrance_in" : "entrance_out", competitorId: seat.id, ...(overridden ? { reason: "event-day readiness override" } : {}) }]);
+      if (input.attended) return { ok: true, changed: true, team: label, detail: `${seat.fullName} checked in${overridden ? "; event-day readiness override" : ""}` };
       const cleared = await clearReadiness(tx, team, actor.id, `${seat.fullName} checked out`);
       return { ok: true, changed: true, team: label, detail: `${seat.fullName} checked out${cleared ? "; warm-up readiness cleared" : ""}` };
     })
@@ -217,12 +220,14 @@ export function setWarmupReady(
       }
       const check = await teamCheck(tx, team);
       const gaps = warmupGaps(check);
+      const overridden = isEventReadinessOverridden({ id: team.seriesId });
+      if (overridden) gaps.athletes = [];
       if (gaps.gaps.length || gaps.athletes.length) throw new Refused("PREREQUISITES", gaps);
       if (team.warmupReadyAt && team.warmupWaveId === team.waveId) return { ok: true, changed: false, team: label, detail: "" };
       await tx.team.update({ where: { id: team.id }, data: { warmupReadyAt: now, warmupWaveId: team.waveId } });
-      await record(tx, team, actor.id, [{ kind: "warmup_in", waveId: team.waveId }]);
+      await record(tx, team, actor.id, [{ kind: "warmup_in", waveId: team.waveId, ...(overridden ? { reason: "event-day readiness override" } : {}) }]);
       const wave = team.waveId ? await tx.wave.findUnique({ where: { id: team.waveId }, select: { number: true } }) : null;
-      return { ok: true, changed: true, team: label, detail: `ready to compete in wave ${wave?.number ?? "?"} (warm-up check-in)` };
+      return { ok: true, changed: true, team: label, detail: `ready to compete in wave ${wave?.number ?? "?"} (warm-up check-in)${overridden ? "; event-day readiness override" : ""}` };
     })
   );
 }
